@@ -1,0 +1,48 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------|
+# |            Pre Validation Tasks for HANA DB Tests                         |
+# /*---------------------------------------------------------------------------|
+
+- name:                             "Pre Validation: HANA DB Nodes"
+  when:                             node_tier == "hana"
+  block:
+    - name:                         "Pre Validation: Remove any location_constraints"
+      become:                       true
+      location_constraints:
+        action:                     "remove"
+        ansible_os_family:          "{{ ansible_os_family | upper}}"
+      register:                     location_constraints_results
+
+    - name:                         "Pre Validation: Validate HANA DB cluster status on primary node"
+      become:                       true
+      get_cluster_status_db:
+        operation_step:             "pre_failover"
+        ansible_os_family:          "{{ ansible_os_family | upper }}"
+        database_sid:               "{{ db_sid | lower }}"
+      register:                     cluster_status_pre
+
+    - name:                         "Pre Validation: CleanUp any failed resource"
+      become:                       true
+      ansible.builtin.command:      crm_resource --cleanup
+      ignore_errors:                true
+      register:                     cleanup_failed_resource_pre
+      timeout:                      60
+      retries:                      3
+      until:                        cleanup_failed_resource_pre.rc == 0
+      changed_when:                 cleanup_failed_resource_pre.rc == 0
+      failed_when:                  cleanup_failed_resource_pre.rc != 0
+
+    - name:                         "Pre Validation: Set default pre Validation status as false"
+      ansible.builtin.set_fact:
+        pre_validations_status:     "FAILED"
+
+    - name:                         "Pre Validation: Set pre Validation status"
+      when:
+                                    - cluster_status_pre is defined
+                                    - cluster_status_pre.primary_node != "" and
+                                      cluster_status_pre.secondary_node != ""
+                                    - cluster_status_pre.pacemaker_status == "running"
+      ansible.builtin.set_fact:
+        pre_validations_status:     "PASSED"

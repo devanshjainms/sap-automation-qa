@@ -1,0 +1,9 @@
+# SAP SCS High Availability Test Cases
+
+## Test Case Overview
+
+| Test Case                    | Type          | Description                                                                                                                                                                   | More Info                                                                                                       |
+|------------------------------|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
+| HA Parameters Validation     | Configuration | The HA parameter validation test validates HA configuration including Corosync settings, Pacemaker resources, SBD device configuration, and SCS system replication setup.  | [ha-config.yml](../src/roles/ha_scs/tasks/ha-config.yml)                                                        |
+| Resource Migration           | Failover      | The Resource Migration test validates planned failover scenarios by controlling resource movement between SCS nodes, ensuring proper role changes and data synchronization. | [ascs-migration.yml](../src/roles/ha_scs/tasks/ascs-migration.yml)                                        |
+| ASCS Node Crash                | Network       | The ASCS Node Crash test simulates cluster behavior when the ASCS node crashes. It simulates an ASCS node failure by forcefully terminating the process, then verifies automatic failover to the ERS node, monitors system replication status, and confirms service recovery without data loss. | [ascs-node-crash.yml](../src/roles/ha_scs/tasks/ascs-node-crash.yml)                                                  |

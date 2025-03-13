@@ -1,0 +1,308 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Description: This file contains the expected configuration for the pacemaker cluster. The values
+# are based on Microsoft's best practices and are subject to change based on the customer's requirements.
+
+# === CRM Configuration Defaults ===
+# cibadmin --query --scope crm_config
+CRM_CONFIG_DEFAULTS:
+  cluster-infrastructure:             corosync
+  priority-fencing-delay:             '30'
+  stonith-action:                     reboot
+  stonith-enabled:                    'true'
+  concurrent-fencing:                 'true'
+  maintenance-mode:                   'false'
+  node-health-strategy:               'custom'
+  azure-events-az_globalPullState:    'IDLE'
+
+# === Operation Defaults ===
+# cibadmin --query --scope op_defaults
+OP_DEFAULTS:
+  record-pending:                     'true'
+  timeout:                            '600'
+
+# === Resource Defaults ===
+# cibadmin --query --scope rsc_defaults
+RSC_DEFAULTS:
+  migration-threshold:                '5000'
+  priority:                           '1'
+  resource-stickiness:                '1000'
+
+# === Constraints ===
+# cibadmin --query --scope constraints
+CONSTRAINTS:
+  rsc_colocation:
+    score:                            "4000"
+    rsc-role:                         "Started"
+
+  rsc_order:
+    kind:                             "Optional"
+
+# === Valid Configurations for different OS versions ===
+# Specify the properties that are different for different OS versions
+VALID_CONFIGS:
+  REDHAT:
+    priority-fencing-delay:           '15s'
+  SUSE: {}
+  AFA:
+    have-watchdog:                    "false"
+    stonith-timeout:                  "900"
+  ISCSI:
+    have-watchdog:                    "true"
+    stonith-timeout:                  "144s"
+
+
+# === Resource Defaults ===
+# cibadmin --query --scope resources
+RESOURCE_DEFAULTS:
+  SUSE:
+    stonith:
+      AFA:
+        instance_attributes:
+          pcmk_delay_max:                 "30s"
+          pcmk_monitor_retries:           "4"
+          pcmk_action_limit:              "3"
+          pcmk_reboot_timeout:            "900"
+          power_timeout:                  "240"
+          pcmk_monitor_timeout:           "120"
+        operations:
+          monitor:
+            interval:                     "3600"
+      ISCSI:
+        instance_attributes:
+          pcmk_delay_max:                 "30s"
+          pcmk_monitor_retries:           "4"
+          pcmk_action_limit:              "3"
+          pcmk_reboot_timeout:            "900"
+          power_timeout:                  "240"
+          pcmk_monitor_timeout:           "120"
+        operations:
+          monitor:
+            interval:                     "600"
+            timeout:                      "15"
+
+    topology:
+      meta_attributes:
+        clone-node-max:                   "1"
+        target-role:                      "Started"
+        interleave:                       "true"
+      operations:
+        monitor:
+          interval:                       "10"
+          timeout:                        "600"
+        start:
+          interval:                       "0"
+          timeout:                        "600"
+        stop:
+          interval:                       "0"
+          timeout:                        "300"
+
+    hana:
+      meta_attributes:
+        notify:                           "true"
+        clone-max:                        "2"
+        clone-node-max:                   "1"
+        target-role:                      "Started"
+        interleave:                       "true"
+        priority:                         "100"
+      instance_attributes:
+        PREFER_SITE_TAKEOVER:             "true"
+        DUPLICATE_PRIMARY_TIMEOUT:        "7200"
+        AUTOMATED_REGISTER:               "true"
+      operations:
+        start:
+          interval:                       "0"
+          timeout:                        "3600"
+        stop:
+          interval:                       "0"
+          timeout:                        "3600"
+        promote:
+          interval:                       "0"
+          timeout:                        "3600"
+        monitor:
+          timeout:                        "700"
+
+    ipaddr:
+      meta_attributes:
+        target-role:                      "Started"
+      operations:
+        monitor:
+          interval:                       "10s"
+          timeout:                        "20s"
+
+    filesystem:
+      meta_attributes:
+        clone-node-max:                   "1"
+        interleave:                       "true"
+      operations:
+        monitor:
+          interval:                       "120"
+          timeout:                        "120"
+        start:
+          interval:                       "0"
+          timeout:                        "120"
+        stop:
+          interval:                       "0"
+          timeout:                        "120"
+
+    azurelb:
+      meta_attributes:
+        resource-stickiness:              "0"
+
+  REDHAT:
+    stonith:
+      AFA:
+        instance_attributes:
+          pcmk_delay_max:                 "30s"
+          pcmk_monitor_retries:           "4"
+          pcmk_action_limit:              "3"
+          pcmk_reboot_timeout:            "900"
+          power_timeout:                  "240"
+          pcmk_monitor_timeout:           "120"
+        operations:
+          monitor:
+            interval:                     "3600"
+      ISCSI:
+        instance_attributes:
+          pcmk_monitor_retries:           "4"
+          pcmk_action_limit:              "3"
+          pcmk_reboot_timeout:            "900"
+          power_timeout:                  "240"
+          pcmk_monitor_timeout:           "120"
+        operations:
+          monitor:
+            interval:                     "600"
+            timeout:                      "15"
+
+    topology:
+      meta_attributes:
+        clone-node-max:                   "1"
+        clone-max:                        "2"
+        target-role:                      "Started"
+        interleave:                       "true"
+        failure-timeout:                  "120s"
+      operations:
+        monitor:
+          interval:                       "10"
+          timeout:                        "600"
+        start:
+          interval:                       "0s"
+          timeout:                        "600"
+        stop:
+          interval:                       "0s"
+          timeout:                        "300"
+        methods:
+          timeout:                        "5"
+          interval:                       "0s"
+        reload:
+          timeout:                        "5"
+          interval:                       "0s"
+
+    hana:
+      meta_attributes:
+        notify:                           "true"
+        clone-max:                        "2"
+        clone-node-max:                   "1"
+        target-role:                      "Started"
+        interleave:                       "true"
+        priority:                         "100"
+      instance_attributes:
+        PREFER_SITE_TAKEOVER:             "true"
+        DUPLICATE_PRIMARY_TIMEOUT:        "7200"
+        AUTOMATED_REGISTER:               "true"
+      operations:
+        start:
+          interval:                       "0"
+          timeout:                        "3600"
+        stop:
+          interval:                       "0"
+          timeout:                        "3600"
+        promote:
+          interval:                       "0"
+          timeout:                        "3600"
+        monitor:
+          timeout:                        "700"
+
+    ipaddr:
+      meta_attributes:
+        target-role:                      "Started"
+      operations:
+        monitor:
+          interval:                       "10s"
+          timeout:                        "20s"
+        start:
+          interval:                       "0s"
+          timeout:                        "20s"
+        stop:
+          interval:                       "0s"
+          timeout:                        "20s"
+
+    filesystem:
+      meta_attributes:
+        clone-node-max:                   "1"
+        interleave:                       "true"
+      operations:
+        monitor:
+          interval:                       "120"
+          timeout:                        "120"
+        start:
+          interval:                       "0"
+          timeout:                        "120"
+        stop:
+          interval:                       "0"
+          timeout:                        "120"
+
+    azurelb:
+      meta_attributes:
+        resource-stickiness:              "0"
+      operations:
+        monitor:
+          interval:                       "10s"
+          timeout:                        "20s"
+        start:
+          interval:                       "0s"
+          timeout:                        "20s"
+        stop:
+          interval:                       "0s"
+          timeout:                        "20s"
+
+
+# === OS Parameters ===
+# Run command as root. Format of command is: "parent_key child_key"
+# Example: sysctl net.ipv4.tcp_timestamps
+OS_PARAMETERS:
+  DEFAULTS:
+    sysctl:
+      net.ipv4.tcp_timestamps:          "net.ipv4.tcp_timestamps = 0"
+      vm.swappiness:                    "vm.swappiness = 10"
+    corosync-cmapctl:
+      runtime.config.totem.token:       "runtime.config.totem.token (u32) = 30000"
+      runtime.config.totem.consensus:   "runtime.config.totem.consensus (u32) = 36000"
+
+# === Global INI ===
+# Reading the global.ini file to get the provider and path for the SAPHanaSR resource agent
+GLOBAL_INI:
+  SUSE:
+    provider:                           "SAPHanaSR"
+    path:                               "/usr/share/SAPHanaSR"
+    execution_order:                    "1"
+
+  REDHAT:
+    provider:                           "SAPHanaSR"
+    path:                               "/hana/shared/myHooks"
+    execution_order:                    "1"
+
+
+# === Azure Load Balancer ===
+# Azure Load Balancer configuration
+AZURE_LOADBALANCER:
+  PROBES:
+    probe_threshold:                    2
+    interval_in_seconds:                5
+    number_of_probes:                   2
+
+  RULES:
+    idle_timeout_in_minutes:            30
+    enable_floating_ip:                 true
+    enable_tcp_reset:                   false
