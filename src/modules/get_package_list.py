@@ -13,6 +13,77 @@ try:
 except ImportError:
     from src.module_utils.sap_automation_qa import SapAutomationQA, TestStatus
 
+DOCUMENTATION = r"""
+---
+module: get_package_list
+short_description: Formats package information for SAP clusters
+description:
+    - This module formats package information for SAP HANA and cluster components
+    - Takes a package facts list and extracts details for relevant packages
+    - Returns a structured list with version, release and architecture information
+    - Specifically handles cluster packages like Pacemaker, Corosync, and SAP-specific packages
+options:
+    package_facts_list:
+        description:
+            - Dictionary of package facts as retrieved from ansible.builtin.package_facts
+        type: dict
+        required: true
+author:
+    - Microsoft Corporation
+notes:
+    - Works with both RedHat and SUSE package formats
+    - Requires package facts to be collected before using this module
+requirements:
+    - python >= 3.6
+"""
+
+EXAMPLES = r"""
+- name: Gather package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Format package list for SAP cluster components
+  get_package_list:
+    package_facts_list: "{{ ansible_facts.packages }}"
+  register: formatted_packages
+
+- name: Display formatted package information
+  debug:
+    var: formatted_packages.details
+"""
+
+RETURN = r"""
+status:
+    description: Status of the operation
+    returned: always
+    type: str
+    sample: "SUCCESS"
+details:
+    description: List of formatted package details
+    returned: always
+    type: list
+    elements: dict
+    contains:
+        package_name:
+            description: Details for a specific package
+            returned: for each found package
+            type: dict
+            contains:
+                version:
+                    description: Package version
+                    type: str
+                    sample: "2.0.1"
+                release:
+                    description: Package release
+                    type: str
+                    sample: "1.el8"
+                architecture:
+                    description: Package architecture
+                    type: str
+                    sample: "x86_64"
+"""
+
+
 PACKAGE_LIST = [
     {"name": "Corosync Lib", "key": "corosynclib"},
     {"name": "Corosync", "key": "corosync"},
@@ -57,8 +128,8 @@ class PackageListFormatter(SapAutomationQA):
                 for package in PACKAGE_LIST
                 if package["key"] in self.package_facts_list
             ]
-        except Exception as e:
-            self.handle_error(e)
+        except Exception as ex:
+            self.handle_error(ex)
         self.result["status"] = TestStatus.SUCCESS.value
         return self.result
 

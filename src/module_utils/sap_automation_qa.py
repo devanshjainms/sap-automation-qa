@@ -3,7 +3,6 @@ This module is used to setup the context for the test cases
 and setup base variables for the test case running in the sap-automation-qa
 """
 
-import os
 from abc import ABC
 from enum import Enum
 import sys
@@ -117,10 +116,11 @@ class SapAutomationQA(ABC):
         :param stderr: Standard error output from the command
         :type stderr: str
         """
-        error_message = f"Error executing command: {exception}. More errors: {stderr}"
+        error_message = f"Error executing command: {exception}."
+        if stderr:
+            error_message += f" More errors: {stderr}"
         error_message.replace("'", "")
         self.log(logging.ERROR, error_message)
-        self.logger.error(error_message)
         self.result["status"] = TestStatus.ERROR.value
         self.result["message"] = error_message
         self.result["logs"].append(error_message)
@@ -153,12 +153,12 @@ class SapAutomationQA(ABC):
             stdout = command_output.stdout.decode("utf-8")
             stderr = command_output.stderr.decode("utf-8")
             return stdout if not stderr else stderr
-        except subprocess.TimeoutExpired as e:
-            self.handle_error(e, "Command timed out")
-        except subprocess.CalledProcessError as e:
-            self.handle_error(e, e.stderr.decode("utf-8").strip())
-        except Exception as e:
-            self.handle_error(e, "")
+        except subprocess.TimeoutExpired as ex:
+            self.handle_error(ex, "Command timed out")
+        except subprocess.CalledProcessError as ex:
+            self.handle_error(ex, ex.stderr.decode("utf-8").strip())
+        except Exception as ex:
+            self.handle_error(ex, "")
         return ""
 
     def parse_xml_output(self, xml_output: str) -> Optional[ET.Element]:

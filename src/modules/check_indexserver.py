@@ -13,6 +13,74 @@ try:
 except ImportError:
     from src.module_utils.sap_automation_qa import SapAutomationQA, TestStatus
 
+DOCUMENTATION = r"""
+---
+module: check_indexserver
+short_description: Checks SAP HANA indexserver configuration
+description:
+    - Verifies if the SAP HANA indexserver is properly configured by examining the HA/DR provider configuration
+    - Validates the global.ini file to ensure high availability settings are correctly implemented
+    - Supports different configurations based on operating system distribution (RedHat or SUSE)
+options:
+    database_sid:
+        description:
+            - SAP HANA database SID
+        type: str
+        required: true
+    ansible_os_family:
+        description:
+            - Operating system distribution (e.g., 'redhat' or 'suse')
+        type: str
+        required: true
+author:
+    - Microsoft Corporation
+notes:
+    - This module requires access to the global.ini file in the SAP HANA installation path
+    - The checks are specific to each operating system distribution
+    - For RedHat, it checks for ChkSrv provider configuration
+    - For SUSE, it checks for susChkSrv provider configuration
+"""
+
+EXAMPLES = r"""
+- name: Check if SAP HANA indexserver is configured
+  check_indexserver:
+    database_sid: "HDB"
+    ansible_os_family: "{{ ansible_os_family|lower }}"
+  register: indexserver_result
+
+- name: Display indexserver check results
+  debug:
+    msg: "Indexserver check status: {{ indexserver_result.status }}, enabled: {{ indexserver_result.indexserver_enabled }}"
+
+- name: Fail if indexserver is not configured
+  fail:
+    msg: "{{ indexserver_result.message }}"
+  when: indexserver_result.indexserver_enabled == "no"
+"""
+
+RETURN = r"""
+status:
+    description: Status of the check
+    returned: always
+    type: str
+    sample: "SUCCESS"
+message:
+    description: Descriptive message about the result
+    returned: always
+    type: str
+    sample: "Indexserver is configured."
+details:
+    description: Extracted configuration properties from global.ini
+    returned: always
+    type: dict
+    sample: {"provider": "ChkSrv", "path": "/usr/share/SAPHanaSR/srHook"}
+indexserver_enabled:
+    description: Whether indexserver is properly configured
+    returned: always
+    type: str
+    sample: "yes"
+"""
+
 
 class IndexServerCheck(SapAutomationQA):
     """
@@ -117,11 +185,11 @@ class IndexServerCheck(SapAutomationQA):
                     "indexserver_enabled": "no",
                 }
             )
-        except Exception as e:
+        except Exception as ex:
             self.result.update(
                 {
                     "status": TestStatus.ERROR.value,
-                    "message": f"Exception occurred while checking indexserver configuration: {e}",
+                    "message": f"Exception occurred while checking indexserver configuration: {ex}",
                     "details": {},
                     "indexserver_enabled": "no",
                 }

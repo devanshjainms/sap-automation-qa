@@ -4,6 +4,7 @@
 """
 Custom ansible module for formatting the packages list
 """
+
 import logging
 from typing import Dict, Any
 from ansible.module_utils.basic import AnsibleModule
@@ -15,16 +16,73 @@ except ImportError:
     from src.module_utils.sap_automation_qa import SapAutomationQA, TestStatus
     from src.module_utils.commands import FREEZE_FILESYSTEM
 
+DOCUMENTATION = r"""
+---
+module: filesystem_freeze
+short_description: Freezes the filesystem mounted on /hana/shared
+description:
+    - This module freezes (mounts as read-only) the filesystem mounted on /hana/shared
+    - Identifies the device that is mounted on /hana/shared automatically
+    - Only proceeds with the operation if NFS provider is Azure NetApp Files (ANF)
+options:
+    nfs_provider:
+        description:
+            - The NFS provider type
+            - Module only executes if this is set to "ANF"
+        type: str
+        required: true
+author:
+    - Microsoft Corporation
+notes:
+    - This module requires root permissions to execute filesystem commands
+    - Uses /proc/mounts to identify the filesystem device
+    - Only works with Azure NetApp Files as the NFS provider
+"""
+
+EXAMPLES = r"""
+- name: Freeze the filesystem on /hana/shared
+  filesystem_freeze:
+    nfs_provider: "ANF"
+  register: freeze_result
+
+- name: Display freeze operation results
+  debug:
+    msg: "{{ freeze_result.message }}"
+
+- name: Skip freezing for non-ANF providers
+  filesystem_freeze:
+    nfs_provider: "Other"
+  register: freeze_result
+"""
+
+RETURN = r"""
+changed:
+    description: Whether the module made any changes
+    returned: always
+    type: bool
+    sample: true
+message:
+    description: Status message describing the result
+    returned: always
+    type: str
+    sample: "The file system (/hana/shared) was successfully mounted read-only."
+status:
+    description: Status code of the operation
+    returned: always
+    type: str
+    sample: "SUCCESS"
+details:
+    description: Command output from the freeze operation
+    returned: on success
+    type: str
+    sample: "filesystem /dev/mapper/vg_hana-shared successfully frozen"
+"""
+
 
 class FileSystemFreeze(SapAutomationQA):
     """
     Class to run the test case when the filesystem is frozen.
     """
-
-    def __init__(
-        self,
-    ):
-        super().__init__()
 
     def _find_filesystem(self) -> str:
         """
@@ -39,8 +97,8 @@ class FileSystemFreeze(SapAutomationQA):
                     parts = line.split()
                     if len(parts) > 1 and parts[1] == "/hana/shared":
                         return parts[0]
-        except FileNotFoundError as e:
-            self.handle_error(e)
+        except FileNotFoundError as ex:
+            self.handle_error(ex)
         return None
 
     def run(self) -> Dict[str, Any]:
