@@ -12,7 +12,6 @@ the execution of the tasks.
 
 import os
 import shutil
-from pathlib import Path
 import pytest
 from tests.roles.ha_db_hana.roles_testing_base_db import RolesTestingBaseDB
 
@@ -29,8 +28,6 @@ class TestBlockNetworkTest(RolesTestingBaseDB):
 
         :param ansible_inventory: Path to the Ansible inventory file.
         :type ansible_inventory: str
-        :param task_type: Dictionary with task configuration details.
-        :type task_type: dict
         :yield temp_dir: Path to the temporary test environment.
         :type: str
         """
