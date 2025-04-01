@@ -1,5 +1,6 @@
 # SAP Testing Automation Framework
 
+![SAP Testing Automation Framework](./docs/images/sap-automation-qa.svg)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Azure](https://img.shields.io/badge/Microsoft-SAP%20on%20Azure-0078D4?logo=microsoft)](https://docs.microsoft.com/azure/sap)
