@@ -41,10 +41,10 @@
     context:                        "{{ system_context }}"
     filter_tags:                    "{{ tags_filter | default(omit) }}"
     filter_categories:              "{{ categories_filter | default(omit) }}"
-    generate_report:                false
     workspace_directory:            "{{ _workspace_directory }}"
     test_group_invocation_id:       "{{ test_group_invocation_id }}"
     test_group_name:                "ConfigurationChecks"
+    hostname:                       "{{ ansible_hostname }}"
   register:                         configuration_check_result
 
 - name:                             Set dynamic result variable
