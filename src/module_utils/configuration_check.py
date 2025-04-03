@@ -51,8 +51,8 @@ class Check:
     name: str
     description: str
     category: str
-    severity: Severity = Severity.MEDIUM
     workload: str
+    severity: Severity = Severity.MEDIUM
     collector_type: str = "command"
     collector_args: Dict[str, Any] = field(default_factory=dict)
     validator_type: str = "string"
