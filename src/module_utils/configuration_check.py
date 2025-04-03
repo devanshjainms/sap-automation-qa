@@ -8,8 +8,18 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List, Type
 from datetime import datetime
-from src.module_utils.sap_automation_qa import TestStatus, Severity, SapAutomationQA, Collector
-from src.module_utils.collector import CommandCollector, AzureDataCollector
+
+try:
+    from ansible.module_utils.sap_automation_qa import (
+        TestStatus,
+        Severity,
+        SapAutomationQA,
+        Collector,
+    )
+    from ansible.module_utils.collector import CommandCollector, AzureDataCollector
+except ImportError:
+    from src.module_utils.sap_automation_qa import TestStatus, Severity, SapAutomationQA, Collector
+    from src.module_utils.collector import CommandCollector, AzureDataCollector
 
 
 @dataclass
