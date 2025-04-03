@@ -45,4 +45,8 @@
     workspace_directory:            "{{ _workspace_directory }}"
     test_group_invocation_id:       "{{ test_group_invocation_id }}"
     test_group_name:                "ConfigurationChecks"
-  register:                         "{{ check_type.results_var }}"
+  register:                         configuration_check_result
+
+- name:                             Set dynamic result variable
+  ansible.builtin.set_fact:
+    "{{ check_type.results_var }}": "{{ configuration_check_result }}"
