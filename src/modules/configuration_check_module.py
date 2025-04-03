@@ -138,11 +138,6 @@ class ConfigurationCheckModule:
     def run(self):
         """Run the module"""
         try:
-            if not os.path.isfile(self.module_params["check_file"]):
-                self.module.fail_json(
-                    msg=f"Check file not found: {self.module_params['check_file']}"
-                )
-
             context = self.module_params["context"]
             custom_hostname = self.module_params["hostname"]
 
