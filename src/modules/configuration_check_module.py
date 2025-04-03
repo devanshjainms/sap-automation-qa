@@ -4,6 +4,19 @@
 """
 Ansible Python module to check the configuration of the workload system running on Azure
 """
+
+import os
+from ansible.module_utils.basic import AnsibleModule
+
+try:
+    from ansible.module_utils.configuration_check import ConfigurationCheck
+
+    HAS_CONFIG_CHECK = True
+except ImportError:
+    from src.module_utils.configuration_check import ConfigurationCheck
+
+    HAS_CONFIG_CHECK = False
+
 DOCUMENTATION = r"""
 ---
 module: configuration_check
@@ -79,16 +92,6 @@ report_path:
   type: str
   returned: when generate_report is true
 """
-
-import os
-from ansible.module_utils.basic import AnsibleModule
-
-try:
-    from ansible.module_utils.configuration_check import ConfigurationCheck
-    HAS_CONFIG_CHECK = True
-except ImportError:
-    from src.module_utils.configuration_check import ConfigurationCheck
-    HAS_CONFIG_CHECK = False
 
 
 class ConfigurationCheckModule:

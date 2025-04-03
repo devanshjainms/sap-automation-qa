@@ -10,16 +10,11 @@ from typing import Optional, Dict, Any, List, Type
 from datetime import datetime
 
 try:
-    from ansible.module_utils.sap_automation_qa import (
-        TestStatus,
-        Severity,
-        SapAutomationQA,
-        Collector,
-    )
-    from ansible.module_utils.collector import CommandCollector, AzureDataCollector
+    from ansible.module_utils.sap_automation_qa import TestStatus, Severity, SapAutomationQA
+    from ansible.module_utils.collector import Collector, CommandCollector, AzureDataCollector
 except ImportError:
-    from src.module_utils.sap_automation_qa import TestStatus, Severity, SapAutomationQA, Collector
-    from src.module_utils.collector import CommandCollector, AzureDataCollector
+    from src.module_utils.sap_automation_qa import TestStatus, Severity, SapAutomationQA
+    from src.module_utils.collector import Collector, CommandCollector, AzureDataCollector
 
 
 @dataclass
