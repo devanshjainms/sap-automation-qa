@@ -1,0 +1,149 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------8
+# |                           Configuration Checks                             |
+# +------------------------------------4--------------------------------------*/
+
+- hosts:                                localhost
+  gather_facts:                         true
+  name:                                 "Setup deployer for Configuration Checks"
+  vars_files:                           "./vars/input-api.yaml"
+  tasks:
+    - name:                             "Install python azure pacakges required"
+      become:                           true
+      ansible.builtin.pip:
+        name:
+          - ansible-runner
+          - azure-kusto-data
+          - azure-kusto-ingest
+
+- hosts: "{{ sap_sid | upper }}_SCS:
+          {{ sap_sid | upper }}_ERS:
+          {{ sap_sid | upper }}_DB:
+          {{ sap_sid | upper }}_APP:
+          {{ sap_sid | upper }}_WEB:
+          {{ sap_sid | upper }}_OBSERVER:
+          {{ sap_sid | upper }}_PAS"
+  name:                                 "Host tasks"
+  gather_facts:                         true
+  vars_files:                           "./vars/input-api.yaml"
+  tasks:
+    - name:                             "Enable profile_tasks callback plugin"
+      ansible.builtin.set_fact:
+        ansible_callbacks:
+          profile_tasks:                true
+
+    - name:                             "Set configuration test type if not defined"
+      ansible.builtin.set_fact:
+        configuration_test_type:        "{{ configuration_test_type | default('all') }}"
+      run_once:                         true
+
+    - name:                             "Set the test group name based on the inputs"
+      ansible.builtin.set_fact:
+        test_group_name:                "{{ configuration_test_type_map
+                                        | selectattr('name', 'equalto', configuration_test_type)
+                                        | map(attribute='value')
+                                        | first }}"
+        role:                           "{{ (group_names
+                                        | select('match', sap_sid + '_.*')
+                                        | map('regex_replace', sap_sid + '_(.*)', '\\1')
+                                        | list)[0] | default('UNKNOWN') }}"
+      run_once:                         true
+
+    - name:                             Set the test group facts
+      ansible.builtin.set_fact:
+        test_group_start_time:          "{{ now(utc=true,fmt='%Y-%m-%d %H:%M:%S') }}"
+        test_group_invocation_id:       "{{ lookup('pipe', 'uuidgen') }}"
+      run_once:                         true
+
+    - name:                             "Load supported VM information"
+      ansible.builtin.include_vars:
+        file:                           "./roles/configuration_checks/vars/vm-support.yml"
+
+    - name:                             "Run common VM information checks on all hosts"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      loop:
+        - {
+                                        name: "VM Information",
+                                        file_name: "vm-info",
+                                        checks_var: "vm_info_checks",
+                                        results_var: "vm_info_results"
+          }
+        - {
+                                        name: "Package Information",
+                                        file_name: "package",
+                                        checks_var: "package_info_checks",
+                                        results_var: "package_info_results"
+          }
+        - {
+                                        name: "Common SAP",
+                                        file_name: "sap",
+                                        checks_var: "common_sap_checks",
+                                        results_var: "common_sap_results"
+          }
+      loop_control:
+        loop_var:                       check_type
+
+- hosts:                                localhost
+  name:                                 "Generate Configuration Checks Report"
+  gather_facts:                         false
+  vars_files:                           "./vars/input-api.yaml"
+  tasks:
+    - name:                             "Collect all configuration check results"
+      ansible.builtin.set_fact:
+        all_results:                    []
+
+    - name:                             "Collect common check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].vm_info_results
+                                            | default([]) }}"
+      loop:                           "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                        groups[sap_sid | upper + '_ERS']|default([]) +
+                                        groups[sap_sid | upper + '_DB']|default([]) +
+                                        groups[sap_sid | upper + '_APP']|default([]) +
+                                        groups[sap_sid | upper + '_WEB']|default([]) +
+                                        groups[sap_sid | upper + '_PAS']|default([]) }}"
+      when:                             hostvars[item].vm_info_results is defined
+
+    - name:                             "Collect package info check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].package_info_results
+                                            | default([]) }}"
+      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                          groups[sap_sid | upper + '_ERS']|default([]) +
+                                          groups[sap_sid | upper + '_DB']|default([]) +
+                                          groups[sap_sid | upper + '_APP']|default([]) +
+                                          groups[sap_sid | upper + '_WEB']|default([]) +
+                                          groups[sap_sid | upper + '_PAS']|default([]) }}"
+      when:                             hostvars[item].package_info_results is defined
+
+    - name:                             "Collect common SAP check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].common_sap_results
+                                            | default([]) }}"
+      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                          groups[sap_sid | upper + '_ERS']|default([]) +
+                                          groups[sap_sid | upper + '_DB']|default([]) +
+                                          groups[sap_sid | upper + '_APP']|default([]) +
+                                          groups[sap_sid | upper + '_WEB']|default([]) +
+                                          groups[sap_sid | upper + '_PAS']|default([]) }}"
+      when:                             hostvars[item].common_sap_results is defined
+
+    - name:                             "Get OS and storage information"
+      ansible.builtin.set_fact:
+        os_version:                     "{{ hostvars[groups[sap_sid
+                                            | upper + '_SCS'][0]].ansible_distribution_version
+                                            | default('Unknown') }}
+                                          {{ hostvars[groups[sap_sid
+                                            | upper + '_SCS'][0]].ansible_distribution
+                                            | default('') }}"
+        storage_type:                   "{{ hostvars[groups[sap_sid
+                                            | upper + '_SCS'][0]].storage_type
+                                            | default('Premium_LRS') }}"
+      when:                             groups[sap_sid | upper + '_SCS'] | default([]) | length > 0
+
+    - name:                            "Run test cases by including them as roles"
+      ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
+      when:                            test_group_name is defined

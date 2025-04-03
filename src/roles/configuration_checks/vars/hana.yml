@@ -1,0 +1,828 @@
+enums:
+  severity:
+    - info:                           &info "INFO"
+    - high:                           &high "HIGH"
+    - low:                            &low "LOW"
+    - warning:                        &warning "WARNING"
+    - critical:                       &critical "CRITICAL"
+    - all_severity:                   &severity [*info, *high, *low, *warning, *critical]
+
+  os_type:
+    - suse:                           &suse "SUSE"
+    - redhat:                         &redhat "REDHAT"
+    - oraclelinux:                    &oraclelinux "OracleLinux"
+    - windows:                        &windows "Windows"
+    - all_os:                         &os_type [*suse, *redhat, *oraclelinux, *windows]
+
+  os_version:
+    - suse_12_3:                      &suse_12_3 "SUSE 12 SP3"
+    - suse_12_4:                      &suse_12_4 "SUSE 12 SP4"
+    - suse_12_5:                      &suse_12_5 "SUSE 12 SP5"
+    - suse_15_0:                      &suse_15_0 "SUSE 15 SP0"
+    - suse_15_0:                      &suse_15_1 "SUSE 15 SP1"
+    - all_versions:                   &all_versions "all"
+
+  hardware_type:
+    - vm:                             &vm "VM"
+    - hli:                            &hli "HLI"
+    - all_hardware:                   &all_hardware [*vm, *hli]
+
+  storage_type:
+    premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","ANF","PremiumV2_LRS"]
+    anf:                              &anf ["ANF"]
+
+  workload:
+    - sap:                            &sap "SAP"
+    - all_workload:                   &workload [*sap]
+
+  db:
+    - hana:                           &hana "HANA"
+    - mssql:                          &mssql "MSSQL"
+    - oracle:                         &oracle "Oracle"
+    - db2:                            &db2 "Db2"
+    - ase:                            &ase "ASE"
+    - all_db:                         &db [*hana, *mssql, *oracle, *db2, *ase]
+
+  role:
+    - db:                             &db_role "DB"
+    - ascs:                           &ascs_role "SCS"
+    - ers:                            &ers_role "ERS"
+    - app:                            &app_role "APP"
+    - webdispatcher:                  &web_dispatch "WEB"
+    - pas:                            &pas "PAS"
+    - all_role:                       &role [*db_role, *ascs_role, *ers_role, *app_role, *web_dispatch, *pas]
+
+  cluster_type:
+    - sbd:                            &sbd "ISCSI"
+    - fencing_agent:                  &fencing_agent "AFA"
+    - all_fencing_agent:              &cluster_type [*sbd, *fencing_agent]
+
+  collector_type:
+    - command:                        &command "command"
+    - azure:                          &azure "azure"
+    - all_collector_type:             &collector_type [*command, *azure]
+
+  category:
+    - package:                        &package_check "Package"
+    - vm:                             &vm_check "Virtual Machine"
+    - sap:                            &sap_check "SAP"
+    - os:                             &os_check "Operating System"
+    - all_check_types:                &category [*package_check, *vm_check, *sap_check, *os_check]
+
+  user:
+    - root:                           &root "root"
+    - sidadm:                         &sidadm "sidadm"
+    - all_users:                      &user [*root, *sidadm]
+
+  validator_type:
+    - string:                         &string "string"
+    - range:                          &range "range"
+    - list:                           &list "list"
+    - all:                            &validator_type [*string, *range, *list]
+
+  report:
+    - check:                          &check "check"
+    - section:                        &section "section"
+    - report:                         &report [*check, *section]
+
+# Checks for DB roles for database_type == hana
+
+checks:
+  - id:                                 "DB-HANA-0001"
+    name:                               "PREFER_SITE_TAKEOVER"
+    description:                        "SAP HANA Automatic Site Takeover"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+      high_availability:                true
+      high_availability_agent:          *cluster_type
+    collector_type:                     *command
+    collector_args:
+      command:                          cibadmin --query --xpath "//nvpair[@name='PREFER_SITE_TAKEOVER']" | grep -o 'value=\"[^\"]*\"' | cut -d'"' -f2
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "true"
+    report:                             *check
+
+  - id:                                 "DB-HANA-0002"
+    name:                               "AUTOMATED_REGISTER"
+    description:                        "SAP HANA Automated Register"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+      high_availability:                true
+      high_availability_agent:          *cluster_type
+    collector_type:                     *command
+    collector_args:
+      command:                          cibadmin --query --xpath "//nvpair[@name='AUTOMATED_REGISTER']" | grep -o 'value=\"[^\"]*\"' | cut -d'"' -f2
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "true"
+    report:                             *check
+
+  - id:                                 "DB-HANA-0003"
+    name:                               "stonith-action"
+    description:                        "SAP HANA stonith action (fencing)"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+      high_availability:                true
+      high_availability_agent:          *cluster_type
+    collector_type:                     *command
+    collector_args:
+      command:                          cibadmin --query --xpath "//nvpair[@name='stonith-action']" | grep -o 'value=\"[^\"]*\"' | cut -d'"' -f2
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "reboot"
+    report:                             *check
+
+  - id:                                 "DB-HANA-0006"
+    name:                               "Load Balancer timestamps Non-HA"
+    description:                        "Timestamp parameter for Non-HA Load Balancers"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+      high_availability:                false
+      high_availability_agent:          *cluster_type
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_timestamps -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "1"
+    report:                             *check
+
+  - id:                                 "DB-HANA-0007"
+    name:                               "Load Balancer timestamps HA"
+    description:                        "Timestamp parameter for HA Load Balancers"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+      high_availability:                true
+      high_availability_agent:          *cluster_type
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_timestamps -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "0"
+    report:                             *check
+
+  - id:                                 "DB-HANA-0008"
+    name:                               "sysctl net.core.rmem_max"
+    description:                        "SAP HANA sysctl net.core.rmem_max"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.core.rmem_max -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "16777216"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0009"
+    name:                               "sysctl net.core.wmem_max"
+    description:                        "SAP HANA sysctl net.core.wmem_max"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.core.wmem_max -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "16777216"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0010"
+    name:                               "sysctl net.ipv4.tcp_rmem"
+    description:                        "SAP HANA sysctl net.ipv4.tcp_rmem"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_rmem -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "4096 131072 16777216"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0011"
+    name:                               "sysctl net.ipv4.tcp_wmem"
+    description:                        "SAP HANA sysctl net.ipv4.tcp_wmem"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_wmem -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "4096 16384 16777216"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0012"
+    name:                               "sysctl net.core.netdev_max_backlog"
+    description:                        "SAP HANA sysctl net.core.netdev_max_backlog"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.core.netdev_max_backlog -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "300000"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0013"
+    name:                               "sysctl net.ipv4.tcp_slow_start_after_idle"
+    description:                        "SAP HANA sysctl net.ipv4.tcp_slow_start_after_idle"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_slow_start_after_idle -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "0"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0014"
+    name:                               "sysctl net.ipv4.tcp_moderate_rcvbuf"
+    description:                        "SAP HANA sysctl net.ipv4.tcp_moderate_rcvbuf"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_moderate_rcvbuf -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "1"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0015"
+    name:                               "sysctl net.ipv4.tcp_window_scaling"
+    description:                        "SAP HANA sysctl net.ipv4.tcp_window_scaling"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_window_scaling -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "1"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0016"
+    name:                               "sysctl net.ipv4.tcp_timestamps"
+    description:                        "SAP HANA sysctl net.ipv4.tcp_timestamps"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_timestamps -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "1"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0017"
+    name:                               "sysctl net.ipv4.tcp_sack"
+    description:                        "SAP HANA sysctl net.ipv4.tcp_sack"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_sack -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "1"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0018"
+    name:                               "sysctl net.ipv6.conf.all.disable_ipv6"
+    description:                        "SAP HANA sysctl net.ipv6.conf.all.disable_ipv6"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv6.conf.all.disable_ipv6 -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "1"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0019"
+    name:                               "sysctl net.ipv4.tcp_max_syn_backlog"
+    description:                        "SAP HANA sysctl net.ipv4.tcp_max_syn_backlog"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_max_syn_backlog -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "16348"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0020"
+    name:                               "sysctl net.ipv4.ip_local_port_range"
+    description:                        "SAP HANA sysctl net.ipv4.ip_local_port_range"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.ip_local_port_range -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "9000 65300"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0021"
+    name:                               "sysctl net.ipv4.conf.all.rp_filter"
+    description:                        "SAP HANA sysctl net.ipv4.conf.all.rp_filter"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.conf.all.rp_filter -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "0"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0022"
+    name:                               "sysctl sunrpc.tcp_slot_table_entries"
+    description:                        "SAP HANA sysctl sunrpc.tcp_slot_table_entries"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl sunrpc.tcp_slot_table_entries -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                   "128"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0023"
+    name:                               "sysctl vm.swappiness"
+    description:                        "SAP HANA sysctl vm.swappiness"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl vm.swappiness -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "10"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0024"
+    name:                               "Red Hat tuned-adm profile"
+    description:                        "SAP HANA Red Hat tuned-adm profile"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "tuned-adm active"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "Current active profile: sap-hana"
+    report:                             *check
+    references:
+      sap:                              "2777782"
+
+  - id:                                 "DB-HANA-0025"
+    name:                               "Kernel version higher than 4.12.14-95.37.1"
+    description:                        "SAP HANA Backup fails on Azure - SLES 12.4"
+    category:                           *sap_check
+    severity:                           *warning
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse]
+      os_version:                       [*suse_12_4]
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "uname -r"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "4.12.14-95.37.1"
+    report:                             *check
+    references:
+      sap:                              "2814271"
+
+  - id:                                 "DB-HANA-0026"
+    name:                               "Mellanox TX timeout - CPU soft lockup"
+    description:                        "set hv_storvsc.storvsc_ringbuffer_size=131072 and hv_storvsc.storvsc_vcpus_per_sub_channel=1024 in kernel boot line"
+    category:                           *sap_check
+    severity:                           *warning
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse]
+      os_version:                       [*suse_12_4]
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana, *db2]
+    collector_type:                     *command
+    collector_args:
+      command:                          "uname -r"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "4.12.14-95"
+    report:                             *check
+    references:
+      sap:                              "2814271"
+
+  - id:                                 "DB-HANA-0027"
+    name:                               "Kernel version higher than 4.12.14-122.7.1"
+    description:                        "SAP HANA Backup fails on Azure - SLES 12.5"
+    category:                           *sap_check
+    severity:                           *warning
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse]
+      os_version:                       [*suse_12_5]
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "uname -r"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "4.12.14-122.7.1"
+    report:                             *check
+    references:
+      sap:                              "2814271"
+
+  - id:                                 "DB-HANA-0028"
+    name:                               "Kernel version higher than 4.12.14-150.38.1"
+    description:                        "SAP HANA Backup fails on Azure - SLES 15.0"
+    category:                           *sap_check
+    severity:                           *warning
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse]
+      os_version:                       [*suse_15_0]
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "uname -r"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "4.12.14-150.38.1"
+    report:                             *check
+    references:
+      sap:                              "2814271"
+
+  - id:                                 "DB-HANA-0029"
+    name:                               "Kernel version higher than 4.12.14-197.21.1"
+    description:                        "SAP HANA Backup fails on Azure - SLES 15.1"
+    category:                           *sap_check
+    severity:                           *warning
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse]
+      os_version:                       [*suse_15_1]
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "uname -r"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "4.12.14-197.21.1"
+    report:                             *check
+    references:
+      sap:                              "2814271"
+
+  - id:                                 "DB-HANA-0030"
+    name:                               "Azure Fence Agent Configuration"
+    description:                        "When configuring the Azure Fence Agent, it must be configured with MSI. This is the default setting when using the Azure Portal to configure the agent."
+    category:                           *sap_check
+    severity:                           *warning
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+      high_availability:                true
+      high_availability_agent:          [*fencing_agent]
+    collector_type:                     *command
+    collector_args:
+      command:                          cibadmin --query --xpath "//nvpair[@name='msi']" | grep -o 'value=\"[^\"]*\"' | cut -d'"' -f2
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "true"
+    report:                             *check
+    references:
+      microsoft:                        "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-suse-pacemaker#using-managed-identity"
+
+  - id:                                 "DB-HANA-0031"
+    name:                               "fstrim disabled"
+    description:                        "Disable fstrim to avoid potential inconsistency problems"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/bin/systemctl | grep fstrim | grep active | wc -l"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "0"
+    report:                             *check
+    references:
+      other:                            "https://www.suse.com/support/kb/doc/?id=000019447"
+
+  - id:                                 "DB-HANA-0032"
+    name:                               "Swap space"
+    description:                        "Swap space should be 2GB"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "free -m | grep Swap | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *range
+    validator_args:
+      min:                              "2046"
+      max:                              "2049"
+    report:                             *check
+    references:
+      sap:                              "1999997"

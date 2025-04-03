@@ -1,0 +1,48 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------8
+# |                           Configuration Check                              |
+# +------------------------------------4--------------------------------------*/
+
+---
+- name:                             Prepare system context information for {{check_type.name}}
+  ansible.builtin.set_fact:
+    system_context:
+      hostname:                     "{{ inventory_hostname }}"
+      os_distribution:              "{{ ansible_distribution }}"
+      os_version:                   "{{ ansible_distribution_version }}"
+      sap_sid:                      "{{ sap_sid | default('') }}"
+      database_sid:                 "{{ database_sid | default('') }}"
+      database_type:                "{{ platform | default('HANA') }}"
+      role:                         "{{ role }}"
+      high_availability:            >-
+                                    {% if role == 'DB' %}
+                                      {{ database_high_availability | default(false) | bool }}
+                                    {% elif role in ['SCS', 'ERS'] %}
+                                      {{ scs_high_availability | default(false) | bool }}
+                                    {% else %}
+                                      false
+                                    {% endif %}
+      hardware_type:                "VM"
+      storage_type:                 "{{ NFS_provider | default(['Premium_LRS']) }}"
+      high_availability_agent:      >-
+                                    {% if role == 'DB' %}
+                                      {{ database_cluster_type | default("AFA") }}
+                                    {% elif role in ['SCS', 'ERS'] %}
+                                      {{ scs_cluster_type | default("AFA") }}
+                                    {% else %}
+                                      false
+                                    {% endif %}
+
+- name:                             Execute configuration checks with merged file for {{check_type.name}}
+  configuration_check:
+    check_file:                     "./roles/configuration_checks/vars/{{ check_type.file_name }}.yml"
+    context:                        "{{ system_context }}"
+    filter_tags:                    "{{ tags_filter | default(omit) }}"
+    filter_categories:              "{{ categories_filter | default(omit) }}"
+    generate_report:                false
+    workspace_directory:            "{{ _workspace_directory }}"
+    test_group_invocation_id:       "{{ test_group_invocation_id }}"
+    test_group_name:                "ConfigurationChecks"
+  register:                         "{{ check_type.results_var }}"

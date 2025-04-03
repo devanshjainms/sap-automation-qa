@@ -3,13 +3,26 @@ This module is used to setup the context for the test cases
 and setup base variables for the test case running in the sap-automation-qa
 """
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from enum import Enum
 import sys
 import logging
 import subprocess
+import yaml
 from typing import Optional, Dict, Any
 import xml.etree.ElementTree as ET
+
+
+class Severity(Enum):
+    """
+    Enum for the severity of the test case/step.
+    """
+
+    CRITICAL = "CRITICAL"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    INFO = "INFO"
 
 
 class TelemetryDataDestination(Enum):
@@ -27,10 +40,12 @@ class TestStatus(Enum):
     """
 
     SUCCESS = "PASSED"
-    ERROR = "FAILED"
+    ERROR = "ERROR"
+    FAILED = "FAILED"
     WARNING = "WARNING"
     INFO = "INFO"
     NOT_STARTED = "NOT_STARTED"
+    SKIPPED = "SKIPPED"
 
 
 class Parameters:
@@ -182,3 +197,20 @@ class SapAutomationQA(ABC):
         :rtype: Dict[str, Any]
         """
         return self.result
+
+    def parse_yaml_from_file(self, file_path: str) -> Optional[Dict[str, Any]]:
+        """
+        Parses a YAML file and returns its content as a dictionary.
+
+        :param file_path: Path to the YAML file
+        :type file_path: str
+        :return: Content of the YAML file as a dictionary
+        :rtype: Optional[Dict[str, Any]]
+        """
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                return yaml.safe_load(file)
+        except Exception as e:
+            self.log(logging.ERROR, f"Error parsing YAML file: {e}")
+            return None
+

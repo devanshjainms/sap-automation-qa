@@ -1,0 +1,253 @@
+# Enumeration definitions
+enums:
+  severity:
+    - info:                           &info "INFO"
+    - high:                           &high "HIGH"
+    - low:                            &low "LOW"
+    - warning:                        &warning "WARNING"
+    - critical:                       &critical "CRITICAL"
+    - all_severity:                   &severity [*info, *high, *low, *warning, *critical]
+
+  os_type:
+    - suse:                           &suse "SUSE"
+    - redhat:                         &redhat "REDHAT"
+    - oraclelinux:                    &oraclelinux "OracleLinux"
+    - windows:                        &windows "Windows"
+    - all_os:                         &os_type [*suse, *redhat, *oraclelinux, *windows]
+
+  os_version:
+    - suse_12_3:                      &suse_12_3 "SUSE 12 SP3"
+    - suse_12_4:                      &suse_12_4 "SUSE 12 SP4"
+    - suse_12_5:                      &suse_12_5 "SUSE 12 SP5"
+    - all_versions:                   &all_versions "all"
+
+  hardware_type:
+    - vm:                             &vm "VM"
+    - hli:                            &hli "HLI"
+    - all_hardware:                   &all_hardware [*vm, *hli]
+
+  storage_type:
+    premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","ANF","PremiumV2_LRS"]
+    anf:                              &anf ["ANF"]
+
+  workload:
+    - sap:                            &sap "SAP"
+    - all_workload:                   &workload [*sap]
+
+  db:
+    - hana:                           &hana "HANA"
+    - mssql:                          &mssql "MSSQL"
+    - oracle:                         &oracle "Oracle"
+    - db2:                            &db2 "Db2"
+    - ase:                            &ase "ASE"
+    - db:                         &db [*hana, *mssql, *oracle, *db2, *ase]
+
+  role:
+    - db:                             &db_role "DB"
+    - ascs:                           &ascs_role "SCS"
+    - ers:                            &ers_role "ERS"
+    - app:                            &app_role "APP"
+    - webdispatcher:                  &web_dispatch "WEB"
+    - pas:                            &pas "PAS"
+    - role:                       &role [*db_role, *ascs_role, *ers_role, *app_role, *web_dispatch, *pas]
+
+  cluster_type:
+    - sbd:                            &sbd "ISCSI"
+    - fencing_agent:                  &fencing_agent "AFA"
+    - all_fencing_agent:              &cluster_type [*sbd, *fencing_agent]
+
+  collector_type:
+    - command:                        &command "command"
+    - azure:                          &azure "azure"
+    - all_collector_type:             &collector_type [*command, *azure]
+
+  category:
+    - package:                        &package_check "Package"
+    - vm:                             &vm_check "Virtual Machine"
+    - sap:                            &sap_check "SAP"
+    - os:                             &os_check "Operating System"
+    - all_check_types:                &category [*package_check, *vm_check, *sap_check, *os_check]
+
+  user:
+    - root:                           &root "root"
+    - sidadm:                         &sidadm "sidadm"
+    - all_users:                      &user [*root, *sidadm]
+
+  validator_type:
+    - string:                         &string "string"
+    - range:                          &range "range"
+    - list:                           &list "list"
+    - all:                            &validator_type [*string, *range, *list]
+
+  report:
+    - check:                          &check "check"
+    - section:                        &section "section"
+    - report:                         &report [*check, *section]
+
+# Check definitions
+checks:
+  - id:                               "FC-0001"
+    name:                             "EndpointProtection-DefenderLinux"
+    description:                      "Checks if Microsoft Defender for Linux is installed"
+    category:                         *package_check
+    severity:                         *warning
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /usr/bin/mdatp ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation:                    "Install Microsoft Defender using: sudo apt-get install mdatp"
+    report:                           *check
+
+  - id:                               "FC-0002"
+    name:                             "EndpointProtection-CrowdstrikeFalcon"
+    description:                      "Checks if Crowdstrike Falcon is installed"
+    category:                         *package_check
+    severity:                         *warning
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /opt/CrowdStrike/falconctl ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install Crowdstrike Falcon using the installation package
+                                      provided by your security team"
+    report:                           *check
+
+  - id:                               "FC-0003"
+    name:                             "EndpointProtection-SentinelOne"
+    description:                      "Checks if SentinelOne agent is installed"
+    category:                         *package_check
+    severity:                         *warning
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /opt/sentinelone/bin/sentinelctl ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install SentinelOne agent using the installation package provided
+                                      by your security team"
+    report:                           *check
+
+  - id:                               "FC-0004"
+    name:                             "EndpointProtection-Trendmicro"
+    description:                      "Checks if Trendmicro Deep Security agent is installed"
+    category:                         *package_check
+    severity:                         *warning
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /opt/ds_agent/dsa_control ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install Trendmicro Deep Security agent using the instructions
+                                      provided by your security team"
+    report:                           *check
+
+  - id:                               "FC-0005"
+    name:                             "EndpointProtection-Sophos"
+    description:                      "Checks if Sophos Server Protection is installed"
+    category:                         *package_check
+    severity:                         *warning
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /opt/sophos-spl/plugins/av/bin/avscanner ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install Sophos Server Protection using the installation package
+                                      provided by your security team
+    report:                           *check
+
+  - id:                               "FC-0006"
+    name:                             "EndpointProtection-Trellix"
+    description:                      "Checks if Trellix Endpoint Security (formerly McAfee) is installed"
+    category:                         *package_check
+    severity:                         *warning
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /usr/local/bin/uvscan ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install Trellix Endpoint Security using the installation package
+                                      provided by your security team
+    report:                           *check
+
+  - id:                               "FC-0007"
+    name:                             "EndpointProtection-ClamAV"
+    description:                      "Checks if ClamAV antivirus is installed"
+    category:                         *package_check
+    severity:                         *warning
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /usr/bin/clamscan ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install ClamAV using the package manager: sudo apt-get install
+                                      clamav or sudo zypper install clamav or sudo yum install clamav
+    report:                           *check
