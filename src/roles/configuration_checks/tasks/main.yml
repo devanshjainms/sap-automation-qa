@@ -49,4 +49,4 @@
 
 - name:                             Set dynamic result variable
   ansible.builtin.set_fact:
-    "{{ check_type.results_var }}": "{{ configuration_check_result }}"
+    "{{ check_type.results_var }}": "{{ configuration_check_result.check_results }}"

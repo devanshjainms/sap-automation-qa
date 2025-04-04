@@ -480,7 +480,13 @@ class ConfigurationCheck(SapAutomationQA):
             f"SKIPPED: {summary['skipped']}",
         )
 
-        return results
+        self.result.update(
+            {
+                "status": TestStatus.SUCCESS if summary["failed"] == 0 else TestStatus.FAILED,
+                "message": f"Check execution completed with {summary['failed']} failures",
+                "check_results": results,
+            }
+        )
 
     def get_results_summary(self) -> Dict[str, int]:
         """
