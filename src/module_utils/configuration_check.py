@@ -100,7 +100,11 @@ class ConfigurationCheck(SapAutomationQA):
     def __init__(self):
         super().__init__()
         self.checks: List[Check] = []
-        self.results: List[CheckResult] = []
+        self.result.update(
+            {
+                "check_results": [],
+            }
+        )
         self.hostname: Optional[str] = None
         self.start_time: Optional[datetime] = None
         self.end_time: Optional[datetime] = None
@@ -465,7 +469,7 @@ class ConfigurationCheck(SapAutomationQA):
         for check in checks_to_run:
             result = self.execute_check(check)
             results.append(result)
-            self.results.append(result)
+            self.result["check_results"].append(result)
 
         self.end_time = datetime.now()
 
@@ -496,7 +500,7 @@ class ConfigurationCheck(SapAutomationQA):
         :return: Dictionary with result summaries
         :rtype: Dict[str, int]
         """
-        if not self.results:
+        if not self.result["check_results"]:
             return {
                 "total": 0,
                 "passed": 0,
@@ -508,20 +512,26 @@ class ConfigurationCheck(SapAutomationQA):
             }
 
         return {
-            "total": len(self.results),
-            "passed": sum(1 for r in self.results if r.status == TestStatus.SUCCESS),
-            "failed": sum(1 for r in self.results if r.status == TestStatus.FAILED),
-            "warnings": sum(1 for r in self.results if r.status == TestStatus.WARNING),
-            "errors": sum(1 for r in self.results if r.status == TestStatus.ERROR),
-            "skipped": sum(1 for r in self.results if r.status == TestStatus.SKIPPED),
-            "info": sum(1 for r in self.results if r.status == TestStatus.INFO),
+            "total": len(self.result["check_results"]),
+            "passed": sum(
+                1 for r in self.result["check_results"] if r.status == TestStatus.SUCCESS
+            ),
+            "failed": sum(1 for r in self.result["check_results"] if r.status == TestStatus.FAILED),
+            "warnings": sum(
+                1 for r in self.result["check_results"] if r.status == TestStatus.WARNING
+            ),
+            "errors": sum(1 for r in self.result["check_results"] if r.status == TestStatus.ERROR),
+            "skipped": sum(
+                1 for r in self.result["check_results"] if r.status == TestStatus.SKIPPED
+            ),
+            "info": sum(1 for r in self.result["check_results"] if r.status == TestStatus.INFO),
         }
 
     def clear_results(self) -> None:
         """
         Clear all stored results
         """
-        self.results = []
+        self.result["check_results"] = []
         self.start_time = None
         self.end_time = None
 
@@ -533,7 +543,7 @@ class ConfigurationCheck(SapAutomationQA):
         :rtype: Dict[str, List[CheckResult]]
         """
         categories = {}
-        for result in self.results:
+        for result in self.result["check_results"]:
             workload = result.check.workload
             if workload not in categories:
                 categories[workload] = []
