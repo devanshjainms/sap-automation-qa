@@ -148,7 +148,7 @@ checks:
       high_availability_agent:        [*sbd]
     collector_type:                   *command
     collector_args:
-      command:                        'cibadmin --query --xpath "//nvpair[@name=''stonith-enabled'']" | grep -o ''value="[^"]*"'' | cut -d''"'' -f2'
+      command:                        "cibadmin --query --xpath \"//nvpair[@name='stonith-enabled']\" | grep -o 'value=\"[^\"]*\"' | cut -d'\"' -f2"
     validator_type:                   *string
     validator_args:
       expected_output:                "true"
@@ -171,7 +171,7 @@ checks:
       high_availability_agent:          [*sbd]
     collector_type:                     *command
     collector_args:
-      command:                          'cibadmin --query --xpath "//nvpair[@name=''stonith-timeout'']" | grep -o ''value="[^"]*"'' | cut -d''"'' -f2'
+      command:                          "cibadmin --query --xpath \"//nvpair[@name='stonith-timeout']\" | grep -o 'value=\"[^\"]*\"' | cut -d'\"' -f2"
     validator_type:                     *range
     validator_args:
       min:                              "144"
@@ -370,7 +370,7 @@ checks:
       high_availability_agent:          [*sbd]
     collector_type:                     *command
     collector_args:
-      command:                          'cibadmin --query --xpath "//nvpair[@name=''concurrent-fencing'']" | grep -o ''value="[^"]*"'' | cut -d''"'' -f2'
+      command:                          "cibadmin --query --xpath \"//nvpair[@name='concurrent-fencing']\" | grep -o 'value=\"[^\"]*\"' | cut -d'\"' -f2"
     validator_type:                     *string
     validator_args:
       expected_output:                  "true"
@@ -393,7 +393,7 @@ checks:
       high_availability_agent:          [*fencing_agent]
     collector_type:                     *command
     collector_args:
-      command:                          'cibadmin -Q --xpath "//resources/primitive[@class=''stonith'']" | grep "<primitive" | wc -l'
+      command:                          "cibadmin -Q --xpath \"//resources/primitive[@class='stonith']\" | grep \"<primitive\" | wc -l"
     validator_type:                     *string
     validator_args:
       expected_output:                  "1"
