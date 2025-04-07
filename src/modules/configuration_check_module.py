@@ -9,12 +9,8 @@ from ansible.module_utils.basic import AnsibleModule
 
 try:
     from ansible.module_utils.configuration_check import ConfigurationCheck
-
-    HAS_CONFIG_CHECK = True
 except ImportError:
     from src.module_utils.configuration_check import ConfigurationCheck
-
-    HAS_CONFIG_CHECK = False
 
 DOCUMENTATION = r"""
 ---
@@ -168,10 +164,18 @@ class ConfigurationCheckModule:
             self.config_check.execute_checks(
                 self.module_params["filter_tags"], self.module_params["filter_categories"]
             )
+            self.format_results_for_html_report()
+
             result = dict(self.config_check.result)
-            if "check_results" in result:
-                self.format_results_for_html_report()
-            self.module.exit_json(**self.config_check.result)
+
+            if "status" in result and hasattr(result["status"], "value"):
+                result["status"] = result["status"].value
+
+            if "summary" in result:
+                summary = dict(result["summary"])
+                result["summary"] = summary
+
+            self.module.exit_json(**result)
         except Exception as e:
             self.module.fail_json(msg=f"Error: {str(e)}")
 
@@ -189,9 +193,6 @@ def main():
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
-
-    if not HAS_CONFIG_CHECK:
-        module.fail_json(msg="Required modules not found")
 
     runner = ConfigurationCheckModule(module)
     runner.run()

@@ -484,7 +484,9 @@ class ConfigurationCheck(SapAutomationQA):
 
         self.result.update(
             {
-                "status": TestStatus.SUCCESS.value if summary["failed"] == 0 else TestStatus.FAILED.value,
+                "status": (
+                    TestStatus.SUCCESS.value if summary["failed"] == 0 else TestStatus.FAILED.value
+                ),
                 "message": f"Check execution completed with {summary['failed']} failures",
                 "summary": summary,
                 "check_results": results,
@@ -514,15 +516,21 @@ class ConfigurationCheck(SapAutomationQA):
             "passed": sum(
                 1 for r in self.result["check_results"] if r.status == TestStatus.SUCCESS.value
             ),
-            "failed": sum(1 for r in self.result["check_results"] if r.status == TestStatus.FAILED.value),
+            "failed": sum(
+                1 for r in self.result["check_results"] if r.status == TestStatus.FAILED.value
+            ),
             "warnings": sum(
                 1 for r in self.result["check_results"] if r.status == TestStatus.WARNING.value
             ),
-            "errors": sum(1 for r in self.result["check_results"] if r.status == TestStatus.ERROR.value),
+            "errors": sum(
+                1 for r in self.result["check_results"] if r.status == TestStatus.ERROR.value
+            ),
             "skipped": sum(
                 1 for r in self.result["check_results"] if r.status == TestStatus.SKIPPED.value
             ),
-            "info": sum(1 for r in self.result["check_results"] if r.status == TestStatus.INFO.value),
+            "info": sum(
+                1 for r in self.result["check_results"] if r.status == TestStatus.INFO.value
+            ),
         }
 
     def clear_results(self) -> None:
