@@ -10,13 +10,27 @@
   name:                                 "Setup deployer for Configuration Checks"
   vars_files:                           "./vars/input-api.yaml"
   tasks:
-    - name:                             "Install python azure pacakges required"
+    - name:                             "Install python azure packages required"
       become:                           true
       ansible.builtin.pip:
         name:
           - ansible-runner
           - azure-kusto-data
           - azure-kusto-ingest
+    
+    - name:                             "Generate test group ID and timestamp"
+      ansible.builtin.set_fact:
+        test_group_invocation_id:       "{{ lookup('pipe', 'uuidgen') }}"
+        test_group_start_time:          "{{ now(utc=true,fmt='%Y-%m-%d %H:%M:%S') }}"
+        configuration_test_type:        "{{ configuration_test_type | default('all') }}"
+
+    - name:                             "Set the test group name"
+      ansible.builtin.set_fact:
+        test_group_name:                "{{ configuration_test_type_map
+                                        | selectattr('name', 'equalto', configuration_test_type)
+                                        | map(attribute='value')
+                                        | first }}"
+
 
 - hosts: "{{ sap_sid | upper }}_SCS:
           {{ sap_sid | upper }}_ERS:
@@ -39,20 +53,19 @@
         configuration_test_type:        "{{ configuration_test_type | default('all') }}"
       run_once:                         true
 
-    - name:                             "Set the test group name based on the inputs"
-      run_once:                         true
-      delegate_to:                      localhost
+    - name:                             "Get test group details from control node"
       ansible.builtin.set_fact:
-        test_group_name:                "{{ configuration_test_type_map
-                                        | selectattr('name', 'equalto', configuration_test_type)
-                                        | map(attribute='value')
-                                        | first }}"
+        test_group_invocation_id:       "{{ hostvars['localhost'].test_group_invocation_id }}"
+        test_group_name:                "{{ hostvars['localhost'].test_group_name }}"
+        test_group_start_time:          "{{ hostvars['localhost'].test_group_start_time }}"
+        configuration_test_type:        "{{ hostvars['localhost'].configuration_test_type }}"
+
+    - name:                             "Set role from inventory group"
+      ansible.builtin.set_fact:
         role:                           "{{ (group_names
                                         | select('match', sap_sid + '_.*')
                                         | map('regex_replace', sap_sid + '_(.*)', '\\1')
                                         | list)[0] | default('UNKNOWN') }}"
-        test_group_start_time:          "{{ now(utc=true,fmt='%Y-%m-%d %H:%M:%S') }}"
-        test_group_invocation_id:       "{{ lookup('pipe', 'uuidgen') }}"
 
     - name:                             "Load supported VM information"
       ansible.builtin.include_vars:
