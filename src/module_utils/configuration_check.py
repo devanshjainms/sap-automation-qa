@@ -198,6 +198,10 @@ class ConfigurationCheck(SapAutomationQA):
                     references=check.get("references", {}),
                 )
             )
+        self.log(
+            logging.INFO,
+            f"Loaded {len(self.checks)} checks from the configuration file.",
+        )
 
     def validate_string(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """
