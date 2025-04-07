@@ -19,7 +19,7 @@
       high_availability:            >-
                                     {% if role == 'DB' %}
                                       {{ database_high_availability | default(false) | bool }}
-                                    {% elif role in ['SCS', 'ERS'] %}
+                                    {% elif role in ['SCS', 'ERS', 'PAS', 'APP'] %}
                                       {{ scs_high_availability | default(false) | bool }}
                                     {% else %}
                                       false
