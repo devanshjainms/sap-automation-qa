@@ -225,18 +225,18 @@ class ConfigurationCheck(SapAutomationQA):
 
         if is_equal:
             return {
-                "status": TestStatus.SUCCESS,
+                "status": TestStatus.SUCCESS.value,
                 "message": "Value matches expected result",
                 "actual_value": collected,
             }
         else:
             # Determine severity of failure based on check
             if check.severity == Severity.INFO:
-                status = TestStatus.INFO
+                status = TestStatus.INFO.value
             elif check.severity == Severity.LOW:
-                status = TestStatus.WARNING
+                status = TestStatus.WARNING.value
             else:
-                status = TestStatus.FAILED
+                status = TestStatus.FAILED.value
 
             return {
                 "status": status,
@@ -265,17 +265,17 @@ class ConfigurationCheck(SapAutomationQA):
 
             if within_range:
                 return {
-                    "status": TestStatus.SUCCESS,
+                    "status": TestStatus.SUCCESS.value,
                     "message": f"Value {value} is within range [{min_val}, {max_val}]",
                     "actual_value": value,
                 }
             else:
                 if check.severity == Severity.INFO:
-                    status = TestStatus.INFO
+                    status = TestStatus.INFO.value
                 elif check.severity == Severity.LOW:
-                    status = TestStatus.WARNING
+                    status = TestStatus.WARNING.value
                 else:
-                    status = TestStatus.FAILED
+                    status = TestStatus.FAILED.value
 
                 return {
                     "status": status,
@@ -286,7 +286,7 @@ class ConfigurationCheck(SapAutomationQA):
                 }
         except ValueError:
             return {
-                "status": TestStatus.ERROR,
+                "status": TestStatus.ERROR.value,
                 "message": f'Cannot convert "{collected_data}" to a numeric value',
                 "actual_value": collected_data,
             }
@@ -309,18 +309,18 @@ class ConfigurationCheck(SapAutomationQA):
         is_in_list = any(item in expected_list for item in collected_list)
         if is_in_list:
             return {
-                "status": TestStatus.SUCCESS,
+                "status": TestStatus.SUCCESS.value,
                 "message": "Value is in the expected list",
                 "actual_value": collected_list,
             }
         else:
             # Determine severity of failure based on check
             if check.severity == Severity.INFO:
-                status = TestStatus.INFO
+                status = TestStatus.INFO.value
             elif check.severity == Severity.LOW:
-                status = TestStatus.WARNING
+                status = TestStatus.WARNING.value
             else:
-                status = TestStatus.FAILED
+                status = TestStatus.FAILED.value
 
             return {
                 "status": status,
@@ -345,7 +345,7 @@ class ConfigurationCheck(SapAutomationQA):
             return validator(check, collected_data)
         else:
             return {
-                "status": TestStatus.ERROR,
+                "status": TestStatus.ERROR.value,
                 "message": f"Unknown validator type: {check.validator_type}",
                 "actual_value": None,
             }
@@ -382,13 +382,13 @@ class ConfigurationCheck(SapAutomationQA):
             )
 
         if not self.is_check_applicable(check):
-            return create_result(TestStatus.SKIPPED, details="Check not applicable")
+            return create_result(TestStatus.SKIPPED.value, details="Check not applicable")
 
         # Find appropriate collector
         collector_class = self._collectors.get(check.collector_type)
         if not collector_class:
             return create_result(
-                status=TestStatus.ERROR,
+                status=TestStatus.ERROR.value,
                 details=f"No collector found for type: {check.collector_type}",
             )
 
@@ -420,7 +420,7 @@ class ConfigurationCheck(SapAutomationQA):
             self.log(logging.ERROR, f"Error executing check {check.id}: {str(e)}")
 
             return create_result(
-                status=TestStatus.ERROR,
+                status=TestStatus.ERROR.value,
                 collected_data=None,
                 actual_value=None,
                 execution_time=execution_time,
@@ -484,7 +484,7 @@ class ConfigurationCheck(SapAutomationQA):
 
         self.result.update(
             {
-                "status": TestStatus.SUCCESS if summary["failed"] == 0 else TestStatus.FAILED,
+                "status": TestStatus.SUCCESS.value if summary["failed"] == 0 else TestStatus.FAILED.value,
                 "message": f"Check execution completed with {summary['failed']} failures",
                 "summary": summary,
                 "check_results": results,
@@ -512,17 +512,17 @@ class ConfigurationCheck(SapAutomationQA):
         return {
             "total": len(self.result["check_results"]),
             "passed": sum(
-                1 for r in self.result["check_results"] if r.status == TestStatus.SUCCESS
+                1 for r in self.result["check_results"] if r.status == TestStatus.SUCCESS.value
             ),
-            "failed": sum(1 for r in self.result["check_results"] if r.status == TestStatus.FAILED),
+            "failed": sum(1 for r in self.result["check_results"] if r.status == TestStatus.FAILED.value),
             "warnings": sum(
-                1 for r in self.result["check_results"] if r.status == TestStatus.WARNING
+                1 for r in self.result["check_results"] if r.status == TestStatus.WARNING.value
             ),
-            "errors": sum(1 for r in self.result["check_results"] if r.status == TestStatus.ERROR),
+            "errors": sum(1 for r in self.result["check_results"] if r.status == TestStatus.ERROR.value),
             "skipped": sum(
-                1 for r in self.result["check_results"] if r.status == TestStatus.SKIPPED
+                1 for r in self.result["check_results"] if r.status == TestStatus.SKIPPED.value
             ),
-            "info": sum(1 for r in self.result["check_results"] if r.status == TestStatus.INFO),
+            "info": sum(1 for r in self.result["check_results"] if r.status == TestStatus.INFO.value),
         }
 
     def clear_results(self) -> None:

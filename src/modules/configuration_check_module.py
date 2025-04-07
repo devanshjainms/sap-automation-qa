@@ -125,7 +125,7 @@ class ConfigurationCheckModule:
                     "status": result.status.value,
                     "hostname": result.hostname,
                     "type": result.check.category,
-                    "report": "check",  # As opposed to "section"
+                    "report": "check",
                     "references": {
                         "remediation": result.check.remediation,
                         **result.check.references,
