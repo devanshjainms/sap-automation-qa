@@ -32,9 +32,19 @@ class ApplicabilityRule:
         :return: True if applicable, False otherwise
         :rtype: bool
         """
+        if isinstance(context_value, str):
+            context_value = context_value.strip()
+
+            if context_value.lower() == "true":
+                context_value = True
+            elif context_value.lower() == "false":
+                context_value = False
         if isinstance(self.value, list):
             if isinstance(context_value, list):
                 return any(val in context_value for val in self.value)
+            if self.property == 'storage_type':
+                return any(val in context_value for val in self.value) or \
+                    any(context_value in val for val in self.value)
             return context_value in self.value
 
         if isinstance(self.value, bool):
@@ -137,7 +147,16 @@ class ConfigurationCheck(SapAutomationQA):
             logging.DEBUG,
             f"Checking applicability for check {check.applicability} with context: {self.context}",
         )
-        return check.is_applicable(self.context)
+        for rule in check.applicability:
+            context_value = self.context.get(rule.property)
+            if not rule.is_applicable(context_value):
+                self.log(
+                    logging.DEBUG,
+                    f"Check {check.id} not applicable: Rule for '{rule.property}' with value '{rule.value}' doesn't match context value '{context_value}'",
+                )
+                return False
+
+        return True
 
     def set_context(self, context: Dict[str, Any]) -> None:
         """
