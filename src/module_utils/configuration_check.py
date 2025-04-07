@@ -148,21 +148,24 @@ class ConfigurationCheck(SapAutomationQA):
         self.context = context
         self.hostname = context.get("hostname")
 
-    def load_checks(self, file_path: str) -> None:
+    def load_checks(self, check_file_content: str) -> None:
         """
         Load checks from a YAML file.
         Validates the structure and initializes Check objects based on applicability rules.
 
-        :param file_path: Path to the YAML file containing checks
-        :type file_path: str
+        :param check_file_content: Check file content as a string or dictionary
+        :type check_file_content: str or dict
         """
 
-        yaml_content = self.parse_yaml_from_file(file_path)
+        check_file_content = self.parse_yaml_from_content(check_file_content)
+        if not check_file_content:
+            self.log(logging.ERROR, "YAML parsing failed: No content found.")
+            return
 
-        if isinstance(yaml_content, dict) and "checks" in yaml_content:
-            checks = yaml_content.get("checks", [])
+        if isinstance(check_file_content, dict) and "checks" in check_file_content:
+            checks = check_file_content.get("checks", [])
         else:
-            checks = yaml_content
+            checks = check_file_content
         if not checks:
             self.log(logging.ERROR, "No checks found in the file.")
             return
@@ -195,11 +198,6 @@ class ConfigurationCheck(SapAutomationQA):
                     references=check.get("references", {}),
                 )
             )
-
-        self.log(
-            logging.INFO,
-            f"Loaded {len(self.checks)} checks from {file_path}",
-        )
 
     def validate_string(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """

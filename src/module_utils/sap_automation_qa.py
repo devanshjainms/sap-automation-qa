@@ -198,19 +198,17 @@ class SapAutomationQA(ABC):
         """
         return self.result
 
-    def parse_yaml_from_file(self, file_path: str) -> Optional[Dict[str, Any]]:
+    def parse_yaml_from_content(self, yaml_content: str) -> Optional[Dict[str, Any]]:
         """
         Parses a YAML file and returns its content as a dictionary.
 
-        :param file_path: Path to the YAML file
-        :type file_path: str
+        :param yaml_content: Content of the YAML file
+        :type yaml_content: str
         :return: Content of the YAML file as a dictionary
         :rtype: Optional[Dict[str, Any]]
         """
         try:
-            with open(file_path, "r", encoding="utf-8") as file:
-                return yaml.safe_load(file)
-        except Exception as e:
-            self.log(logging.ERROR, f"Error parsing YAML file: {e}")
+            return yaml.safe_load(yaml_content)
+        except yaml.YAMLError as ex:
+            self.log(logging.ERROR, f"Error parsing YAML content: {ex}")
             return None
-

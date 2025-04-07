@@ -101,11 +101,11 @@ class ConfigurationCheckModule:
 
     def execute_checks(self):
         """Load and execute checks"""
-        check_file = self.module_params["check_file"]
+        check_file_content = self.module_params["check_file_content"]
         filter_tags = self.module_params["filter_tags"]
         filter_categories = self.module_params["filter_categories"]
 
-        self.config_check.load_checks(check_file)
+        self.config_check.load_checks(check_file_content)
         return self.config_check.execute_checks(filter_tags, filter_categories)
 
     def format_results_for_html_report(self):
@@ -155,7 +155,7 @@ class ConfigurationCheckModule:
 
 def main():
     module_args = dict(
-        check_file=dict(type="str", required=True),
+        check_file_content=dict(type="str", required=True),
         context=dict(type="dict", required=True),
         filter_tags=dict(type="list", elements="str", required=False, default=None),
         filter_categories=dict(type="list", elements="str", required=False, default=None),

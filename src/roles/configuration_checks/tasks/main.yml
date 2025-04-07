@@ -35,9 +35,14 @@
                                       false
                                     {% endif %}
 
+- name:                             Read check file content
+  ansible.builtin.slurp:
+    src:                            "{{ playbook_dir }}/roles/configuration_checks/vars/{{ check_type.file_name }}.yml"
+  register:                         check_file_content
+
 - name:                             Execute configuration checks with merged file for {{check_type.name}}
   configuration_check_module:
-    check_file:                     "{{ playbook_dir }}/roles/configuration_checks/vars/{{ check_type.file_name }}.yml"
+    check_file_content:             "{{ check_file_content.content | b64decode }}"
     context:                        "{{ system_context }}"
     filter_tags:                    "{{ tags_filter | default(omit) }}"
     filter_categories:              "{{ categories_filter | default(omit) }}"
