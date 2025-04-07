@@ -484,6 +484,7 @@ class ConfigurationCheck(SapAutomationQA):
             {
                 "status": TestStatus.SUCCESS if summary["failed"] == 0 else TestStatus.FAILED,
                 "message": f"Check execution completed with {summary['failed']} failures",
+                "summary": summary,
                 "check_results": results,
             }
         )

@@ -5,7 +5,6 @@
 Ansible Python module to check the configuration of the workload system running on Azure
 """
 
-import os
 from ansible.module_utils.basic import AnsibleModule
 
 try:
@@ -149,7 +148,7 @@ class ConfigurationCheckModule:
             self.config_check.execute_checks(
                 self.module_params["filter_tags"], self.module_params["filter_categories"]
             )
-            self.module.exit_json(**self.config_check.result)
+            self.module.exit_json(**self.config_check.results)
         except Exception as e:
             self.module.fail_json(msg=f"Error: {str(e)}")
 
