@@ -156,7 +156,7 @@ class ConfigurationCheck(SapAutomationQA):
         :param raw_file_content: Check file content as a string or dictionary
         :type raw_file_content: str or dict
         """
-
+        check_file_content = None
         if isinstance(raw_file_content, dict):
             check_file_content = raw_file_content
 
