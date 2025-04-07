@@ -32,7 +32,7 @@
                                     {% elif role in ['SCS', 'ERS'] %}
                                       {{ scs_cluster_type | default("AFA") }}
                                     {% else %}
-                                      false
+                                      "AFA"
                                     {% endif %}
 
 - name:                             Execute configuration checks with merged file for {{check_type.name}}
