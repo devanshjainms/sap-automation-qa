@@ -110,29 +110,49 @@ class ConfigurationCheckModule:
 
     def format_results_for_html_report(self):
         """Format results for use with render_html_report"""
-        check_results = []
-        for result in self.config_check.result:
-            check_results.append(
-                {
-                    "id": result.check.id,
-                    "name": result.check.name,
-                    "description": result.check.description,
-                    "command": result.check.collector_args.get("command", "N/A"),
-                    "output": str(result.collected_data),
-                    "expected_output": (
-                        str(result.expected_value) if result.expected_value else "N/A"
+        serialized_results = []
+        for check_result in self.config_check.result["check_results"]:
+            # Convert CheckResult to dictionary
+            result_dict = {
+                "check": {
+                    "id": check_result.check.id,
+                    "name": check_result.check.name,
+                    "description": check_result.check.description,
+                    "category": check_result.check.category,
+                    "workload": check_result.check.workload,
+                    "severity": (
+                        check_result.check.severity.value
+                        if hasattr(check_result.check.severity, "value")
+                        else str(check_result.check.severity)
                     ),
-                    "status": result.status.value,
-                    "hostname": result.hostname,
-                    "type": result.check.category,
-                    "report": "check",
-                    "references": {
-                        "remediation": result.check.remediation,
-                        **result.check.references,
-                    },
-                }
-            )
-        return check_results
+                    "collector_type": check_result.check.collector_type,
+                    "collector_args": check_result.check.collector_args,
+                    "validator_type": check_result.check.validator_type,
+                    "validator_args": check_result.check.validator_args,
+                    "tags": check_result.check.tags,
+                    "references": check_result.check.references,
+                    "report": check_result.check.report,
+                },
+                "status": (
+                    check_result.status.value
+                    if hasattr(check_result.status, "value")
+                    else str(check_result.status)
+                ),
+                "hostname": check_result.hostname,
+                "collected_data": check_result.collected_data,
+                "expected_value": check_result.expected_value,
+                "actual_value": check_result.actual_value,
+                "execution_time": check_result.execution_time,
+                "timestamp": (
+                    check_result.timestamp.isoformat()
+                    if hasattr(check_result.timestamp, "isoformat")
+                    else str(check_result.timestamp)
+                ),
+                "details": check_result.details,
+                "metadata": check_result.metadata,
+            }
+            serialized_results.append(result_dict)
+        self.config_check.result["check_results"] = serialized_results
 
     def run(self):
         """Run the module"""
@@ -148,6 +168,9 @@ class ConfigurationCheckModule:
             self.config_check.execute_checks(
                 self.module_params["filter_tags"], self.module_params["filter_categories"]
             )
+            result = dict(self.config_check.result)
+            if "check_results" in result:
+                self.format_results_for_html_report()
             self.module.exit_json(**self.config_check.result)
         except Exception as e:
             self.module.fail_json(msg=f"Error: {str(e)}")
