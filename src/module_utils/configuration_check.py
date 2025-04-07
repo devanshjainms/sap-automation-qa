@@ -157,12 +157,14 @@ class ConfigurationCheck(SapAutomationQA):
         :type check_file_content: str or dict
         """
 
-        check_file_content = self.parse_yaml_from_content(check_file_content)
+        if not isinstance(check_file_content, dict):
+            check_file_content = self.parse_yaml_from_content(check_file_content)
+
         if not check_file_content:
             self.log(logging.ERROR, "YAML parsing failed: No content found.")
             return
 
-        if isinstance(check_file_content, dict) and "checks" in check_file_content:
+        if "checks" in check_file_content:
             checks = check_file_content.get("checks", [])
         else:
             checks = check_file_content
