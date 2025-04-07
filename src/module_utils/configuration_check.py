@@ -148,17 +148,17 @@ class ConfigurationCheck(SapAutomationQA):
         self.context = context
         self.hostname = context.get("hostname")
 
-    def load_checks(self, check_file_content: str) -> None:
+    def load_checks(self, raw_file_content: str) -> None:
         """
         Load checks from a YAML file.
         Validates the structure and initializes Check objects based on applicability rules.
 
-        :param check_file_content: Check file content as a string or dictionary
-        :type check_file_content: str or dict
+        :param raw_file_content: Check file content as a string or dictionary
+        :type raw_file_content: str or dict
         """
 
-        if not isinstance(check_file_content, dict):
-            check_file_content = self.parse_yaml_from_content(check_file_content)
+        if isinstance(raw_file_content, dict):
+            check_file_content = raw_file_content
 
         if not check_file_content:
             self.log(logging.ERROR, "YAML parsing failed: No content found.")

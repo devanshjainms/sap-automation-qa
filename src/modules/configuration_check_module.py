@@ -160,7 +160,7 @@ class ConfigurationCheckModule:
                 context["hostname"] = custom_hostname
 
             self.config_check.set_context(context)
-            self.config_check.load_checks(self.module_params["check_file_content"])
+            self.config_check.load_checks(raw_file_content=self.module_params["check_file_content"])
             self.config_check.execute_checks(
                 self.module_params["filter_tags"], self.module_params["filter_categories"]
             )
