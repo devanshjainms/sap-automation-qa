@@ -20,7 +20,7 @@ class Severity(Enum):
 
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
-    MEDIUM = "MEDIUM"
+    WARNING = "WARNING"
     LOW = "LOW"
     INFO = "INFO"
 

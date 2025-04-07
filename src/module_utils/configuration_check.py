@@ -52,7 +52,7 @@ class Check:
     description: str
     category: str
     workload: str
-    severity: Severity = Severity.MEDIUM
+    severity: Severity = Severity.WARNING
     collector_type: str = "command"
     collector_args: Dict[str, Any] = field(default_factory=dict)
     validator_type: str = "string"
@@ -188,7 +188,7 @@ class ConfigurationCheck(SapAutomationQA):
                     description=check.get("description", ""),
                     category=check.get("category", "General"),
                     workload=check.get("workload", "SAP"),
-                    severity=Severity(check.get("severity", "MEDIUM")),
+                    severity=Severity(check.get("severity", "WARNING")),
                     collector_type=check.get("collector_type", "command"),
                     collector_args=check.get("collector_args", {}),
                     validator_type=check.get("validator_type", "string"),
