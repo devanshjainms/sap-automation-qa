@@ -40,6 +40,8 @@
       run_once:                         true
 
     - name:                             "Set the test group name based on the inputs"
+      run_once:                         true
+      delegate_to:                      localhost
       ansible.builtin.set_fact:
         test_group_name:                "{{ configuration_test_type_map
                                         | selectattr('name', 'equalto', configuration_test_type)
@@ -49,13 +51,8 @@
                                         | select('match', sap_sid + '_.*')
                                         | map('regex_replace', sap_sid + '_(.*)', '\\1')
                                         | list)[0] | default('UNKNOWN') }}"
-      run_once:                         true
-
-    - name:                             Set the test group facts
-      ansible.builtin.set_fact:
         test_group_start_time:          "{{ now(utc=true,fmt='%Y-%m-%d %H:%M:%S') }}"
         test_group_invocation_id:       "{{ lookup('pipe', 'uuidgen') }}"
-      run_once:                         true
 
     - name:                             "Load supported VM information"
       ansible.builtin.include_vars:
