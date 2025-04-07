@@ -65,9 +65,6 @@ class Check:
     def is_applicable(self, context: Dict[str, Any]) -> bool:
         """Check if this check is applicable to the given context"""
         for rule in self.applicability:
-            if rule.property not in context:
-                return False
-
             context_value = context[rule.property]
             if not rule.is_applicable(context_value):
                 return False
@@ -136,6 +133,10 @@ class ConfigurationCheck(SapAutomationQA):
 
     def is_check_applicable(self, check: Check) -> bool:
         """Determine if a check is applicable to the current context"""
+        self.log(
+            logging.DEBUG,
+            f"Checking applicability for check {check.applicability} with context: {self.context}",
+        )
         return check.is_applicable(self.context)
 
     def set_context(self, context: Dict[str, Any]) -> None:
