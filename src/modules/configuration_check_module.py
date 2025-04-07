@@ -111,7 +111,7 @@ class ConfigurationCheckModule:
     def format_results_for_html_report(self):
         """Format results for use with render_html_report"""
         check_results = []
-        for result in self.config_check.results:
+        for result in self.config_check.result:
             check_results.append(
                 {
                     "id": result.check.id,
@@ -148,7 +148,7 @@ class ConfigurationCheckModule:
             self.config_check.execute_checks(
                 self.module_params["filter_tags"], self.module_params["filter_categories"]
             )
-            self.module.exit_json(**self.config_check.results)
+            self.module.exit_json(**self.config_check.result)
         except Exception as e:
             self.module.fail_json(msg=f"Error: {str(e)}")
 
