@@ -208,7 +208,7 @@ class SapAutomationQA(ABC):
         :rtype: Optional[Dict[str, Any]]
         """
         try:
-            return yaml.safe_load(yaml_content)
+            return yaml.load(yaml_content, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))
         except yaml.YAMLError as ex:
             self.log(logging.ERROR, f"Error parsing YAML content: {ex}")
             return None
