@@ -131,19 +131,10 @@
                                           groups[sap_sid | upper + '_PAS']|default([]) }}"
       when:                             hostvars[item].common_sap_results is defined
 
-    - name:                             "Get OS and storage information"
-      ansible.builtin.set_fact:
-        os_version:                     "{{ hostvars[groups[sap_sid
-                                            | upper + '_SCS'][0]].ansible_distribution_version
-                                            | default('Unknown') }}
-                                          {{ hostvars[groups[sap_sid
-                                            | upper + '_SCS'][0]].ansible_distribution
-                                            | default('') }}"
-        storage_type:                   "{{ hostvars[groups[sap_sid
-                                            | upper + '_SCS'][0]].storage_type
-                                            | default('Premium_LRS') }}"
-      when:                             groups[sap_sid | upper + '_SCS'] | default([]) | length > 0
+    - name:                             "Debug all results"
+      ansible.builtin.debug:
+        var:                            all_results
+      run_once:                         true
 
     - name:                            "Run test cases by including them as roles"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
-      when:                            test_group_name is defined
