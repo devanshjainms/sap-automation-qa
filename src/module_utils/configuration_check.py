@@ -368,7 +368,6 @@ class ConfigurationCheck(SapAutomationQA):
             )
 
             if not value or not supported_configurations or not role:
-                self.log(logging.ERROR, f"Fail 1 {value} {role}")
                 return {
                     "status": TestStatus.ERROR.value,
                 }
@@ -377,10 +376,6 @@ class ConfigurationCheck(SapAutomationQA):
                 if database_type not in supported_configurations.get(
                     role, {}.get("SupportedDB", [])
                 ):
-                    self.log(
-                        logging.ERROR,
-                        f"Fail 2 {database_type} {supported_configurations.get(role, {}.get('SupportedDB', []))}",
-                    )
                     return {
                         "status": TestStatus.ERROR.value,
                     }
@@ -389,10 +384,6 @@ class ConfigurationCheck(SapAutomationQA):
                 if role not in supported_configurations.get(
                     database_type, {}
                 ) or os_type not in supported_configurations.get(database_type, {}).get(role, []):
-                    self.log(
-                        logging.ERROR,
-                        f"Fail 3 {role} {os_type} {supported_configurations.get(database_type, {}).get(role, [])}",
-                    )
                     return {
                         "status": TestStatus.ERROR.value,
                     }
@@ -402,10 +393,6 @@ class ConfigurationCheck(SapAutomationQA):
             }
 
         except Exception:
-            self.log(
-                logging.ERROR,
-                f"Error validating VM support for check {check}: {collected_data}",
-            )
             return {
                 "status": TestStatus.ERROR.value,
             }
