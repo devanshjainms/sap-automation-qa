@@ -412,7 +412,8 @@
 
           <div class="tab-navigation">
             {% for hostname in system_info.hostnames %}
-            {% set host_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|list %}
+            {% set host_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|rejectattr('status',
+            'equalto', 'SKIPPED')|list %}
             {% set error_count = host_checks|selectattr('status', 'equalto', 'ERROR')|list|length %}
             <button class="tab-button {% if loop.first %}active{% endif %}" onclick="openTab('host-{{ hostname }}')">
               {{ hostname }}
@@ -426,7 +427,8 @@
             <div id="host-{{ hostname }}" class="tab-content {% if loop.first %}active{% endif %}">
               {% for check_type in system_info.config_check_types %}
               {% set type_checks = test_case_results|selectattr('hostname', 'equalto',
-              hostname)|selectattr('check.category', 'equalto', check_type)|list %}
+              hostname)|selectattr('check.category', 'equalto', check_type)
+              rejectattr('status', 'equalto', 'SKIPPED')|list %}
               {% if type_checks|length > 0 %}
               <h3>{{ check_type }}</h3>
               <table class="config-checks-table">
@@ -529,8 +531,9 @@
               </table>
               {% endif %}
               {% endfor %}
-              {% set host_sections = test_case_results|selectattr('hostname', 'equalto', hostname)|selectattr('check.report',
-              'equalto', 'section')|list %}
+              {% set host_sections = test_case_results|selectattr('hostname', 'equalto',
+              hostname)|selectattr('check.report', 'equalto', 'section')|rejectattr('status', 'equalto', 'SKIPPED')|list
+              %}
               {% if host_sections|length > 0 %}
               <h3>Section Reports</h3>
               {% for check in host_sections %}
