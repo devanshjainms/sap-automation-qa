@@ -74,8 +74,8 @@ class TestBlockNetworkTest(RolesTestingBaseDB):
             operation="write",
             file_path=f"{temp_dir}/project/roles/ha_db_hana/tasks/block-network.yml",
             content=playbook_content.replace(
-                "for i in $(seq 1 20); do",
-                "for i in {1..20}; do",
+                "for i in $(seq 1 30); do",
+                "for i in {1..30}; do",
             ),
         )
 

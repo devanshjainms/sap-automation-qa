@@ -40,6 +40,7 @@
           become:                       true
           filesystem_freeze:
             nfs_provider:               "{{ NFS_provider }}"
+            database_sid:               "{{ db_sid | upper }}"
           register:                     freeze_fs_results
 
     - name:                             "Test Execution: Freeze File System on Primary Node init"
