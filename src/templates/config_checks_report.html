@@ -445,7 +445,7 @@
                 </thead>
                 <tbody>
                   {% for check in type_checks %}
-                  {% if check.report == 'check' %}
+                  {% if check.check.report == 'check' %}
                   <tr onclick="toggleDetails('{{ check.hostname }}-{{ check.check.id }}')">
                     <td>{{ check.check.id }}</td>
                     <td>{{ check.check.name }}</td>
@@ -534,7 +534,7 @@
               {% endif %}
               {% endfor %}
               {% set host_sections = test_case_results|selectattr('hostname', 'equalto',
-              hostname)|selectattr('check.report', 'equalto', 'section')|rejectattr('status', 'equalto', 'SKIPPED')|list
+              hostname)|selectattr('check.check.report', 'equalto', 'section')|rejectattr('status', 'equalto', 'SKIPPED')|list
               %}
               {% if host_sections|length > 0 %}
               <h3>Section Reports</h3>
