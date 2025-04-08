@@ -125,6 +125,7 @@ class HTMLReportRenderer(SapAutomationQA):
             }
         )
         self.test_case_results = test_case_results or []
+        self.system_info = system_info or {}
 
     def read_log_file(self) -> List[Dict[str, Any]]:
         """

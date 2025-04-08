@@ -19,6 +19,6 @@
         test_group_name:                "{{ test_group_name }}_{{ ansible_os_family | upper }}"
         report_template:                "{{ html_report_template }}"
         workspace_directory:            "{{ _workspace_directory }}"
-        test_case_results:              "{{ all_results | default({})}}"
+        test_case_results:              "{{ all_results | default({}) }}"
         system_info:                    "{{ system_info | default({}) }}"
       register:                         report_file_path
