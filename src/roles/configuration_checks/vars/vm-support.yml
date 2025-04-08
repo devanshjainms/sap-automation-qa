@@ -3,9 +3,9 @@
 
 os_type:
   - suse:                        &suse "SUSE"
-  - redhat:                      &redhat "RedHat"
-  - oraclelinux:                 &oraclelinux "OracleLinux"
-  - windows:                     &windows "Windows"
+  - redhat:                      &redhat "REDHAT"
+  - oraclelinux:                 &oraclelinux "ORACLELINUX"
+  - windows:                     &windows "WINDOWS"
 
 SupportedOSDBCombinations:
   HANA:
