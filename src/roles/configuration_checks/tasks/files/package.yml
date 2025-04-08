@@ -90,7 +90,7 @@ checks:
     name:                             "EndpointProtection-DefenderLinux"
     description:                      "Checks if Microsoft Defender for Linux is installed"
     category:                         *package_check
-    severity:                         *warning
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -112,7 +112,7 @@ checks:
     name:                             "EndpointProtection-CrowdstrikeFalcon"
     description:                      "Checks if Crowdstrike Falcon is installed"
     category:                         *package_check
-    severity:                         *warning
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -136,7 +136,7 @@ checks:
     name:                             "EndpointProtection-SentinelOne"
     description:                      "Checks if SentinelOne agent is installed"
     category:                         *package_check
-    severity:                         *warning
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -160,7 +160,7 @@ checks:
     name:                             "EndpointProtection-Trendmicro"
     description:                      "Checks if Trendmicro Deep Security agent is installed"
     category:                         *package_check
-    severity:                         *warning
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -184,7 +184,7 @@ checks:
     name:                             "EndpointProtection-Sophos"
     description:                      "Checks if Sophos Server Protection is installed"
     category:                         *package_check
-    severity:                         *warning
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -208,7 +208,7 @@ checks:
     name:                             "EndpointProtection-Trellix"
     description:                      "Checks if Trellix Endpoint Security (formerly McAfee) is installed"
     category:                         *package_check
-    severity:                         *warning
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -232,7 +232,7 @@ checks:
     name:                             "EndpointProtection-ClamAV"
     description:                      "Checks if ClamAV antivirus is installed"
     category:                         *package_check
-    severity:                         *warning
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]

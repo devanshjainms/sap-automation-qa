@@ -268,7 +268,7 @@ class ConfigurationCheck(SapAutomationQA):
             elif check.severity == Severity.LOW:
                 status = TestStatus.WARNING.value
             else:
-                status = TestStatus.FAILED.value
+                status = TestStatus.ERROR.value
 
             return {
                 "status": status,
@@ -302,7 +302,7 @@ class ConfigurationCheck(SapAutomationQA):
                 elif check.severity == Severity.LOW:
                     status = TestStatus.WARNING.value
                 else:
-                    status = TestStatus.FAILED.value
+                    status = TestStatus.ERROR.value
 
                 return {
                     "status": status,
@@ -340,7 +340,7 @@ class ConfigurationCheck(SapAutomationQA):
             elif check.severity == Severity.LOW:
                 status = TestStatus.WARNING.value
             else:
-                status = TestStatus.FAILED.value
+                status = TestStatus.ERROR.value
 
             return {
                 "status": status,
@@ -537,7 +537,7 @@ class ConfigurationCheck(SapAutomationQA):
         self.result.update(
             {
                 "status": (
-                    TestStatus.SUCCESS.value if summary["failed"] == 0 else TestStatus.FAILED.value
+                    TestStatus.SUCCESS.value if summary["failed"] == 0 else TestStatus.ERROR.value
                 ),
                 "message": f"Check execution completed with {summary['failed']} failures",
                 "summary": summary,
@@ -569,7 +569,7 @@ class ConfigurationCheck(SapAutomationQA):
                 1 for r in self.result["check_results"] if r.status == TestStatus.SUCCESS.value
             ),
             "failed": sum(
-                1 for r in self.result["check_results"] if r.status == TestStatus.FAILED.value
+                1 for r in self.result["check_results"] if r.status == TestStatus.ERROR.value
             ),
             "warnings": sum(
                 1 for r in self.result["check_results"] if r.status == TestStatus.WARNING.value
