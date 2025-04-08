@@ -129,7 +129,7 @@ class ConfigurationCheck(SapAutomationQA):
             "string": self.validate_string,
             "range": self.validate_numeric_range,
             "list": self.validate_list,
-            "check_support": "self.validate_vm_support",
+            "check_support": self.validate_vm_support,
         }
 
     def register_collector(self, collector_type: str, collector_class: Type[Collector]) -> None:
