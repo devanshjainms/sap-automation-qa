@@ -177,7 +177,7 @@
           error_count:                  "{{ all_results | selectattr('status', 'equalto', 'ERROR') | list | length }}"
           warning_count:                "{{ all_results | selectattr('status', 'equalto', 'WARNING') | list | length }}"
           info_count:                   "{{ all_results | selectattr('status', 'equalto', 'INFO') | list | length }}"
-          config_check_types:           "{{ all_results | map('check.category') | unique | list }}"
+          config_check_types:           "{{ all_results | map(attribute='check.category') | unique | list }}"
 
     - name:                            "Run test cases by including them as roles"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
