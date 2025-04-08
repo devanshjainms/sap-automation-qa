@@ -466,12 +466,14 @@
                             {{ check.check.collector_type|default('') }}</code>
                           </div>
                         </div>
+                        {% if check.check.collector_args.command is defined %}
                         <div class="detail-row">
-                          <div class="detail-label">Collector Args:</div>
+                          <div class="detail-label">Command:</div>
                           <div>
-                            {{ check.check.collector_args|default('') }}</code>
+                            {{ check.check.collector_args.command|default('') }}</code>
                           </div>
                         </div>
+                        {% endif %}
                         <div class="detail-row">
                           <div class="detail-label">Applicability:</div>
                           <div>{{ check.check.applicability|default('') }}</div>
@@ -480,9 +482,15 @@
                           <div class="detail-label">Output Type:</div>
                           <div>{{ check.check.validator_type|default('') }}</div>
                         </div>
+                        {% if check.check.validator_args.expected_output is defined %}
                         <div class="detail-row">
-                          <div class="detail-label">Output Args:</div>
-                          <div>{{ check.check.validator_args|default('') }}</div>
+                          <div class="detail-label">Expected Output:</div>
+                          <div>{{ check.check.validator_args.expected_output|default('') }}</div>
+                        </div>
+                        {% endif %}
+                        <div class="detail-row">
+                          <div class="detail-label">Actual Value:</div>
+                          {{ check.actual_value|default('') }}</code>
                         </div>
                         <div class="detail-row">
                           <div class="detail-label">Execution Time:</div>
@@ -497,14 +505,16 @@
                           {% if check.check.references.microsoft|default('') %}
                           <div class="detail-row">
                             <div class="detail-label">Microsoft:</div>
-                            <div><a href="{{ check.check.references.microsoft|default('') }}" target="_blank">Microsoft Docs</a></div>
+                            <div><a href="{{ check.check.references.microsoft|default('') }}" target="_blank">Microsoft
+                                Docs</a></div>
                           </div>
                           {% endif %}
 
                           {% if check.check.references.sap|default('') %}
                           <div class="detail-row">
                             <div class="detail-label">SAP:</div>
-                            <div><a href="https://me.sap.com/notes/{{ check.check.references.sap|default('') }}" target="_blank">Note</a>
+                            <div><a href="https://me.sap.com/notes/{{ check.check.references.sap|default('') }}"
+                                target="_blank">Note</a>
                             </div>
                           </div>
                           {% endif %}
@@ -519,7 +529,8 @@
                           {% if check.check.references.other|default('') %}
                           <div class="detail-row">
                             <div class="detail-label">Other:</div>
-                            <div><a href="{{ check.check.references.other|default('') }}" target="_blank">Other Reference</a></div>
+                            <div><a href="{{ check.check.references.other|default('') }}" target="_blank">Other
+                                Reference</a></div>
                           </div>
                           {% endif %}
                         </div>
@@ -540,8 +551,8 @@
               <h3>Section Reports</h3>
               {% for check in host_sections %}
               <div class="config-section">
-                <h4 class="section-header" onclick="toggleSection('section-{{ check.hostname }}-{{ check.check.id }}')"><span
-                    class="toggle-icon">+</span> {{ check.check.name }} ({{ check.check.id }})</h4>
+                <h4 class="section-header" onclick="toggleSection('section-{{ check.hostname }}-{{ check.check.id }}')">
+                  <span class="toggle-icon">+</span> {{ check.check.name }} ({{ check.check.id }})</h4>
                 <div id="section-{{ check.hostname }}-{{ check.check.id }}" class="section-content collapsed">
                   <p>
                     <strong>Description:</strong> {{ check.check.description }}
