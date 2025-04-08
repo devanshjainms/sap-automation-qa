@@ -366,6 +366,10 @@ class ConfigurationCheck(SapAutomationQA):
             supported_configurations = self.context.get("supported_configurations", {}).get(
                 validation_rules, {}
             )
+            self.log(
+                logging.INFO,
+                f"Supported Configurations {supported_configurations}"
+            )
 
             if not value or not supported_configurations or not role:
                 return {
@@ -393,6 +397,10 @@ class ConfigurationCheck(SapAutomationQA):
             }
 
         except Exception:
+            self.log(
+                logging.ERROR,
+                f"Error validating VM support for check {check}: {collected_data}",
+            )
             return {
                 "status": TestStatus.ERROR.value,
             }
@@ -414,8 +422,6 @@ class ConfigurationCheck(SapAutomationQA):
         else:
             return {
                 "status": TestStatus.ERROR.value,
-                "message": f"Unknown validator type: {check.validator_type}",
-                "actual_value": None,
             }
 
     def execute_check(self, check: Check) -> CheckResult:
