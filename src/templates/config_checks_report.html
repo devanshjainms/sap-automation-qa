@@ -534,7 +534,7 @@
               {% endif %}
               {% endfor %}
               {% set host_sections = test_case_results|selectattr('hostname', 'equalto',
-              hostname)|selectattr('check.check.report', 'equalto', 'section')|rejectattr('status', 'equalto', 'SKIPPED')|list
+              hostname)|selectattr('check.report', 'equalto', 'section')|rejectattr('status', 'equalto', 'SKIPPED')|list
               %}
               {% if host_sections|length > 0 %}
               <h3>Section Reports</h3>
