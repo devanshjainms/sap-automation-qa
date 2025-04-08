@@ -183,4 +183,3 @@
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
       vars:
         html_template_name:            "./templates/config_checks_report.html"
-        system_info:                   "{{ system_info }}"

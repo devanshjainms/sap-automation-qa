@@ -384,7 +384,8 @@
             </div>
             <div class="system-info-column">
               <p>
-                <strong>Total Checks:</strong> {{ test_case_results|length }}
+                <strong>Total Checks:</strong> {{ test_case_results|rejectattr('status', 'equalto',
+                'SKIPPED')|list|length }}
               </p>
             </div>
           </div>
@@ -425,9 +426,10 @@
           <div class="tabs-container">
             {% for hostname in system_info.hostnames %}
             <div id="host-{{ hostname }}" class="tab-content {% if loop.first %}active{% endif %}">
-              {% for check_type in system_info.config_check_types %}
-              {% set type_checks = test_case_results|selectattr('hostname', 'equalto',
-              hostname)|selectattr('check.category', 'equalto', check_type)
+              {% for check_type in system_info.config_check_types|default([]) %}
+              {% set type_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|
+              selectattr('check.category', 'defined')|
+              selectattr('check.category', 'equalto', check_type)|
               rejectattr('status', 'equalto', 'SKIPPED')|list %}
               {% if type_checks|length > 0 %}
               <h3>{{ check_type }}</h3>
