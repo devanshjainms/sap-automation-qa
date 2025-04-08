@@ -18,7 +18,7 @@ enums:
     - all_hardware:                   &all_hardware [*vm, *hli]
 
   storage_type:
-    premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","ANF","PremiumV2_LRS"]
+    premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","ANF","PremiumV2_LRS","AFS"]
     anf:                              &anf ["ANF"]
 
   workload:
