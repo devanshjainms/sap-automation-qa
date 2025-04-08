@@ -34,17 +34,21 @@ class ApplicabilityRule:
         """
         if isinstance(context_value, str):
             context_value = context_value.strip()
+            if self.property == "os_version" and self.value == "all":
+                return True
 
             if context_value.lower() == "true":
                 context_value = True
             elif context_value.lower() == "false":
                 context_value = False
+
         if isinstance(self.value, list):
             if isinstance(context_value, list):
-                return any(val in context_value for val in self.value)
-            if self.property == 'storage_type':
-                return any(val in context_value for val in self.value) or \
-                    any(context_value in val for val in self.value)
+                return bool(set(self.value).intersection(set(context_value)))
+            if self.property == "storage_type":
+                return any(val in context_value for val in self.value) or any(
+                    context_value in val for val in self.value
+                )
             return context_value in self.value
 
         if isinstance(self.value, bool):
