@@ -149,7 +149,7 @@ checks:
       role:                           [*ascs_role, *db_role]
       database_type:                  [*hana]
       high_availability:              true
-      high_availability_agent:        [*sbd]
+      high_availability_agent:        [*cluster_type]
     collector_type:                   *command
     collector_args:
       command: |
@@ -173,7 +173,7 @@ checks:
       role:                             [*db_role, *ascs_role]
       database_type:                    [*hana]
       high_availability:                true
-      high_availability_agent:          [*sbd]
+      high_availability_agent:          [*cluster_type]
     collector_type:                     *command
     collector_args:
       command: |
@@ -181,7 +181,7 @@ checks:
     validator_type:                     *range
     validator_args:
       min:                              "144"
-      max:                              "300"
+      max:                              "900"
     report:                             *check
 
   - id:                                 "SAP-0005"
@@ -423,7 +423,7 @@ checks:
       role:                             [*db_role, *ascs_role]
       database_type:                    [*hana]
       high_availability:                true
-      high_availability_agent:          [*sbd]
+      high_availability_agent:          [*cluster_type]
     collector_type:                     *command
     collector_args:
       command:                          "/bin/cat /etc/modules-load.d/softdog.conf"
