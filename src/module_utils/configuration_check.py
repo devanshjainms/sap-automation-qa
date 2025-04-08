@@ -373,8 +373,9 @@ class ConfigurationCheck(SapAutomationQA):
                 }
 
             if "VMs" in validation_rules:
-                if database_type not in supported_configurations.get(
-                    role, {}).get("SupportedDB", []):
+                if database_type not in supported_configurations.get(role, {}).get(
+                    "SupportedDB", []
+                ):
                     return {
                         "status": TestStatus.ERROR.value,
                     }
