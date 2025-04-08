@@ -497,14 +497,14 @@
                           {% if check.check.references.microsoft|default('') %}
                           <div class="detail-row">
                             <div class="detail-label">Microsoft:</div>
-                            <div><a href="{{ check.references.microsoft }}" target="_blank">Microsoft Docs</a></div>
+                            <div><a href="{{ check.check.references.microsoft|default('') }}" target="_blank">Microsoft Docs</a></div>
                           </div>
                           {% endif %}
 
                           {% if check.check.references.sap|default('') %}
                           <div class="detail-row">
                             <div class="detail-label">SAP:</div>
-                            <div><a href="https://me.sap.com/notes/{{ check.references.sap }}" target="_blank">Note</a>
+                            <div><a href="https://me.sap.com/notes/{{ check.check.references.sap|default('') }}" target="_blank">Note</a>
                             </div>
                           </div>
                           {% endif %}
@@ -512,14 +512,14 @@
                           {% if check.check.references.remediation|default('') %}
                           <div class="detail-row">
                             <div class="detail-label">Remediation:</div>
-                            <div>{{ check.check.references.remediation }}</div>
+                            <div>{{ check.check.references.remediation|default('') }}</div>
                           </div>
                           {% endif %}
 
                           {% if check.check.references.other|default('') %}
                           <div class="detail-row">
                             <div class="detail-label">Other:</div>
-                            <div><a href="{{ check.references.other }}" target="_blank">Other Reference</a></div>
+                            <div><a href="{{ check.check.references.other|default('') }}" target="_blank">Other Reference</a></div>
                           </div>
                           {% endif %}
                         </div>
