@@ -416,9 +416,10 @@
             {% set host_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|rejectattr('status',
             'equalto', 'SKIPPED')|list %}
             {% set error_count = host_checks|selectattr('status', 'equalto', 'ERROR')|list|length %}
+            {% set no_error_count = host_checks|rejectattr('status', 'equalto', 'ERROR')|list|length %}
             <button class="tab-button {% if loop.first %}active{% endif %}" onclick="openTab('host-{{ hostname }}')">
               {{ hostname }}
-              <span class="hostname-badge {% if error_count > 0 %}error{% endif %}">{{ host_checks|length }}</span>
+              <span class="hostname-badge {% if error_count > 0 %}error{% endif %}">{{ no_error_count }}/{{ host_checks|length }}</span>
             </button>
             {% endfor %}
           </div>
