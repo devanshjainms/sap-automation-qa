@@ -154,7 +154,8 @@ class ConfigurationCheck(SapAutomationQA):
             if not rule.is_applicable(context_value):
                 self.log(
                     logging.DEBUG,
-                    f"Check {check.id} not applicable: Rule for '{rule.property}' with value '{rule.value}' doesn't match context value '{context_value}'",
+                    f"Check {check.id} not applicable: Rule for '{rule.property}' with value "
+                    + f"'{rule.value}' doesn't match context value '{context_value}'",
                 )
                 return False
 
