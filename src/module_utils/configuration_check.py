@@ -382,7 +382,9 @@ class ConfigurationCheck(SapAutomationQA):
             elif "OSDB" in validation_rules:
                 if role not in supported_configurations.get(
                     database_type, {}
-                ) or value not in supported_configurations.get(database_type, {}).get(role, []):
+                ) or value.upper() not in supported_configurations.get(database_type, {}).get(
+                    role, []
+                ):
                     return {
                         "status": TestStatus.ERROR.value,
                     }
