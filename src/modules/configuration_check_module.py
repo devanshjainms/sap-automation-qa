@@ -90,6 +90,10 @@ report_path:
 
 
 class ConfigurationCheckModule:
+    """
+    Class to handle configuration checks using the ConfigurationCheck class.
+    """
+
     def __init__(self, module):
         self.module = module
         self.module_params = module.params

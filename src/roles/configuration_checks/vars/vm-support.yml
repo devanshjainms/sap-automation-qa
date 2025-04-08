@@ -233,7 +233,7 @@ vm_patterns:
       SupportedDB:             *db_type_all
 
 # Supported VM types
-supported_vms:
+SupportedVMs:
   # D-series VMs
   Standard_D11:                *vm_pattern_app_only
   Standard_DS11:               *vm_pattern_non_hana_db

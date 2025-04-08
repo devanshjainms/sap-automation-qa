@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
 """
 This module is used to setup the context for the test cases
 and setup base variables for the test case running in the sap-automation-qa
@@ -126,6 +129,7 @@ class ConfigurationCheck(SapAutomationQA):
             "string": self.validate_string,
             "range": self.validate_numeric_range,
             "list": self.validate_list,
+            "check_support": "self.validate_vm_support",
         }
 
     def register_collector(self, collector_type: str, collector_class: Type[Collector]) -> None:
@@ -331,7 +335,6 @@ class ConfigurationCheck(SapAutomationQA):
                 "actual_value": collected_list,
             }
         else:
-            # Determine severity of failure based on check
             if check.severity == Severity.INFO:
                 status = TestStatus.INFO.value
             elif check.severity == Severity.LOW:
@@ -341,6 +344,57 @@ class ConfigurationCheck(SapAutomationQA):
 
             return {
                 "status": status,
+            }
+
+    def validate_vm_support(self, check: Check, collected_data: str) -> Dict[str, Any]:
+        """
+        Validates if a VM SKU is supported for the given role and database type
+
+        :param check: Check definition
+        :type check: Check
+        :param collected_data: VM SKU from metadata service
+        :type collected_data: str
+        :return: Validation result
+        :rtype: Dict[str, Any]
+        """
+        try:
+            value = collected_data.strip()
+            role = self.context.get("role", "")
+            os_type = self.context.get("os_type", "")
+            database_type = self.context.get("database_type", "")
+            validation_rules = check.validator_args.get("validation_rules", {})
+            supported_configurations = self.context.get("supported_configurations", {}).get(
+                validation_rules, {}
+            )
+
+            if not value or not supported_configurations or not role:
+                return {
+                    "status": TestStatus.ERROR.value,
+                }
+
+            if "VMs" in validation_rules:
+                if database_type not in supported_configurations.get(
+                    role, {}.get("SupportedDB", [])
+                ):
+                    return {
+                        "status": TestStatus.ERROR.value,
+                    }
+
+            elif "OSDB" in validation_rules:
+                if role not in supported_configurations.get(
+                    database_type, {}
+                ) or os_type not in supported_configurations.get(database_type, {}).get(role, []):
+                    return {
+                        "status": TestStatus.ERROR.value,
+                    }
+
+            return {
+                "status": TestStatus.SUCCESS.value,
+            }
+
+        except Exception:
+            return {
+                "status": TestStatus.ERROR.value,
             }
 
     def validate_result(self, check: Check, collected_data: Any) -> Dict[str, Any]:

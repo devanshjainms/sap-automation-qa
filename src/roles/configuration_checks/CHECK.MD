@@ -1,3 +1,4 @@
+```yaml
 enums:
   severity:
     - info:                           &info "INFO"
@@ -82,7 +83,9 @@ enums:
     - check:                          &check "check"
     - section:                        &section "section"
     - report:                         &report [*check, *section]
+```
 
+```yaml
 CHECK_DEFINITION:
   id:                               str
   name:                             str
@@ -117,3 +120,4 @@ CHECK_DEFINITION:
     microsoft:                      str
     other:                          str
     remediation:                    str
+```

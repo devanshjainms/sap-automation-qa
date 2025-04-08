@@ -70,6 +70,7 @@
     - name:                             "Load supported VM information"
       ansible.builtin.include_vars:
         file:                           "./roles/configuration_checks/vars/vm-support.yml"
+        name:                           vm_support
 
     - name:                             "Run common VM information checks on all hosts"
       ansible.builtin.include_tasks:
@@ -77,7 +78,7 @@
       loop:
         - {
                                         name: "VM Information",
-                                        file_name: "vm-info",
+                                        file_name: "hardware",
                                         checks_var: "vm_info_checks",
                                         results_var: "vm_info_results"
           }
