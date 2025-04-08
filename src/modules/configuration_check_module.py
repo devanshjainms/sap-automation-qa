@@ -108,7 +108,6 @@ class ConfigurationCheckModule:
         """Format results for use with render_html_report"""
         serialized_results = []
         for check_result in self.config_check.result["check_results"]:
-            # Convert CheckResult to dictionary
             result_dict = {
                 "check": {
                     "id": check_result.check.id,

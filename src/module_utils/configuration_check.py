@@ -93,13 +93,11 @@ class CheckResult:
     check: Check
     status: TestStatus
     hostname: str
-    collected_data: Any
     expected_value: Any
     actual_value: Any
     execution_time: float
     timestamp: datetime = field(default_factory=datetime.now)
     details: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class ConfigurationCheck(SapAutomationQA):
@@ -223,6 +221,7 @@ class ConfigurationCheck(SapAutomationQA):
                     tags=check.get("tags", []),
                     applicability=applicability_rules,
                     references=check.get("references", {}),
+                    report=check.get("report", "check"),
                 )
             )
         self.log(
@@ -257,11 +256,8 @@ class ConfigurationCheck(SapAutomationQA):
         if is_equal:
             return {
                 "status": TestStatus.SUCCESS.value,
-                "message": "Value matches expected result",
-                "actual_value": collected,
             }
         else:
-            # Determine severity of failure based on check
             if check.severity == Severity.INFO:
                 status = TestStatus.INFO.value
             elif check.severity == Severity.LOW:
@@ -271,9 +267,6 @@ class ConfigurationCheck(SapAutomationQA):
 
             return {
                 "status": status,
-                "message": "Value does not match expected result",
-                "actual_value": collected,
-                "difference": f"Expected: '{expected}', Got: '{collected}'",
             }
 
     def validate_numeric_range(self, check: Check, collected_data: str) -> Dict[str, Any]:
@@ -297,8 +290,6 @@ class ConfigurationCheck(SapAutomationQA):
             if within_range:
                 return {
                     "status": TestStatus.SUCCESS.value,
-                    "message": f"Value {value} is within range [{min_val}, {max_val}]",
-                    "actual_value": value,
                 }
             else:
                 if check.severity == Severity.INFO:
@@ -310,16 +301,10 @@ class ConfigurationCheck(SapAutomationQA):
 
                 return {
                     "status": status,
-                    "message": f"Value {value} is outside range [{min_val}, {max_val}]",
-                    "actual_value": value,
-                    "min": min_val,
-                    "max": max_val,
                 }
         except ValueError:
             return {
                 "status": TestStatus.ERROR.value,
-                "message": f'Cannot convert "{collected_data}" to a numeric value',
-                "actual_value": collected_data,
             }
 
     def validate_list(self, check: Check, collected_data: str) -> Dict[str, Any]:
@@ -355,9 +340,6 @@ class ConfigurationCheck(SapAutomationQA):
 
             return {
                 "status": status,
-                "message": "Value is not in the expected list",
-                "actual_value": collected_list,
-                "expected_list": expected_list,
             }
 
     def validate_result(self, check: Check, collected_data: Any) -> Dict[str, Any]:
@@ -393,29 +375,24 @@ class ConfigurationCheck(SapAutomationQA):
 
         def create_result(
             status: TestStatus,
-            collected_data=None,
             actual_value=None,
             execution_time=0,
             details=None,
-            metadata=None,
         ) -> CheckResult:
             return CheckResult(
                 check=check,
                 status=status,
                 hostname=self.hostname or "unknown",
-                collected_data=collected_data,
                 expected_value=check.validator_args.get("expected_output"),
                 actual_value=actual_value,
                 execution_time=execution_time,
-                details=details,
-                metadata=metadata or {},
                 timestamp=datetime.now(),
+                details=details,
             )
 
         if not self.is_check_applicable(check):
             return create_result(TestStatus.SKIPPED.value, details="Check not applicable")
 
-        # Find appropriate collector
         collector_class = self._collectors.get(check.collector_type)
         if not collector_class:
             return create_result(
@@ -427,21 +404,15 @@ class ConfigurationCheck(SapAutomationQA):
 
         start_time = time.time()
         try:
-            # Collect data
             collected_data = collector.collect(check, self.context)
-
-            # Validate data
             validation_result = self.validate_result(check, collected_data)
 
             execution_time = time.time() - start_time
 
             result = create_result(
                 status=validation_result["status"],
-                collected_data=collected_data,
-                actual_value=validation_result.get("actual_value"),
+                actual_value=collected_data,
                 execution_time=execution_time,
-                details=validation_result.get("message"),
-                metadata=validation_result,
             )
 
             return result
@@ -452,11 +423,9 @@ class ConfigurationCheck(SapAutomationQA):
 
             return create_result(
                 status=TestStatus.ERROR.value,
-                collected_data=None,
                 actual_value=None,
                 execution_time=execution_time,
                 details=f"Error: {str(e)}",
-                metadata={"exception": str(e)},
             )
 
     def execute_checks(
@@ -474,12 +443,10 @@ class ConfigurationCheck(SapAutomationQA):
         """
         checks_to_run = self.checks
 
-        # Filter by tags if specified
         if filter_tags:
             tag_set = set(filter_tags)
             checks_to_run = [c for c in checks_to_run if any(tag in tag_set for tag in c.tags)]
 
-        # Filter by categories if specified
         if filter_categories:
             category_set = set(filter_categories)
             checks_to_run = [c for c in checks_to_run if c.category in category_set]
