@@ -140,6 +140,372 @@ checks:
       command:                        "/bin/cat /etc/hosts"
       user:                           *root
     report:                           *section
+  
+  - id:                               "IC-0004"
+    name:                             "Kernel Version"
+    description:                      "Checks the kernel version of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/uname -r"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0005"
+    name:                             "Azure Hypervisor Host"
+    description:                      "Checks the Azure hypervisor host"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /var/lib/hyperv/.kvp_pool_3 | tr -d '\\000' | grep -o -P '(?<=HostName).*(?=HostingSystemEditionId)'"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0006"
+    name:                             "Linux Release File"
+    description:                      "Checks the Linux release file"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/os-release"
+      user:                           *root
+    report:                           *section
+
+    - id:                               "IC-0007"
+    name:                             "Linux Major and Minor Release"
+    description:                      "Checks the Linux major and minor release"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/os-release | grep VERSION_ID"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0008"
+    name:                             "OS Timezone"
+    description:                      "Checks the OS timezone"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/date +%Z"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0009"
+    name:                             "OS KDUMP Configuration"
+    description:                      "Checks the KDUMP configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/systemctl status kdump.service | grep -o 'Active:.*'"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0010"
+    name:                             "Oracle gclib version"
+    description:                      "Checks the Oracle gclib version"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  [*oracle]
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/rpm -q glibc"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0011"
+    name:                             "Sysctl"
+    description:                      "Checks the sysctl configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/sbin/sysctl -a 2> /dev/null"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0012"
+    name:                             "fstab"
+    description:                      "Checks the fstab configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/fstab"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0013"
+    name:                             "systemctl"
+    description:                      "Checks the systemctl configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/systemctl list-unit-files --state=enabled"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0014"
+    name:                             "chkconfig"
+    description:                      "Checks the chkconfig configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/sbin/chkconfig 2> /dev/null"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0015"
+    name:                             "Installed Packages"
+    description:                      "Checks the installed packages of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/rpm -qa"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0016"
+    name:                             "Microsoft Defender Health"
+    description:                      "Checks the Microsoft Defender Health"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role, *app_role]
+      database_type:                  [*hana, *ase, *db2, *oracle]
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/mdatp health"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0017"
+    name:                             "SBD Configuration"
+    description:                      "Checks the SBD configuration of the system"
+    category:                         *sap_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role]
+      database_type:                  *db
+      high_availability:              true
+      high_availability_agent:        [*sbd]
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/sysconfig/sbd"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0018"
+    name:                             "Cluster Configuration"
+    description:                      "Checks the cluster configuration of the system"
+    category:                         *sap_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role]
+      database_type:                  *db
+      high_availability:              true
+      high_availability_agent:        [*sbd, *fencing_agent]
+    collector_type:                   *command
+    collector_args:
+      command:                        "cibadmin --query --scope resources"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0019"
+    name:                             "Cluster Status"
+    description:                      "Checks the cluster status of the system"
+    category:                         *sap_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role]
+      database_type:                  *db
+      high_availability:              true
+      high_availability_agent:        [*sbd, *fencing_agent]
+    collector_type:                   *command
+    collector_args:
+      command:                        "crm_mon -1"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0020"
+    name:                             "lsscsi"
+    description:                      "Checks the lsscsi configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role]
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/usr/bin/lsscsi"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0021"
+    name:                             "storage-metadata"
+    description:                      "Checks the storage metadata of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role, *app_role]
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/usr/bin/curl -s --noproxy '*' -H Metadata:true 'http://169.254.169.254/metadata/instance/compute/storageProfile?api-version=2021-12-13';echo"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0022"
+    name:                             "lvm fullreport"
+    description:                      "Checks the lvm fullreport configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role, *app_role]
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/sbin/lvm fullreport --reportformat json"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0026"
+    name:                             "Kernel Version"
+    description:                      "Checks the kernel version of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/uname -r"
+      user:                           *root
+    report:                           *check
 
   - id:                               "IC-0023"
     name:                             "SrHook Configuration"
@@ -195,20 +561,3 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0026"
-    name:                             "Kernel Version"
-    description:                      "Checks the kernel version of the system"
-    category:                         *vm_check
-    severity:                         *info
-    workload:                         *workload
-    applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux]
-      os_version:                     *all_versions
-      hardware_type:                  *vm
-      role:                           *role
-      database_type:                  *db
-    collector_type:                   *command
-    collector_args:
-      command:                        "/bin/uname -r"
-      user:                           *root
-    report:                           *check
