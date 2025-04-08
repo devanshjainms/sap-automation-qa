@@ -360,7 +360,6 @@ class ConfigurationCheck(SapAutomationQA):
         try:
             value = collected_data.strip()
             role = self.context.get("role", "")
-            os_type = self.context.get("os_type", "")
             database_type = self.context.get("database_type", "")
             validation_rules = check.validator_args.get("validation_rules", {})
             supported_configurations = self.context.get("supported_configurations", {}).get(
@@ -373,7 +372,7 @@ class ConfigurationCheck(SapAutomationQA):
                 }
 
             if "VMs" in validation_rules:
-                if database_type not in supported_configurations.get(role, {}).get(
+                if database_type not in supported_configurations.get(value, {}).get(role, {}).get(
                     "SupportedDB", []
                 ):
                     return {
@@ -383,7 +382,7 @@ class ConfigurationCheck(SapAutomationQA):
             elif "OSDB" in validation_rules:
                 if role not in supported_configurations.get(
                     database_type, {}
-                ) or os_type not in supported_configurations.get(database_type, {}).get(role, []):
+                ) or value not in supported_configurations.get(database_type, {}).get(role, []):
                     return {
                         "status": TestStatus.ERROR.value,
                     }
