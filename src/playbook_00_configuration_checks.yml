@@ -146,6 +146,15 @@
         var:                            all_results
       run_once:                         true
 
+    - name:                             "Set the summary"
+      ansible.builtin.set_fact:
+        passed_count:                   "{{ all_results | selectattr('status', 'equalto', 'PASSED') | list | length }}"
+        error_count:                    "{{ all_results | selectattr('status', 'equalto', 'ERROR') | list | length }}"
+        warning_count:                  "{{ all_results | selectattr('status', 'equalto', 'WARNING') | list | length }}"
+        info_count:                     "{{ all_results | selectattr('status', 'equalto', 'INFO') | list | length }}"
+        config_check_types:             "{{ all_results | map(attribute='check.category') | unique | list }}"
+
+
     - name:                             "Collect system information for report"
       ansible.builtin.set_fact:
         system_info:

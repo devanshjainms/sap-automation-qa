@@ -446,14 +446,14 @@
                 <tbody>
                   {% for check in type_checks %}
                   {% if check.report == 'check' %}
-                  <tr onclick="toggleDetails('{{ hostname }}-{{ check.id }}')">
+                  <tr onclick="toggleDetails('{{ check.hostname }}-{{ check.check.id }}')">
                     <td>{{ check.check.id }}</td>
                     <td>{{ check.check.name }}</td>
                     <td>{{ check.actual_value|truncate(30) }}</td>
                     <td>{{ check.check.validator_args.expected_output|default('N/A') }}</td>
                     <td class="status-{{ check.status|lower }}">{{ check.status }}</td>
                   </tr>
-                  <tr id="details-{{ hostname }}-{{ check.id }}" class="expanded-content">
+                  <tr id="details-{{ check.hostname }}-{{ check.check.id }}" class="expanded-content">
                     <td colspan="6">
                       <div class="expanded-content-inner">
                         <div class="detail-row">
@@ -540,9 +540,9 @@
               <h3>Section Reports</h3>
               {% for check in host_sections %}
               <div class="config-section">
-                <h4 class="section-header" onclick="toggleSection('section-{{ hostname }}-{{ check.check.id }}')"><span
+                <h4 class="section-header" onclick="toggleSection('section-{{ check.hostname }}-{{ check.check.id }}')"><span
                     class="toggle-icon">+</span> {{ check.check.name }} ({{ check.check.id }})</h4>
-                <div id="section-{{ hostname }}-{{ check.id }}" class="section-content collapsed">
+                <div id="section-{{ check.hostname }}-{{ check.check.id }}" class="section-content collapsed">
                   <p>
                     <strong>Description:</strong> {{ check.check.description }}
                   </p>
