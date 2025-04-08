@@ -134,7 +134,6 @@ class ConfigurationCheckModule:
                     else str(check_result.status)
                 ),
                 "hostname": check_result.hostname,
-                "collected_data": check_result.collected_data,
                 "expected_value": check_result.expected_value,
                 "actual_value": check_result.actual_value,
                 "execution_time": check_result.execution_time,
@@ -144,7 +143,6 @@ class ConfigurationCheckModule:
                     else str(check_result.timestamp)
                 ),
                 "details": check_result.details,
-                "metadata": check_result.metadata,
             }
             serialized_results.append(result_dict)
         self.config_check.result["check_results"] = serialized_results
