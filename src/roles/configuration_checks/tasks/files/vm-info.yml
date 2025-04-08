@@ -195,7 +195,7 @@ checks:
       user:                           *root
     report:                           *section
 
-    - id:                               "IC-0007"
+  - id:                               "IC-0007"
     name:                             "Linux Major and Minor Release"
     description:                      "Checks the Linux major and minor release"
     category:                         *vm_check
