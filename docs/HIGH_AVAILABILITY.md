@@ -94,8 +94,8 @@ sudo su -
 # First, visit https://github.com/Azure/sap-automation-qa in your browser
 # Click the "Fork" button in the top-right corner to create a fork in your GitHub account
 
-# Clone your fork of the repository (replace YOUR-USERNAME with your GitHub username)
-git clone https://github.com/YOUR-USERNAME/sap-automation-qa.git
+# Clone your fork of the repository (replace GITHUB-USERNAME with your GitHub username)
+git clone https://github.com/GITHUB-USERNAME/sap-automation-qa.git
 cd sap-automation-qa
 ```
 
