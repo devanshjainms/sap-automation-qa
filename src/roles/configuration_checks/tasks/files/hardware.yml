@@ -576,5 +576,4 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'availabilitySet.id' -o tsv || echo 'No AvSet defined'"
-      user:                           *root
     report:                           *check

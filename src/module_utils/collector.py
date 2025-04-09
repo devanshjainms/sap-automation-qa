@@ -66,10 +66,11 @@ class CommandCollector(Collector):
         try:
             command = check.collector_args.get("command", "")
             user = check.collector_args.get("user", "")
-
             if not command:
                 return ""
+
             command = self.substitute_context_vars(command, context)
+            check.command = command
             if user and user != "root":
                 command = f"sudo -u {user} {command}"
 
@@ -99,7 +100,9 @@ class AzureDataCollector(Collector):
             command = check.collector_args.get("command", "")
             if not command:
                 return ""
+
             command = self.substitute_context_vars(command, context)
+            check.command = command
 
             return self.execute_command_subprocess(
                 command, shell_command=check.collector_args.get("shell", True)

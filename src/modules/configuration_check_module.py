@@ -532,14 +532,15 @@ class ConfigurationCheckModule(SapAutomationQA):
         start_time = time.time()
         try:
             collected_data = collector.collect(check, self.context)
-            validation_result = self.validate_result(check, collected_data)
             execution_time = time.time() - start_time
-            result = create_result(
+            if check.severity == Severity.INFO:
+                return create_result(TestStatus.INFO.value, actual_value=collected_data)
+            validation_result = self.validate_result(check, collected_data)
+            return create_result(
                 status=validation_result["status"],
                 actual_value=collected_data,
                 execution_time=execution_time,
             )
-            return result
 
         except Exception as e:
             execution_time = time.time() - start_time
