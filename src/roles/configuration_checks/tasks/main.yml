@@ -6,9 +6,23 @@
 # +------------------------------------4--------------------------------------*/
 
 ---
+# Get vm name using imds, resource group name and location and set them in system_context
+
+- name:                             Get virtual machine properties from IMDS
+  ansible.builtin.uri:
+    url:                            http://169.254.169.254/metadata/instance?api-version=2021-02-01
+    use_proxy:                      false
+    headers:
+      Metadata:                     true
+  register:                         compute_metadata
+
+
 - name:                             Prepare system context information for {{check_type.name}}
   ansible.builtin.set_fact:
     system_context:
+      vm_name:                      "{{ compute_metadata.json.compute.name | default( vm_name ) }}"
+      resource_group_name:          "{{ compute_metadata.json.compute.resourceGroup | default( resource_group_name ) }}"
+      location:                     "{{ compute_metadata.json.compute.location | default( location ) }}"
       supported_configurations:     "{{ vm_support }}"
       hostname:                     "{{ inventory_hostname }}"
       os_type:                      "{{ ansible_distribution | upper }}"
@@ -36,10 +50,29 @@
                                       "AFA"
                                     {% endif %}
 
-- name:                             Execute configuration checks with merged file for {{check_type.name}}
+- name:                             Load checks file for {{check_type.name}}
+  ansible.builtin.set_fact:
+    check_file_content:             "{{ lookup('file', check_type.file_name + '.yml') }}"
+
+- name:                             Parse check file to identify collector types
+  ansible.builtin.set_fact:
+    parsed_checks:                  "{{ check_file_content | from_yaml }}"
+    
+- name:                             Filter checks by collector type
+  ansible.builtin.set_fact:
+    command_checks:                 "{{ parsed_checks.checks | selectattr('collector_type', 'equalto', 'command') | list }}"
+    azure_checks:                   "{{ parsed_checks.checks | selectattr('collector_type', 'equalto', 'azure') | list }}"
+
+- name:                             Convert filtered checks back to YAML
+  ansible.builtin.set_fact:
+    command_checks_yaml:            "{{ {'checks': command_checks} | to_yaml }}"
+    azure_checks_yaml:              "{{ {'checks': azure_checks} | to_yaml }}"
+  when:                             command_checks is defined or azure_checks is defined
+
+- name:                             Execute command-based configuration checks
   become:                           true
   configuration_check_module:
-    check_file_content:             "{{ lookup('file', check_type.file_name + '.yml') }}"
+    check_file_content:             "{{ command_checks_yaml }}"
     context:                        "{{ system_context }}"
     filter_tags:                    "{{ tags_filter | default(omit) }}"
     filter_categories:              "{{ categories_filter | default(omit) }}"
@@ -47,8 +80,29 @@
     test_group_invocation_id:       "{{ test_group_invocation_id }}"
     test_group_name:                "ConfigurationChecks"
     hostname:                       "{{ ansible_hostname }}"
-  register:                         configuration_check_result
+  register:                         command_check_results
+  when:                             command_checks is defined and command_checks | length > 0
+
+- name:                             Execute Azure-based configuration checks
+  become:                           false
+  delegate_to:                      localhost
+  configuration_check_module:
+    check_file_content:             "{{ azure_checks_yaml }}"
+    context:                        "{{ system_context }}"
+    filter_tags:                    "{{ tags_filter | default(omit) }}"
+    filter_categories:              "{{ categories_filter | default(omit) }}"
+    workspace_directory:            "{{ _workspace_directory }}"
+    test_group_invocation_id:       "{{ test_group_invocation_id }}"
+    test_group_name:                "ConfigurationChecks"
+    hostname:                       "{{ ansible_hostname }}"
+  register:                         azure_check_results
+  when:                             azure_checks is defined and azure_checks | length > 0
+
+- name:                             Merge check results
+  ansible.builtin.set_fact:
+    combined_results:               "{{ (command_check_results.check_results | default([])) + 
+                                       (azure_check_results.check_results | default([])) }}"
 
 - name:                             Set dynamic result variable
   ansible.builtin.set_fact:
-    "{{ check_type.results_var }}": "{{ configuration_check_result.check_results }}"
+    "{{ check_type.results_var }}": "{{ combined_results }}"

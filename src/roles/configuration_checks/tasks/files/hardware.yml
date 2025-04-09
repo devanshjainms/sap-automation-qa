@@ -561,3 +561,20 @@ checks:
       user:                           *root
     report:                           *section
 
+  - id:                               "IC-0026"
+    name:                             "Availability Set"
+    description:                      "Checks the availability set of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role, *app_role]
+      database_type:                  [*hana, *ase, *db2, *oracle]
+    collector_type:                   *azure
+    collector_args:
+      command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'availabilitySet.id' -o tsv || echo 'No AvSet defined'"
+      user:                           *root
+    report:                           *check

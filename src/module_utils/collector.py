@@ -31,6 +31,23 @@ class Collector(SapAutomationQA, ABC):
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def substitute_context_vars(self, command: str, context: dict) -> str:
+        """
+        Substitute context variables in the command string.
+
+        :param command: Command string with placeholders
+        :type command: str
+        :param context: Context variables to substitute
+        :type context: dict
+        :return: Command string with substituted values
+        :rtype: str
+        """
+        for key, value in context.items():
+            placeholder = "{{ CONTEXT." + key + " }}"
+            if placeholder in command:
+                command = command.replace(placeholder, str(value))
+        return command
+
 
 class CommandCollector(Collector):
     """Collects data by executing shell commands"""
@@ -48,15 +65,19 @@ class CommandCollector(Collector):
         """
         try:
             command = check.collector_args.get("command", "")
+            user = check.collector_args.get("user", "")
 
-            for key, value in context.items():
-                command = command.replace(f"{{{{{key}}}}}", str(value))
+            if not command:
+                return ""
+            command = self.substitute_context_vars(command, context)
+            if user and user != "root":
+                command = f"sudo -u {user} {command}"
 
             return self.execute_command_subprocess(
                 command, shell_command=check.collector_args.get("shell", True)
             ).strip()
         except Exception as ex:
-            self.log(logging.ERROR, f"Error executing command: {ex}")
+            self.hanlde_error(ex)
 
 
 class AzureDataCollector(Collector):
@@ -74,4 +95,14 @@ class AzureDataCollector(Collector):
         :return: The output of the Azure Python Client
         :rtype: Any
         """
-        pass
+        try:
+            command = check.collector_args.get("command", "")
+            if not command:
+                return ""
+            command = self.substitute_context_vars(command, context)
+
+            return self.execute_command_subprocess(
+                command, shell_command=check.collector_args.get("shell", True)
+            ).strip()
+        except Exception as ex:
+            self.hanlde_error(ex)

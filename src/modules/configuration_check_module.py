@@ -529,26 +529,21 @@ class ConfigurationCheckModule(SapAutomationQA):
             )
 
         collector = collector_class()
-
         start_time = time.time()
         try:
             collected_data = collector.collect(check, self.context)
             validation_result = self.validate_result(check, collected_data)
-
             execution_time = time.time() - start_time
-
             result = create_result(
                 status=validation_result["status"],
                 actual_value=collected_data,
                 execution_time=execution_time,
             )
-
             return result
 
         except Exception as e:
             execution_time = time.time() - start_time
             self.log(logging.ERROR, f"Error executing check {check.id}: {str(e)}")
-
             return create_result(
                 status=TestStatus.ERROR.value,
                 actual_value=None,
