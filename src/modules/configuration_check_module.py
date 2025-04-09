@@ -605,7 +605,7 @@ class ConfigurationCheckModule(SapAutomationQA):
             logging.INFO,
             f"Check execution complete. Duration: {duration:.2f}s. "
             f"PASSED: {summary['passed']}, FAILED: {summary['failed']}, "
-            f"WARNING: {summary['warnings']}, ERROR: {summary['errors']}, "
+            f"WARNING: {summary['warnings']},"
             f"SKIPPED: {summary['skipped']}",
         )
 
