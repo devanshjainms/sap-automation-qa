@@ -42,9 +42,14 @@ class Collector(SapAutomationQA, ABC):
         :return: Command string with substituted values
         :rtype: str
         """
+        self.log(logging.INFO, f"Substituting context variables in command {command}")
         for key, value in context.items():
             placeholder = "{{ CONTEXT." + key + " }}"
             if placeholder in command:
+                self.log(
+                    logging.INFO,
+                    f"Substituting {placeholder} with {value} in command: {command}",
+                )
                 command = command.replace(placeholder, str(value))
         return command
 
