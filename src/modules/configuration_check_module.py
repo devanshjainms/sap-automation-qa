@@ -315,6 +315,26 @@ class ConfigurationCheckModule(SapAutomationQA):
             f"Loaded {len(self.checks)} checks from the configuration file.",
         )
 
+    def _create_validation_result(self, severity: Severity, is_success: bool) -> TestStatus:
+        """
+        Create a validation result based on severity and success status
+
+        :param severity: Severity of the check
+        :type severity: Severity
+        :param is_success: Whether the check was successful
+        :type is_success: bool
+        """
+        if is_success:
+            return TestStatus.SUCCESS.value
+
+        severity_map = {
+            Severity.INFO: TestStatus.INFO.value,
+            Severity.LOW: TestStatus.WARNING.value,
+            Severity.WARNING: TestStatus.WARNING.value,
+            Severity.CRITICAL: TestStatus.ERROR.value,
+        }
+        return severity_map.get(severity, TestStatus.ERROR.value)
+
     def validate_string(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """
         Validate string data against expected values
@@ -336,23 +356,9 @@ class ConfigurationCheckModule(SapAutomationQA):
             expected = expected.lower()
             collected = collected.lower()
 
-        is_equal = collected == expected
-
-        if is_equal:
-            return {
-                "status": TestStatus.SUCCESS.value,
-            }
-        else:
-            if check.severity == Severity.INFO:
-                status = TestStatus.INFO.value
-            elif check.severity == Severity.LOW:
-                status = TestStatus.WARNING.value
-            else:
-                status = TestStatus.ERROR.value
-
-            return {
-                "status": status,
-            }
+        return {
+            "status": self._create_validation_result(check.severity, collected == expected),
+        }
 
     def validate_numeric_range(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """
@@ -370,23 +376,11 @@ class ConfigurationCheckModule(SapAutomationQA):
             min_val = float(check.validator_args.get("min", "-inf"))
             max_val = float(check.validator_args.get("max", "inf"))
 
-            within_range = min_val <= value <= max_val
-
-            if within_range:
-                return {
-                    "status": TestStatus.SUCCESS.value,
-                }
-            else:
-                if check.severity == Severity.INFO:
-                    status = TestStatus.INFO.value
-                elif check.severity == Severity.LOW:
-                    status = TestStatus.WARNING.value
-                else:
-                    status = TestStatus.ERROR.value
-
-                return {
-                    "status": status,
-                }
+            return {
+                "status": self._create_validation_result(
+                    check.severity, min_val <= value <= max_val
+                ),
+            }
         except ValueError:
             return {
                 "status": TestStatus.ERROR.value,
@@ -406,24 +400,11 @@ class ConfigurationCheckModule(SapAutomationQA):
         expected_list = check.validator_args.get("expected_output", [])
         collected_list = str(collected_data).strip().split(",") if collected_data else []
         collected_list = [item.strip() for item in collected_list]
-        is_in_list = any(item in expected_list for item in collected_list)
-        if is_in_list:
-            return {
-                "status": TestStatus.SUCCESS.value,
-                "message": "Value is in the expected list",
-                "actual_value": collected_list,
-            }
-        else:
-            if check.severity == Severity.INFO:
-                status = TestStatus.INFO.value
-            elif check.severity == Severity.LOW:
-                status = TestStatus.WARNING.value
-            else:
-                status = TestStatus.ERROR.value
-
-            return {
-                "status": status,
-            }
+        return {
+            "status": self._create_validation_result(
+                check.severity, any(item in expected_list for item in collected_list)
+            ),
+        }
 
     def validate_vm_support(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """
@@ -652,7 +633,6 @@ class ConfigurationCheckModule(SapAutomationQA):
                 "passed": 0,
                 "failed": 0,
                 "warnings": 0,
-                "errors": 0,
                 "skipped": 0,
                 "info": 0,
             }
@@ -668,9 +648,6 @@ class ConfigurationCheckModule(SapAutomationQA):
             "warnings": sum(
                 1 for r in self.result["check_results"] if r.status == TestStatus.WARNING.value
             ),
-            "errors": sum(
-                1 for r in self.result["check_results"] if r.status == TestStatus.ERROR.value
-            ),
             "skipped": sum(
                 1 for r in self.result["check_results"] if r.status == TestStatus.SKIPPED.value
             ),
@@ -678,29 +655,6 @@ class ConfigurationCheckModule(SapAutomationQA):
                 1 for r in self.result["check_results"] if r.status == TestStatus.INFO.value
             ),
         }
-
-    def clear_results(self) -> None:
-        """
-        Clear all stored results
-        """
-        self.result["check_results"] = []
-        self.start_time = None
-        self.end_time = None
-
-    def get_results_by_category(self) -> Dict[str, List[CheckResult]]:
-        """
-        Group results by check workload category
-
-        :return: Dictionary with results grouped by workload
-        :rtype: Dict[str, List[CheckResult]]
-        """
-        categories = {}
-        for result in self.result["check_results"]:
-            workload = result.check.workload
-            if workload not in categories:
-                categories[workload] = []
-            categories[workload].append(result)
-        return categories
 
     def format_results_for_html_report(self):
         """
@@ -748,7 +702,9 @@ class ConfigurationCheckModule(SapAutomationQA):
         self.result["check_results"] = serialized_results
 
     def run(self):
-        """Run the module"""
+        """
+        Run the module
+        """
         try:
             context = self.module_params["context"]
             custom_hostname = self.module_params["hostname"]
@@ -762,13 +718,11 @@ class ConfigurationCheckModule(SapAutomationQA):
                 self.module_params["filter_tags"], self.module_params["filter_categories"]
             )
             self.format_results_for_html_report()
-
             result = dict(self.result)
 
             if "summary" in result:
                 summary = dict(result["summary"])
                 result["summary"] = summary
-
             self.module.exit_json(**result)
         except Exception as e:
             self.module.fail_json(msg=f"Error: {str(e)}")
@@ -788,9 +742,7 @@ def main():
         test_group_invocation_id=dict(type="str", required=True),
         test_group_name=dict(type="str", required=True),
     )
-
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
-
     runner = ConfigurationCheckModule(module)
     runner.run()
 
