@@ -528,7 +528,7 @@ class ConfigurationCheckModule(SapAutomationQA):
                 details=f"No collector found for type: {check.collector_type}",
             )
 
-        collector = collector_class()
+        collector = collector_class(parent=self)
         start_time = time.time()
         try:
             collected_data = collector.collect(check, self.context)

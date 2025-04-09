@@ -4,20 +4,24 @@
 """
 Collectors for data collection in SAP Automation QA
 """
-try:
-    from ansible.module_utils.sap_automation_qa import SapAutomationQA
-except ImportError:
-    from src.module_utils.sap_automation_qa import SapAutomationQA
-
 from abc import ABC, abstractmethod
 import logging
 from typing import Any
 
 
-class Collector(SapAutomationQA, ABC):
+class Collector(ABC):
     """
     Base class for data collection
     """
+
+    def __init__(self, parent=None):
+        """
+        Initialize with parent module for logging
+
+        :param parent: Parent module with logging capability
+        :type parent: SapAutomationQA
+        """
+        self.parent = parent
 
     @abstractmethod
     def collect(self, check, context) -> Any:
@@ -42,11 +46,11 @@ class Collector(SapAutomationQA, ABC):
         :return: Command string with substituted values
         :rtype: str
         """
-        self.log(logging.INFO, f"Substituting context variables in command {command}")
+        self.parent.log(logging.INFO, f"Substituting context variables in command {command}")
         for key, value in context.items():
             placeholder = "{{ CONTEXT." + key + " }}"
             if placeholder in command:
-                self.log(
+                self.parent.log(
                     logging.INFO,
                     f"Substituting {placeholder} with {value} in command: {command}",
                 )
@@ -79,11 +83,11 @@ class CommandCollector(Collector):
             if user and user != "root":
                 command = f"sudo -u {user} {command}"
 
-            return self.execute_command_subprocess(
+            return self.parent.execute_command_subprocess(
                 command, shell_command=check.collector_args.get("shell", True)
             ).strip()
         except Exception as ex:
-            self.hanlde_error(ex)
+            self.parent.handle_error(ex)
 
 
 class AzureDataCollector(Collector):
@@ -109,8 +113,8 @@ class AzureDataCollector(Collector):
             command = self.substitute_context_vars(command, context)
             check.command = command
 
-            return self.execute_command_subprocess(
+            return self.parent.execute_command_subprocess(
                 command, shell_command=check.collector_args.get("shell", True)
             ).strip()
         except Exception as ex:
-            self.hanlde_error(ex)
+            self.parent.handle_error(ex)

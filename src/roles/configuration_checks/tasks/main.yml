@@ -84,7 +84,7 @@
   when:                             command_checks is defined and command_checks | length > 0
 
 - name:                             Execute Azure-based configuration checks
-  become:                           false
+  become:                           true
   delegate_to:                      localhost
   configuration_check_module:
     check_file_content:             "{{ azure_checks_yaml }}"
