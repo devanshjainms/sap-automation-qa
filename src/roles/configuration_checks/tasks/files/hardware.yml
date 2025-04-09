@@ -489,24 +489,6 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0026"
-    name:                             "Kernel Version"
-    description:                      "Checks the kernel version of the system"
-    category:                         *vm_check
-    severity:                         *info
-    workload:                         *workload
-    applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux]
-      os_version:                     *all_versions
-      hardware_type:                  *vm
-      role:                           *role
-      database_type:                  *db
-    collector_type:                   *command
-    collector_args:
-      command:                        "/bin/uname -r"
-      user:                           *root
-    report:                           *check
-
   - id:                               "IC-0023"
     name:                             "SrHook Configuration"
     description:                      "Checks the SrHook configuration of the system"
@@ -562,6 +544,24 @@ checks:
     report:                           *section
 
   - id:                               "IC-0026"
+    name:                             "Kernel Version"
+    description:                      "Checks the kernel version of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/uname -r"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0027"
     name:                             "Availability Set"
     description:                      "Checks the availability set of the system"
     category:                         *vm_check
