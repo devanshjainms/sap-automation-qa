@@ -20,10 +20,8 @@
 - name:                             Prepare system context information for {{check_type.name}}
   ansible.builtin.set_fact:
     system_context:
-      vm_name:                      "{{ compute_metadata.json.compute.name | default( 'NA' ) }}"
-      resource_group_name:          "{{ compute_metadata.json.compute.resourceGroup | default( 'NA' ) }}"
-      location:                     "{{ compute_metadata.json.compute.location | default( 'NA' ) }}"
-      availability_zone:            "{{ compute_metadata.json.compute.availabilityZone | default( 'NA' ) }}"
+      vm_name:                      "{{ compute_metadata.json.compute.name }}"
+      resource_group_name:          "{{ compute_metadata.json.compute.resourceGroupName }}"
       supported_configurations:     "{{ vm_support }}"
       hostname:                     "{{ inventory_hostname }}"
       os_type:                      "{{ ansible_distribution | upper }}"
