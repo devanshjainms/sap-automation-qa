@@ -23,6 +23,7 @@
       vm_name:                      "{{ compute_metadata.json.compute.name | default( vm_name ) }}"
       resource_group_name:          "{{ compute_metadata.json.compute.resourceGroup | default( resource_group_name ) }}"
       location:                     "{{ compute_metadata.json.compute.location | default( location ) }}"
+      availability_zone:            "{{ compute_metadata.json.compute.availabilityZone | default( availability_zone ) }}"
       supported_configurations:     "{{ vm_support }}"
       hostname:                     "{{ inventory_hostname }}"
       os_type:                      "{{ ansible_distribution | upper }}"

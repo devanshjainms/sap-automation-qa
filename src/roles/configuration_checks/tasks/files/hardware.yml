@@ -88,6 +88,50 @@ enums:
 # Check definitions
 checks:
   - id:                               "IC-0001"
+    name:                             "Virtual Machine Name"
+    description:                      "Checks the name of the virtual machine"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    collector_type:                   *command
+    collector_args:
+      command:                        "echo {{ CONTEXT.vm_name }}"
+    report:                           *check
+
+  - id:                               "IC-0002"
+    name:                             "Resource Group Name"
+    description:                      "Checks the resource group name of the virtual machine"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    collector_type:                   *command
+    collector_args:
+      command:                        "echo {{ CONTEXT.resource_group_name }}"
+    report:                           *check
+  
+  - id:                               "IC-0003"
+    name:                             "Region"
+    description:                      "Virtual Machine Region"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    collector_type:                   *command
+    collector_args:
+      command:                        "echo {{ CONTEXT.location }}"
+    report:                           *check
+
+  - id:                               "IC-0004"
+    name:                             "Availability Zone"
+    description:                      "Virtual Machine Availabilty Zone"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    collector_type:                   *command
+    collector_args:
+      command:                        "echo {{ CONTEXT.availability_zone }}"
+    report:                           *check
+
+  - id:                               "IC-0005"
     name:                             "Hostname"
     description:                      "Checks the hostname of the system on Linux"
     category:                         *vm_check
@@ -105,7 +149,7 @@ checks:
       user:                           *root
     report:                           *check
 
-  - id:                               "IC-0002"
+  - id:                               "IC-0006"
     name:                             "Hostname"
     description:                      "Checks the hostname of the system on Windows"
     category:                         *vm_check
@@ -123,7 +167,7 @@ checks:
       user:                           *root
     report:                           *check
 
-  - id:                               "IC-0003"
+  - id:                               "IC-0007"
     name:                             "Hosts"
     description:                      "Checks the hosts file on Linux"
     category:                         *vm_check
@@ -141,7 +185,7 @@ checks:
       user:                           *root
     report:                           *section
   
-  - id:                               "IC-0004"
+  - id:                               "IC-0008"
     name:                             "Kernel Version"
     description:                      "Checks the kernel version of the system"
     category:                         *vm_check
@@ -159,7 +203,7 @@ checks:
       user:                           *root
     report:                           *check
 
-  - id:                               "IC-0005"
+  - id:                               "IC-0009"
     name:                             "Azure Hypervisor Host"
     description:                      "Checks the Azure hypervisor host"
     category:                         *vm_check
@@ -177,7 +221,7 @@ checks:
       user:                           *root
     report:                           *check
 
-  - id:                               "IC-0006"
+  - id:                               "IC-0010"
     name:                             "Linux Release File"
     description:                      "Checks the Linux release file"
     category:                         *vm_check
@@ -195,7 +239,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0007"
+  - id:                               "IC-0011"
     name:                             "Linux Major and Minor Release"
     description:                      "Checks the Linux major and minor release"
     category:                         *vm_check
@@ -213,7 +257,7 @@ checks:
       user:                           *root
     report:                           *check
 
-  - id:                               "IC-0008"
+  - id:                               "IC-0012"
     name:                             "OS Timezone"
     description:                      "Checks the OS timezone"
     category:                         *vm_check
@@ -231,7 +275,7 @@ checks:
       user:                           *root
     report:                           *check
 
-  - id:                               "IC-0009"
+  - id:                               "IC-0013"
     name:                             "OS KDUMP Configuration"
     description:                      "Checks the KDUMP configuration of the system"
     category:                         *vm_check
@@ -249,7 +293,7 @@ checks:
       user:                           *root
     report:                           *check
 
-  - id:                               "IC-0010"
+  - id:                               "IC-0014"
     name:                             "Oracle gclib version"
     description:                      "Checks the Oracle gclib version"
     category:                         *vm_check
@@ -267,7 +311,7 @@ checks:
       user:                           *root
     report:                           *check
 
-  - id:                               "IC-0011"
+  - id:                               "IC-0015"
     name:                             "Sysctl"
     description:                      "Checks the sysctl configuration of the system"
     category:                         *vm_check
@@ -285,7 +329,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0012"
+  - id:                               "IC-0016"
     name:                             "fstab"
     description:                      "Checks the fstab configuration of the system"
     category:                         *vm_check
@@ -303,7 +347,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0013"
+  - id:                               "IC-0017"
     name:                             "systemctl"
     description:                      "Checks the systemctl configuration of the system"
     category:                         *vm_check
@@ -321,7 +365,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0014"
+  - id:                               "IC-0018"
     name:                             "chkconfig"
     description:                      "Checks the chkconfig configuration of the system"
     category:                         *vm_check
@@ -339,7 +383,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0015"
+  - id:                               "IC-0019"
     name:                             "Installed Packages"
     description:                      "Checks the installed packages of the system"
     category:                         *vm_check
@@ -357,7 +401,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0016"
+  - id:                               "IC-0020"
     name:                             "Microsoft Defender Health"
     description:                      "Checks the Microsoft Defender Health"
     category:                         *vm_check
@@ -375,7 +419,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0017"
+  - id:                               "IC-0021"
     name:                             "SBD Configuration"
     description:                      "Checks the SBD configuration of the system"
     category:                         *sap_check
@@ -395,7 +439,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0018"
+  - id:                               "IC-0022"
     name:                             "Cluster Configuration"
     description:                      "Checks the cluster configuration of the system"
     category:                         *sap_check
@@ -415,7 +459,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0019"
+  - id:                               "IC-0023"
     name:                             "Cluster Status"
     description:                      "Checks the cluster status of the system"
     category:                         *sap_check
@@ -435,7 +479,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0020"
+  - id:                               "IC-0024"
     name:                             "lsscsi"
     description:                      "Checks the lsscsi configuration of the system"
     category:                         *vm_check
@@ -453,7 +497,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0021"
+  - id:                               "IC-0025"
     name:                             "storage-metadata"
     description:                      "Checks the storage metadata of the system"
     category:                         *vm_check
@@ -471,7 +515,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0022"
+  - id:                               "IC-0026"
     name:                             "lvm fullreport"
     description:                      "Checks the lvm fullreport configuration of the system"
     category:                         *vm_check
@@ -489,7 +533,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0023"
+  - id:                               "IC-0027"
     name:                             "SrHook Configuration"
     description:                      "Checks the SrHook configuration of the system"
     category:                         *sap_check
@@ -507,7 +551,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0024"
+  - id:                               "IC-0028"
     name:                             "HADR Dump"
     description:                      "Checks the HADR Dump of the system"
     category:                         *sap_check
@@ -525,7 +569,7 @@ checks:
       user:                           *sidadm
     report:                           *section
 
-  - id:                               "IC-0025"
+  - id:                               "IC-0029"
     name:                             "Microsoft Defender Exclusion List"
     description:                      "Checks the Microsoft Defender Exclusion List"
     category:                         *vm_check
@@ -543,7 +587,7 @@ checks:
       user:                           *root
     report:                           *section
 
-  - id:                               "IC-0026"
+  - id:                               "IC-0030"
     name:                             "Kernel Version"
     description:                      "Checks the kernel version of the system"
     category:                         *vm_check
@@ -561,7 +605,7 @@ checks:
       user:                           *root
     report:                           *check
 
-  - id:                               "IC-0027"
+  - id:                               "IC-0031"
     name:                             "Availability Set"
     description:                      "Checks the availability set of the system"
     category:                         *vm_check
@@ -578,7 +622,7 @@ checks:
       command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'availabilitySet.id || `No AvSet defined`' -o tsv"
     report:                           *check
 
-  - id:                               "IC-0028"
+  - id:                               "IC-0032"
     name:                             "Proximity Placement Group (PPG)"
     description:                      "Checks the PPG of the system"
     category:                         *vm_check
@@ -595,7 +639,7 @@ checks:
       command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'proximityPlacementGroup.id || `No PPG defined`' -o tsv"
     report:                           *check
 
-  - id:                               "IC-0029"
+  - id:                               "IC-0033"
     name:                             "Proximity Placement Group (PPG) VMs Associated"
     description:                      "Checks the PPG VMs associated of the system"
     category:                         *vm_check
@@ -623,7 +667,7 @@ checks:
                                       fi
     report:                           *check
 
-  - id:                               "IC-0030"
+  - id:                               "IC-0034"
     name:                             "VM Generation"
     description:                      "Checks the VM generation of the system"
     category:                         *vm_check
@@ -653,7 +697,7 @@ checks:
                                       fi
     report:                           *check
 
-  - id:                               "IC-0031"
+  - id:                               "IC-0035"
     name:                             "Extensions & Applications Installed"
     description:                      "Checks the extensions and applications installed on the system"
     category:                         *vm_check
@@ -679,7 +723,7 @@ checks:
                                       fi
     report:                           *section
 
-  - id:                               "IC-0032"
+  - id:                               "IC-0036"
     name:                             "Secondary IP Configuration"
     description:                      "Checks the secondary IP configuration of the system"
     category:                         *vm_check
@@ -715,7 +759,7 @@ checks:
                                       fi
     report:                           *check
 
-  - id:                               "IC-0033"
+  - id:                               "IC-0037"
     name:                             "Security Type"
     description:                      "Checks the security type of the system"
     category:                         *vm_check
@@ -741,7 +785,7 @@ checks:
                                       fi
     report:                           *check
 
-  - id:                               "IC-0034"
+  - id:                               "IC-0038"
     name:                             "Azure Disks"
     description:                      "Checks the Azure disks of the system"
     category:                         *vm_check
@@ -777,7 +821,7 @@ checks:
                                       echo "$disk_json"
     report:                           *section
 
-  - id:                               "IC-0035"
+  - id:                               "IC-0039"
     name:                             "VMSS Flex ID"
     description:                      "Checks the VMSS flex ID of the system"
     category:                         *vm_check
