@@ -128,7 +128,7 @@ checks:
     workload:                         *workload
     collector_type:                   *command
     collector_args:
-      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text' -s"
+      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/zone?api-version=2021-02-01&format=text' -s"
     report:                           *check
 
   - id:                               "IC-0005"
