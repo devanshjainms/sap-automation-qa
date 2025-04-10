@@ -694,17 +694,24 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                      nic_id=$(az vm show 
-                                        --resource-group {{ CONTEXT.resource_group_name }} 
-                                        --name {{ CONTEXT.vm_name }} 
-                                        --query "networkProfile.networkInterfaces[0].id" -o tsv);
-                                      ip_count=$(az network nic show 
-                                        --ids $nic_id 
-                                        --query "ipConfigurations | length" -o tsv);
-                                      if [ "$ip_count" -gt 1 ]; then
-                                        echo "Yes";
+                                      nic_id=$(az vm show
+                                        --resource-group {{ CONTEXT.resource_group_name }}
+                                        --name {{ CONTEXT.vm_name }}
+                                        --query 'networkProfile.networkInterfaces[0].id' -o tsv)
+                                      if [ -z "$nic_id" ]; then
+                                        echo "No NIC found"
                                       else
-                                        echo "No";
+                                        ip_count=$(az network nic show --ids "$nic_id" --query 'ipConfigurations | length' -o tsv)
+                                        # Check if ip_count is a number
+                                        if [[ "$ip_count" =~ ^[0-9]+$ ]]; then
+                                          if [ "$ip_count" -gt 1 ]; then
+                                            echo "Yes"
+                                          else
+                                            echo "No"
+                                          fi
+                                        else
+                                          echo "Invalid IP count: $ip_count"
+                                        fi
                                       fi
     report:                           *check
 
@@ -769,3 +776,29 @@ checks:
                                       disk_json="${disk_json}]";
                                       echo "$disk_json"
     report:                           *section
+
+  - id:                               "IC-0035"
+    name:                             "VMSS Flex ID"
+    description:                      "Checks the VMSS flex ID of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      vmss_id=$(az vm show 
+                                        --resource-group {{ CONTEXT.resource_group_name }} 
+                                        --name {{ CONTEXT.vm_name }} 
+                                        --query "virtualMachineScaleSet.id" -o tsv);
+                                      if [ -z "$vmss_id" ] || [ "$vmss_id" == "null" ]; then
+                                        echo "No VMSS defined";
+                                      else
+                                        echo "$vmss_id";
+                                      fi
+    report:                           *check
