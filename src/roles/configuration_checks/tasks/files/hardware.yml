@@ -609,7 +609,7 @@ checks:
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        |
+      command:                        |-
                                       ppg_id=$(az vm show 
                                       --resource-group {{ CONTEXT.resource_group_name }}
                                       --name {{ CONTEXT.vm_name }} 
@@ -637,7 +637,7 @@ checks:
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        |
+      command:                        |-
                                       osdisk_name=$(az vm show
                                         --resource-group {{ CONTEXT.resource_group_name }}
                                         --name {{ CONTEXT.vm_name }}
@@ -667,7 +667,7 @@ checks:
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        |
+      command:                        |-
                                       extensions=$(az vm extension list 
                                         --resource-group {{ CONTEXT.resource_group_name }} 
                                         --vm-name {{ CONTEXT.vm_name }} 
@@ -693,7 +693,7 @@ checks:
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        |
+      command:                        |-
                                       nic_id=$(az vm show 
                                         --resource-group {{ CONTEXT.resource_group_name }} 
                                         --name {{ CONTEXT.vm_name }} 
@@ -705,5 +705,31 @@ checks:
                                         echo "Yes";
                                       else
                                         echo "No";
+                                      fi
+    report:                           *check
+
+  - id:                               "IC-0033"
+    name:                             "Security Type"
+    description:                      "Checks the security type of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      security_type=$(az vm show 
+                                        --resource-group {{ CONTEXT.resource_group_name }} 
+                                        --name {{ CONTEXT.vm_name }} 
+                                        --query "securityProfile.securityType" -o tsv);
+                                      if [ -z "$security_type" ] || [ "$security_type" == "null" ]; then
+                                        echo "Standard";
+                                      else
+                                        echo "$security_type";
                                       fi
     report:                           *check
