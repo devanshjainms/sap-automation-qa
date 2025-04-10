@@ -95,7 +95,7 @@ checks:
     workload:                         *workload
     collector_type:                   *command
     collector_args:
-      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/name?api-version=2021-02-01&format=text'"
+      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/name?api-version=2021-02-01&format=text' -s"
     report:                           *check
 
   - id:                               "IC-0002"
@@ -106,7 +106,7 @@ checks:
     workload:                         *workload
     collector_type:                   *command
     collector_args:
-      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/resourceGroupName?api-version=2021-02-01&format=text'"
+      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/resourceGroupName?api-version=2021-02-01&format=text' -s"
     report:                           *check
   
   - id:                               "IC-0003"
@@ -117,7 +117,7 @@ checks:
     workload:                         *workload
     collector_type:                   *command
     collector_args:
-      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text'"
+      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text' -s"
     report:                           *check
 
   - id:                               "IC-0004"
@@ -128,7 +128,7 @@ checks:
     workload:                         *workload
     collector_type:                   *command
     collector_args:
-      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text'"
+      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text' -s"
     report:                           *check
 
   - id:                               "IC-0005"
