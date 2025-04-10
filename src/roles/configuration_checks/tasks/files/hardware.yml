@@ -568,12 +568,89 @@ checks:
     severity:                         *info
     workload:                         *workload
     applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
       os_version:                     *all_versions
       hardware_type:                  *vm
       role:                           *role
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'availabilitySet.id' -o tsv || echo 'No AvSet defined'"
+      command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'availabilitySet.id || `No AvSet defined`' -o tsv"
     report:                           *check
+
+  - id:                               "IC-0028"
+    name:                             "Proximity Placement Group (PPG)"
+    description:                      "Checks the PPG of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'proximityPlacementGroup.id || `No PPG defined`' -o tsv"
+    report:                           *check
+
+  - id:                               "IC-0029"
+    name:                             "Proximity Placement Group (PPG) VMs Associated"
+    description:                      "Checks the PPG VMs associated of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        >
+                                      ppg_id=$(az vm show 
+                                      --resource-group {{ CONTEXT.resource_group_name }}
+                                      --name {{ CONTEXT.vm_name }} 
+                                      --query 'proximityPlacementGroup.id' -o tsv); 
+                                      if [ -z "$ppg_id" ] || [ "$ppg_id" == "null" ]; then 
+                                        echo "No PPG defined"; 
+                                      else 
+                                        az proximity-placement-group show 
+                                        --ids $ppg_id
+                                        --query 'virtualMachines[].id' -o tsv; 
+                                      fi
+    report:                           *check
+
+  - id:                               "IC-0030"
+    name:                             "VM Generation"
+    description:                      "Checks the VM generation of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        >
+                                      osdisk_name=$(az vm show
+                                        --resource-group {{ CONTEXT.resource_group_name }}
+                                        --name {{ CONTEXT.vm_name }}
+                                        --query "storageProfile.osDisk.name" -o tsv);
+                                      hyperv_generation=$(az disk show
+                                        --name "$osdisk_name"
+                                        --resource-group {{ CONTEXT.resource_group_name }}
+                                        --query "hyperVGeneration" -o tsv);
+                                      if [ "$hyperv_generation" = "V1" ]; then
+                                        echo "Gen1";
+                                      else
+                                        echo "Gen2";
+                                      fi
+    report:                           *check
+
+    
