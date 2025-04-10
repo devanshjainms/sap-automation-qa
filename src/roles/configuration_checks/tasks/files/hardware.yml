@@ -733,3 +733,39 @@ checks:
                                         echo "$security_type";
                                       fi
     report:                           *check
+
+  - id:                               "IC-0034"
+    name:                             "Azure Disks"
+    description:                      "Checks the Azure disks of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      disk_ids=$(az vm show 
+                                        --resource-group {{ CONTEXT.resource_group_name }} 
+                                        --name {{ CONTEXT.vm_name }} 
+                                        --query "storageProfile.dataDisks[].managedDisk.id" -o tsv);
+                                      disk_json="[";
+                                      if [ -n "$disk_ids" ]; then
+                                        first=true;
+                                        for disk_id in $disk_ids; do
+                                          if [ "$first" = true ]; then
+                                            first=false;
+                                          else
+                                            disk_json="${disk_json},";
+                                          fi;
+                                          disk_details=$(az disk show --ids "$disk_id" -o json);
+                                          disk_json="${disk_json}${disk_details}";
+                                        done;
+                                      fi;
+                                      disk_json="${disk_json}]";
+                                      echo "$disk_json"
+    report:                           *section

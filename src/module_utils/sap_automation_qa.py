@@ -151,6 +151,8 @@ class SapAutomationQA(ABC):
         :return: Standard output from the command
         :rtype: str
         """
+        if "\n" in command:
+            command = command.replace("\n", " ")
         command_string = command if isinstance(command, str) else " ".join(command).replace("'", "")
         self.log(
             logging.INFO,
