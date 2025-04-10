@@ -609,7 +609,7 @@ checks:
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        >
+      command:                        |
                                       ppg_id=$(az vm show 
                                       --resource-group {{ CONTEXT.resource_group_name }}
                                       --name {{ CONTEXT.vm_name }} 
@@ -637,7 +637,7 @@ checks:
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        >
+      command:                        |
                                       osdisk_name=$(az vm show
                                         --resource-group {{ CONTEXT.resource_group_name }}
                                         --name {{ CONTEXT.vm_name }}
@@ -653,4 +653,57 @@ checks:
                                       fi
     report:                           *check
 
-    
+  - id:                               "IC-0031"
+    name:                             "Extensions & Applications Installed"
+    description:                      "Checks the extensions and applications installed on the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |
+                                      extensions=$(az vm extension list 
+                                        --resource-group {{ CONTEXT.resource_group_name }} 
+                                        --vm-name {{ CONTEXT.vm_name }} 
+                                        --query '[].name' -o tsv);
+                                      if [ -z "$extensions" ]; then
+                                        echo "No extensions installed";
+                                      else
+                                        echo "$extensions";
+                                      fi
+    report:                           *section
+
+  - id:                               "IC-0032"
+    name:                             "Secondary IP Configuration"
+    description:                      "Checks the secondary IP configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |
+                                      nic_id=$(az vm show 
+                                        --resource-group {{ CONTEXT.resource_group_name }} 
+                                        --name {{ CONTEXT.vm_name }} 
+                                        --query "networkProfile.networkInterfaces[0].id" -o tsv);
+                                      ip_count=$(az network nic show 
+                                        --ids $nic_id 
+                                        --query "ipConfigurations | length" -o tsv);
+                                      if [ "$ip_count" -gt 1 ]; then
+                                        echo "Yes";
+                                      else
+                                        echo "No";
+                                      fi
+    report:                           *check
