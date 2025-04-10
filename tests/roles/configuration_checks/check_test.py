@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 
 """
-Test Module 
+Test Module
 """
 
 import pytest
@@ -27,7 +27,7 @@ class TestConfigurationChecks:
             "app.yml",
             "ascs.yml",
             "hana.yml",
-            "hardware.yml",
+            "virtual_machine.yml",
             "sap.yml",
             "package.yml",
         ]

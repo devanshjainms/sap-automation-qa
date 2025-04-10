@@ -78,7 +78,7 @@
       loop:
         - {
                                         name: "VM Information",
-                                        file_name: "hardware",
+                                        file_name: "virtual_machine",
                                         checks_var: "vm_info_checks",
                                         results_var: "vm_info_results"
           }
