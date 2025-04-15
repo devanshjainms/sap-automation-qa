@@ -39,28 +39,28 @@
           failed_when:                  false
 
         - name:                         "Test Execution: Kill Enqueue Replication Server Process (ENSA1)"
+          when:                         ensa2_check.stdout == "0"
           ansible.builtin.shell:        pgrep -f 'er.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_er_result
           failed_when:                  false
-          when:                         ensa2_check.stdout == "0"
           until:                        "'kill: not enough arguments' in kill_er_result.stderr"
           ignore_errors:                true
           retries:                      10
           delay:                        1
 
         - name:                         "Test Execution: Kill Enqueue Replication Server Process (ENSA2)"
+          when:                         ensa2_check.stdout != "0"
           ansible.builtin.shell:        pgrep -f 'enqr.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_enqr_result
           failed_when:                  false
-          when:                         ensa2_check.stdout != "0"
           until:                        "'kill: not enough arguments' in kill_enqr_result.stderr"
           ignore_errors:                true
           retries:                      10
           delay:                        1
 
-        - name:                         "Test Execution: Wait for Process Restart"
-          ansible.builtin.pause:
-            seconds:                    60
+        - name:                         "Test Execution: Wait for the cluster to be in a stable state"
+          ansible.builtin.wait_for:
+            timeout:                    60
 
         - name:                         "Test Execution: Cleanup resources"
           ansible.builtin.command:      crm_resource --cleanup
