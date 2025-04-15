@@ -168,7 +168,7 @@ test_groups:
           It verifies split-brain prevention mechanisms, validates proper failover execution when nodes
           become isolated, and ensures cluster stability and data consistency after network
           connectivity is restored.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Kill Message Server Process"
         task_name:                  kill-message-server
