@@ -90,7 +90,6 @@
                                         "Test Execution: Find sapstartsrv PID": "{{ sapstartsrv_pid }}",
                                         "Test Execution: Kill sapstartsrv Process": "{{ kill_sapstartsrv_result }}",
                                         "Test Execution: Find sapstartsrv PID after killing the process": "{{ sapstartsrv_pid_after_kill }}",
-                                        "Test Execution: Cleanup resources": "{{ cleanup_failed_resource_test_execution }}",
                                         "Post Validations Result": "{{ cluster_status_test_execution }}",
                                         }
 # /*---------------------------------------------------------------------------
