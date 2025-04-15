@@ -34,7 +34,7 @@
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
         - name:                         "Test Execution: Find sapstartsrv PID"
-          ansible.builtin.shell:        pgrep -fl "ASCS{{ scs_instance_number }}.*sapstartsrv" | awk '{print $1}'
+          ansible.builtin.shell:        pgrep -fl 'ASCS{{ scs_instance_number }}.*sapstartsrv' | awk '{print $1}'
           register:                     sapstartsrv_pid
           failed_when:                  sapstartsrv_pid.stdout == ""
 
@@ -43,16 +43,16 @@
           register:                     kill_sapstartsrv_result
           failed_when:                  false
 
-        - name:                         "Test Execution: Wait for Failover"
-          ansible.builtin.pause:
-            seconds:                    30
+        - name:                         "Test Execution: Wait for the cluster to be in a stable state"
+          ansible.builtin.wait_for:
+            timeout:                    10
 
         - name:                         "Test Execution: Find sapstartsrv PID after killing the process"
           ansible.builtin.shell:        pgrep -fl "ASCS{{ scs_instance_number }}.*sapstartsrv" | awk '{print $1}'
           register:                     sapstartsrv_pid_after_kill
           failed_when:                  sapstartsrv_pid_after_kill.stdout != ""
 
-        - name:                         "Test Execution: Validateh the process restarted with new PID"
+        - name:                         "Test Execution: Validate the process restarted with new PID"
           ansible.builtin.assert:
             that:                       sapstartsrv_pid_after_kill.stdout != sapstartsrv_pid.stdout
             msg:                        "The sapstartsrv process did not restart with a new PID after being killed."
@@ -71,10 +71,6 @@
                                         cluster_status_test_execution.ascs_node == cluster_status_pre.ascs_node
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ers_node
 
-    - name:                             "Test Execution: Cleanup on ASCS Node"
-      when:                             ansible_hostname == cluster_status_pre.ascs_node
-      become:                           true
-      block:
         - name:                         "Test Execution: Stop timer"
           ansible.builtin.set_fact:
             test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
@@ -83,9 +79,11 @@
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                         Old ASCS: {{ cluster_status_pre.ascs_node }}
-                                        New ASCS: {{ hostvars[cluster_status_pre.ascs_node].cluster_status_test_execution.ascs_node }}
+                                        New ASCS: {{ cluster_status_test_execution.ascs_node }}
                                         Old ERS: {{ cluster_status_pre.ers_node }}
-                                        New ERS: {{ hostvars[cluster_status_pre.ascs_node].cluster_status_test_execution.ers_node }}
+                                        New ERS: {{ cluster_status_test_execution.ers_node }}
+                                        Old PID: {{ sapstartsrv_pid.stdout }}
+                                        New PID: {{ sapstartsrv_pid_after_kill.stdout }}
             test_case_details_from_test_case: {
                                         "Pre Validations: Validate SCS cluster status": "{{ cluster_status_pre }}",
                                         "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
@@ -93,7 +91,7 @@
                                         "Test Execution: Kill sapstartsrv Process": "{{ kill_sapstartsrv_result }}",
                                         "Test Execution: Find sapstartsrv PID after killing the process": "{{ sapstartsrv_pid_after_kill }}",
                                         "Test Execution: Cleanup resources": "{{ cleanup_failed_resource_test_execution }}",
-                                        "Post Validations Result": "{{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution }}",
+                                        "Post Validations Result": "{{ cluster_status_test_execution }}",
                                         }
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |

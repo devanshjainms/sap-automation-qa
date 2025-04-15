@@ -44,9 +44,10 @@
                                         iptables -A OUTPUT -d {{ ers_ip }} -j DROP
           register:                     block_network_result
 
-        - name:                         "Test Execution: Wait for failover"
-          ansible.builtin.pause:
-            seconds:                    60
+        - name:                         "Test Execution: Wait for the cluster to be in a stable state"
+          ansible.builtin.wait_for:
+            timeout:                    60
+
 
     - name:                             "Test Execution: Check node status on primary and secondary"
       block:
