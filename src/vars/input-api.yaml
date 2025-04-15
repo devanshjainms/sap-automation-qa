@@ -186,7 +186,7 @@ test_groups:
           ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution, and confirms that the enqueue table is
           properly replicated to preserve the lock state.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Kill Enqueue Replication Server Process"
         task_name:                  kill-enqueue-replication

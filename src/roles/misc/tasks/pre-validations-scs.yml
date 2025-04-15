@@ -12,6 +12,8 @@
       get_cluster_status_scs:
         sap_sid:                    "{{ sap_sid | lower }}"
         ansible_os_family:          "{{ ansible_os_family | upper }}"
+        scs_instance_number:        "{{ scs_instance_number }}"
+        ers_instance_number:        "{{ ers_instance_number }}"
       become:                       true
       register:                     cluster_status_pre
 
