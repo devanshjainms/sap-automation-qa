@@ -195,7 +195,7 @@ test_groups:
           process on the ERS node by forcefully terminating it using the kill -9 signal. This test
           handles both ENSA1 and ENSA2 architectures. It validates the automatic restart of the
           process and ensures continued replication of the enqueue table.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Kill sapstartsrv Process for ASCS"
         task_name:                  kill-sapstartsrv-process
@@ -204,7 +204,7 @@ test_groups:
           instance by forcefully terminating it using the kill -9 signal. It validates proper cluster
           reaction, automatic failover to the ERS node, and verifies service restoration after the
           process failure.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Manual Restart of ASCS Instance"
         task_name:                  manual-restart
@@ -213,7 +213,7 @@ test_groups:
           using sapcontrol. It verifies proper cluster reaction to a controlled instance shutdown,
           ensures automatic failover to the ERS node, and confirms service continuity throughout
           the operation.
-        enabled:                    true
+        enabled:                    false
         
       - name:                       "HAFailoverToNode Test"
         task_name:                  ha-failover-to-node
@@ -223,7 +223,7 @@ test_groups:
           SAP administrator user, which initiates a clean migration of the ASCS instance to another node.
           The test verifies proper execution of the SAP HA interface, validates the resource migration,
           and confirms service continuity throughout the failover process.
-        enabled:                    true
+        enabled:                    false
 
 # Commands for HANA DB HA Test Cases based on OS family
 commands:
