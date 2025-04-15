@@ -130,7 +130,7 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                 if attribute.attrib["name"] == f"runs_ers_{self.sap_sid.upper()}":
                     if attribute.attrib["value"] == "1":
                         self.result["ers_node"] = node_name
-                    else:
+                    elif attribute.attrib["value"] == "0":
                         self.result["ascs_node"] = node_name
 
         if resources is not None:
@@ -138,8 +138,8 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                 logging.INFO,
                 f"ASCS resource ID: {ascs_resource_id}, ERS resource ID: {ers_resource_id}",
             )
-            ascs_resource = resources.find(f"./resource[@id='{ascs_resource_id}']")
-            ers_resource = resources.find(f"./resource[@id='{ers_resource_id}']")
+            ascs_resource = resources.find(f".//resource[@id='{ascs_resource_id}']")
+            ers_resource = resources.find(f".//resource[@id='{ers_resource_id}']")
             self.log(
                 logging.INFO,
                 f"ASCS resource ID: {ascs_resource}, ERS resource ID: {ers_resource}",
