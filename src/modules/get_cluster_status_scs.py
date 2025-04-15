@@ -91,9 +91,17 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
     Class to check the status of a pacemaker cluster in an SAP SCS environment.
     """
 
-    def __init__(self, sap_sid: str, ansible_os_family: str = ""):
+    def __init__(
+        self,
+        sap_sid: str,
+        ansible_os_family: str = "",
+        ascs_instance_number: str = "00",
+        ers_instance_number: str = "01",
+    ):
         super().__init__(ansible_os_family)
         self.sap_sid = sap_sid
+        self.ascs_instance_number = ascs_instance_number
+        self.ers_instance_number = ers_instance_number
         self.result.update(
             {
                 "ascs_node": "",
@@ -101,15 +109,20 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
             }
         )
 
-    def _process_node_attributes(self, node_attributes: ET.Element) -> Dict[str, Any]:
+    def _process_node_attributes(self, cluster_status_xml: ET.Element) -> Dict[str, Any]:
         """
         Processes node attributes and identifies ASCS and ERS nodes.
 
-        :param node_attributes: XML element containing node attributes.
-        :type node_attributes: ET.Element
+        :param cluster_status_xml: XML element containing node attributes.
+        :type cluster_status_xml: ET.Element
         :return: Dictionary with ASCS and ERS node information.
         :rtype: Dict[str, Any]
         """
+        resources = cluster_status_xml.find("resources")
+        node_attributes = cluster_status_xml.find("node_attributes")
+        ascs_resource_id = f"rsc_sap_{self.sap_sid.upper()}_ASCS{self.ascs_instance_number}"
+        ers_resource_id = f"rsc_sap_{self.sap_sid.upper()}_ERS{self.ers_instance_number}"
+
         all_nodes = [node.attrib.get("name") for node in node_attributes]
         for node in node_attributes:
             node_name = node.attrib["name"]
@@ -120,20 +133,42 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                     else:
                         self.result["ascs_node"] = node_name
 
-        if self.result["ascs_node"] == "" and self.result["ers_node"] != "":
-            self.result["ascs_node"] = next(
-                (n for n in all_nodes if n != self.result["ers_node"]), ""
-            )
+        if resources is not None:
+            ascs_resource = resources.find(f"./resource[@id='{ascs_resource_id}']")
+            ers_resource = resources.find(f"./resource[@id='{ers_resource_id}']")
+
+            if ascs_resource is not None:
+                is_failed = ascs_resource.attrib.get("is_failed", "false").lower() == "true"
+                if not is_failed:
+                    node_element = ascs_resource.find("node")
+                    if node_element is not None:
+                        self.result["ascs_node"] = node_element.attrib.get(
+                            "name", self.result["ascs_node"]
+                        )
+                else:
+                    self.result["ascs_node"] = ""
+
+            if ers_resource is not None:
+                is_failed = ers_resource.attrib.get("is_failed", "false").lower() == "true"
+                if not is_failed:
+                    node_element = ers_resource.find("node")
+                    if node_element is not None:
+                        self.result["ers_node"] = node_element.attrib.get(
+                            "name", self.result["ers_node"]
+                        )
+                else:
+                    self.result["ers_node"] = ""
+
         return self.result
 
     def _is_cluster_ready(self) -> bool:
         """
-        Check if the cluster is ready by verifying the ASCS node.
+        Check if the cluster is ready by verifying at least one of ASCS or ERS nodes.
 
-        :return: True if the cluster is ready, False otherwise.
+        :return: True if either ASCS or ERS node is available, False otherwise.
         :rtype: bool
         """
-        return self.result["ascs_node"] != ""
+        return self.result["ascs_node"] != "" or self.result["ers_node"] != ""
 
     def _is_cluster_stable(self) -> bool:
         """
@@ -151,6 +186,8 @@ def run_module() -> None:
     """
     module_args = dict(
         sap_sid=dict(type="str", required=True),
+        ascs_instance_number=dict(type="str", required=False),
+        ers_instance_number=dict(type="str", required=False),
         ansible_os_family=dict(type="str", required=False),
     )
 

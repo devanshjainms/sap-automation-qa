@@ -50,11 +50,8 @@
           failed_when:                  false
           when:                         ensa2_check.stdout != "0"
 
-        - name:                         "Test Execution: Wait for Failover"
-          ansible.builtin.pause:
-            seconds:                    60
-
-        - name:                         "Test Execution: Validate SCS cluster status"
+        - name:                         "Test Execution: Validate SCS cluster status for ENSA1"
+          when:                         ensa2_check.stdout == "0"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
             ansible_os_family:          "{{ ansible_os_family | upper }}"
@@ -66,10 +63,19 @@
                                         cluster_status_test_execution.ascs_node == cluster_status_pre.ers_node
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ascs_node
 
-    - name:                             "Test Execution: Cleanup on ASCS Node"
-      when:                             ansible_hostname == cluster_status_pre.ascs_node
-      become:                           true
-      block:
+        - name:                         "Test Execution: Validate SCS cluster status for ENSA2"
+          when:                         ensa2_check.stdout != "0"
+          get_cluster_status_scs:
+            sap_sid:                    "{{ sap_sid | lower }}"
+            ansible_os_family:          "{{ ansible_os_family | upper }}"
+          register:                     cluster_status_test_execution
+          retries:                      50
+          delay:                        10
+          failed_when:                  false
+          until: |
+                                        cluster_status_test_execution.ascs_node != ""
+                                        and cluster_status_test_execution.ers_node != ""
+
         - name:                         "Test Execution: Cleanup resources"
           ansible.builtin.command:      crm_resource --cleanup
           register:                     cleanup_failed_resource_test_execution
@@ -83,15 +89,15 @@
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                         Old ASCS: {{ cluster_status_pre.ascs_node }}
-                                        New ASCS: {{ hostvars[cluster_status_pre.ascs_node].cluster_status_test_execution.ascs_node }}
+                                        New ASCS: {{ cluster_status_test_execution.ascs_node }}
                                         Old ERS: {{ cluster_status_pre.ers_node }}
-                                        New ERS: {{ hostvars[cluster_status_pre.ascs_node].cluster_status_test_execution.ers_node }}
+                                        New ERS: {{ cluster_status_test_execution.ers_node }}
             test_case_details_from_test_case: {
                                         "Pre Validations: Validate SCS cluster status": "{{ cluster_status_pre }}",
                                         "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
                                         "Test Execution: Kill Enqueue Server Process": "{{ kill_en_result }}",
                                         "Test Execution: Cleanup resources": "{{ cleanup_failed_resource_test_execution }}",
-                                        "Post Validations Result": "{{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution }}",
+                                        "Post Validations Result": "{{ cluster_status_test_execution }}",
                                         }
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
