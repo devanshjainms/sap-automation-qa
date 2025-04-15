@@ -43,6 +43,8 @@
           register:                     kill_ms_result
           until:                        "'kill: not enough arguments' in kill_ms_result.stderr"
           ignore_errors:                true
+          retries:                      10
+          delay:                        1
 
         - name:                         "Test Execution: Wait for Failover"
           ansible.builtin.pause:
