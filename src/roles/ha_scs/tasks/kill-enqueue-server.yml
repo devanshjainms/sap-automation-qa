@@ -34,8 +34,19 @@
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
-        - name:                         "Test Execution: Kill Enqueue Server Process"
+        - name:                         "Test Execution: Check for ENSA version"
+          ansible.builtin.shell:        pgrep -f "enq.sap{{ sap_sid | upper }}" | wc -l
+          register:                     ensa2_check
+          failed_when:                  false
+
+        - name:                         "Test Execution: Kill Enqueue Server Process (ENSA1)"
           ansible.builtin.shell:        pgrep -f "en.sap{{ sap_sid | upper }}" | xargs kill -9
+          register:                     kill_er_result
+          failed_when:                  false
+          when:                         ensa2_check.stdout == "0"
+
+        - name:                         "Test Execution: Kill Enqueue Server Process (ENSA2)"
+          ansible.builtin.shell:        pgrep -f "enq.sap{{ sap_sid | upper }}" | xargs kill -9
           register:                     kill_en_result
           failed_when:                  false
 
