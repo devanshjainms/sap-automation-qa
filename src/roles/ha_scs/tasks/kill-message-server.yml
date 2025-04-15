@@ -39,12 +39,9 @@
           failed_when:                  false
 
         - name:                         "Test Execution: Kill Message Server Process"
-          ansible.builtin.shell: |
-                                        while true; do
-                                          pgrep -f 'ms.sap{{ sap_sid | upper }}' | xargs kill -9 || break
-                                        done
+          ansible.builtin.shell:        pgrep -f 'ms.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_ms_result
-          failed_when:                  "'kill: not enough arguments' in kill_ms_result.stderr"
+          until:                        "'kill: not enough arguments' in kill_ms_result.stderr"
           ignore_errors:                true
 
         - name:                         "Test Execution: Wait for Failover"
