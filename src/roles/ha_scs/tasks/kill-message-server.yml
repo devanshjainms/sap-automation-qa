@@ -49,7 +49,7 @@
 
         - name:                         "Test Execution: Wait for Failover"
           ansible.builtin.pause:
-            seconds:                    30
+            seconds:                    60
 
         - name:                         "Test Execution: Validate SCS cluster status for ENSA1"
           when:                         ensa2_check.stdout == "0"
