@@ -44,10 +44,6 @@
           register:                     stop_ascs_result
           failed_when:                  false
 
-        - name:                         "Test Execution: Wait for the cluster to be in a stable state"
-          ansible.builtin.wait_for:
-            timeout:                    30
-
         - name:                         "Test Execution: Validate SCS cluster status 1"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
