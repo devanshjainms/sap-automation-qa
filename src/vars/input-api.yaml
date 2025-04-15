@@ -177,7 +177,7 @@ test_groups:
           ASCS node by forcefully terminating it using the kill -9 signal. It verifies proper cluster 
           reaction, automatic failover to the ERS node, and ensures service continuity after 
           the process failure.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "Kill Enqueue Server Process"
         task_name:                  kill-enqueue-server
