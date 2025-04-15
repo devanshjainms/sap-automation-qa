@@ -49,6 +49,7 @@
           ansible.builtin.shell:        pgrep -f "enq.sap{{ sap_sid | upper }}" | xargs kill -9
           register:                     kill_en_result
           failed_when:                  false
+          when:                         ensa2_check.stdout != "0"
 
         - name:                         "Test Execution: Wait for Failover"
           ansible.builtin.pause:
