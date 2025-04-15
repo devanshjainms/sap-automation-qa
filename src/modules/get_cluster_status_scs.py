@@ -139,7 +139,8 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
 
             if ascs_resource is not None:
                 failed = ascs_resource.attrib.get("failed", "false").lower() == "true"
-                if not failed:
+                active = ascs_resource.attrib.get("active", "false").lower() == "true"
+                if not failed and active:
                     node_element = ascs_resource.find("node")
                     if node_element is not None:
                         self.result["ascs_node"] = node_element.attrib.get(
@@ -150,7 +151,8 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
 
             if ers_resource is not None:
                 failed = ers_resource.attrib.get("failed", "false").lower() == "true"
-                if not failed:
+                active = ers_resource.attrib.get("active", "false").lower() == "true"
+                if not failed and active:
                     node_element = ers_resource.find("node")
                     if node_element is not None:
                         self.result["ers_node"] = node_element.attrib.get(
