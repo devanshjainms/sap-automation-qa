@@ -39,13 +39,13 @@
           failed_when:                  sapstartsrv_pid.stdout == ""
 
         - name:                         "Test Execution: Kill sapstartsrv Process"
-          ansible.builtin.shell:        kill -9 {{ sapstartsrv_pid.stdout }}
+          ansible.builtin.shell:        echo "{{ sapstartsrv_pid.stdout_lines | join(' ') }}" | xargs -r kill -9
           register:                     kill_sapstartsrv_result
           failed_when:                  false
 
         - name:                         "Test Execution: Wait for the cluster to be in a stable state"
           ansible.builtin.wait_for:
-            timeout:                    10
+            timeout:                    30
 
         - name:                         "Test Execution: Find sapstartsrv PID after killing the process"
           ansible.builtin.shell:        pgrep -fl "ASCS{{ scs_instance_number }}.*sapstartsrv" | awk '{print $1}'
