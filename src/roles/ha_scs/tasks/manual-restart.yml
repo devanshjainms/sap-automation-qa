@@ -36,6 +36,11 @@
         - name:                         "Test Execution: Stop ASCS Instance"
           become_user:                  "{{ sap_sid | lower }}adm"
           ansible.builtin.shell:        /usr/sap/{{ sap_sid | upper }}/SYS/exe/run/sapcontrol -nr {{ scs_instance_number }} -function StopWait 600 2
+          environment:
+            PATH:                       /usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64:/usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/home/{{ sap_sid | lower }}adm
+            DIR_LIBRARY:                /usr/sap/{{ sap_sid | upper }}/SYS/exe/run
+            LD_LIBRARY_PATH:            /usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/usr/sap/{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64
+            SAPSYSTEMNAME:              "{{ sap_sid | upper }}"
           register:                     stop_ascs_result
           failed_when:                  false
 
@@ -60,6 +65,11 @@
         - name:                         "Test Execution: Start ASCS Instance"
           become_user:                  "{{ sap_sid | lower }}adm"
           ansible.builtin.shell:        /usr/sap/{{ sap_sid | upper }}/SYS/exe/run/sapcontrol -nr {{ scs_instance_number }} -function StartWait 600 2
+          environment:
+            PATH:                       /usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64:/usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/home/{{ sap_sid | lower }}adm
+            DIR_LIBRARY:                /usr/sap/{{ sap_sid | upper }}/SYS/exe/run
+            LD_LIBRARY_PATH:            /usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/usr/sap/{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64
+            SAPSYSTEMNAME:              "{{ sap_sid | upper }}"
           register:                     start_ascs_result
           failed_when:                  false
 
