@@ -34,21 +34,29 @@
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ers_node].ansible_hostname }}"
 
         - name:                         "Test Execution: Check for ENSA version"
-          ansible.builtin.shell:        pgrep -f "enqr.sap{{ sap_sid | upper }}" | wc -l
+          ansible.builtin.shell:        pgrep -f 'enqr.sap{{ sap_sid | upper }}' | wc -l
           register:                     ensa2_check
           failed_when:                  false
 
         - name:                         "Test Execution: Kill Enqueue Replication Server Process (ENSA1)"
-          ansible.builtin.shell:        pgrep -f "er.sap{{ sap_sid | upper }}" | xargs kill -9
+          ansible.builtin.shell:        pgrep -f 'er.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_er_result
           failed_when:                  false
           when:                         ensa2_check.stdout == "0"
+          until:                        "'kill: not enough arguments' in kill_er_result.stderr"
+          ignore_errors:                true
+          retries:                      10
+          delay:                        1
 
         - name:                         "Test Execution: Kill Enqueue Replication Server Process (ENSA2)"
-          ansible.builtin.shell:        pgrep -f "enqr.sap{{ sap_sid | upper }}" | xargs kill -9
+          ansible.builtin.shell:        pgrep -f 'enqr.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_enqr_result
           failed_when:                  false
           when:                         ensa2_check.stdout != "0"
+          until:                        "'kill: not enough arguments' in kill_enqr_result.stderr"
+          ignore_errors:                true
+          retries:                      10
+          delay:                        1
 
         - name:                         "Test Execution: Wait for Process Restart"
           ansible.builtin.pause:
