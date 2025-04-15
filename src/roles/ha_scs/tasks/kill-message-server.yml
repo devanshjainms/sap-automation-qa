@@ -92,6 +92,7 @@
         - name:                         "Set test case message and details"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
+                                        ENSA Version: {{ "ENSA1" if ensa2_check.stdout == "0" else "ENSA2" }}
                                         Old ASCS: {{ cluster_status_pre.ascs_node }}
                                         New ASCS: {{ cluster_status_test_execution.ascs_node }}
                                         Old ERS: {{ cluster_status_pre.ers_node }}

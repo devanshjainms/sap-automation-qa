@@ -174,16 +174,18 @@ test_groups:
         task_name:                  kill-message-server
         description: |
           The Message Server Process Kill test simulates failure of the message server process on the
-          ASCS node by forcefully terminating it using the kill -9 signal. It verifies proper cluster 
+          ASCS node by forcefully terminating it using the kill -9 signal. This test
+          handles both ENSA1 and ENSA2 architectures. It verifies proper cluster 
           reaction, automatic failover to the ERS node, and ensures service continuity after 
           the process failure.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Kill Enqueue Server Process"
         task_name:                  kill-enqueue-server
         description: |
           The Enqueue Server Process Kill test simulates failure of the enqueue server process on the
-          ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
+          ASCS node by forcefully terminating it using the kill -9 signal. This test
+          handles both ENSA1 and ENSA2 architectures. It validates proper
           cluster behavior, automatic failover execution, and confirms that the enqueue table is
           properly replicated to preserve the lock state.
         enabled:                    false
@@ -195,7 +197,7 @@ test_groups:
           process on the ERS node by forcefully terminating it using the kill -9 signal. This test
           handles both ENSA1 and ENSA2 architectures. It validates the automatic restart of the
           process and ensures continued replication of the enqueue table.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "Kill sapstartsrv Process for ASCS"
         task_name:                  kill-sapstartsrv-process
