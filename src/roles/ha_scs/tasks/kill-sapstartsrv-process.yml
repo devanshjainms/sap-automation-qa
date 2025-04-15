@@ -39,7 +39,7 @@
           failed_when:                  sapstartsrv_pid.stdout == ""
 
         - name:                         "Test Execution: Kill sapstartsrv Process"
-          ansible.builtin.shell:        echo "{{ sapstartsrv_pid.stdout_lines | join(' ') }}" | xargs -r kill -9
+          ansible.builtin.shell:        echo '{{ sapstartsrv_pid.stdout_lines | join(" ") }}' | xargs -r kill -9
           register:                     kill_sapstartsrv_result
           failed_when:                  false
 
@@ -48,7 +48,7 @@
             timeout:                    30
 
         - name:                         "Test Execution: Find sapstartsrv PID after killing the process"
-          ansible.builtin.shell:        pgrep -fl "ASCS{{ scs_instance_number }}.*sapstartsrv" | awk '{print $1}'
+          ansible.builtin.shell:        pgrep -fl 'ASCS{{ scs_instance_number }}.*sapstartsrv' | awk '{print $1}'
           register:                     sapstartsrv_pid_after_kill
           failed_when:                  sapstartsrv_pid_after_kill.stdout == ""
 
@@ -88,7 +88,6 @@
                                         "Pre Validations: Validate SCS cluster status": "{{ cluster_status_pre }}",
                                         "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
                                         "Test Execution: Find sapstartsrv PID": "{{ sapstartsrv_pid }}",
-                                        "Test Execution: Kill sapstartsrv Process": "{{ kill_sapstartsrv_result }}",
                                         "Test Execution: Find sapstartsrv PID after killing the process": "{{ sapstartsrv_pid_after_kill }}",
                                         "Post Validations Result": "{{ cluster_status_test_execution }}",
                                         }
