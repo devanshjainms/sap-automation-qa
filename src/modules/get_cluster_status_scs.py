@@ -134,39 +134,23 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                         self.result["ascs_node"] = node_name
 
         if resources is not None:
-            self.log(
-                logging.INFO,
-                f"ASCS resource ID: {ascs_resource_id}, ERS resource ID: {ers_resource_id}",
-            )
             ascs_resource = resources.find(f".//resource[@id='{ascs_resource_id}']")
             ers_resource = resources.find(f".//resource[@id='{ers_resource_id}']")
-            self.log(
-                logging.INFO,
-                f"ASCS resource ID: {ascs_resource}, ERS resource ID: {ers_resource}",
-            )
+
             if ascs_resource is not None:
-                is_failed = ascs_resource.attrib.get("failed", "false").lower() == "true"
-                if not is_failed:
+                failed = ascs_resource.attrib.get("failed", "false").lower() == "true"
+                if not failed:
                     node_element = ascs_resource.find("node")
-                    self.log(
-                        logging.INFO,
-                        f"ASCS node element: {node_element}, ASCS node: {self.result['ascs_node']}",
-                    )
                     if node_element is not None:
                         self.result["ascs_node"] = node_element.attrib.get(
                             "name", self.result["ascs_node"]
                         )
-
                 else:
                     self.result["ascs_node"] = ""
 
             if ers_resource is not None:
-                is_failed = ers_resource.attrib.get("failed", "false").lower() == "true"
-                self.log(
-                    logging.INFO,
-                    f"ERS resource ID: {ers_resource_id}, ERS resource failed: {is_failed}",
-                )
-                if not is_failed:
+                failed = ers_resource.attrib.get("failed", "false").lower() == "true"
+                if not failed:
                     node_element = ers_resource.find("node")
                     if node_element is not None:
                         self.result["ers_node"] = node_element.attrib.get(
