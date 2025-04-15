@@ -62,6 +62,11 @@
           ansible.builtin.pause:
             seconds:                    60
 
+        - name:                         "Test Execution: Cleanup resources"
+          ansible.builtin.command:      crm_resource --cleanup
+          register:                     cleanup_failed_resource_test_execution
+          changed_when:                 cleanup_failed_resource_test_execution.rc == 0
+
         - name:                         "Test Execution: Validate SCS cluster status"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
@@ -76,10 +81,6 @@
                                         cluster_status_test_execution.ascs_node == cluster_status_pre.ascs_node
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ers_node
 
-        - name:                         "Test Execution: Cleanup resources"
-          ansible.builtin.command:      crm_resource --cleanup
-          register:                     cleanup_failed_resource_test_execution
-          changed_when:                 cleanup_failed_resource_test_execution.rc == 0
 
         - name:                         "Test Execution: Stop timer"
           ansible.builtin.set_fact:
