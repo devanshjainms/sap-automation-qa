@@ -206,7 +206,7 @@ test_groups:
           instance by forcefully terminating it using the kill -9 signal. It validates proper cluster
           reaction, automatic failover to the ERS node, and verifies service restoration after the
           process failure.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Manual Restart of ASCS Instance"
         task_name:                  manual-restart
@@ -215,7 +215,7 @@ test_groups:
           using sapcontrol. It verifies proper cluster reaction to a controlled instance shutdown,
           ensures automatic failover to the ERS node, and confirms service continuity throughout
           the operation.
-        enabled:                    false
+        enabled:                    true
         
       - name:                       "HAFailoverToNode Test"
         task_name:                  ha-failover-to-node
