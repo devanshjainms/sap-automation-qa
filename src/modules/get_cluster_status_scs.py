@@ -5,6 +5,7 @@
 Python script to get and validate the status of an SCS cluster.
 """
 
+import logging
 import xml.etree.ElementTree as ET
 from typing import Dict, Any
 from ansible.module_utils.basic import AnsibleModule
@@ -123,7 +124,6 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
         ascs_resource_id = f"rsc_sap_{self.sap_sid.upper()}_ASCS{self.ascs_instance_number}"
         ers_resource_id = f"rsc_sap_{self.sap_sid.upper()}_ERS{self.ers_instance_number}"
 
-        all_nodes = [node.attrib.get("name") for node in node_attributes]
         for node in node_attributes:
             node_name = node.attrib["name"]
             for attribute in node:
@@ -134,22 +134,38 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                         self.result["ascs_node"] = node_name
 
         if resources is not None:
+            self.log(
+                logging.INFO,
+                f"ASCS resource ID: {ascs_resource_id}, ERS resource ID: {ers_resource_id}",
+            )
             ascs_resource = resources.find(f"./resource[@id='{ascs_resource_id}']")
             ers_resource = resources.find(f"./resource[@id='{ers_resource_id}']")
-
+            self.log(
+                logging.INFO,
+                f"ASCS resource ID: {ascs_resource}, ERS resource ID: {ers_resource}",
+            )
             if ascs_resource is not None:
                 is_failed = ascs_resource.attrib.get("failed", "false").lower() == "true"
                 if not is_failed:
                     node_element = ascs_resource.find("node")
+                    self.log(
+                        logging.INFO,
+                        f"ASCS node element: {node_element}, ASCS node: {self.result['ascs_node']}",
+                    )
                     if node_element is not None:
                         self.result["ascs_node"] = node_element.attrib.get(
                             "name", self.result["ascs_node"]
                         )
+
                 else:
                     self.result["ascs_node"] = ""
 
             if ers_resource is not None:
                 is_failed = ers_resource.attrib.get("failed", "false").lower() == "true"
+                self.log(
+                    logging.INFO,
+                    f"ERS resource ID: {ers_resource_id}, ERS resource failed: {is_failed}",
+                )
                 if not is_failed:
                     node_element = ers_resource.find("node")
                     if node_element is not None:
