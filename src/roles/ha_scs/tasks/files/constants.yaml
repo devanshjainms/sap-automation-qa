@@ -10,7 +10,7 @@ CRM_CONFIG_DEFAULTS:
   cluster-infrastructure:             corosync
   priority-fencing-delay:             '30'
   stonith-action:                     reboot
-  stonith-enabled:                    'false'
+  stonith-enabled:                    'true'
   concurrent-fencing:                 'true'
   maintenance-mode:                   'false'
   node-health-strategy:               'custom'
@@ -92,7 +92,7 @@ RESOURCE_DEFAULTS:
       operations:
         monitor:
           interval:                       "11"
-          timeout:                        "60"
+          timeout:                        "105"
         start:
           interval:                       "0"
           timeout:                        "180"
@@ -117,7 +117,7 @@ RESOURCE_DEFAULTS:
       operations:
         monitor:
           interval:                       "11"
-          timeout:                        "60"
+          timeout:                        "105"
         start:
           interval:                       "0"
           timeout:                        "180"
