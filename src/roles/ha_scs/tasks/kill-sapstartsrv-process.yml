@@ -50,7 +50,7 @@
         - name:                         "Test Execution: Find sapstartsrv PID after killing the process"
           ansible.builtin.shell:        pgrep -fl "ASCS{{ scs_instance_number }}.*sapstartsrv" | awk '{print $1}'
           register:                     sapstartsrv_pid_after_kill
-          failed_when:                  sapstartsrv_pid_after_kill.stdout != ""
+          failed_when:                  sapstartsrv_pid_after_kill.stdout == ""
 
         - name:                         "Test Execution: Validate the process restarted with new PID"
           ansible.builtin.assert:
