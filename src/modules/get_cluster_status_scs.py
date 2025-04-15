@@ -186,7 +186,7 @@ def run_module() -> None:
     """
     module_args = dict(
         sap_sid=dict(type="str", required=True),
-        ascs_instance_number=dict(type="str", required=False),
+        scs_instance_number=dict(type="str", required=False),
         ers_instance_number=dict(type="str", required=False),
         ansible_os_family=dict(type="str", required=False),
     )
@@ -196,6 +196,8 @@ def run_module() -> None:
     checker = SCSClusterStatusChecker(
         sap_sid=module.params["sap_sid"],
         ansible_os_family=module.params["ansible_os_family"],
+        ascs_instance_number=module.params["scs_instance_number"],
+        ers_instance_number=module.params["ers_instance_number"],
     )
     checker.run()
 
