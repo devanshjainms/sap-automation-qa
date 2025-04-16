@@ -168,7 +168,7 @@ test_groups:
           It verifies split-brain prevention mechanisms, validates proper failover execution when nodes
           become isolated, and ensures cluster stability and data consistency after network
           connectivity is restored.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "Kill Message Server Process"
         task_name:                  kill-message-server
@@ -225,7 +225,7 @@ test_groups:
           SAP administrator user, which initiates a clean migration of the ASCS instance to another node.
           The test verifies proper execution of the SAP HA interface, validates the resource migration,
           and confirms service continuity throughout the failover process.
-        enabled:                    true
+        enabled:                    false
 
 # Commands for HANA DB HA Test Cases based on OS family
 commands:

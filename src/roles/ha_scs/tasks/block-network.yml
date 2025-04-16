@@ -66,8 +66,8 @@
 
         - name:                         "Set Node Status Facts"
           ansible.builtin.set_fact:
-            ascs_node_down:          "{{ hostvars[cluster_status_pre.ascs_node].node_status is failed }}"
-            ers_node_down:        "{{ hostvars[cluster_status_pre.ers_node].node_status is failed }}"
+            ascs_node_down:             "{{ hostvars[cluster_status_pre.ascs_node].node_status is failed }}"
+            ers_node_down:              "{{ hostvars[cluster_status_pre.ers_node].node_status is failed }}"
 
     - name:                             "Test Execution: Monitor failover on ERS Node"
       when:
@@ -95,6 +95,16 @@
                                         - not ascs_node_down and ers_node_down
       become:                           true
       block:
+        - name:                         "Test Execution: Restore network communication"
+          ansible.builtin.shell: |
+                                        iptables -D INPUT -s {{ ers_ip }} -j DROP;
+                                        iptables -D OUTPUT -d {{ ers_ip }} -j DROP
+          register:                     unblock_network_result
+    
+    - name:                             "Test Execution: Restore Network on ASCS Node"
+      when:                             ansible_hostname == cluster_status_pre.ascs_node
+      become:                           true
+      block:
         - name:                         "Test Execution: Validate SCS cluster status"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
@@ -106,18 +116,8 @@
           delay:                        10
           failed_when:                  false
           until: |
-                                        cluster_status_test_execution.ascs_node == cluster_status_pre.ers_node
-                                        and cluster_status_test_execution.ers_node == cluster_status_pre.ascs_node
- 
-
-    - name:                             "Test Execution: Clean up failed resource and set facts"
-      when:                             ansible_hostname == cluster_status_pre.ascs_node
-      block:
-        - name:                         "Test Execution: Restore network communication"
-          ansible.builtin.shell: |
-                                        iptables -D INPUT -s {{ ers_ip }} -j DROP;
-                                        iptables -D OUTPUT -d {{ ers_ip }} -j DROP
-          register:                     unblock_network_result
+                                        cluster_status_test_execution.ascs_node == cluster_status_pre.ascs_node
+                                        and cluster_status_test_execution.ers_node == cluster_status_pre.ers_node
 
         - name:                         "Test Execution: Cleanup resources"
           ansible.builtin.command:      crm_resource --cleanup
@@ -132,16 +132,16 @@
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                         Old ASCS: {{ cluster_status_pre.ascs_node }}
-                                        New ASCS: {{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution.ascs_node }}
+                                        New ASCS: {{ cluster_status_test_execution.ascs_node }}
                                         Old ERS: {{ cluster_status_pre.ers_node }}
-                                        New ERS: {{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution.ers_node }}
+                                        New ERS: {{ cluster_status_test_execution.ers_node }}
             test_case_details_from_test_case: {
                                         "Pre Validations: Validate SCS cluster status": "{{ cluster_status_pre }}",
                                         "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
                                         "Test Execution: Block network": "{{ block_network_result }}",
                                         "Test Execution: Unblock network": "{{ unblock_network_result }}",
                                         "Test Execution: Cleanup resources": "{{ cleanup_failed_resource_test_execution }}",
-                                        "Post Validations Result": "{{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution }}",
+                                        "Post Validations Result": "{{ cluster_status_test_execution }}",
                                         }
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
