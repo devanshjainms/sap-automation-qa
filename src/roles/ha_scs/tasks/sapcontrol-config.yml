@@ -58,14 +58,16 @@
                 - {{ res.sapcontrol_method }}: {{ 'Success' if res.rc == 0 else 'Failed' }}
               {% endfor %}
             test_case_details_from_test_case: >-
-              {{ [
-                  {
-                    "command": "sapcontrol -nr " ~ scs_instance_number ~ " -function " ~ res.sapcontrol_method,
-                    "returnCode": res.rc,
-                    "stdout": res.stdout_lines,
-                    "stderr": res.stderr_lines
-                  } for res in sapcontrol_results.results
-                ] | to_json }}
+              [
+              {% for res in sapcontrol_results.results %}
+                {
+                  "command": {{ res.cmd }},
+                  "returnCode": {{ res.rc }},
+                  "stdout": {{ res.stdout_lines | to_json }},
+                  "stderr": {{ res.stderr_lines | to_json }}
+                }{% if not loop.last %},{% endif %}
+              {% endfor %}
+              ]
 
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
