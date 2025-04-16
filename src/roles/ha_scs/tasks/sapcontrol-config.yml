@@ -61,10 +61,10 @@
               [
               {% for res in sapcontrol_results.results %}
                 {
-                  "command": {{ res.cmd }},
-                  "returnCode": {{ res.rc }},
-                  "stdout": {{ res.stdout_lines | to_json }},
-                  "stderr": {{ res.stderr_lines | to_json }}
+                  'command': {{ res.cmd }},
+                  'returnCode': {{ res.rc }},
+                  'stdout': {{ res.stdout_lines }},
+                  'stderr': {{ res.stderr_lines  }}
                 }{% if not loop.last %},{% endif %}
               {% endfor %}
               ]
