@@ -41,7 +41,7 @@
             DIR_LIBRARY:                /usr/sap/{{ sap_sid | upper }}/SYS/exe/run
             LD_LIBRARY_PATH:            /usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64
             SAPSYSTEMNAME:              "{{ sap_sid | upper }}"
-          register:                     sapcontrol_method.result
+          register:                     "{{ sapcontrol_method.result }}"
           failed_when:                  false
           loop:
             - { name: "HAGetFailoverConfig", result: HAGetFailoverConfig_result }
