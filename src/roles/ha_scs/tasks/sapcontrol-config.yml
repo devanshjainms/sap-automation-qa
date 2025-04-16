@@ -33,34 +33,34 @@
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
-        - name:                         "Test Execution: Run sapcontrol commands {{ sapcontrol_method.name }}"
+        - name:                         "Test Execution: Run sapcontrol commands {{ sapcontrol_method }}"
           become_user:                  "{{ sap_sid | lower }}adm"
-          ansible.builtin.shell:        sapcontrol -nr {{ scs_instance_number }} -function {{ sapcontrol_method.name }}
+          ansible.builtin.shell:        sapcontrol -nr {{ scs_instance_number }} -function {{ sapcontrol_method }}
           environment:
             PATH:                       /usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64:/usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/home/{{ sap_sid | lower }}adm
             DIR_LIBRARY:                /usr/sap/{{ sap_sid | upper }}/SYS/exe/run
             LD_LIBRARY_PATH:            /usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64
             SAPSYSTEMNAME:              "{{ sap_sid | upper }}"
-          register:                     "{{ sapcontrol_method.result }}"
+          register:                     sapcontrol_method_result
           failed_when:                  false
           loop:
-            - { name: "HAGetFailoverConfig", result: HAGetFailoverConfig_result }
-            - { name: "HACheckFailoverConfig", result: HACheckFailoverConfig_result }
-            - { name: "HACheckConfig", result: HACheckConfig_result }
+            - "HAGetFailoverConfig"
+            - "HACheckFailoverConfig"
+            - "HACheckConfig"
           loop_control:
-            loop_var:                   sapcontrol_method
+            loop_var:                    sapcontrol_method
 
         - name:                         "Test Execution: Validate sapcontrol commands"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                           Commands executed:
-                                          HAGetFailoverConfig: "{{ HAGetFailoverConfig_result.rc == 0 }}",
-                                          HACheckFailoverConfig: "{{ HACheckFailoverConfig_result.rc == 0 }}",
-                                          HACheckConfig: "{{ HACheckConfig_result.rc == 0 }}"
+                                          HAGetFailoverConfig: "{{ sapcontrol_method_result[0].rc == 0 }}",
+                                          HACheckFailoverConfig: "{{ sapcontrol_method_result[1].rc == 0 }}",
+                                          HACheckConfig: "{{ sapcontrol_method_result[2].rc == 0 }}"
             test_case_details_from_test_case: {
-                                          "HAGetFailoverConfig": "{{ HAGetFailoverConfig_result }}",
-                                          "HACheckFailoverConfig": "{{ HACheckFailoverConfig_result }}",
-                                          "HACheckConfig": "{{ HACheckConfig_result }}"
+                                          "HAGetFailoverConfig": "{{ sapcontrol_method_result[0] }}",
+                                          "HACheckFailoverConfig": "{{ sapcontrol_method_result[1] }}",
+                                          "HACheckConfig": "{{ sapcontrol_method_result[2] }}"
                                         }
 
 # /*---------------------------------------------------------------------------
