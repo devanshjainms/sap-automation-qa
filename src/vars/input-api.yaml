@@ -215,7 +215,7 @@ test_groups:
           using sapcontrol. It verifies proper cluster reaction to a controlled instance shutdown,
           ensures automatic failover to the ERS node, and confirms service continuity throughout
           the operation.
-        enabled:                    true
+        enabled:                    false
         
       - name:                       "HAFailoverToNode Test"
         task_name:                  ha-failover-to-node
@@ -225,7 +225,7 @@ test_groups:
           SAP administrator user, which initiates a clean migration of the ASCS instance to another node.
           The test verifies proper execution of the SAP HA interface, validates the resource migration,
           and confirms service continuity throughout the failover process.
-        enabled:                    false
+        enabled:                    true
 
 # Commands for HANA DB HA Test Cases based on OS family
 commands:

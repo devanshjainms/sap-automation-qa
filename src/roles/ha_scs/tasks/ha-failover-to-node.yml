@@ -35,7 +35,12 @@
 
         - name:                         "Test Execution: Execute HAFailoverToNode command"
           become_user:                  "{{ sap_sid | lower }}adm"
-          ansible.builtin.shell:        sapcontrol -nr {{ scs_instance_number }} -function HAFailoverToNode '{{ cluster_status_pre.ers_node }}'
+          ansible.builtin.shell:        sapcontrol -nr {{ scs_instance_number }} -function HAFailoverToNode {{ cluster_status_pre.ers_node }}
+          environment:
+            PATH:                       /usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64:/usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/home/{{ sap_sid | lower }}adm
+            DIR_LIBRARY:                /usr/sap/{{ sap_sid | upper }}/SYS/exe/run
+            LD_LIBRARY_PATH:            /usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/usr/sap/{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64
+            SAPSYSTEMNAME:              "{{ sap_sid | upper }}"
           register:                     ha_failover_result
           failed_when:                  false
 
@@ -68,14 +73,14 @@
                                         Old ASCS: {{ cluster_status_pre.ascs_node }}
                                         New ASCS: {{ hostvars[cluster_status_pre.ascs_node].cluster_status_test_execution.ascs_node }}
                                         Old ERS: {{ cluster_status_pre.ers_node }}
-                                        New ERS: {{ hostvars[cluster_status_pre.ascs_node].cluster_status_test_execution.ers_node }}
+                                        New ERS: {{ cluster_status_test_execution.ers_node }}
                                         HAFailoverToNode Result: {{ ha_failover_result.stdout | default('No output') }}
             test_case_details_from_test_case: {
                                         "Pre Validations: Validate SCS cluster status": "{{ cluster_status_pre }}",
                                         "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
                                         "Test Execution: HAFailoverToNode Command": "{{ ha_failover_result }}",
                                         "Test Execution: Cleanup resources": "{{ cleanup_failed_resource_test_execution }}",
-                                        "Post Validations Result": "{{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution }}",
+                                        "Post Validations Result": "{{ cluster_status_test_execution }}",
                                         }
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
