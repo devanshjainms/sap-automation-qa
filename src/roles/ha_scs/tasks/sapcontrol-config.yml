@@ -57,17 +57,13 @@
               {% for res in sapcontrol_results.results %}
                 - {{ res.sapcontrol_method }}: {{ 'Success' if res.rc == 0 else 'Failed' }}
               {% endfor %}
-            test_case_details_from_test_case: >-
-              [
-              {% for res in sapcontrol_results.results %}
-                {
-                  'command': {{ res.cmd }},
-                  'returnCode': {{ res.rc }},
-                  'stdout': {{ res.stdout_lines }},
-                  'stderr': {{ res.stderr_lines  }}
-                }{% if not loop.last %},{% endif %}
-              {% endfor %}
-              ]
+            test_case_details_from_test_case: "{{ sapcontrol_results.results 
+                                                | json_query('[].{
+                                                command: cmd,
+                                                returnCode: rc,
+                                                stdout: stdout_lines,
+                                                stderr: stderr_lines}')
+                                              }}"
 
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
