@@ -33,35 +33,36 @@
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
-        - name:                         "Test Execution: Run sapcontrol commands sapcontrol_command"
+        - name:                         "Test Execution: Run sapcontrol commands {{ sapcontrol_method }}"
           become_user:                  "{{ sap_sid | lower }}adm"
-          ansible.builtin.shell:        sapcontrol -nr {{ scs_instance_number }} -function {{ sapcontrol_command }}
+          ansible.builtin.shell:        sapcontrol -nr {{ scs_instance_number }} -function {{ sapcontrol_method }}
           environment:
             PATH:                       /usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64:/usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/home/{{ sap_sid | lower }}adm
             DIR_LIBRARY:                /usr/sap/{{ sap_sid | upper }}/SYS/exe/run
             LD_LIBRARY_PATH:            /usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64
             SAPSYSTEMNAME:              "{{ sap_sid | upper }}"
-          register:                     sapcontrol_results
+          register:                     "{{ sapcontrol_method }}_result"
           failed_when:                  false
           loop:
-            - { name: "HAGetFailoverConfig" }
-            - { name: "HACheckFailoverConfig" }
-            - { name: "HACheckConfig" }
+            - "HAGetFailoverConfig"
+            - "HACheckFailoverConfig"
+            - "HACheckConfig"
           loop_control:
-            label:                      "{{ sapcontrol_command.name }}"
+            loop_var:                   sapcontrol_method
 
         - name:                         "Test Execution: Validate sapcontrol commands"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
-                                        Commands executed:
-                                        {% for result in sapcontrol_results.results %}
-                                          - Command: sapcontrol -nr {{ scs_instance_number }} -function {{ result.item.name }}
-                                            Status: {{ 'Success' if result.rc == 0 else 'Failed' }}
-                                            Output: {{ result.stdout }}
-                                        {% endfor %}
+                                          Commands executed:
+                                          HAGetFailoverConfig: "{{ HAGetFailoverConfig_result.rc == 0 }}",
+                                          HACheckFailoverConfig: "{{ HACheckFailoverConfig_result.rc == 0 }}",
+                                          HACheckConfig: "{{ HACheckConfig_result.rc == 0 }}"
             test_case_details_from_test_case: {
-                                        "sapcontrol_results": "{{ sapcontrol_results.results }}"
+                                          "HAGetFailoverConfig": "{{ HAGetFailoverConfig_result }}",
+                                          "HACheckFailoverConfig": "{{ HACheckFailoverConfig_result }}",
+                                          "HACheckConfig": "{{ HACheckConfig_result }}"
                                         }
+
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
 # +--------------------------------------------------------------------------*/
