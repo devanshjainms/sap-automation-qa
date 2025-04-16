@@ -62,7 +62,7 @@
             test_case_details_from_test_case: |
               {"SAPControl Results":
               {% for res in sapcontrol_results.results %}
-                * Command: {{ res.item }}
+                * Command: {{ res.sapcontrol_method }}
                   ReturnCode: {{ res.rc }}
                   Stdout:
                     {{ res.stdout_lines | join('\n    ') }}
