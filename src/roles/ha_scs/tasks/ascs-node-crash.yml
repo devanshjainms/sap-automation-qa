@@ -50,7 +50,7 @@
       block:
         - name:                         "Test Execution: Wait"
           ansible.builtin.wait_for:
-            timeout:                    30
+            timeout:                    60
 
         - name:                         "Test Execution: Validate SCS cluster status ENSA1"
           when:                         hostvars[cluster_status_pre.ascs_node].ensa2_check.stdout == "0"
