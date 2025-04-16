@@ -71,10 +71,9 @@
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                         Old ASCS: {{ cluster_status_pre.ascs_node }}
-                                        New ASCS: {{ hostvars[cluster_status_pre.ascs_node].cluster_status_test_execution.ascs_node }}
+                                        New ASCS: {{ cluster_status_test_execution.ascs_node }}
                                         Old ERS: {{ cluster_status_pre.ers_node }}
                                         New ERS: {{ cluster_status_test_execution.ers_node }}
-                                        HAFailoverToNode Result: {{ ha_failover_result.stdout | default('No output') }}
             test_case_details_from_test_case: {
                                         "Pre Validations: Validate SCS cluster status": "{{ cluster_status_pre }}",
                                         "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
