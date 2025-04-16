@@ -34,7 +34,10 @@
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
         - name:                         "Test Execution: Find sapstartsrv PID"
-          ansible.builtin.shell:        pgrep -fl 'ASCS{{ scs_instance_number }}.*sapstartsrv' | awk '{print $1}'
+          ansible.builtin.shell:        pgrep -fl 'ASCS{{ scs_instance_number }}.*sapstartsrv' | grep -v pgrep | awk '{print $1}'
+          environment:
+            PATH:                       /usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64:/usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/home/{{ sap_sid | lower }}adm
+            LD_LIBRARY_PATH:            /usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64
           register:                     sapstartsrv_pid
           failed_when:                  sapstartsrv_pid.stdout == ""
 
@@ -48,7 +51,10 @@
             timeout:                    30
 
         - name:                         "Test Execution: Find sapstartsrv PID after killing the process"
-          ansible.builtin.shell:        pgrep -fl 'ASCS{{ scs_instance_number }}.*sapstartsrv' | awk '{print $1}'
+          ansible.builtin.shell:        pgrep -fl 'ASCS{{ scs_instance_number }}.*sapstartsrv' | grep -v pgrep | awk '{print $1}'
+          environment:
+            PATH:                       /usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64:/usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/home/{{ sap_sid | lower }}adm
+            LD_LIBRARY_PATH:            /usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64
           register:                     sapstartsrv_pid_after_kill
           failed_when:                  sapstartsrv_pid_after_kill.stdout == ""
 
