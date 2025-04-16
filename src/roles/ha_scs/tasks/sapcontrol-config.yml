@@ -52,23 +52,20 @@
 
         - name:                         "Test Execution: Validate sapcontrol commands"
           ansible.builtin.set_fact:
-            test_case_message_from_test_case: |
+            test_case_message_from_test_case: >-
               Commands executed:
               {% for res in sapcontrol_results.results %}
-                - Command: sapcontrol -nr {{ scs_instance_number }} -function {{ res.sapcontrol_method }}
-                  Status: {{ 'Success' if res.rc == 0 else 'Failed' }}
-                  Output: {{ res.stdout | default('N/A') }}
+                - {{ res.sapcontrol_method }}: {{ 'Success' if res.rc == 0 else 'Failed' }}
               {% endfor %}
-            test_case_details_from_test_case: |
-              {"SAPControl Results":
-              {% for res in sapcontrol_results.results %}
-                * Command: {{ res.sapcontrol_method }}
-                  ReturnCode: {{ res.rc }}
-                  Stdout:
-                    {{ res.stdout_lines | join('\n    ') }}
-                  Stderr:
-                    {{ res.stderr_lines | join('\n    ') }}
-              {% endfor %}}
+            test_case_details_from_test_case: >-
+              {{ [
+                  {
+                    "command": "sapcontrol -nr " ~ scs_instance_number ~ " -function " ~ res.sapcontrol_method,
+                    "returnCode": res.rc,
+                    "stdout": res.stdout_lines,
+                    "stderr": res.stderr_lines
+                  } for res in sapcontrol_results.results
+                ] | to_json }}
 
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
