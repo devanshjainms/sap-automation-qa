@@ -41,7 +41,7 @@
             DIR_LIBRARY:                /usr/sap/{{ sap_sid | upper }}/SYS/exe/run
             LD_LIBRARY_PATH:            /usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64
             SAPSYSTEMNAME:              "{{ sap_sid | upper }}"
-          register:                     sapcontrol_method_result
+          register:                     sapcontrol_results
           failed_when:                  false
           loop:
             - "HAGetFailoverConfig"
@@ -53,15 +53,13 @@
         - name:                         "Test Execution: Validate sapcontrol commands"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
-                                          Commands executed:
-                                          HAGetFailoverConfig: "{{ sapcontrol_method_result[0].rc == 0 }}",
-                                          HACheckFailoverConfig: "{{ sapcontrol_method_result[1].rc == 0 }}",
-                                          HACheckConfig: "{{ sapcontrol_method_result[2].rc == 0 }}"
-            test_case_details_from_test_case: {
-                                          "HAGetFailoverConfig": "{{ sapcontrol_method_result[0] }}",
-                                          "HACheckFailoverConfig": "{{ sapcontrol_method_result[1] }}",
-                                          "HACheckConfig": "{{ sapcontrol_method_result[2] }}"
-                                        }
+              Commands executed:
+              {% for res in sapcontrol_results.results %}
+                - Command: sapcontrol -nr {{ scs_instance_number }} -function {{ res.item }}
+                  Status: {{ 'Success' if res.rc == 0 else 'Failed' }}
+                  Output: {{ res.stdout }}
+              {% endfor %}
+            test_case_details_from_test_case: "{{ sapcontrol_results.results }}"
 
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
