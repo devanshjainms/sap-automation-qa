@@ -55,9 +55,9 @@
             test_case_message_from_test_case: |
               Commands executed:
               {% for res in sapcontrol_results.results %}
-                - Command: sapcontrol -nr {{ scs_instance_number }} -function {{ res.item }}
+                - Command: sapcontrol -nr {{ scs_instance_number }} -function {{ res.sapcontrol_method }}
                   Status: {{ 'Success' if res.rc == 0 else 'Failed' }}
-                  Output: {{ res.stdout }}
+                  Output: {{ res.stdout | default('N/A') }}
               {% endfor %}
             test_case_details_from_test_case: "{{ sapcontrol_results.results }}"
 
