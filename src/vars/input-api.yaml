@@ -139,7 +139,7 @@ test_groups:
           The HA parameter validation test validates HA configuration,
           including Corosync settings, Pacemaker resources, SBD device configuration,
           and HANA system replication setup.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "Manual ASCS Migration"
         task_name:                  ascs-migration
@@ -149,7 +149,7 @@ test_groups:
           resources to the ERS node, verifies proper role changes, ensures cluster maintains
           stability throughout the transition, and validates complete data synchronization after
           migration.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "ASCS Node Crash"
         task_name:                  ascs-node-crash
@@ -158,7 +158,7 @@ test_groups:
           simulates an ASCS node failure by forcefully terminating the process, then verifies
           automatic failover to the ERS node, monitors system replication status, and confirms
           service recovery without data loss.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "Block Network Communication"
         task_name:                  block-network
@@ -168,7 +168,7 @@ test_groups:
           It verifies split-brain prevention mechanisms, validates proper failover execution when nodes
           become isolated, and ensures cluster stability and data consistency after network
           connectivity is restored.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "Kill Message Server Process"
         task_name:                  kill-message-server
@@ -178,7 +178,7 @@ test_groups:
           handles both ENSA1 and ENSA2 architectures. It verifies proper cluster 
           reaction, automatic failover to the ERS node, and ensures service continuity after 
           the process failure.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "Kill Enqueue Server Process"
         task_name:                  kill-enqueue-server
@@ -188,7 +188,7 @@ test_groups:
           handles both ENSA1 and ENSA2 architectures. It validates proper
           cluster behavior, automatic failover execution, and confirms that the enqueue table is
           properly replicated to preserve the lock state.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "Kill Enqueue Replication Server Process"
         task_name:                  kill-enqueue-replication
@@ -197,7 +197,7 @@ test_groups:
           process on the ERS node by forcefully terminating it using the kill -9 signal. This test
           handles both ENSA1 and ENSA2 architectures. It validates the automatic restart of the
           process and ensures continued replication of the enqueue table.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "Kill sapstartsrv Process for ASCS"
         task_name:                  kill-sapstartsrv-process
@@ -215,7 +215,7 @@ test_groups:
           using sapcontrol. It verifies proper cluster reaction to a controlled instance shutdown,
           ensures automatic failover to the ERS node, and confirms service continuity throughout
           the operation.
-        enabled:                    false
+        enabled:                    true
         
       - name:                       "HAFailoverToNode Test"
         task_name:                  ha-failover-to-node
@@ -225,7 +225,7 @@ test_groups:
           SAP administrator user, which initiates a clean migration of the ASCS instance to another node.
           The test verifies proper execution of the SAP HA interface, validates the resource migration,
           and confirms service continuity throughout the failover process.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "SAPControl Config Validation"
         task_name:                  sapcontrol-config

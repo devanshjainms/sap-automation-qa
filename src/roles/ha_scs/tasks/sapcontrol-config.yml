@@ -52,6 +52,7 @@
 
         - name:                         "Test Execution: Validate sapcontrol commands"
           ansible.builtin.set_fact:
+            test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_case_message_from_test_case: >-
               Commands executed:
               {% for res in sapcontrol_results.results %}
