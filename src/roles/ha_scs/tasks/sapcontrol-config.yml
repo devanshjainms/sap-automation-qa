@@ -33,20 +33,20 @@
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
-        - name:                         "Test Execution: Run sapcontrol commands {{ sapcontrol_method }}"
+        - name:                         "Test Execution: Run sapcontrol commands {{ sapcontrol_method.name }}"
           become_user:                  "{{ sap_sid | lower }}adm"
-          ansible.builtin.shell:        sapcontrol -nr {{ scs_instance_number }} -function {{ sapcontrol_method }}
+          ansible.builtin.shell:        sapcontrol -nr {{ scs_instance_number }} -function {{ sapcontrol_method.name }}
           environment:
             PATH:                       /usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64:/usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/home/{{ sap_sid | lower }}adm
             DIR_LIBRARY:                /usr/sap/{{ sap_sid | upper }}/SYS/exe/run
             LD_LIBRARY_PATH:            /usr/sap/{{ sap_sid | upper }}/SYS/exe/run:/usr/sap/{{ sap_sid | upper }}/SYS/exe/uc/linuxx86_64
             SAPSYSTEMNAME:              "{{ sap_sid | upper }}"
-          register:                     "{{ sapcontrol_method }}_result"
+          register:                     sapcontrol_method.result
           failed_when:                  false
           loop:
-            - "HAGetFailoverConfig"
-            - "HACheckFailoverConfig"
-            - "HACheckConfig"
+            - { name: "HAGetFailoverConfig", result: HAGetFailoverConfig_result }
+            - { name: "HACheckFailoverConfig", result: HACheckFailoverConfig_result }
+            - { name: "HACheckConfig", result: HACheckConfig_result }
           loop_control:
             loop_var:                   sapcontrol_method
 
