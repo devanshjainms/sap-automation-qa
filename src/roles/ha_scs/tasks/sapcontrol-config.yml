@@ -59,7 +59,16 @@
                   Status: {{ 'Success' if res.rc == 0 else 'Failed' }}
                   Output: {{ res.stdout | default('N/A') }}
               {% endfor %}
-            test_case_details_from_test_case: "{{ sapcontrol_results.results }}"
+            test_case_details_from_test_case: |
+              {"SAPControl Results":
+              {% for res in sapcontrol_results.results %}
+                * Command: {{ res.item }}
+                  ReturnCode: {{ res.rc }}
+                  Stdout:
+                    {{ res.stdout_lines | join('\n    ') }}
+                  Stderr:
+                    {{ res.stderr_lines | join('\n    ') }}
+              {% endfor %}}
 
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
