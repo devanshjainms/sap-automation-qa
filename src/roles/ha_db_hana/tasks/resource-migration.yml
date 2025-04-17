@@ -31,6 +31,22 @@
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.primary_node].ansible_hostname }}"
 
+        - name:                         "Test Execution: Get HANA resource id"
+          ansible.builtin.command: >-
+                                        {{ commands
+                                          | selectattr('name','equalto','get_hana_resource_id')
+                                          | map(attribute=(ansible_os_family|upper))
+                                          | first
+                                        }}
+          changed_when:                 false
+          ignore_errors:                true
+          register:                     hana_resource_id
+
+        - name:                         "Test Execution: Set the resource name"
+          when:                         hana_resource_id.rc == 0
+          ansible.builtin.set_fact:
+            hana_resource_name:         "{{ hana_resource_id.stdout }}"
+
         - name:                         "Test Execution: Move the resource to the targeted node"
           ansible.builtin.command:      "{{ commands | selectattr(
                                         'name', 'equalto', 'resource_migration_cmd') | map(
