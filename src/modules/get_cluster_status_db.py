@@ -212,7 +212,6 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
                 result["secondary_node"] = node_name
                 result["cluster_status"]["secondary"] = node_attributes_dict
 
-        # Update instance attributes
         self.result.update(result)
         return result
 

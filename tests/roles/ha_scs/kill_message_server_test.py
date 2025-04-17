@@ -2,10 +2,10 @@
 # Licensed under the MIT License.
 
 """
-Test class for ASCS node crash tasks.
+Test class for Kill Message Server Process tasks.
 
-This test class uses pytest to run functional tests on the ASCS nocde crash tasks
-defined in roles/ha_scs/tasks/ascs-node-crash.yml. It sets up a temporary test environment,
+This test class uses pytest to run functional tests on the kill-message-server tasks
+defined in roles/ha_scs/tasks/kill-message-server.yml. It sets up a temporary test environment,
 mocks necessary Python modules and commands, and verifies the execution of the tasks.
 """
 
@@ -16,15 +16,15 @@ import pytest
 from tests.roles.ha_scs.roles_testing_base_scs import RolesTestingBaseSCS
 
 
-class TestASCSNodeCrash(RolesTestingBaseSCS):
+class TestKillMessageServer(RolesTestingBaseSCS):
     """
-    Test class for ASCS node crash tasks.
+    Test class for Kill Message Server Process tasks.
     """
 
     @pytest.fixture
-    def ascs_node_crash_tasks(self):
+    def kill_message_server_tasks(self):
         """
-        Load the ASCS node crash tasks from the YAML file.
+        Load the Kill Message Server tasks from the YAML file.
 
         :return: Parsed YAML content of the tasks file.
         :rtype: dict
@@ -32,46 +32,47 @@ class TestASCSNodeCrash(RolesTestingBaseSCS):
         return self.file_operations(
             operation="read",
             file_path=Path(__file__).parent.parent.parent
-            / "src/roles/ha_scs/tasks/ascs-node-crash.yml",
+            / "src/roles/ha_scs/tasks/kill-message-server.yml",
         )
 
     @pytest.fixture
     def test_environment(self, ansible_inventory):
         """
-        Set up a temporary test environment for the ASCS node crash tasks.
+        Set up a temporary test environment for the Kill Message Server tasks.
 
         :param ansible_inventory: Path to the Ansible inventory file.
         :type ansible_inventory: str
         :yield temp_dir: Path to the temporary test environment.
         :ytype: str
         """
-        os.environ["TASK_NAME"] = "ascs-node-crash"
-        task_counter_file = "/tmp/get_cluster_status_counter_ascs-node-crash"
+
+        os.environ["TASK_NAME"] = "kill-message-server"
+        task_counter_file = "/tmp/get_cluster_status_counter_kill-message-server"
         if os.path.exists(task_counter_file):
             os.remove(task_counter_file)
+
         temp_dir = self.setup_test_environment(
             role_type="ha_scs",
             ansible_inventory=ansible_inventory,
-            task_name="ascs-node-crash",
-            task_description="Simulate ASCS node crash",
+            task_name="kill-message-server",
+            task_description="The Message Server Process Kill test simulates failure of the message server process",
             module_names=[
                 "project/library/get_cluster_status_scs",
                 "project/library/log_parser",
                 "project/library/send_telemetry_data",
                 "bin/crm_resource",
-                "bin/echo",
+                "bin/pgrep",
+                "bin/kill",
             ],
-            extra_vars_override={
-                "node_tier": "scs",
-            },
+            extra_vars_override={"node_tier": "scs"},
         )
 
         yield temp_dir
-        shutil.rmtree(temp_dir, ignore_errors=True)
+        shutil.rmtree(temp_dir)
 
-    def test_functional_ascs_node_crash_success(self, test_environment, ansible_inventory):
+    def test_functional_kill_message_server_success(self, test_environment, ansible_inventory):
         """
-        Test the ASCS node crash tasks using Ansible Runner.
+        Test the Kill Message Server tasks using Ansible Runner.
 
         :param test_environment: Path to the temporary test environment.
         :type test_environment: str
@@ -97,19 +98,23 @@ class TestASCSNodeCrash(RolesTestingBaseSCS):
                 failed_events.append(event)
 
         assert len(ok_events) > 0
-        assert len(failed_events) == 0
+        # One failed event is expected due to the kill command
+        assert len(failed_events) == 1
 
-        node_crash_executed = False
+        kill_executed = False
         validate_executed = False
         cleanup_executed = False
         post_status = {}
         pre_status = {}
 
+        for event in failed_events:
+            task = event.get("event_data", {}).get("task")
+            if task and "Kill Message Server Process" in task:
+                kill_executed = True
+
         for event in ok_events:
             task = event.get("event_data", {}).get("task")
-            if task and "Echo B to /proc/sysrq-trigger" in task:
-                node_crash_executed = True
-            elif task and "Test Execution: Validate SCS" in task:
+            if task and "Test Execution: Validate SCS cluster status" in task:
                 validate_executed = True
                 post_status = event.get("event_data", {}).get("res")
             elif task and "Cleanup resources" in task:
@@ -120,6 +125,6 @@ class TestASCSNodeCrash(RolesTestingBaseSCS):
         assert post_status.get("ascs_node") == pre_status.get("ers_node")
         assert post_status.get("ers_node") == pre_status.get("ascs_node")
 
-        assert node_crash_executed, "ASCS node crash task was not executed"
+        assert kill_executed, "Kill message server process task was not executed"
         assert validate_executed, "SCS cluster status validation task was not executed"
         assert cleanup_executed, "Cleanup resources task was not executed"
