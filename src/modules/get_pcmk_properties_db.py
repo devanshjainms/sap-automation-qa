@@ -177,7 +177,8 @@ class HAClusterValidator(SapAutomationQA):
     CONSTRAINTS_CATEGORIES = (".//*", "CONSTRAINTS_DEFAULTS")
 
     RESOURCE_CATEGORIES = {
-        "stonith": ".//primitive[@class='stonith']",
+        "sbd_stonith": ".//primitive[@type='external/sbd']",
+        "fence_agent": ".//primitive[@type='fence_azure_arm']",
         "topology": ".//clone/primitive[@type='SAPHanaTopology']",
         "topology_meta": ".//clone/meta_attributes",
         "hana": ".//master/primitive[@type='SAPHana']",
@@ -242,12 +243,9 @@ class HAClusterValidator(SapAutomationQA):
         :return: The expected value for the resource configuration parameter.
         :rtype: str
         """
-        resource_defaults = self.constants["RESOURCE_DEFAULTS"].get(self.os_type, {})
-
-        if resource_type == "stonith":
-            resource_defaults = resource_defaults.get("stonith", {}).get(self.fencing_mechanism, {})
-        else:
-            resource_defaults = resource_defaults.get(resource_type, {})
+        resource_defaults = (
+            self.constants["RESOURCE_DEFAULTS"].get(self.os_type, {}).get(resource_type, {})
+        )
 
         if section == "meta_attributes":
             return resource_defaults.get("meta_attributes", {}).get(param_name)
