@@ -20,7 +20,7 @@ test_groups:
           The HA parameter validation test validates HA configuration,
           including Corosync settings, Pacemaker resources, SBD device configuration,
           and HANA system replication setup.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       Azure Load Balancer Validation
         task_name:                  azure-lb
@@ -56,7 +56,7 @@ test_groups:
           It verifies split-brain prevention mechanisms, validates proper failover execution when nodes
           become isolated, and ensures cluster stability and data consistency after network
           sconnectivity is restored.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       HA Functional Test- Crash index server on primary node
         task_name:                  primary-crash-index
@@ -128,7 +128,7 @@ test_groups:
           the secondary node. It validates that the primary node continues normal operation while
           verifying the cluster's ability to handle secondary failures, tests automatic recovery
           mechanisms, and ensures system replication resumes properly after service restoration.
-        enabled:                    false
+        enabled:                    true
 
 
   - name:                           HA_SCS
