@@ -32,7 +32,7 @@
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.primary_node].ansible_hostname }}"
 
         - name:                         "Test Execution: Get HANA resource id"
-          ansible.builtin.command: >-
+          ansible.builtin.shell: >-
                                         {{ commands
                                           | selectattr('name','equalto','get_hana_resource_id')
                                           | map(attribute=(ansible_os_family|upper))
