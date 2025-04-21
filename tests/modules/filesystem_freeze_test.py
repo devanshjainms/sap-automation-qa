@@ -56,7 +56,7 @@ class TestFileSystemFreeze:
         :param filesystem_freeze: FileSystemFreeze instance.
         :type filesystem_freeze: FileSystemFreeze
         """
-        mount_points = ["/hana/shared/SID", "/hana/shared"]
+        mount_points = ["/hana/shared"]
         for mount_point in mount_points:
             with monkeypatch.context() as monkey_patch:
                 monkey_patch.setattr(
@@ -72,7 +72,7 @@ class TestFileSystemFreeze:
                 assert result["status"] == "PASSED"
                 assert (
                     result["message"]
-                    == "The file system (/hana/shared) was successfully mounted read-only."
+                    == "The file system (/hana/shared) was mounted read-only."
                 )
                 assert result["changed"] is True
 
@@ -137,7 +137,7 @@ class TestFileSystemFreeze:
             assert mock_result["status"] == "PASSED"
             assert (
                 mock_result["message"]
-                == "The file system (/hana/shared) was successfully mounted read-only."
+                == "The file system (/hana/shared) was mounted read-only."
             )
 
     def test_main_method_non_anf_provider(self, monkeypatch):

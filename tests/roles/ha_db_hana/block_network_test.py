@@ -48,7 +48,7 @@ class TestBlockNetworkTest(RolesTestingBaseDB):
             "project/library/filesystem_freeze",
             "bin/crm_resource",
             "bin/iptables",
-            "bin/ping",
+            "bin/nc",
             "bin/echo",
             "bin/sleep",
         ]
@@ -114,7 +114,7 @@ class TestBlockNetworkTest(RolesTestingBaseDB):
 
         assert len(ok_events) > 0
         # There will be 1 failed event, connection failure to primary node
-        # This is the behavior be have mocked in the ping functionality
+        # This is the behavior be have mocked in the nc functionality
         assert len(failed_events) == 1
 
         post_status = {}
