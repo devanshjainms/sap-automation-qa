@@ -408,6 +408,9 @@ class HAClusterValidator(SapAutomationQA):
 
         for param_name, expected_value in global_ini_defaults.items():
             value = global_ini_properties.get(param_name, "")
+            if isinstance(expected_value, list):
+                if value in expected_value:
+                    expected_value = value
             parameters.append(
                 self._create_parameter(
                     category="global_ini",

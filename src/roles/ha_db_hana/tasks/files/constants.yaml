@@ -47,7 +47,7 @@ VALID_CONFIGS:
   SUSE: {}
   AFA:
     have-watchdog:                    "false"
-    stonith-timeout:                  "900"
+    stonith-timeout:                  "900s"
   ISCSI:
     have-watchdog:                    "true"
     stonith-timeout:                  "144s"
@@ -69,7 +69,7 @@ RESOURCE_DEFAULTS:
         operations:
           monitor:
             interval:                     "3600"
-            timeout:                      "15"
+            timeout:                      "120"
       ISCSI:
         instance_attributes:
           pcmk_delay_max:                 "30s"
@@ -287,7 +287,7 @@ OS_PARAMETERS:
 GLOBAL_INI:
   SUSE:
     provider:                           "SAPHanaSR"
-    path:                               "/usr/share/SAPHanaSR"
+    path:                               ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
     execution_order:                    "1"
 
   REDHAT:
