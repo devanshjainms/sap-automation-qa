@@ -72,7 +72,7 @@ RESOURCE_DEFAULTS:
 
     sbd_stonith:
       instance_attributes:
-        pcmk_delay_max:                 "30s"
+        pcmk_delay_max:                 "15"
         pcmk_monitor_retries:           "4"
         pcmk_action_limit:              "3"
         pcmk_reboot_timeout:            "900"
