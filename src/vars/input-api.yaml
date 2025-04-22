@@ -168,6 +168,7 @@ db_instance_number:                 "00"
 scs_instance_number:                "00"
 ers_instance_number:                "01"
 NFS_provider:                       "AFS"
+sap_port_to_ping:                   "1128"
 
 # Commands for HANA DB HA Test Cases based on OS family
 commands:

@@ -63,6 +63,7 @@ class TestBlockNetworkTest(RolesTestingBaseDB):
                 "node_tier": "hana",
                 "NFS_provider": "ANF",
                 "database_cluster_type": "ISCSI",
+                "sap_port_to_ping": "1128",
             },
         )
 
