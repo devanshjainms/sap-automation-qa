@@ -39,6 +39,44 @@
                                         attribute=(ansible_os_family | upper)) | first }}"
           register:                     migration_result
 
+        - name:                         "Test Execution: Get SAP Instance resource id"
+          block:
+            - name:                     "Try master resource ID"
+              ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','get_sap_instance_resource_id')
+                                          | map(attribute=(ansible_os_family|upper))
+                                          | first
+                                        }}
+              args:
+                executable:             /bin/bash
+              changed_when:             false
+              register:                 sap_instance_resource_id
+              failed_when:              sap_instance_resource_id.rc != 0
+          rescue:
+            - name:                     "Try clone resource ID"
+              ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','get_sap_instance_resource_id')
+                                          | map(attribute='REDHAT')
+                                          | first
+                                        }}
+              args:
+                executable:             /bin/bash
+              changed_when:             false
+              register:                 sap_instance_resource_id
+              failed_when:              sap_instance_resource_id.rc != 0
+              ignore_errors:            true
+          always:
+            - name:                     "Test Execution: Set the resource name"
+              when:
+                                        - sap_instance_resource_id.rc == 0
+                                        - sap_instance_resource_id.stdout is defined
+                                        - sap_instance_resource_id.stdout | type_debug != 'NoneType'
+                                        - sap_instance_resource_id.stdout | trim | length > 1
+              ansible.builtin.set_fact:
+                sap_instance_resource_name:     "{{ sap_instance_resource_id.stdout }}"
+
         - name:                         "Test Execution: Validate SCS cluster status"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
