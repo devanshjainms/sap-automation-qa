@@ -235,6 +235,7 @@ test_groups:
           outputs and statuses to ensure proper configuration and functionality.
         enabled:                    true
 
+
 # Default values for HANA DB HA Test Cases
 sap_sid:                            "HDB"
 db_sid:                             "HDB"
