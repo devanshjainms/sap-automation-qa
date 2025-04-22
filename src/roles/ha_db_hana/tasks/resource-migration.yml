@@ -55,11 +55,11 @@
               register:                 hana_resource_id
               failed_when:              hana_resource_id.rc != 0
               ignore_errors:            true
-
-        - name:                         "Test Execution: Set the resource name"
-          when:                         hana_resource_id.rc == 0
-          ansible.builtin.set_fact:
-            hana_resource_name:         "{{ hana_resource_id.stdout }}"
+          always:
+            - name:                     "Test Execution: Set the resource name"
+              when:                     hana_resource_id.rc == 0
+              ansible.builtin.set_fact:
+                hana_resource_name:     "{{ hana_resource_id.stdout }}"
 
         - name:                         "Test Execution: Move the resource to the targeted node"
           ansible.builtin.command:      "{{ commands | selectattr(
