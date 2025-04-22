@@ -33,7 +33,7 @@
 
         - name:                         "Test Execution: Get HANA resource id"
           block:
-            - name:                     "Try master resource ID (SUSE style)"
+            - name:                     "Try master resource ID"
               ansible.builtin.shell: >-
                                         {{ commands
                                           | selectattr('name','equalto','get_hana_resource_id')
@@ -44,7 +44,7 @@
               register:                 hana_resource_id
               failed_when:              hana_resource_id.rc != 0
           rescue:
-            - name:                     "Try clone resource ID (RHEL style)"
+            - name:                     "Try clone resource ID"
               ansible.builtin.shell: >-
                                         {{ commands
                                           | selectattr('name','equalto','get_hana_resource_id')
