@@ -3,7 +3,7 @@
 
 ---
 # /*---------------------------------------------------------------------------
-# |                          ASCS Node Crash                                  |
+# |                  Block Network Communication Test                          |
 # +--------------------------------------------------------------------------*/
 - name:                                 "Test Setup Tasks"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
@@ -18,50 +18,64 @@
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Execution: ASCS Node Crash"
+- name:                                 "Test Execution: Block Network Communication"
   become:                               true
   when:
                                         - node_tier == "scs" or node_tier == "ers"
                                         - pre_validations_status == "PASSED"
   block:
-    - name:                             "Test Execution: Simulate ASCS Node Crash"
+    - name:                             "Test Execution: Block Network on ASCS Node"
       when:                             ansible_hostname == cluster_status_pre.ascs_node
       become:                           true
       block:
-        - name:                         "Test Execution: Check for ENSA version"
-          ansible.builtin.shell:        pgrep -f 'enqr.sap{{ sap_sid | upper }}' | wc -l
-          register:                     ensa2_check
-          failed_when:                  false
-
         - name:                         "Test Execution: Start timer"
           ansible.builtin.set_fact:
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
-        - name:                         "Test Execution: Echo B to /proc/sysrq-trigger"
-          ansible.builtin.shell:        echo b > /proc/sysrq-trigger
-          async:                        1
-          poll:                         0
-          register:                     ascs_crash_result
+        - name:                         "Test Execution: Get peer ERS node IP address"
+          ansible.builtin.set_fact:
+            ers_ip:                     "{{ hostvars[cluster_status_pre.ers_node].ansible_host }}"
+          register:                     ers_ip_result
 
-    - name:                             "Test Execution: Simulate ASCS Node Crash"
-      when:                             ansible_hostname == cluster_status_pre.ers_node
+        - name:                         "Test Execution: Block network communication"
+          ansible.builtin.shell: |
+                                        iptables -A INPUT -s {{ ers_ip }} -j DROP;
+                                        iptables -A OUTPUT -d {{ ers_ip }} -j DROP
+          register:                     block_network_result
+
+        - name:                         "Test Execution: Wait for the cluster to be in a stable state"
+          ansible.builtin.wait_for:
+            timeout:                    60
+
+
+    - name:                             "Test Execution: Check node status on primary and secondary"
+      block:
+        - name:                         "Test Execution: Check node connectivity from controller"
+          delegate_to:                  localhost
+          ansible.builtin.shell: |
+                                        for i in $(seq 1 30); do
+                                          if ! ping -c 1 -w 1 {{ ansible_host }}; then
+                                            echo "Connection failed on attempt $i"
+                                            exit 1
+                                          fi
+                                          sleep 1
+                                        done
+          register:                     node_status
+          ignore_errors:                true
+
+        - name:                         "Set Node Status Facts"
+          ansible.builtin.set_fact:
+            ascs_node_down:             "{{ hostvars[cluster_status_pre.ascs_node].node_status is failed }}"
+            ers_node_down:              "{{ hostvars[cluster_status_pre.ers_node].node_status is failed }}"
+
+    - name:                             "Test Execution: Monitor failover on ERS Node"
+      when:
+                                        - ansible_hostname == cluster_status_pre.ers_node
+                                        - ascs_node_down and not ers_node_down
       become:                           true
       block:
-        - name:                         "Test Execution: Validate ASCS node has stopped"
-          get_cluster_status_scs:
-            sap_sid:                    "{{ sap_sid | lower }}"
-            ansible_os_family:          "{{ ansible_os_family | upper }}"
-            scs_instance_number:        "{{ scs_instance_number }}"
-            ers_instance_number:        "{{ ers_instance_number }}"
-          register:                     cluster_status_test_execution_pre
-          retries:                      50
-          delay:                        10
-          failed_when:                  false
-          until:                        cluster_status_test_execution_pre.ascs_node == ""
-
-        - name:                         "Test Execution: Validate SCS cluster status ENSA1"
-          when:                         hostvars[cluster_status_pre.ascs_node].ensa2_check.stdout == "0"
+        - name:                         "Test Execution: Validate SCS cluster status"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
             ansible_os_family:          "{{ ansible_os_family | upper }}"
@@ -74,8 +88,23 @@
                                         cluster_status_test_execution.ascs_node == cluster_status_pre.ers_node
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ascs_node
 
-        - name:                         "Test Execution: Validate SCS cluster status ENSA2"
-          when:                         hostvars[cluster_status_pre.ascs_node].ensa2_check.stdout != "0"
+    - name:                             "Test Execution: Restore Network on ASCS Node"
+      when:
+                                        - ansible_hostname == cluster_status_pre.ascs_node
+                                        - not ascs_node_down and ers_node_down
+      become:                           true
+      block:
+        - name:                         "Test Execution: Restore network communication"
+          ansible.builtin.shell: |
+                                        iptables -D INPUT -s {{ ers_ip }} -j DROP;
+                                        iptables -D OUTPUT -d {{ ers_ip }} -j DROP
+          register:                     unblock_network_result
+    
+    - name:                             "Test Execution: Restore Network on ASCS Node"
+      when:                             ansible_hostname == cluster_status_pre.ascs_node
+      become:                           true
+      block:
+        - name:                         "Test Execution: Validate SCS cluster status"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
             ansible_os_family:          "{{ ansible_os_family | upper }}"
@@ -85,13 +114,9 @@
           retries:                      50
           delay:                        10
           until: |
-                                        cluster_status_test_execution.ascs_node != ""
-                                        and cluster_status_test_execution.ers_node != ""
+                                        cluster_status_test_execution.ascs_node == cluster_status_pre.ascs_node
+                                        and cluster_status_test_execution.ers_node == cluster_status_pre.ers_node
 
-    - name:                             "Test Execution: Simulate ASCS Node Crash"
-      when:                             ansible_hostname == cluster_status_pre.ascs_node
-      become:                           true
-      block:
         - name:                         "Test Execution: Cleanup resources"
           ansible.builtin.command:      crm_resource --cleanup
           register:                     cleanup_failed_resource_test_execution
@@ -105,18 +130,16 @@
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                         Old ASCS: {{ cluster_status_pre.ascs_node }}
-                                        New ASCS: {{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution.ascs_node 
-                                        or cluster_status_test_execution.ascs_node }}
+                                        New ASCS: {{ cluster_status_test_execution.ascs_node }}
                                         Old ERS: {{ cluster_status_pre.ers_node }}
-                                        New ERS: {{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution.ers_node
-                                        or cluster_status_test_execution.ers_node }}
+                                        New ERS: {{ cluster_status_test_execution.ers_node }}
             test_case_details_from_test_case: {
-                                        "Pre Validations: Validate HANA DB cluster status": "{{ cluster_status_pre }}",
+                                        "Pre Validations: Validate SCS cluster status": "{{ cluster_status_pre }}",
                                         "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
-                                        "Test Execution: Crash ASCS resource": "{{ ascs_crash_result }}",
+                                        "Test Execution: Block network": "{{ block_network_result }}",
+                                        "Test Execution: Unblock network": "{{ unblock_network_result }}",
                                         "Test Execution: Cleanup resources": "{{ cleanup_failed_resource_test_execution }}",
-                                        "Post Validations Result": "{{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution
-                                        or cluster_status_test_execution }}",
+                                        "Post Validations Result": "{{ cluster_status_test_execution }}",
                                         }
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |

@@ -160,6 +160,81 @@ test_groups:
           service recovery without data loss.
         enabled:                    true
 
+      - name:                       "Block Network Communication"
+        task_name:                  block-network
+        description: |
+          The Block Network test validates cluster behavior during network partition scenarios by
+          implementing iptables rules to block communication between ASCS and ERS nodes.
+          It verifies split-brain prevention mechanisms, validates proper failover execution when nodes
+          become isolated, and ensures cluster stability and data consistency after network
+          connectivity is restored.
+        enabled:                    true
+
+      - name:                       "Kill Message Server Process"
+        task_name:                  kill-message-server
+        description: |
+          The Message Server Process Kill test simulates failure of the message server process on the
+          ASCS node by forcefully terminating it using the kill -9 signal. This test
+          handles both ENSA1 and ENSA2 architectures. It verifies proper cluster 
+          reaction, automatic failover to the ERS node, and ensures service continuity after 
+          the process failure.
+        enabled:                    true
+
+      - name:                       "Kill Enqueue Server Process"
+        task_name:                  kill-enqueue-server
+        description: |
+          The Enqueue Server Process Kill test simulates failure of the enqueue server process on the
+          ASCS node by forcefully terminating it using the kill -9 signal. This test
+          handles both ENSA1 and ENSA2 architectures. It validates proper
+          cluster behavior, automatic failover execution, and confirms that the enqueue table is
+          properly replicated to preserve the lock state.
+        enabled:                    true
+
+      - name:                       "Kill Enqueue Replication Server Process"
+        task_name:                  kill-enqueue-replication
+        description: |
+          The Enqueue Replication Server Process Kill test simulates failure of the replication server
+          process on the ERS node by forcefully terminating it using the kill -9 signal. This test
+          handles both ENSA1 and ENSA2 architectures. It validates the automatic restart of the
+          process and ensures continued replication of the enqueue table.
+        enabled:                    true
+
+      - name:                       "Kill sapstartsrv Process for ASCS"
+        task_name:                  kill-sapstartsrv-process
+        description: |
+          The sapstartsrv Process Kill test simulates failure of the SAP Start Service for the ASCS
+          instance by forcefully terminating it using the kill -9 signal. It validates proper cluster
+          reaction, automatic failover to the ERS node, and verifies service restoration after the
+          process failure.
+        enabled:                    true
+
+      - name:                       "Manual Restart of ASCS Instance"
+        task_name:                  manual-restart
+        description: |
+          The Manual Restart test validates cluster behavior when the ASCS instance is manually stopped
+          using sapcontrol. It verifies proper cluster reaction to a controlled instance shutdown,
+          ensures automatic failover to the ERS node, and confirms service continuity throughout
+          the operation.
+        enabled:                    true
+        
+      - name:                       "HAFailoverToNode Test"
+        task_name:                  ha-failover-to-node
+        description: |
+          The HAFailoverToNode test validates SAP's built-in high availability functionality by using
+          the sapcontrol command to trigger a controlled failover. It executes 'HAFailoverToNode' as the
+          SAP administrator user, which initiates a clean migration of the ASCS instance to another node.
+          The test verifies proper execution of the SAP HA interface, validates the resource migration,
+          and confirms service continuity throughout the failover process.
+        enabled:                    true
+
+      - name:                       "SAPControl Config Validation"
+        task_name:                  sapcontrol-config
+        description: |
+          The SAPControl Config Validation test runs multiple sapcontrol commands to validate the SCS configuration.
+          It executes commands like HAGetFailoverConfig, HACheckFailoverConfig, and HACheckConfig, capturing their
+          outputs and statuses to ensure proper configuration and functionality.
+        enabled:                    true
+
 # Commands for HANA DB HA Test Cases based on OS family
 commands:
   - name:                           resource_migration_cmd

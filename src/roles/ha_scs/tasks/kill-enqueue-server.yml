@@ -3,7 +3,7 @@
 
 ---
 # /*---------------------------------------------------------------------------
-# |                          ASCS Node Crash                                  |
+# |                     Kill Enqueue Server Process                           |
 # +--------------------------------------------------------------------------*/
 - name:                                 "Test Setup Tasks"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
@@ -18,36 +18,38 @@
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Execution: ASCS Node Crash"
+- name:                                 "Test Execution: Kill Enqueue Server Process"
   become:                               true
   when:
                                         - node_tier == "scs" or node_tier == "ers"
                                         - pre_validations_status == "PASSED"
   block:
-    - name:                             "Test Execution: Simulate ASCS Node Crash"
+    - name:                             "Test Execution: Kill Enqueue Server on ASCS Node"
       when:                             ansible_hostname == cluster_status_pre.ascs_node
       become:                           true
       block:
-        - name:                         "Test Execution: Check for ENSA version"
-          ansible.builtin.shell:        pgrep -f 'enqr.sap{{ sap_sid | upper }}' | wc -l
-          register:                     ensa2_check
-          failed_when:                  false
-
         - name:                         "Test Execution: Start timer"
           ansible.builtin.set_fact:
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
-        - name:                         "Test Execution: Echo B to /proc/sysrq-trigger"
-          ansible.builtin.shell:        echo b > /proc/sysrq-trigger
-          async:                        1
-          poll:                         0
-          register:                     ascs_crash_result
+        - name:                         "Test Execution: Check for ENSA version"
+          ansible.builtin.shell:        pgrep -f 'enq.sap{{ sap_sid | upper }}' | wc -l
+          register:                     ensa2_check
+          failed_when:                  false
 
-    - name:                             "Test Execution: Simulate ASCS Node Crash"
-      when:                             ansible_hostname == cluster_status_pre.ers_node
-      become:                           true
-      block:
+        - name:                         "Test Execution: Kill Enqueue Server Process (ENSA1)"
+          ansible.builtin.shell:        pgrep -f 'en.sap{{ sap_sid | upper }}' | xargs kill -9
+          register:                     kill_er_result
+          failed_when:                  false
+          when:                         ensa2_check.stdout == "0"
+
+        - name:                         "Test Execution: Kill Enqueue Server Process (ENSA2)"
+          ansible.builtin.shell:        pgrep -f 'enq.sap{{ sap_sid | upper }}' | xargs kill -9
+          register:                     kill_en_result
+          failed_when:                  false
+          when:                         ensa2_check.stdout != "0"
+
         - name:                         "Test Execution: Validate ASCS node has stopped"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
@@ -60,8 +62,8 @@
           failed_when:                  false
           until:                        cluster_status_test_execution_pre.ascs_node == ""
 
-        - name:                         "Test Execution: Validate SCS cluster status ENSA1"
-          when:                         hostvars[cluster_status_pre.ascs_node].ensa2_check.stdout == "0"
+        - name:                         "Test Execution: Validate SCS cluster status for ENSA1"
+          when:                         ensa2_check.stdout == "0"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
             ansible_os_family:          "{{ ansible_os_family | upper }}"
@@ -74,8 +76,8 @@
                                         cluster_status_test_execution.ascs_node == cluster_status_pre.ers_node
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ascs_node
 
-        - name:                         "Test Execution: Validate SCS cluster status ENSA2"
-          when:                         hostvars[cluster_status_pre.ascs_node].ensa2_check.stdout != "0"
+        - name:                         "Test Execution: Validate SCS cluster status for ENSA2"
+          when:                         ensa2_check.stdout != "0"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
             ansible_os_family:          "{{ ansible_os_family | upper }}"
@@ -88,10 +90,6 @@
                                         cluster_status_test_execution.ascs_node != ""
                                         and cluster_status_test_execution.ers_node != ""
 
-    - name:                             "Test Execution: Simulate ASCS Node Crash"
-      when:                             ansible_hostname == cluster_status_pre.ascs_node
-      become:                           true
-      block:
         - name:                         "Test Execution: Cleanup resources"
           ansible.builtin.command:      crm_resource --cleanup
           register:                     cleanup_failed_resource_test_execution
@@ -104,19 +102,17 @@
         - name:                         "Set test case message and details"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
+                                        ENSA Version: {{ "ENSA1" if ensa2_check.stdout == "0" else "ENSA2" }}
                                         Old ASCS: {{ cluster_status_pre.ascs_node }}
-                                        New ASCS: {{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution.ascs_node 
-                                        or cluster_status_test_execution.ascs_node }}
+                                        New ASCS: {{ cluster_status_test_execution.ascs_node }}
                                         Old ERS: {{ cluster_status_pre.ers_node }}
-                                        New ERS: {{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution.ers_node
-                                        or cluster_status_test_execution.ers_node }}
+                                        New ERS: {{ cluster_status_test_execution.ers_node }}
             test_case_details_from_test_case: {
-                                        "Pre Validations: Validate HANA DB cluster status": "{{ cluster_status_pre }}",
+                                        "Pre Validations: Validate SCS cluster status": "{{ cluster_status_pre }}",
                                         "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
-                                        "Test Execution: Crash ASCS resource": "{{ ascs_crash_result }}",
+                                        "Test Execution: Kill Enqueue Server Process": "{{ kill_en_result }}",
                                         "Test Execution: Cleanup resources": "{{ cleanup_failed_resource_test_execution }}",
-                                        "Post Validations Result": "{{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution
-                                        or cluster_status_test_execution }}",
+                                        "Post Validations Result": "{{ cluster_status_test_execution }}",
                                         }
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
