@@ -20,9 +20,7 @@
 # +--------------------------------------------------------------------------*/
 - name:                                 "Test Execution: ASCS Node Crash"
   become:                               true
-  when:
-                                        - node_tier == "scs" or node_tier == "ers"
-                                        - pre_validations_status == "PASSED"
+  when:                                 pre_validations_status == "PASSED"
   block:
     - name:                             "Test Execution: Simulate ASCS Node Crash"
       when:                             ansible_hostname == cluster_status_pre.ascs_node
