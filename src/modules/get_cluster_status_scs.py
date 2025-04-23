@@ -12,7 +12,7 @@ from ansible.module_utils.basic import AnsibleModule
 
 try:
     from ansible.module_utils.get_cluster_status import BaseClusterStatusChecker
-    from ansible.module.utils.commands import CIB_ADMIN
+    from ansible.module_utils.commands import CIB_ADMIN
 except ImportError:
     from src.module_utils.get_cluster_status import BaseClusterStatusChecker
     from src.module_utils.commands import (
