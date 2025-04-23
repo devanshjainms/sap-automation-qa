@@ -38,32 +38,6 @@
                                             | first }}"
       run_once:                        true
 
-    - name:                             "Get the ERS resource IDs"
-      ansible.builtin.command: >-
-                                        cibadmin --query --xpath "//primitive[@type='SAPInstance']" | awk '
-                                        /<primitive / { id=""; is_ers=0 }
-                                        /<primitive / && /id="/ { match($0, /id="([^"]+)"/, m); id=m[1] }
-                                        /IS_ERS/ { is_ers=1 }
-                                        /<\/primitive>/ {
-                                          if (is_ers) print id
-                                          id=""; is_ers=0
-                                        }'
-      register:                         ers_resource_id
-      run_once:                         true
-
-    - name:                            "Get the ASCS resource IDs"
-      ansible.builtin.command: >-
-                                       cibadmin --query --xpath "//primitive[@type='SAPInstance']" | awk '
-                                        /<primitive / { id=""; is_ers=0 }
-                                        /<primitive / && /id="/ { match($0, /id="([^"]+)"/, m); id=m[1] }
-                                        /IS_ERS/ { is_ers=1 }
-                                        /<\/primitive>/ {
-                                          if (!is_ers) print id
-                                          id=""; is_ers=0
-                                        }'
-      register:                         ascs_resource_id
-      run_once:                         true
-
     - name:                            Set the test group facts
       ansible.builtin.set_fact:
         test_group_start_time:         "{{ now(utc=true,fmt='%Y-%m-%d %H:%M:%S') }}"

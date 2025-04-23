@@ -12,8 +12,12 @@ from ansible.module_utils.basic import AnsibleModule
 
 try:
     from ansible.module_utils.get_cluster_status import BaseClusterStatusChecker
+    from ansible.module.utils.commands import CIB_ADMIN
 except ImportError:
     from src.module_utils.get_cluster_status import BaseClusterStatusChecker
+    from src.module_utils.commands import (
+        CIB_ADMIN,
+    )
 
 
 DOCUMENTATION = r"""
@@ -96,19 +100,49 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
         self,
         sap_sid: str,
         ansible_os_family: str = "",
-        ascs_resource_id: str = "",
-        ers_resource_id: str = "",
     ):
         super().__init__(ansible_os_family)
         self.sap_sid = sap_sid
-        self.ascs_resource_id = ascs_resource_id
-        self.ers_resource_id = ers_resource_id
+        self.ascs_resource_id = ""
+        self.ers_resource_id = ""
+        self._get_resource_ids()
         self.result.update(
             {
                 "ascs_node": "",
                 "ers_node": "",
+                "ascs_resource_id": self.ascs_resource_id,
+                "ers_resource_id": self.ers_resource_id,
             }
         )
+
+    def _get_resource_ids(self) -> None:
+        """
+        Retrieves the resource IDs for ASCS and ERS from the cluster status XML.
+
+        :return: None
+        """
+        try:
+            resources_string = self.execute_command_subprocess(CIB_ADMIN("resources"))
+            if resources_string is not None:
+                resources_xml = ET.fromstring(resources_string)
+                resources = resources_xml.findall(".//primitive[@type='SAPInstance']")
+
+                for resource in resources:
+                    resource_id = resource.attrib.get("id")
+                    instance_attributes = resource.find("instance_attributes")
+
+                    if instance_attributes is not None:
+                        for nvpair in instance_attributes:
+                            if (
+                                nvpair.attrib.get("name") == "IS_ERS"
+                                and nvpair.attrib.get("value") == "true"
+                            ):
+                                self.ers_resource_id = resource_id
+                            else:
+                                self.ascs_resource_id = resource_id
+
+        except Exception as ex:
+            self.handle_error(ex)
 
     def _process_node_attributes(self, cluster_status_xml: ET.Element) -> Dict[str, Any]:
         """
@@ -229,8 +263,6 @@ def run_module() -> None:
     """
     module_args = dict(
         sap_sid=dict(type="str", required=True),
-        ascs_resource_id=dict(type="str", required=False),
-        ers_resource_id=dict(type="str", required=False),
         ansible_os_family=dict(type="str", required=False),
     )
 
@@ -239,8 +271,6 @@ def run_module() -> None:
     checker = SCSClusterStatusChecker(
         sap_sid=module.params["sap_sid"],
         ansible_os_family=module.params["ansible_os_family"],
-        ascs_resource_id=module.params["ascs_resource_id"],
-        ers_resource_id=module.params["ers_resource_id"],
     )
     checker.run()
 
