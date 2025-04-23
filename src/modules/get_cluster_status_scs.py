@@ -145,6 +145,13 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                                 result["ascs_node"] = node_name
                             break
 
+            # If node attributes are do not report correct ASCS/ERS nodes, exit
+            # and return empty values
+            if (result["ascs_node"] == "" and result["ers_node"] == "") or (
+                result["ascs_node"] == result["ers_node"]
+            ):
+                return self.result
+
             if resources is not None:
                 ascs_resource = resources.find(f".//resource[@id='{ascs_resource_id}']")
                 ers_resource = resources.find(f".//resource[@id='{ers_resource_id}']")
