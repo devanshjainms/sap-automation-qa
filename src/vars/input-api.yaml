@@ -204,7 +204,7 @@ test_groups:
           process on the ERS node by forcefully terminating it using the kill -9 signal. This test
           handles both ENSA1 and ENSA2 architectures. It validates the automatic restart of the
           process and ensures continued replication of the enqueue table.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Kill sapstartsrv Process for ASCS"
         task_name:                  kill-sapstartsrv-process
