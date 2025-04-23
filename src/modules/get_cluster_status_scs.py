@@ -128,7 +128,7 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                 resources = resources_xml.findall(".//primitive[@type='SAPInstance']")
                 self.log(
                     logging.INFO,
-                    resources,
+                    str(resources),
                 )
 
                 for resource in resources:
