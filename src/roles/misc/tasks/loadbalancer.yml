@@ -35,7 +35,7 @@
             subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
             region:                     "{{ azure_instance_metadata.json.compute.location }}"
             inbound_rules:              "{{ azure_loadbalancer_metadata.json.loadbalancer.inboundRules }}"
-            constants:                  "{{ lookup('file', 'constants.yaml') | from_yaml }}"
+            constants:                  "{{ all_constants }}"
           register:                     test_result
 
         - name:                         "Set the test case status to PASSED"
