@@ -132,14 +132,19 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                     instance_attributes = resource.find("instance_attributes")
 
                     if instance_attributes is not None:
+                        is_ers = False
+
                         for nvpair in instance_attributes:
-                            if (
-                                nvpair.attrib.get("name") == "IS_ERS"
-                                and nvpair.attrib.get("value") == "true"
-                            ):
-                                self.ers_resource_id = resource_id
-                            else:
-                                self.ascs_resource_id = resource_id
+                            name = nvpair.attrib.get("name")
+                            value = nvpair.attrib.get("value")
+
+                            if name == "IS_ERS" and value == "true":
+                                is_ers = True
+
+                        if is_ers:
+                            self.ers_resource_id = resource_id
+                        else:
+                            self.ascs_resource_id = resource_id
 
         except Exception as ex:
             self.handle_error(ex)
