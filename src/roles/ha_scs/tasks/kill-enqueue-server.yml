@@ -59,6 +59,11 @@
           delay:                        "{{ default_delay }}"
           until:                        cluster_status_test_execution_pre.ascs_node == ""
 
+        - name:                         "Test Execution: Cleanup resources"
+          ansible.builtin.command:      crm_resource --cleanup
+          register:                     cleanup_failed_resource_test_execution
+          changed_when:                 cleanup_failed_resource_test_execution.rc == 0
+
         - name:                         "Test Execution: Validate SCS cluster status for ENSA1"
           when:                         ensa2_check.stdout == "0"
           get_cluster_status_scs:
@@ -86,11 +91,6 @@
           until: |
                                         cluster_status_test_execution.ascs_node != ""
                                         and cluster_status_test_execution.ers_node != ""
-
-        - name:                         "Test Execution: Cleanup resources"
-          ansible.builtin.command:      crm_resource --cleanup
-          register:                     cleanup_failed_resource_test_execution
-          changed_when:                 cleanup_failed_resource_test_execution.rc == 0
 
         - name:                         "Test Execution: Stop timer"
           ansible.builtin.set_fact:
