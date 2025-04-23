@@ -163,14 +163,19 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                     resource_id = resource.attrib.get("id")
 
                     node_type = "ascs_node" if resource_id == ascs_resource_id else "ers_node"
-                    node_name = resource.find("node").attrib.get("name")
+                    node_element = resource.find("node")
+                    if node_element is None:
+                        result[node_type] = ""
+                        continue
+
+                    node_name = node_element.attrib.get("name")
                     if node_name is None:
                         continue
 
                     failed = resource.attrib.get("failed", "false").lower() == "true"
                     active = resource.attrib.get("active", "false").lower() == "true"
                     role = resource.attrib.get("role", "unknown").lower()
-                    role_status = role == "started" or role == "master"
+                    role_status = role == "started"
 
                     if not failed and active and role_status:
                         result[node_type] = (
