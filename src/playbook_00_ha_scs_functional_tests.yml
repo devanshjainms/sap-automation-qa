@@ -39,7 +39,7 @@
       run_once:                        true
 
     - name:                             "Get the ERS resource IDs"
-      ansible.builtin.shell: >-
+      ansible.builtin.command: >-
                                         cibadmin --query --xpath "//primitive[@type='SAPInstance']" | awk '
                                         /<primitive / { id=""; is_ers=0 }
                                         /<primitive / && /id="/ { match($0, /id="([^"]+)"/, m); id=m[1] }
@@ -52,7 +52,7 @@
       run_once:                         true
 
     - name:                            "Get the ASCS resource IDs"
-      ansible.builtin.shell: >-
+      ansible.builtin.command: >-
                                        cibadmin --query --xpath "//primitive[@type='SAPInstance']" | awk '
                                         /<primitive / { id=""; is_ers=0 }
                                         /<primitive / && /id="/ { match($0, /id="([^"]+)"/, m); id=m[1] }
