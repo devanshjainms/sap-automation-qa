@@ -9,6 +9,7 @@ defined in roles/ha_scs/tasks/ascs-migration.yml. It sets up a temporary test en
 mocks necessary Python modules and commands, and verifies the execution of the tasks.
 """
 
+import os
 import shutil
 from pathlib import Path
 import pytest
@@ -44,6 +45,11 @@ class TestASCSMigration(RolesTestingBaseSCS):
         :yield temp_dir: Path to the temporary test environment.
         :ytype: str
         """
+
+        os.environ["TASK_NAME"] = "ascs-migration"
+        task_counter_file = "/tmp/get_cluster_status_counter_ascs-migration"
+        if os.path.exists(task_counter_file):
+            os.remove(task_counter_file)
 
         commands = [
             {

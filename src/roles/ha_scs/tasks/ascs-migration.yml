@@ -20,9 +20,7 @@
 # +--------------------------------------------------------------------------*/
 - name:                                 "Test Execution: Manual ASCS Migration"
   become:                               true
-  when:
-                                        - node_tier == "scs" or node_tier == "ers"
-                                        - pre_validations_status == "PASSED"
+  when:                                 pre_validations_status == "PASSED"
   block:
     - name:                             "Test Execution: Start timer"
       ansible.builtin.set_fact:
@@ -33,6 +31,44 @@
       when:                             ansible_hostname == cluster_status_pre.ascs_node
       become:                           true
       block:
+        - name:                         "Test Execution: Get SAP Instance resource id"
+          block:
+            - name:                     "Try master resource ID"
+              ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','get_sap_instance_resource_id')
+                                          | map(attribute=(ansible_os_family|upper))
+                                          | first
+                                        }}
+              args:
+                executable:             /bin/bash
+              changed_when:             false
+              register:                 sap_instance_resource_id
+              failed_when:              sap_instance_resource_id.rc != 0
+          rescue:
+            - name:                     "Try clone resource ID"
+              ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','get_sap_instance_resource_id')
+                                          | map(attribute='REDHAT')
+                                          | first
+                                        }}
+              args:
+                executable:             /bin/bash
+              changed_when:             false
+              register:                 sap_instance_resource_id
+              failed_when:              sap_instance_resource_id.rc != 0
+              ignore_errors:            true
+          always:
+            - name:                     "Test Execution: Set the resource name"
+              when:
+                                        - sap_instance_resource_id.rc == 0
+                                        - sap_instance_resource_id.stdout is defined
+                                        - sap_instance_resource_id.stdout | type_debug != 'NoneType'
+                                        - sap_instance_resource_id.stdout | trim | length > 1
+              ansible.builtin.set_fact:
+                sap_instance_resource_name:     "{{ sap_instance_resource_id.stdout }}"
+
         - name:                         "Test Execution: Migrate ASCS resource"
           ansible.builtin.command:      "{{ commands | selectattr(
                                         'name', 'equalto', 'ascs_resource_migration_cmd') | map(
@@ -43,10 +79,11 @@
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
             ansible_os_family:          "{{ ansible_os_family | upper }}"
+            scs_instance_number:        "{{ scs_instance_number }}"
+            ers_instance_number:        "{{ ers_instance_number }}"
           register:                     cluster_status_test_execution
-          retries:                      50
-          delay:                        10
-          failed_when:                  false
+          retries:                      "{{ default_retries }}"
+          delay:                        "{{ default_delay }}"
           until: |
                                         cluster_status_test_execution.ascs_node == cluster_status_pre.ers_node
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ascs_node

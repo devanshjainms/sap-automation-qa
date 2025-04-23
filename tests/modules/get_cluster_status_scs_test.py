@@ -33,14 +33,24 @@ class TestSCSClusterStatusChecker:
         :type scs_checker: SCSClusterStatusChecker
         """
         xml_str = """
-        <node_attributes>
-            <node name="node1">
-                <attribute name="runs_ers_TST" value="0"/>
-            </node>
-            <node name="node2">
-                <attribute name="runs_ers_TST" value="1"/>
-            </node>
-        </node_attributes>
+        <dummy>
+            <resources>
+                <resource id="rsc_sap_TST_ASCS00" failed="false" active="true">
+                    <node name="node1"/>
+                </resource>
+                <resource id="rsc_sap_TST_ERS01" failed="false" active="true">
+                    <node name="node2"/>
+                </resource>
+            </resources>
+            <node_attributes>
+                <node name="node1">
+                    <attribute name="runs_ers_TST" value="0"/>
+                </node>
+                <node name="node2">
+                    <attribute name="runs_ers_TST" value="1"/>
+                </node>
+            </node_attributes>
+        </dummy>
         """
         node_attributes = ET.fromstring(xml_str)
 
@@ -57,14 +67,21 @@ class TestSCSClusterStatusChecker:
         :type scs_checker: SCSClusterStatusChecker
         """
         xml_str = """
-        <node_attributes>
-            <node name="node1">
-                <attribute name="some_other_attr" value="value"/>
-            </node>
-            <node name="node2">
-                <attribute name="runs_ers_TST" value="1"/>
-            </node>
-        </node_attributes>
+        <dummy>
+            <resources>
+                <resource id="rsc_sap_TST_ASCS00" failed="false" active="true">
+                    <node name="node1"/>
+                </resource>
+            </resources>
+            <node_attributes>
+                <node name="node1">
+                    <attribute name="some_other_attr" value="value"/>
+                </node>
+                <node name="node2">
+                    <attribute name="runs_ers_TST" value="1"/>
+                </node>
+            </node_attributes>
+        </dummy>
         """
         node_attributes = ET.fromstring(xml_str)
 
@@ -119,7 +136,12 @@ class TestRunModule:
         :type mocker: mocker.MockerFixture
         """
         mock_ansible_module = mocker.MagicMock()
-        mock_ansible_module.params = {"sap_sid": "TST", "ansible_os_family": "REDHAT"}
+        mock_ansible_module.params = {
+            "sap_sid": "TST",
+            "ansible_os_family": "REDHAT",
+            "scs_instance_number": "00",
+            "ers_instance_number": "01",
+        }
         mocker.patch(
             "src.modules.get_cluster_status_scs.AnsibleModule", return_value=mock_ansible_module
         )

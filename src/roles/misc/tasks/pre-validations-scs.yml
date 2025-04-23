@@ -12,6 +12,8 @@
       get_cluster_status_scs:
         sap_sid:                    "{{ sap_sid | lower }}"
         ansible_os_family:          "{{ ansible_os_family | upper }}"
+        scs_instance_number:        "{{ scs_instance_number }}"
+        ers_instance_number:        "{{ ers_instance_number }}"
       become:                       true
       register:                     cluster_status_pre
 
@@ -20,7 +22,7 @@
       ansible.builtin.command:      crm_resource --cleanup
       ignore_errors:                true
       register:                     cleanup_failed_resource_pre
-      timeout:                      60
+      timeout:                      "{{ default_timeout }}"
       retries:                      3
       until:                        cleanup_failed_resource_pre.rc == 0
       changed_when:                 cleanup_failed_resource_pre.rc == 0
