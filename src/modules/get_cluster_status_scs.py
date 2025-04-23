@@ -126,6 +126,10 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
             if resources_string is not None:
                 resources_xml = ET.fromstring(resources_string)
                 resources = resources_xml.findall(".//primitive[@type='SAPInstance']")
+                self.log(
+                    logging.INFO,
+                    resources,
+                )
 
                 for resource in resources:
                     resource_id = resource.attrib.get("id")
