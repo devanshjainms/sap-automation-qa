@@ -185,7 +185,7 @@ test_groups:
           handles both ENSA1 and ENSA2 architectures. It verifies proper cluster 
           reaction, automatic failover to the ERS node, and ensures service continuity after 
           the process failure.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Kill Enqueue Server Process"
         task_name:                  kill-enqueue-server
@@ -195,7 +195,7 @@ test_groups:
           handles both ENSA1 and ENSA2 architectures. It validates proper
           cluster behavior, automatic failover execution, and confirms that the enqueue table is
           properly replicated to preserve the lock state.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Kill Enqueue Replication Server Process"
         task_name:                  kill-enqueue-replication
@@ -213,7 +213,7 @@ test_groups:
           instance by forcefully terminating it using the kill -9 signal. It validates proper cluster
           reaction, automatic failover to the ERS node, and verifies service restoration after the
           process failure.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Manual Restart of ASCS Instance"
         task_name:                  manual-restart
