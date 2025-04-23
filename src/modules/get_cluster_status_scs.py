@@ -119,48 +119,79 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
         :return: Dictionary with ASCS and ERS node information.
         :rtype: Dict[str, Any]
         """
+        result = {
+            "ascs_node": "",
+            "ers_node": "",
+            "cluster_status": {
+                "ascs_node": {},
+                "ers_node": {},
+            },
+        }
         resources = cluster_status_xml.find("resources")
         node_attributes = cluster_status_xml.find("node_attributes")
         ascs_resource_id = f"rsc_sap_{self.sap_sid.upper()}_ASCS{self.ascs_instance_number}"
         ers_resource_id = f"rsc_sap_{self.sap_sid.upper()}_ERS{self.ers_instance_number}"
 
-        for node in node_attributes:
-            node_name = node.attrib["name"]
-            for attribute in node:
-                if attribute.attrib["name"] == f"runs_ers_{self.sap_sid.upper()}":
-                    if attribute.attrib["value"] == "1":
-                        self.result["ers_node"] = node_name
-                    elif attribute.attrib["value"] == "0":
-                        self.result["ascs_node"] = node_name
+        try:
+            if node_attributes is not None:
+                for node in node_attributes:
+                    node_name = node.attrib.get("name")
+                    for attribute in node:
+                        if attribute.attrib.get("name") == f"runs_ers_{self.sap_sid.upper()}":
+                            attr_value = attribute.attrib.get("value")
+                            if attr_value == "1":
+                                result["ers_node"] = node_name
+                            elif attr_value == "0":
+                                result["ascs_node"] = node_name
+                            break
 
-        if resources is not None:
-            ascs_resource = resources.find(f".//resource[@id='{ascs_resource_id}']")
-            ers_resource = resources.find(f".//resource[@id='{ers_resource_id}']")
+            if resources is not None:
+                ascs_resource = resources.find(f".//resource[@id='{ascs_resource_id}']")
+                ers_resource = resources.find(f".//resource[@id='{ers_resource_id}']")
 
-            if ascs_resource is not None:
-                failed = ascs_resource.attrib.get("failed", "false").lower() == "true"
-                active = ascs_resource.attrib.get("active", "false").lower() == "true"
-                if not failed and active:
-                    node_element = ascs_resource.find("node")
-                    if node_element is not None:
-                        self.result["ascs_node"] = node_element.attrib.get(
-                            "name", self.result["ascs_node"]
+                for resource in [ascs_resource, ers_resource]:
+                    if resource is None:
+                        continue
+
+                    resource_id = resource.attrib.get("id")
+
+                    node_type = "ascs_node" if resource_id == ascs_resource_id else "ers_node"
+                    node_name = resource.find("node").attrib.get("name")
+                    if node_name is None:
+                        continue
+
+                    failed = resource.attrib.get("failed", "false").lower() == "true"
+                    active = resource.attrib.get("active", "false").lower() == "true"
+                    role = resource.attrib.get("role", "unknown").lower()
+                    role_status = role == "started" or role == "master"
+
+                    if not failed and active and role_status:
+                        result[node_type] = (
+                            node_name if result[node_type] == "" else result[node_type]
                         )
-                else:
-                    self.result["ascs_node"] = ""
+                        result["cluster_status"][node_type] = {
+                            "name": node_name,
+                            "id": resource.attrib.get("id"),
+                            "resource_agent": resource.attrib.get("resource_agent"),
+                            "role": role,
+                            "active": "true",
+                            "orphaned": resource.attrib.get("orphaned"),
+                            "blocked": resource.attrib.get("blocked"),
+                            "failed": "false",
+                            "nodes_running_on": resource.attrib.get("nodes_running_on"),
+                            "failure_ignored": resource.attrib.get("failure_ignored"),
+                        }
+                    else:
+                        result[node_type] = ""
+            else:
+                self.log(
+                    logging.ERROR,
+                    "Failed to find resources in the cluster status XML.",
+                )
+        except Exception as ex:
+            self.handle_error(ex)
 
-            if ers_resource is not None:
-                failed = ers_resource.attrib.get("failed", "false").lower() == "true"
-                active = ers_resource.attrib.get("active", "false").lower() == "true"
-                if not failed and active:
-                    node_element = ers_resource.find("node")
-                    if node_element is not None:
-                        self.result["ers_node"] = node_element.attrib.get(
-                            "name", self.result["ers_node"]
-                        )
-                else:
-                    self.result["ers_node"] = ""
-
+        self.result.update(result)
         return self.result
 
     def _is_cluster_ready(self) -> bool:
