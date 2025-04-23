@@ -140,6 +140,13 @@ test_groups:
           and HANA system replication setup.
         enabled:                    true
 
+      - name:                       Azure Load Balancer Validation
+        task_name:                  azure-lb
+        description: |
+          The Azure LB configuration test validates Azure Load Balancer setup including health probe
+          configuration, backend pool settings, load balancing rules, and frontend IP configuration.
+        enabled:                    true
+
       - name:                       "SAPControl Config Validation"
         task_name:                  sapcontrol-config
         description: |
