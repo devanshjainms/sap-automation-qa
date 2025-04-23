@@ -203,6 +203,9 @@ class RolesTestingBase:
             "_workspace_directory": temp_dir,
             "ansible_distribution": "SUSE",
             "ansible_distribution_version": "15",
+            "default_retries": 2,
+            "default_timeout": 2,
+            "default_delay": 2
         }
 
         if extra_vars_override:

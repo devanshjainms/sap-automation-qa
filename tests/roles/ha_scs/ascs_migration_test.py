@@ -52,6 +52,7 @@ class TestASCSMigration(RolesTestingBaseSCS):
             os.remove(task_counter_file)
 
         commands = [
+            {"name": "get_sap_instance_resource_id", "SUSE": "cibadmin --query --scope resources"},
             {
                 "name": "ascs_resource_migration_cmd",
                 "SUSE": "crm resource migrate SAP_ASCS00_ascs00 scs02",
@@ -73,6 +74,7 @@ class TestASCSMigration(RolesTestingBaseSCS):
                 "project/library/send_telemetry_data",
                 "bin/crm_resource",
                 "bin/crm",
+                "bin/cibadmin",
             ],
             extra_vars_override={"commands": commands, "node_tier": "scs"},
         )
