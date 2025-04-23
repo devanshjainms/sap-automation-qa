@@ -51,8 +51,8 @@
             scs_instance_number:        "{{ scs_instance_number }}"
             ers_instance_number:        "{{ ers_instance_number }}"
           register:                     cluster_status_test_execution_pre
-          retries:                      50
-          delay:                        10
+          retries:                      {{ default_retries }}
+          delay:                        {{ default_delay }}
           failed_when:                  false
           until:                        cluster_status_test_execution_pre.ascs_node == ""
 
@@ -64,8 +64,8 @@
             scs_instance_number:        "{{ scs_instance_number }}"
             ers_instance_number:        "{{ ers_instance_number }}"
           register:                     cluster_status_test_execution
-          retries:                      50
-          delay:                        10
+          retries:                      {{ default_retries }}
+          delay:                        {{ default_delay }}
           until: |
                                         cluster_status_test_execution.ascs_node == cluster_status_pre.ers_node
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ascs_node
@@ -78,8 +78,8 @@
             scs_instance_number:        "{{ scs_instance_number }}"
             ers_instance_number:        "{{ ers_instance_number }}"
           register:                     cluster_status_test_execution
-          retries:                      50
-          delay:                        10
+          retries:                      {{ default_retries }}
+          delay:                        {{ default_delay }}
           until: |
                                         cluster_status_test_execution.ascs_node != ""
                                         and cluster_status_test_execution.ers_node != ""
