@@ -272,13 +272,13 @@ commands:
 
   - name:                           get_sap_instance_resource_id
     SUSE:                           "cibadmin --query --xpath \"//primitive[@type='SAPInstance']\" --node-path | grep -oP \"primitive\\[@id='\\K[^']+\" | grep ASCS"
-    REDHAT:                         "cibadmin --query --xpath \"//primitive[@type='SAPHana']\" --node-path | grep ASCS | grep -oP \"primitive\\[@id='\\K[^']+\""
+    REDHAT:                         "cibadmin --query --xpath \"//primitive[@type='SAPInstance']\" --node-path | grep ASCS | grep -oP \"primitive\\[@id='\\K[^']+\""
 
   - name:                           ascs_resource_migration_cmd
-    SUSE:                           "crm resource move {{ sap_instance_resource_name | default('rsc_sap_' ~ sap_sid ~ '_ASCS' ~ scs_instance_number) }} force"
-    REDHAT:                         "pcs resource move {{ sap_instance_resource_name | default('rsc_sap_' ~ sap_sid ~ '_ASCS' ~ scs_instance_number) }}"
+    SUSE:                           "crm resource move {{ ascs_resource_id | default('rsc_sap_' ~ sap_sid ~ '_ASCS' ~ scs_instance_number) }} force"
+    REDHAT:                         "pcs resource move {{ ascs_resource_id | default('rsc_sap_' ~ sap_sid ~ '_ASCS' ~ scs_instance_number) }}"
 
   - name:                           ascs_resource_unmigrate_cmd
-    SUSE:                           "crm resource clear {{ sap_instance_resource_name | default('rsc_sap_' ~ sap_sid ~ '_ASCS' ~ scs_instance_number) }}"
-    REDHAT:                         "pcs resource clear {{ sap_instance_resource_name | default('rsc_sap_' ~ sap_sid ~ '_ASCS' ~ scs_instance_number) }}"
+    SUSE:                           "crm resource clear {{ ascs_resource_id | default('rsc_sap_' ~ sap_sid ~ '_ASCS' ~ scs_instance_number) }}"
+    REDHAT:                         "pcs resource clear {{ ascs_resource_id | default('rsc_sap_' ~ sap_sid ~ '_ASCS' ~ scs_instance_number) }}"
 

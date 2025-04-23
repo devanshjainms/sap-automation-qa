@@ -96,13 +96,13 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
         self,
         sap_sid: str,
         ansible_os_family: str = "",
-        ascs_instance_number: str = "00",
-        ers_instance_number: str = "01",
+        ascs_resource_id: str = "",
+        ers_resource_id: str = "",
     ):
         super().__init__(ansible_os_family)
         self.sap_sid = sap_sid
-        self.ascs_instance_number = ascs_instance_number
-        self.ers_instance_number = ers_instance_number
+        self.ascs_resource_id = ascs_resource_id
+        self.ers_resource_id = ers_resource_id
         self.result.update(
             {
                 "ascs_node": "",
@@ -129,8 +129,6 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
         }
         resources = cluster_status_xml.find("resources")
         node_attributes = cluster_status_xml.find("node_attributes")
-        ascs_resource_id = f"rsc_sap_{self.sap_sid.upper()}_ASCS{self.ascs_instance_number}"
-        ers_resource_id = f"rsc_sap_{self.sap_sid.upper()}_ERS{self.ers_instance_number}"
 
         try:
             if node_attributes is not None:
@@ -153,8 +151,8 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                 return self.result
 
             if resources is not None:
-                ascs_resource = resources.find(f".//resource[@id='{ascs_resource_id}']")
-                ers_resource = resources.find(f".//resource[@id='{ers_resource_id}']")
+                ascs_resource = resources.find(f".//resource[@id='{self.ascs_resource_id}']")
+                ers_resource = resources.find(f".//resource[@id='{self.ers_resource_id}']")
 
                 for resource in [ascs_resource, ers_resource]:
                     if resource is None:
@@ -162,7 +160,7 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
 
                     resource_id = resource.attrib.get("id")
 
-                    node_type = "ascs_node" if resource_id == ascs_resource_id else "ers_node"
+                    node_type = "ascs_node" if resource_id == self.ascs_resource_id else "ers_node"
                     node_element = resource.find("node")
                     if node_element is None:
                         result[node_type] = ""
@@ -231,8 +229,8 @@ def run_module() -> None:
     """
     module_args = dict(
         sap_sid=dict(type="str", required=True),
-        scs_instance_number=dict(type="str", required=False),
-        ers_instance_number=dict(type="str", required=False),
+        ascs_resource_id=dict(type="str", required=False),
+        ers_resource_id=dict(type="str", required=False),
         ansible_os_family=dict(type="str", required=False),
     )
 
@@ -241,8 +239,8 @@ def run_module() -> None:
     checker = SCSClusterStatusChecker(
         sap_sid=module.params["sap_sid"],
         ansible_os_family=module.params["ansible_os_family"],
-        ascs_instance_number=module.params["scs_instance_number"],
-        ers_instance_number=module.params["ers_instance_number"],
+        ascs_resource_id=module.params["ascs_resource_id"],
+        ers_resource_id=module.params["ers_resource_id"],
     )
     checker.run()
 

@@ -77,8 +77,8 @@
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
             ansible_os_family:          "{{ ansible_os_family | upper }}"
-            scs_instance_number:        "{{ scs_instance_number }}"
-            ers_instance_number:        "{{ ers_instance_number }}"
+            ascs_resource_id:           "{{ ascs_resource_id }}"
+            ers_resource_id:            "{{ ers_resource_id }}"
           register:                     cluster_status_test_execution
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
@@ -106,8 +106,8 @@
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
             ansible_os_family:          "{{ ansible_os_family | upper }}"
-            scs_instance_number:        "{{ scs_instance_number }}"
-            ers_instance_number:        "{{ ers_instance_number }}"
+            ascs_resource_id:               "{{ ascs_resource_id }}"
+            ers_resource_id:                "{{ ers_resource_id }}"
           register:                     cluster_status_test_execution
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
