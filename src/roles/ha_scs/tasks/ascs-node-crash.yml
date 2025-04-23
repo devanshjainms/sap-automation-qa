@@ -55,7 +55,6 @@
           register:                     cluster_status_test_execution_pre
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
-          failed_when:                  false
           until:                        cluster_status_test_execution_pre.ascs_node == ""
 
         - name:                         "Test Execution: Validate SCS cluster status ENSA1"

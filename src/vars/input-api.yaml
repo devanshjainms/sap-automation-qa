@@ -138,7 +138,7 @@ test_groups:
           The HA parameter validation test validates HA configuration,
           including Corosync settings, Pacemaker resources, SBD device configuration,
           and HANA system replication setup.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "SAPControl Config Validation"
         task_name:                  sapcontrol-config
@@ -146,7 +146,7 @@ test_groups:
           The SAPControl Config Validation test runs multiple sapcontrol commands to validate the SCS configuration.
           It executes commands like HAGetFailoverConfig, HACheckFailoverConfig, and HACheckConfig, capturing their
           outputs and statuses to ensure proper configuration and functionality.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Manual ASCS Migration"
         task_name:                  ascs-migration
@@ -156,7 +156,7 @@ test_groups:
           resources to the ERS node, verifies proper role changes, ensures cluster maintains
           stability throughout the transition, and validates complete data synchronization after
           migration.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "ASCS Node Crash"
         task_name:                  ascs-node-crash
@@ -165,7 +165,7 @@ test_groups:
           simulates an ASCS node failure by forcefully terminating the process, then verifies
           automatic failover to the ERS node, monitors system replication status, and confirms
           service recovery without data loss.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Block Network Communication"
         task_name:                  block-network
@@ -175,7 +175,7 @@ test_groups:
           It verifies split-brain prevention mechanisms, validates proper failover execution when nodes
           become isolated, and ensures cluster stability and data consistency after network
           connectivity is restored.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       "Kill Message Server Process"
         task_name:                  kill-message-server

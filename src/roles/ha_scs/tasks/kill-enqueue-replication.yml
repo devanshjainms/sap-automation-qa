@@ -65,7 +65,6 @@
           register:                     cluster_status_test_execution_pre
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
-          failed_when:                  false
           until:                        cluster_status_test_execution_pre.ers_node == ""
 
         - name:                         "Test Execution: Cleanup resources"
