@@ -187,7 +187,7 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
             if result["ascs_node"] == "" and result["ers_node"] == "":
                 return self.result
 
-            if resources is not None:
+            if resources is not None and self.ascs_resource_id and self.ers_resource_id:
                 ascs_resource = resources.find(f".//resource[@id='{self.ascs_resource_id}']")
                 ers_resource = resources.find(f".//resource[@id='{self.ers_resource_id}']")
 
