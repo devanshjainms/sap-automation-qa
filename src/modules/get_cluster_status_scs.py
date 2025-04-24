@@ -124,13 +124,9 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
         try:
             resources_string = self.execute_command_subprocess(CIB_ADMIN("resources"))
             if resources_string is not None:
-                resources_xml = ET.fromstring(resources_string)
-                resources = resources_xml.findall(".//primitive[@type='SAPInstance']")
-                self.log(
-                    logging.INFO,
-                    str(resources),
+                resources = ET.fromstring(resources_string).findall(
+                    ".//primitive[@type='SAPInstance']"
                 )
-
                 for resource in resources:
                     resource_id = resource.attrib.get("id")
                     instance_attributes = resource.find("instance_attributes")
@@ -186,11 +182,9 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                                 result["ascs_node"] = node_name
                             break
 
-            # If node attributes are do not report correct ASCS/ERS nodes, exit
+            # If node attributes do not report correct ASCS/ERS nodes, exit
             # and return empty values
-            if (result["ascs_node"] == "" and result["ers_node"] == "") or (
-                result["ascs_node"] == result["ers_node"]
-            ):
+            if result["ascs_node"] == "" and result["ers_node"] == "":
                 return self.result
 
             if resources is not None:
