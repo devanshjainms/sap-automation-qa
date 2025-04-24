@@ -36,6 +36,7 @@
             region:                     "{{ azure_instance_metadata.json.compute.location }}"
             inbound_rules:              "{{ azure_loadbalancer_metadata.json.loadbalancer.inboundRules }}"
             constants:                  "{{ all_constants }}"
+            msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
           register:                     test_result
 
         - name:                         "Set the test case status"

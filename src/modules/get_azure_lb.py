@@ -156,7 +156,12 @@ class AzureLoadBalancer(SapAutomationQA):
         Create the network client object.
         """
         try:
-            self.credential = ManagedIdentityCredential()
+            if self.module_params.get("msi_client_id"):
+                self.credential = ManagedIdentityCredential(
+                    client_id=self.module_params["msi_client_id"]
+                )
+            else:
+                self.credential = ManagedIdentityCredential()
             self.network_client = NetworkManagementClient(
                 self.credential, self.module_params["subscription_id"]
             )
@@ -307,6 +312,7 @@ def run_module():
         region=dict(type="str", required=True),
         inbound_rules=dict(type="str", required=True),
         constants=dict(type="dict", required=True),
+        msi_client_id=dict(type="str", required=False),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
