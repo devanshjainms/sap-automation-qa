@@ -40,21 +40,13 @@
           when:                         ensa2_check.stdout == "0"
           ansible.builtin.shell:        pgrep -f 'er.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_er_result
-          failed_when:                  false
-          until:                        "'kill: not enough arguments' in kill_er_result.stderr"
           ignore_errors:                true
-          retries:                      10
-          delay:                        1
 
         - name:                         "Test Execution: Kill Enqueue Replication Server Process (ENSA2)"
           when:                         ensa2_check.stdout != "0"
           ansible.builtin.shell:        pgrep -f 'enqr.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_enqr_result
-          failed_when:                  false
-          until:                        "'kill: not enough arguments' in kill_enqr_result.stderr"
           ignore_errors:                true
-          retries:                      10
-          delay:                        1
 
         - name:                         "Test Execution: Validate ERS node is not running"
           get_cluster_status_scs:
