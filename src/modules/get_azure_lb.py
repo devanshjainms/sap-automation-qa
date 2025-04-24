@@ -162,7 +162,9 @@ class AzureLoadBalancer(SapAutomationQA):
             )
         except Exception as ex:
             self.handle_error(ex)
-            self.result["message"] += f"Failed to create network client object. {ex} \n"
+            self.result["message"] += (
+                " Failed to authenticate to Azure to read the Load " + f"Balancer Details. {ex} \n"
+            )
 
     def get_load_balancers(self) -> list:
         """
@@ -181,7 +183,7 @@ class AzureLoadBalancer(SapAutomationQA):
 
         except Exception as ex:
             self.handle_error(ex)
-            self.result["message"] += f"Failed to create network client object. {ex} \n"
+            self.result["message"] += f" Failed to get load balancers. {ex} \n"
 
     def get_load_balancers_details(self) -> dict:
         """

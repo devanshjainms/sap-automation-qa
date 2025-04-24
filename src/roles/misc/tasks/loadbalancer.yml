@@ -38,7 +38,7 @@
             constants:                  "{{ all_constants }}"
           register:                     test_result
 
-        - name:                         "Set the test case status to PASSED"
+        - name:                         "Set the test case status"
           ansible.builtin.set_fact:
             test_case_name:             "{{ item.name }}: {{ virtual_host }}"
             test_case_message:          "{{ test_result.message }}"

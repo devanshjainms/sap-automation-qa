@@ -230,7 +230,7 @@ test_groups:
           ensures automatic failover to the ERS node, and confirms service continuity throughout
           the operation.
         enabled:                    true
-        
+
       - name:                       "HAFailoverToNode Test"
         task_name:                  ha-failover-to-node
         description: |
