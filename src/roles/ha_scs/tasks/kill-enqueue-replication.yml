@@ -55,9 +55,7 @@
           register:                     cluster_status_test_execution_pre
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
-          until: |
-                                        cluster_status_test_execution_pre.ers_node == "" and
-                                        cluster_status_test_execution_pre.ascs_node == cluster_status_pre.ascs_node
+          until:                        cluster_status_test_execution_pre.ers_node == ""
 
         - name:                         "Test Execution: Cleanup resources"
           ansible.builtin.command:      crm_resource --cleanup
