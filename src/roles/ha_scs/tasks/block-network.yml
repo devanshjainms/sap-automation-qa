@@ -102,7 +102,7 @@
       block:
         - name:                         "Test Execution: Wait for the cluster to be in a stable state"
           ansible.builtin.wait_for:
-            timeout:                    120
+            timeout:                    "{{ ascs_stonith_timeout }}"
 
         - name:                         "Test Execution: Validate SCS cluster status"
           get_cluster_status_scs:
