@@ -53,6 +53,12 @@
                                         cluster_status_test_execution.ascs_node == cluster_status_pre.ers_node
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ascs_node
 
+        - name:                         "Test Execution: Remove location constraints"
+          ansible.builtin.command:      "{{ commands | selectattr(
+                                        'name', 'equalto', 'ascs_resource_unmigrate_cmd') | map(
+                                        attribute=(ansible_os_family | upper)) | first }}"
+          register:                     unmigrate_result
+
         - name:                         "Test Execution: Cleanup resources"
           ansible.builtin.command:      crm_resource --cleanup
           register:                     cleanup_failed_resource_test_execution
