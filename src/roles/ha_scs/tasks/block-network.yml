@@ -100,6 +100,10 @@
       when:                             ansible_hostname == cluster_status_pre.ascs_node
       become:                           true
       block:
+        - name:                         "Test Execution: Wait for the cluster to be in a stable state"
+          ansible.builtin.wait_for:
+            timeout:                    120
+
         - name:                         "Test Execution: Validate SCS cluster status"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
