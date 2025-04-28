@@ -61,10 +61,17 @@ class TestHAFailoverToNode(RolesTestingBaseSCS):
                 "project/library/log_parser",
                 "project/library/send_telemetry_data",
                 "bin/crm_resource",
+                "bin/crm",
                 "bin/sapcontrol",
             ],
             extra_vars_override={
                 "node_tier": "scs",
+                "commands": [
+                    {
+                        "name": "ascs_resource_unmigrate_cmd",
+                        "SUSE": "crm resource clear SAP_ASCS00_ascs00",
+                    },
+                ],
             },
         )
 

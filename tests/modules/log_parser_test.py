@@ -145,6 +145,7 @@ class TestLogParser:
                     "end_time": "2023-01-01 23:59:59",
                     "log_file": "test_log_file.log",
                     "ansible_os_family": "REDHAT",
+                    "function": "parse_logs",
                 }
                 self.check_mode = False
 

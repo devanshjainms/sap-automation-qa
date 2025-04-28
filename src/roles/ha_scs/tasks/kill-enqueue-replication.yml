@@ -40,13 +40,13 @@
           when:                         ensa2_check.stdout == "0"
           ansible.builtin.shell:        pgrep -f 'er.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_er_result
-          ignore_errors:                true
+          failed_when:                  false
 
         - name:                         "Test Execution: Kill Enqueue Replication Server Process (ENSA2)"
           when:                         ensa2_check.stdout != "0"
           ansible.builtin.shell:        pgrep -f 'enqr.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_enqr_result
-          ignore_errors:                true
+          failed_when:                  false
 
         - name:                         "Test Execution: Validate ERS node is not running"
           get_cluster_status_scs:
