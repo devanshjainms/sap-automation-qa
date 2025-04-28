@@ -17,49 +17,64 @@ except ImportError:
 DOCUMENTATION = r"""
 ---
 module: log_parser
-short_description: Parses system logs for SAP-related keywords
+short_description: Parses and merges system logs for SAP-related keywords
 description:
-    - This module parses system log files for specific SAP and cluster-related keywords
-    - Filters log entries within a specified time range
-    - Supports different log formats based on operating system family
-    - Returns filtered log entries containing predefined or custom keywords
+    - This module parses system log files for specific SAP and cluster-related keywords.
+    - Filters log entries within a specified time range.
+    - Supports merging multiple log files and sorting them chronologically.
+    - Handles different log formats based on the operating system family.
+    - Returns filtered or merged log entries containing predefined or custom keywords.
 options:
     start_time:
         description:
-            - Start time for log filtering in format "YYYY-MM-DD HH:MM:SS"
+            - Start time for log filtering in format "YYYY-MM-DD HH:MM:SS".
         type: str
-        required: true
+        required: false
     end_time:
         description:
-            - End time for log filtering in format "YYYY-MM-DD HH:MM:SS"
+            - End time for log filtering in format "YYYY-MM-DD HH:MM:SS".
         type: str
-        required: true
+        required: false
     log_file:
         description:
-            - Path to the log file to be parsed
-            - Default is system messages log
+            - Path to the log file to be parsed.
+            - Default is system messages log.
         type: str
         required: false
         default: /var/log/messages
     keywords:
         description:
-            - Additional keywords to filter logs by
-            - These are combined with the predefined SAP and Pacemaker keywords
+            - Additional keywords to filter logs by.
+            - These are combined with the predefined SAP and Pacemaker keywords.
         type: list
         required: false
         default: []
     ansible_os_family:
         description:
-            - Operating system family (REDHAT, SUSE, etc.)
-            - Used to determine the appropriate log timestamp format
+            - Operating system family (e.g., REDHAT, SUSE).
+            - Used to determine the appropriate log timestamp format.
         type: str
         required: true
+    function:
+        description:
+            - Specifies the function to execute: "parse_logs" or "merge_logs".
+        type: str
+        required: true
+        choices: ["parse_logs", "merge_logs"]
+    logs:
+        description:
+            - List of log entries or JSON strings to merge and sort.
+            - Used only when the function is set to "merge_logs".
+        type: list
+        required: false
+        default: []
 author:
     - Microsoft Corporation
 notes:
-    - Predefined keyword sets are included for Pacemaker and SAP system logs
-    - Log entries are filtered by both time range and keyword presence
-    - All entries containing backslashes or quotes will have these characters removed
+    - Predefined keyword sets are included for Pacemaker and SAP system logs.
+    - Log entries are filtered by both time range and keyword presence.
+    - All entries containing backslashes or quotes will have these characters removed.
+    - Merging logs requires proper timestamp formats based on the OS family.
 requirements:
     - python >= 3.6
 """
@@ -77,52 +92,53 @@ EXAMPLES = r"""
   debug:
     var: parse_result.filtered_logs
 
-- name: Parse custom log file with additional keywords
+- name: Merge and sort multiple log files
   log_parser:
-    start_time: "2023-01-01 00:00:00"
-    end_time: "2023-01-02 00:00:00"
-    log_file: "/var/log/pacemaker.log"
-    keywords:
-      - "SAPHana_HDB_00"
-      - "error"
-      - "failure"
-    ansible_os_family: "SUSE"
-  register: custom_logs
+    function: "merge_logs"
+    logs:
+      - "[\"Jan 01 12:34:56 server1 pacemaker-controld: Notice: Resource SAPHana_HDB_00 started\"]"
+      - "[\"Jan 01 12:35:00 server2 pacemaker-controld: Notice: Resource SAPHana_HDB_01 started\"]"
+    ansible_os_family: "REDHAT"
+  register: merge_result
+
+- name: Display merged log entries
+  debug:
+    var: merge_result.filtered_logs
 """
 
 RETURN = r"""
 status:
-    description: Status of the log parsing operation
+    description: Status of the log parsing or merging operation.
     returned: always
     type: str
     sample: "SUCCESS"
 message:
-    description: Error message in case of failure
+    description: Error message in case of failure.
     returned: on failure
     type: str
-    sample: "Could not open file /var/log/messages: No such file or directory"
+    sample: "Could not open file /var/log/messages: No such file or directory."
 start_time:
-    description: Start time used for filtering
-    returned: always
+    description: Start time used for filtering.
+    returned: when function is "parse_logs".
     type: str
     sample: "2023-01-01 00:00:00"
 end_time:
-    description: End time used for filtering
-    returned: always
+    description: End time used for filtering.
+    returned: when function is "parse_logs".
     type: str
     sample: "2023-01-02 00:00:00"
 log_file:
-    description: Path to the log file that was parsed
-    returned: always
+    description: Path to the log file that was parsed.
+    returned: when function is "parse_logs".
     type: str
     sample: "/var/log/messages"
 keywords:
-    description: List of keywords used for filtering
-    returned: always
+    description: List of keywords used for filtering.
+    returned: when function is "parse_logs".
     type: list
     sample: ["SAPHana", "pacemaker-fenced", "reboot"]
 filtered_logs:
-    description: JSON string containing filtered log entries
+    description: JSON string containing filtered or merged log entries.
     returned: always
     type: str
     sample: "[\"Jan 01 12:34:56 server1 pacemaker-controld: Notice: Resource SAPHana_HDB_00 started\"]"

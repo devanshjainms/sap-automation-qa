@@ -25,29 +25,33 @@ DOCUMENTATION = r"""
 module: get_cluster_status_scs
 short_description: Checks the status of a SAP SCS cluster
 description:
-    - This module checks the status of a pacemaker cluster in a SAP SCS environment
-    - Identifies ASCS and ERS nodes in the cluster
-    - Validates if the cluster is ready and stable
+    - This module checks the status of a pacemaker cluster in a SAP SCS environment.
+    - Identifies ASCS and ERS nodes in the cluster.
+    - Validates if the cluster is ready and stable.
+    - Retrieves detailed resource and node attributes for ASCS and ERS.
 options:
     sap_sid:
         description:
-            - SAP System ID (SID)
+            - SAP System ID (SID).
+            - Used to identify the specific ASCS and ERS resources.
         type: str
         required: true
     ansible_os_family:
         description:
-            - Operating system family (redhat, suse, etc.)
+            - Operating system family (e.g., redhat, suse).
+            - Used to determine OS-specific commands and configurations.
         type: str
         required: false
 author:
     - Microsoft Corporation
 notes:
-    - This module requires root privileges to access pacemaker cluster information
-    - Depends on crm_mon command being available
-    - Validates the cluster status by checking node attributes for ASCS and ERS
+    - This module requires root privileges to access pacemaker cluster information.
+    - Depends on crm_mon command being available.
+    - Validates the cluster status by checking node attributes for ASCS and ERS.
 requirements:
     - python >= 3.6
     - pacemaker cluster environment
+    - SAP SCS cluster configured
 """
 
 EXAMPLES = r"""
@@ -65,29 +69,44 @@ EXAMPLES = r"""
   fail:
     msg: "SAP SCS cluster is not properly configured"
   when: cluster_result.ascs_node == '' or cluster_result.ers_node == ''
+
+- name: Validate detailed cluster attributes
+  debug:
+    msg: "ASCS attributes: {{ cluster_result.cluster_status.ascs_node }}, ERS attributes: {{ cluster_result.cluster_status.ers_node }}"
 """
 
 RETURN = r"""
 status:
-    description: Status of the cluster check
+    description: Status of the cluster check.
     returned: always
     type: str
     sample: "SUCCESS"
 message:
-    description: Descriptive message about the cluster status
+    description: Descriptive message about the cluster status.
     returned: always
     type: str
-    sample: "Cluster is stable and ready"
+    sample: "Cluster is stable and ready."
 ascs_node:
-    description: Name of the node running the ASCS instance
+    description: Name of the node running the ASCS instance.
     returned: always
     type: str
     sample: "sapapp1"
 ers_node:
-    description: Name of the node running the ERS instance
+    description: Name of the node running the ERS instance.
     returned: always
     type: str
     sample: "sapapp2"
+cluster_status:
+    description: Detailed cluster attributes for ASCS and ERS nodes.
+    returned: always
+    type: dict
+    contains:
+        ascs_node:
+            description: Attributes of the ASCS node.
+            type: dict
+        ers_node:
+            description: Attributes of the ERS node.
+            type: dict
 """
 
 
