@@ -159,7 +159,7 @@ test_groups:
       - name:                       "Manual ASCS Migration"
         task_name:                  ascs-migration
         description: |
-          The Resource Migration test validates planned failover scenarios by controlling resource 
+          The Resource Migration test validates planned failover scenarios by controlling resource
           movement between SCS nodes, ensuring proper role changes.
         enabled:                    true
 
@@ -226,8 +226,8 @@ test_groups:
       - name:                       "HAFailoverToNode Test"
         task_name:                  ha-failover-to-node
         description: |
-          The Enqueue Server Process Kill test simulates failure of the enqueue server process on 
-          the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper 
+          The Enqueue Server Process Kill test simulates failure of the enqueue server process on
+          the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
 

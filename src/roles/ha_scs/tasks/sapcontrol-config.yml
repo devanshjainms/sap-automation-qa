@@ -57,7 +57,7 @@
               {% for res in sapcontrol_results.results %}
                 - {{ res.sapcontrol_method }}: {{ 'Success' if res.rc == 0 else 'Failed' }}
               {% endfor %}
-            test_case_details_from_test_case: "{{ sapcontrol_results.results 
+            test_case_details_from_test_case: "{{ sapcontrol_results.results
                                                 | json_query('[].{
                                                 command: cmd,
                                                 returnCode: rc,
