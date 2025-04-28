@@ -76,10 +76,10 @@ RESOURCE_DEFAULTS:
           interval:                         ["3600", "3600s"]
           timeout:                          ["120", "120s"]
         start:
-          interval:                         "0"
+          interval:                         ["0", "0s"]
           timeout:                          ["20", "20s"]
         stop:
-          interval:                         "0"
+          interval:                         ["0", "0s"]
           timeout:                          ["20", "20s"]
 
     sbd_stonith:
@@ -104,19 +104,19 @@ RESOURCE_DEFAULTS:
         priority:                         "100"
       operations:
         monitor:
-          interval:                       "11"
+          interval:                       ["11", "11s"]
           timeout:                        ["105", "105s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["180", "180s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["240", "240s"]
         promote:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["320", "320s"]
         demote:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["320", "320s"]
 
     ers:
@@ -129,19 +129,19 @@ RESOURCE_DEFAULTS:
         priority:                         "100"
       operations:
         monitor:
-          interval:                       "11"
+          interval:                       ["11", "11s"]
           timeout:                        ["105", "105s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["180", "180s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["240", "240s"]
         promote:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["320", "320s"]
         demote:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["320", "320s"]
 
     ipaddr:
@@ -200,10 +200,10 @@ RESOURCE_DEFAULTS:
           interval:                         "3600"
           timeout:                          ["120", "120s"]
         start:
-          interval:                         "0"
+          interval:                         ["0", "0s"]
           timeout:                          ["20", "20s"]
         stop:
-          interval:                         "0"
+          interval:                         ["0", "0s"]
           timeout:                          ["20", "20s"]
 
     sbd_stonith:
@@ -228,26 +228,26 @@ RESOURCE_DEFAULTS:
         priority:                         "10"
       operations:
         monitor:
-          interval:                       "20"
+          interval:                       ["20", "20s"]
           timeout:                        ["105", "105s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["600", "600s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["600", "600s"]
         promote:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["320", "320s"]
         demote:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["320", "320s"]
         methods:
           timeout:                        ["5", "5s"]
-          interval:                       "0"
+          interval:                       ["0", "0s"]
         reload:
           timeout:                        ["320", "320s"]
-          interval:                       "0"
+          interval:                       ["0", "0s"]
 
     ers:
       instance_attributes:
@@ -259,39 +259,39 @@ RESOURCE_DEFAULTS:
         priority:                         "100"
       operations:
         monitor:
-          interval:                       "20"
+          interval:                       ["20", "20s"]
           timeout:                        ["105", "105s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["600", "600s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["600", "600s"]
         promote:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["320", "320s"]
         demote:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["320", "320s"]
         methods:
           timeout:                        ["5", "5s"]
-          interval:                       "0"
+          interval:                       ["0", "0s"]
         reload:
           timeout:                        ["320", "320s"]
-          interval:                       "0"
+          interval:                       ["0", "0s"]
 
     ipaddr:
       meta_attributes:
         target-role:                      "Started"
       operations:
         monitor:
-          interval:                       "10"
+          interval:                       ["10", "10s"]
           timeout:                        ["20", "20s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
 
     azurelb:
@@ -299,13 +299,13 @@ RESOURCE_DEFAULTS:
         resource-stickiness:              "0"
       operations:
         monitor:
-          interval:                       "10"
+          interval:                       ["10", "10s"]
           timeout:                        ["20", "20s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
 
     azureevents:
@@ -314,13 +314,13 @@ RESOURCE_DEFAULTS:
         failure-timeout:                  ["120", "120s"]
       operations:
         monitor:
-          interval:                       "10"
+          interval:                       ["10", "10s"]
           timeout:                        ["240", "240s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["10", "10s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["10", "10s"]
 
 
