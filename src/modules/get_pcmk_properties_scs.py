@@ -178,7 +178,8 @@ class HAClusterValidator(SapAutomationQA):
     CONSTRAINTS_CATEGORIES = (".//*", "CONSTRAINTS_DEFAULTS")
 
     RESOURCE_CATEGORIES = {
-        "stonith": ".//primitive[@class='stonith']",
+        "sbd_stonith": ".//primitive[@type='external/sbd']",
+        "fence_agent": ".//primitive[@type='fence_azure_arm']",
         "ipaddr": ".//primitive[@type='IPaddr2']",
         "azurelb": ".//primitive[@type='azure-lb']",
         "azureevents": ".//primitive[@type='azure-events-az']",
