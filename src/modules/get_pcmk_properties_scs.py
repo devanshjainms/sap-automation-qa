@@ -300,6 +300,7 @@ class HAClusterValidator(SapAutomationQA):
             status = TestStatus.SUCCESS.value
         elif isinstance(expected_value, list) and str(value) in expected_value:
             status = TestStatus.SUCCESS.value
+            expected_value = str(value)
         else:
             status = TestStatus.ERROR.value
 

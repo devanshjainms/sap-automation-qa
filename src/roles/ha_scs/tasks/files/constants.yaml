@@ -149,13 +149,13 @@ RESOURCE_DEFAULTS:
         target-role:                      "Started"
       operations:
         monitor:
-          interval:                       "10"
+          interval:                       ["10", "10s"]
           timeout:                        ["20", "20s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
 
     azurelb:
@@ -163,13 +163,13 @@ RESOURCE_DEFAULTS:
         resource-stickiness:              "0"
       operations:
         monitor:
-          interval:                       "10"
+          interval:                       ["10", "10s"]
           timeout:                        ["20", "20s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
 
     azureevents:
@@ -178,13 +178,13 @@ RESOURCE_DEFAULTS:
         failure-timeout:                  "120s"
       operations:
         monitor:
-          interval:                       "10"
+          interval:                       ["10", "10s"]
           timeout:                        ["240", "240s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["10", "10s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["10", "10s"]
 
   REDHAT:

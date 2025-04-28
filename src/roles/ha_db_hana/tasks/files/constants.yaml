@@ -93,10 +93,10 @@ RESOURCE_DEFAULTS:
           interval:                       ["10", "10s"]
           timeout:                        ["600", "600s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["600", "600s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["300", "300s"]
 
     hana:
@@ -113,13 +113,13 @@ RESOURCE_DEFAULTS:
         AUTOMATED_REGISTER:               "true"
       operations:
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["3600", "3600s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["3600", "3600s"]
         promote:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["3600", "3600s"]
         monitor:
           timeout:                        ["700", "700s"]
@@ -141,10 +141,10 @@ RESOURCE_DEFAULTS:
           interval:                       ["120", "120s"]
           timeout:                        ["120", "120s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["120", "120s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["120", "120s"]
 
     azurelb:
@@ -168,8 +168,8 @@ RESOURCE_DEFAULTS:
       instance_attributes:
         pcmk_monitor_retries:           "4"
         pcmk_action_limit:              "3"
-        pcmk_reboot_timeout:            "900"
-        power_timeout:                  "240"
+        pcmk_reboot_timeout:            ["900", "900s"]
+        power_timeout:                  ["240", "240s"]
         pcmk_monitor_timeout:           ["120", "120s"]
       operations:
         monitor:
@@ -188,17 +188,17 @@ RESOURCE_DEFAULTS:
           interval:                       ["10", "10s"]
           timeout:                        ["600", "600s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["600", "600s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["300", "300s"]
         methods:
           timeout:                        ["5", "5s"]
-          interval:                       "0"
+          interval:                       ["0", "0s"]
         reload:
           timeout:                        ["5", "5s"]
-          interval:                       "0"
+          interval:                       ["0", "0s"]
 
     hana:
       meta_attributes:
@@ -214,13 +214,13 @@ RESOURCE_DEFAULTS:
         AUTOMATED_REGISTER:               "true"
       operations:
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["3600", "3600s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["3600", "3600s"]
         promote:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["3600", "3600s"]
         monitor:
           timeout:                        ["700", "700s"]
@@ -233,10 +233,10 @@ RESOURCE_DEFAULTS:
           interval:                       ["10", "10s"]
           timeout:                        ["20", "20s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
 
     filesystem:
@@ -248,10 +248,10 @@ RESOURCE_DEFAULTS:
           interval:                       ["20", "20s"]
           timeout:                        ["120", "120s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["60", "60s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["60", "60s"]
 
     azurelb:
@@ -262,10 +262,10 @@ RESOURCE_DEFAULTS:
           interval:                       ["10", "10s"]
           timeout:                        ["20", "20s"]
         start:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
         stop:
-          interval:                       "0"
+          interval:                       ["0", "0s"]
           timeout:                        ["20", "20s"]
 
 
