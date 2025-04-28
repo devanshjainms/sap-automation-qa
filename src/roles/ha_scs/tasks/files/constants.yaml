@@ -198,6 +198,7 @@ RESOURCE_DEFAULTS:
       operations:
         monitor:
           interval:                         "3600"
+          timeout:                          "120"
         start:
           interval:                         "0"
           timeout:                          "20"
@@ -224,23 +225,29 @@ RESOURCE_DEFAULTS:
         MINIMAL_PROBE:                    "true"
       meta_attributes:
         resource-stickiness:              "5000"
-        priority:                         "100"
+        priority:                         "10"
       operations:
         monitor:
           interval:                       "11"
           timeout:                        "105"
         start:
           interval:                       "0"
-          timeout:                        "180"
+          timeout:                        "600"
         stop:
           interval:                       "0"
-          timeout:                        "240"
+          timeout:                        "600"
         promote:
           interval:                       "0"
           timeout:                        "320"
         demote:
           interval:                       "0"
           timeout:                        "320"
+        methods:
+          timeout:                        "5"
+          interval:                       "0"
+        reload:
+          timeout:                        "320"
+          interval:                       "0"
 
     ers:
       instance_attributes:
@@ -248,24 +255,30 @@ RESOURCE_DEFAULTS:
         MINIMAL_PROBE:                    "true"
         IS_ERS:                           "true"
       meta_attributes:
-        resource-stickiness:              "5000"
+        resource-stickiness:              "3000"
         priority:                         "100"
       operations:
         monitor:
-          interval:                       "11"
+          interval:                       "20"
           timeout:                        "105"
         start:
           interval:                       "0"
-          timeout:                        "180"
+          timeout:                        "600"
         stop:
           interval:                       "0"
-          timeout:                        "240"
+          timeout:                        "600"
         promote:
           interval:                       "0"
           timeout:                        "320"
         demote:
           interval:                       "0"
           timeout:                        "320"
+        methods:
+          timeout:                        "5"
+          interval:                       "0"
+        reload:
+          timeout:                        "320"
+          interval:                       "0"
 
     ipaddr:
       meta_attributes:
