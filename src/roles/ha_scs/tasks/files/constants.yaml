@@ -64,7 +64,7 @@ VALID_CONFIGS:
 # cibadmin --query --scope resources
 RESOURCE_DEFAULTS:
   SUSE:
-    stonith:
+    fence_agent:
       instance_attributes:
         pcmk_delay_max:                   "15"
         pcmk_monitor_retries:             "4"
@@ -81,6 +81,19 @@ RESOURCE_DEFAULTS:
         stop:
           interval:                         "0"
           timeout:                          "20"
+
+    sbd_stonith:
+      instance_attributes:
+        pcmk_delay_max:                 "15"
+        pcmk_monitor_retries:           "4"
+        pcmk_action_limit:              "3"
+        pcmk_reboot_timeout:            "900"
+        power_timeout:                  "240"
+        pcmk_monitor_timeout:           "120"
+      operations:
+        monitor:
+          interval:                     "600"
+          timeout:                      "15"
 
     ascs:
       instance_attributes:
@@ -173,6 +186,130 @@ RESOURCE_DEFAULTS:
         stop:
           interval:                       "0"
           timeout:                        "10"
+
+  REDHAT:
+    fence_agent:
+      instance_attributes:
+        pcmk_delay_max:                   "15"
+        pcmk_monitor_retries:             "4"
+        pcmk_action_limit:                "3"
+        pcmk_reboot_timeout:              "900"
+        power_timeout:                    "240"
+      operations:
+        monitor:
+          interval:                         "3600"
+        start:
+          interval:                         "0"
+          timeout:                          "20"
+        stop:
+          interval:                         "0"
+          timeout:                          "20"
+
+    sbd_stonith:
+      instance_attributes:
+        pcmk_delay_max:                 "15"
+        pcmk_monitor_retries:           "4"
+        pcmk_action_limit:              "3"
+        pcmk_reboot_timeout:            "900"
+        power_timeout:                  "240"
+        pcmk_monitor_timeout:           "120"
+      operations:
+        monitor:
+          interval:                     "600"
+          timeout:                      "15"
+
+    ascs:
+      instance_attributes:
+        AUTOMATIC_RECOVER:                "false"
+        MINIMAL_PROBE:                    "true"
+      meta_attributes:
+        resource-stickiness:              "5000"
+        priority:                         "100"
+      operations:
+        monitor:
+          interval:                       "11"
+          timeout:                        "105"
+        start:
+          interval:                       "0"
+          timeout:                        "180"
+        stop:
+          interval:                       "0"
+          timeout:                        "240"
+        promote:
+          interval:                       "0"
+          timeout:                        "320"
+        demote:
+          interval:                       "0"
+          timeout:                        "320"
+
+    ers:
+      instance_attributes:
+        AUTOMATIC_RECOVER:                "false"
+        MINIMAL_PROBE:                    "true"
+        IS_ERS:                           "true"
+      meta_attributes:
+        resource-stickiness:              "5000"
+        priority:                         "100"
+      operations:
+        monitor:
+          interval:                       "11"
+          timeout:                        "105"
+        start:
+          interval:                       "0"
+          timeout:                        "180"
+        stop:
+          interval:                       "0"
+          timeout:                        "240"
+        promote:
+          interval:                       "0"
+          timeout:                        "320"
+        demote:
+          interval:                       "0"
+          timeout:                        "320"
+
+    ipaddr:
+      meta_attributes:
+        target-role:                      "Started"
+      operations:
+        monitor:
+          interval:                       "10"
+          timeout:                        "20"
+        start:
+          interval:                       "0"
+          timeout:                        "20"
+        stop:
+          interval:                       "0"
+          timeout:                        "20"
+
+    azurelb:
+      meta_attributes:
+        resource-stickiness:              "0"
+      operations:
+        monitor:
+          interval:                       "10"
+          timeout:                        "20"
+        start:
+          interval:                       "0"
+          timeout:                        "20"
+        stop:
+          interval:                       "0"
+          timeout:                        "20"
+
+    azureevents:
+      meta_attributes:
+        allow-unhealthy-nodes:            "true"
+        failure-timeout:                  "120s"
+      operations:
+        monitor:
+          interval:                       "10"
+          timeout:                        "240"
+        start:
+          interval:                       "0"
+          timeout:                        "10"
+        stop:
+          interval:                       "0"
+          timeout:                        "10"
+
 
 # === OS Parameters ===
 # Run command as root. Format of command is: "parent_key child_key"
