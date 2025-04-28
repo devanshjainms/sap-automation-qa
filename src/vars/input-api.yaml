@@ -135,9 +135,9 @@ test_groups:
       - name:                       "HA Parameters Validation"
         task_name:                  ha-config
         description: |
-          The HA parameter validation test validates HA configuration,
-          including Corosync settings, Pacemaker resources, SBD device configuration,
-          and HANA system replication setup.
+          The HA parameter validation test validates HA configuration
+          including Corosync settings, Pacemaker resources, SBD device configuration, and SCS system
+          replication setup.
         enabled:                    true
 
       - name:                       Azure Load Balancer Validation
@@ -150,95 +150,85 @@ test_groups:
       - name:                       "SAPControl Config Validation"
         task_name:                  sapcontrol-config
         description: |
-          The SAPControl Config Validation test runs multiple sapcontrol commands to validate the SCS configuration.
-          It executes commands like HAGetFailoverConfig, HACheckFailoverConfig, and HACheckConfig, capturing their
-          outputs and statuses to ensure proper configuration and functionality.
+          The SAPControl Config Validation test runs multiple sapcontrol commands to validate the 
+          SCS configuration. It executes commands like HAGetFailoverConfig, 
+          HACheckFailoverConfig, and HACheckConfig, capturing their outputs and statuses to 
+          ensure proper configuration and functionality.
         enabled:                    true
 
       - name:                       "Manual ASCS Migration"
         task_name:                  ascs-migration
         description: |
-          The Resource Migration test validates planned failover scenarios by executing controlled
-          resource movement between ASCS and ERS nodes. It performs a graceful migration of the ASCS
-          resources to the ERS node, verifies proper role changes, ensures cluster maintains
-          stability throughout the transition, and validates complete data synchronization after
-          migration.
+          The Resource Migration test validates planned failover scenarios by controlling resource 
+          movement between SCS nodes, ensuring proper role changes.
         enabled:                    true
 
       - name:                       "ASCS Node Crash"
         task_name:                  ascs-node-crash
         description: |
-          The ASCS Node Crash test simulates cluster behavior when the ASCS node crashes. It
-          simulates an ASCS node failure by forcefully terminating the process, then verifies
-          automatic failover to the ERS node, monitors system replication status, and confirms
-          service recovery without data loss.
+          The ASCS Node Crash test simulates cluster behavior when the ASCS node crashes. It 
+          simulates an ASCS node failure by forcefully terminating the process, then verifies 
+          automatic failover to the ERS node, monitors system replication status, and confirms 
+          service recovery.
         enabled:                    true
 
       - name:                       "Block Network Communication"
         task_name:                  block-network
         description: |
-          The Block Network test validates cluster behavior during network partition scenarios by
-          implementing iptables rules to block communication between ASCS and ERS nodes.
-          It verifies split-brain prevention mechanisms, validates proper failover execution when nodes
-          become isolated, and ensures cluster stability and data consistency after network
-          connectivity is restored.
+          The Block Network test validates cluster behavior during network partition scenarios by 
+          implementing iptables rules to block communication between ASCS and ERS nodes. It 
+          verifies split-brain prevention mechanisms, validates proper failover execution when 
+          nodes become isolated, and ensures cluster stability after network connectivity is 
+          restored.
         enabled:                    true
 
       - name:                       "Kill Message Server Process"
         task_name:                  kill-message-server
         description: |
-          The Message Server Process Kill test simulates failure of the message server process on the
-          ASCS node by forcefully terminating it using the kill -9 signal. This test
-          handles both ENSA1 and ENSA2 architectures. It verifies proper cluster 
-          reaction, automatic failover to the ERS node, and ensures service continuity after 
-          the process failure.
+          The Message Server Process Kill test simulates failure of the message server process on 
+          the ASCS node by forcefully terminating it using the kill -9 signal. It verifies proper 
+          cluster reaction, automatic failover to the ERS node, and ensures service continuity 
+          after the process failure.
         enabled:                    true
 
       - name:                       "Kill Enqueue Server Process"
         task_name:                  kill-enqueue-server
         description: |
-          The Enqueue Server Process Kill test simulates failure of the enqueue server process on the
-          ASCS node by forcefully terminating it using the kill -9 signal. This test
-          handles both ENSA1 and ENSA2 architectures. It validates proper
-          cluster behavior, automatic failover execution, and confirms that the enqueue table is
-          properly replicated to preserve the lock state.
+          The Enqueue Server Process Kill test simulates failure of the enqueue server process on 
+          the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper 
+          cluster behavior, automatic failover execution.
         enabled:                    true
 
       - name:                       "Kill Enqueue Replication Server Process"
         task_name:                  kill-enqueue-replication
         description: |
-          The Enqueue Replication Server Process Kill test simulates failure of the replication server
-          process on the ERS node by forcefully terminating it using the kill -9 signal. This test
-          handles both ENSA1 and ENSA2 architectures. It validates the automatic restart of the
-          process and ensures continued replication of the enqueue table.
+          The Enqueue Server Process Kill test simulates failure of the enqueue server process on 
+          the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper 
+          cluster behavior, automatic failover execution.
         enabled:                    true
 
       - name:                       "Kill sapstartsrv Process for ASCS"
         task_name:                  kill-sapstartsrv-process
         description: |
-          The sapstartsrv Process Kill test simulates failure of the SAP Start Service for the ASCS
-          instance by forcefully terminating it using the kill -9 signal. It validates proper cluster
-          reaction, automatic failover to the ERS node, and verifies service restoration after the
-          process failure.
+          The Enqueue Server Process Kill test simulates failure of the enqueue server process on 
+          the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper 
+          cluster behavior, automatic failover execution.
         enabled:                    true
 
       - name:                       "Manual Restart of ASCS Instance"
         task_name:                  manual-restart
         description: |
-          The Manual Restart test validates cluster behavior when the ASCS instance is manually stopped
-          using sapcontrol. It verifies proper cluster reaction to a controlled instance shutdown,
-          ensures automatic failover to the ERS node, and confirms service continuity throughout
-          the operation.
+          The Enqueue Server Process Kill test simulates failure of the enqueue server process on 
+          the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper 
+          cluster behavior, automatic failover execution.
         enabled:                    true
 
       - name:                       "HAFailoverToNode Test"
         task_name:                  ha-failover-to-node
         description: |
-          The HAFailoverToNode test validates SAP's built-in high availability functionality by using
-          the sapcontrol command to trigger a controlled failover. It executes 'HAFailoverToNode' as the
-          SAP administrator user, which initiates a clean migration of the ASCS instance to another node.
-          The test verifies proper execution of the SAP HA interface, validates the resource migration,
-          and confirms service continuity throughout the failover process.
+          The Enqueue Server Process Kill test simulates failure of the enqueue server process on 
+          the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper 
+          cluster behavior, automatic failover execution.
         enabled:                    true
 
 
