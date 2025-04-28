@@ -308,7 +308,7 @@ def run_module() -> None:
         log_file=dict(type="str", required=False, default="/var/log/messages"),
         keywords=dict(type="list", required=False, default=[]),
         ansible_os_family=dict(type="str", required=True),
-        function=dict(type="str", required=True, default="log_parser"),
+        function=dict(type="str", required=True, choices=["parse_logs", "merge_logs"]),
         logs=dict(type="list", required=False, default=[]),
     )
 
@@ -321,7 +321,7 @@ def run_module() -> None:
         ansible_os_family=module.params["ansible_os_family"],
         logs=module.params.get("logs"),
     )
-    if module.params["function"] == "log_parser":
+    if module.params["function"] == "parse_logs":
         parser.parse_logs()
     elif module.params["function"] == "merge_logs":
         parser.merge_logs()
