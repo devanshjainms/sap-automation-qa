@@ -180,6 +180,7 @@ class LogParser(SapAutomationQA):
         end_time: str,
         log_file: str,
         ansible_os_family: str,
+        logs: list = None,
     ):
         super().__init__()
         self.start_time = start_time
@@ -187,6 +188,7 @@ class LogParser(SapAutomationQA):
         self.log_file = log_file
         self.keywords = list(PCMK_KEYWORDS | SYS_KEYWORDS)
         self.ansible_os_family = ansible_os_family
+        self.logs = logs if logs else []
         self.result.update(
             {
                 "start_time": start_time,
@@ -196,6 +198,62 @@ class LogParser(SapAutomationQA):
                 "filtered_logs": [],
             }
         )
+
+    def merge_logs(self) -> None:
+        """
+        Merges multiple log files into a single list for processing.
+        """
+        try:
+            all_logs = []
+            parsed_logs = []
+            if not self.logs:
+                self.result.update(
+                    {
+                        "filtered_logs": json.dumps([]),
+                        "status": TestStatus.SUCCESS.value,
+                        "message": "No logs provided to merge",
+                    }
+                )
+                return
+
+            for logs in self.logs:
+                if isinstance(logs, str):
+                    try:
+                        parsed = json.loads(logs)
+                        parsed_logs.extend(parsed)
+                    except json.JSONDecodeError:
+                        parsed_logs.append(logs)
+                else:
+                    parsed_logs.extend(logs)
+
+            for log in parsed_logs:
+                try:
+                    if self.ansible_os_family == "REDHAT":
+                        timestamp_str = " ".join(log.split()[:3])
+                        log_time = datetime.strptime(timestamp_str, "%b %d %H:%M:%S")
+                        log_time = log_time.replace(year=datetime.now().year)
+                        all_logs.append((log_time, log))
+
+                    elif self.ansible_os_family == "SUSE":
+                        timestamp_str = log.split(".")[0]
+                        log_time = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
+                        all_logs.append((log_time, log))
+
+                    else:
+                        all_logs.append((datetime.min, log))
+                except (ValueError, IndexError):
+                    all_logs.append((datetime.min, log))
+
+            sorted_logs = [log for _, log in sorted(all_logs, key=lambda x: x[0])]
+
+            self.result.update(
+                {
+                    "filtered_logs": json.dumps(sorted_logs),
+                    "status": TestStatus.SUCCESS.value,
+                }
+            )
+        except Exception as ex:
+            self.handle_error(ex)
 
     def parse_logs(self) -> None:
         """
@@ -245,22 +303,28 @@ def run_module() -> None:
     Sets up and runs the log parsing module with the specified arguments.
     """
     module_args = dict(
-        start_time=dict(type="str", required=True),
-        end_time=dict(type="str", required=True),
+        start_time=dict(type="str", required=False),
+        end_time=dict(type="str", required=False),
         log_file=dict(type="str", required=False, default="/var/log/messages"),
         keywords=dict(type="list", required=False, default=[]),
         ansible_os_family=dict(type="str", required=True),
+        function=dict(type="str", required=True, default="log_parser"),
+        logs=dict(type="list", required=False, default=[]),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
 
     parser = LogParser(
-        start_time=module.params["start_time"],
-        end_time=module.params["end_time"],
-        log_file=module.params["log_file"],
+        start_time=module.params.get("start_time"),
+        end_time=module.params.get("end_time"),
+        log_file=module.params.get("log_file"),
         ansible_os_family=module.params["ansible_os_family"],
+        logs=module.params.get("logs"),
     )
-    parser.parse_logs()
+    if module.params["function"] == "log_parser":
+        parser.parse_logs()
+    elif module.params["function"] == "merge_logs":
+        parser.merge_logs()
 
     result = parser.get_result()
     module.exit_json(**result)
