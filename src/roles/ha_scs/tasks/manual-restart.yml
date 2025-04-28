@@ -32,6 +32,7 @@
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
         - name:                         "Test Execution: Stop ASCS Instance"
+          become:                       true
           become_user:                  "{{ sap_sid | lower }}adm"
           ansible.builtin.shell:        /usr/sap/{{ sap_sid | upper }}/SYS/exe/run/sapcontrol -nr {{ scs_instance_number }} -function StopWait 600 2
           environment:
@@ -54,6 +55,7 @@
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ers_node
 
         - name:                         "Test Execution: Start ASCS Instance"
+          become:                       true
           become_user:                  "{{ sap_sid | lower }}adm"
           ansible.builtin.shell:        /usr/sap/{{ sap_sid | upper }}/SYS/exe/run/sapcontrol -nr {{ scs_instance_number }} -function StartWait 600 2
           environment:

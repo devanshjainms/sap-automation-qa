@@ -98,7 +98,7 @@
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                         Old ASCS: {{ cluster_status_pre.ascs_node }}
-                                        New ASCS: {{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution.ascs_node 
+                                        New ASCS: {{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution.ascs_node
                                         or cluster_status_test_execution.ascs_node }}
                                         Old ERS: {{ cluster_status_pre.ers_node }}
                                         New ERS: {{ hostvars[cluster_status_pre.ers_node].cluster_status_test_execution.ers_node

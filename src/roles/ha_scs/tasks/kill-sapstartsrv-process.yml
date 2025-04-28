@@ -40,7 +40,7 @@
           failed_when:                  sapstartsrv_pid.stdout == ""
 
         - name:                         "Test Execution: Kill sapstartsrv Process"
-          ansible.builtin.shell:        echo '{{ sapstartsrv_pid.stdout_lines | join(" ") }}' | xargs -r kill -9
+          ansible.builtin.shell:        set -o pipefail && echo '{{ sapstartsrv_pid.stdout_lines | join(" ") }}' | xargs -r kill -9
           register:                     kill_sapstartsrv_result
           failed_when:                  false
 

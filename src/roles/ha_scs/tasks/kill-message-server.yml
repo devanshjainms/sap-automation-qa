@@ -32,12 +32,12 @@
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
         - name:                         "Test Execution: Check for ENSA version"
-          ansible.builtin.shell:        pgrep -f 'enq.sap{{ sap_sid | upper }}' | wc -l
+          ansible.builtin.shell:        set -o pipefail && pgrep -f 'enq.sap{{ sap_sid | upper }}' | wc -l
           register:                     ensa2_check
           failed_when:                  false
 
         - name:                         "Test Execution: Kill Message Server Process"
-          ansible.builtin.shell:        pgrep -f 'ms.sap{{ sap_sid | upper }}' | xargs kill -9
+          ansible.builtin.shell:        set -o pipefail && pgrep -f 'ms.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_ms_result
           until:                        "'kill: not enough arguments' in kill_ms_result.stderr"
           ignore_errors:                true
