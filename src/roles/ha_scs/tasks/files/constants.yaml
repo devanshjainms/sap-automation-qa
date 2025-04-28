@@ -228,7 +228,7 @@ RESOURCE_DEFAULTS:
         priority:                         "10"
       operations:
         monitor:
-          interval:                       "11"
+          interval:                       "20"
           timeout:                        "105"
         start:
           interval:                       "0"
