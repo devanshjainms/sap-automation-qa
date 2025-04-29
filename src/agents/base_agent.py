@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 from autogen_agentchat.agents import UserProxyAgent, AssistantAgent
 from autogen_ext.models.openai import AzureOpenAIChatCompletionClient
 from azure.identity import ManagedIdentityCredential, get_bearer_token_provider
+from src.agents.utils.logger import get_logger
 
 
 class BaseAgent:
@@ -18,6 +19,8 @@ class BaseAgent:
         model_name: str = "gpt-4",
         api_version: str = "2024-07-01-preview",
     ):
+        self.logger = get_logger(self.__class__.__name__)  # Initialize logger
+        self.logger.info("Initializing BaseAgent")
         self.name = name
         self.role = role
         self.system_message = system_message
@@ -28,8 +31,8 @@ class BaseAgent:
         self.azure_deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
 
         token_provider = get_bearer_token_provider(
-            ManagedIdentityCredential(),
-            "https://cognitiveservices.azure.com/",
+            ManagedIdentityCredential(client_id=os.getenv("AZURE_CLIENT_ID")),
+            "https://cognitiveservices.azure.com/.default",
         )
         self.azure_client = AzureOpenAIChatCompletionClient(
             model=self.model_name,
@@ -45,6 +48,7 @@ class BaseAgent:
                 "family": "unknown",
             },
         )
+        self.logger.info("AzureOpenAIChatCompletionClient initialized")
 
         self.agent = self._create_agent()
 

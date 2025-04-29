@@ -6,12 +6,16 @@ from autogen_agentchat.conditions import TextMentionTermination
 from src.agents.planner_agent import TestPlannerAgentFactory
 from src.agents.executor_agent import ExecutorAgentFactory
 from src.agents.monitor_agent import MonitorAgentFactory
+from src.agents.utils.logger import get_logger
+
+logger = get_logger("Orchestrator")
 
 
 def infer_test_type(user_request: str) -> str:
     """
     Infers the test type from the user request using a text classification model.
     """
+    logger.info(f"Inferring test type for request: {user_request}")
     test_json = {
         "scs": ["central services", "scs", "failover"],
         "db": ["database", "db", "replication"],
@@ -41,14 +45,18 @@ def load_test_catalog() -> str:
 
 
 def start_conversation(user_request: str):
+    logger.info("Starting conversation")
     test_type = infer_test_type(user_request)
 
     docs_context = load_test_docs(test_type)
     catalog_context = load_test_catalog()
+    logger.info(f"Docs context: {docs_context}")
+    logger.info(f"Catalog context: {catalog_context}")
 
     test_planner = TestPlannerAgentFactory.create()
     executor = ExecutorAgentFactory.create()
     monitor = MonitorAgentFactory.create()
+    logger.info("Agents created successfully")
 
     group_chat = RoundRobinGroupChat(
         participants=[test_planner, executor, monitor],
@@ -61,7 +69,7 @@ def start_conversation(user_request: str):
         f"--- TEST CATALOG ---\n{catalog_context}\n\n"
         f"--- TEST DOCUMENT ({test_type.upper()}) ---\n{docs_context}\n"
     )
-
+    logger.info("Running group chat")
     group_chat.run_stream(task=full_prompt)
 
 
@@ -77,5 +85,6 @@ if __name__ == "__main__":
         help="User request describing the test (e.g., 'Plan and run HA failover test for SAP Central Services')",
     )
     args = parser.parse_args()
+    
 
     start_conversation(user_request=args.request)
