@@ -3,7 +3,6 @@
 import os
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.conditions import TextMentionTermination
-from transformers import pipeline
 from src.agents.planner_agent import TestPlannerAgentFactory
 from src.agents.executor_agent import ExecutorAgentFactory
 from src.agents.monitor_agent import MonitorAgentFactory
