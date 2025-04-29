@@ -3,6 +3,9 @@ ansible-core
 ansible-lint
 ansible-runner
 
+# Autogen packages
+autogen_agentchat
+
 # Azure packages
 azure-identity
 azure-kusto-data

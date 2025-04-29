@@ -6,11 +6,6 @@ from autogen_agentchat.agents import UserProxyAgent
 from base_agent import BaseAgent
 
 
-# -----------------------------
-# Tool Definitions
-# -----------------------------
-
-
 def run_ha_test() -> str:
     """
     Run the HA Ansible playbook for SAP failover testing.
@@ -41,11 +36,6 @@ def run_config_validation() -> str:
         return result.stdout
     except subprocess.CalledProcessError as e:
         return f"[ERROR] Configuration validation failed: {e.stderr}"
-
-
-# -----------------------------
-# Executor Agent Factory
-# -----------------------------
 
 
 class ExecutorAgentFactory:

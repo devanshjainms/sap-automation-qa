@@ -13,12 +13,15 @@ def infer_test_type(user_request: str) -> str:
     """
     Infers the test type from the user request using a text classification model.
     """
-    intent_classifier = pipeline(
-        "text-classification", model="distilbert-base-uncased-finetuned-sst-2-english"
-    )
-
-    intent = intent_classifier(user_request)[0]["label"]
-    return intent.lower()
+    test_json = {
+        "scs": ["central services", "scs", "failover"],
+        "db": ["database", "db", "replication"],
+        "performance": ["performance", "load test", "stress test"],
+    }
+    for test_type, keywords in test_json.items():
+        if any(keyword.lower() in user_request.lower() for keyword in keywords):
+            return test_type
+    return input("Could not infer test type. Please specify: ")
 
 
 def load_test_docs(test_type: str) -> str:
@@ -39,19 +42,15 @@ def load_test_catalog() -> str:
 
 
 def start_conversation(user_request: str):
-    # Infer test type
     test_type = infer_test_type(user_request)
 
-    # Load relevant docs
     docs_context = load_test_docs(test_type)
     catalog_context = load_test_catalog()
 
-    # Create agents
     test_planner = TestPlannerAgentFactory.create()
     executor = ExecutorAgentFactory.create()
     monitor = MonitorAgentFactory.create()
 
-    # Create group chat
     group_chat = RoundRobinGroupChat(
         participants=[test_planner, executor, monitor],
         termination_condition=TextMentionTermination("DONE"),
