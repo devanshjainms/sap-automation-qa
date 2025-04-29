@@ -4,7 +4,11 @@ from typing import Optional, Dict, Any
 
 from autogen_agentchat.agents import UserProxyAgent, AssistantAgent
 from autogen_ext.models.openai import AzureOpenAIChatCompletionClient
-from azure.identity import ManagedIdentityCredential, get_bearer_token_provider
+from azure.identity import (
+    ManagedIdentityCredential,
+    get_bearer_token_provider,
+    DefaultAzureCredential,
+)
 from src.agents.utils.logger import get_logger
 
 
@@ -31,7 +35,7 @@ class BaseAgent:
         self.azure_deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
 
         token_provider = get_bearer_token_provider(
-            ManagedIdentityCredential(client_id=os.getenv("AZURE_CLIENT_ID")),
+            DefaultAzureCredential(),
             "https://cognitiveservices.azure.com/.default",
         )
         self.azure_client = AzureOpenAIChatCompletionClient(
