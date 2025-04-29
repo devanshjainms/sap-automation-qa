@@ -1,5 +1,5 @@
 # orchestrator.py
-
+import asyncio
 import os
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.conditions import TextMentionTermination
@@ -45,7 +45,7 @@ def load_test_catalog() -> str:
     return "[Test catalog not found]"
 
 
-def start_conversation(user_request: str):
+async def start_conversation(user_request: str):
     logger.info("Starting conversation")
     test_type = infer_test_type(user_request)
 
@@ -71,7 +71,7 @@ def start_conversation(user_request: str):
         f"--- TEST DOCUMENT ({test_type.upper()}) ---\n{docs_context}\n"
     )
     logger.info("Running group chat")
-    group_chat.run_stream(task=full_prompt)
+    await group_chat.run_stream(task=full_prompt)
 
 
 if __name__ == "__main__":
@@ -87,4 +87,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    start_conversation(user_request=args.request)
+    asyncio.run(start_conversation(user_request=args.request))
