@@ -38,6 +38,7 @@ class BaseAgent:
             azure_ad_token_provider=token_provider,
             azure_deployment=self.azure_deployment_name,
             model_info={
+                "structured_output": True,
                 "json_output": True,
                 "function_calling": True,
                 "vision": True,
