@@ -28,7 +28,7 @@ def infer_test_type(user_request: str) -> str:
 
 
 def load_test_docs(test_type: str) -> str:
-    doc_map = {"scs": "docs/SCS_HA.md", "db": "docs/DB_HA.md"}
+    doc_map = {"scs": "docs/SCS_HIGH_AVAILABILITY.md", "db": "docs/DB_HIGH_AVAILABILITY.md"}
     doc_file = doc_map.get(test_type.lower())
     if doc_file and os.path.exists(doc_file):
         with open(doc_file) as f:
@@ -37,9 +37,10 @@ def load_test_docs(test_type: str) -> str:
 
 
 def load_test_catalog() -> str:
-    file_path = "src/vars/input-api.py"
+    file_path = "src/vars/input-api.yaml"
     if os.path.exists(file_path):
         with open(file_path) as f:
+            logger.info("Loading test catalog")
             return f.read()
     return "[Test catalog not found]"
 
@@ -85,6 +86,5 @@ if __name__ == "__main__":
         help="User request describing the test (e.g., 'Plan and run HA failover test for SAP Central Services')",
     )
     args = parser.parse_args()
-    
 
     start_conversation(user_request=args.request)
