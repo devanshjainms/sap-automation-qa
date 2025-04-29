@@ -48,14 +48,19 @@ class BaseAgent:
         self.agent = self._create_agent()
 
     def _create_agent(self):
-        agent_class = AssistantAgent if self.is_conversable else UserProxyAgent
-
-        return agent_class(
-            name=self.name,
-            model_client=self.azure_client,
-            tools=self.tools,
-            system_message=self.system_message,
-        )
+        if self.is_conversable:
+            return AssistantAgent(
+                name=self.name,
+                model_client=self.azure_client,
+                tools=self.tools,
+                system_message=self.system_message,
+            )
+        else:
+            return UserProxyAgent(
+                name=self.name,
+                input_func=self.tools,
+                description=self.system_message,
+            )
 
     def get_agent(self):
         return self.agent
