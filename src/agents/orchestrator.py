@@ -70,8 +70,10 @@ async def start_conversation(user_request: str):
         f"--- TEST CATALOG ---\n{catalog_context}\n\n"
         f"--- TEST DOCUMENT ({test_type.upper()}) ---\n{docs_context}\n"
     )
-    logger.info("Running group chat")
+    logger.info("Running group chat ")
     group_chat.run_stream(task=full_prompt)
+    async for task_result in group_chat.run_stream(task=full_prompt):
+        logger.info("%s: %s", type(task_result).__name__, task_result)
 
 
 if __name__ == "__main__":
