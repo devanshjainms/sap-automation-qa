@@ -311,6 +311,12 @@ class HAClusterValidator(SapAutomationQA):
                     if str(value) == str(expected_value)
                     else TestStatus.ERROR.value
                 )
+        elif isinstance(expected_value, dict):
+            expected_value = expected_value.get(self.nfs_provider, "AFS")
+            status = (
+                TestStatus.SUCCESS.value if str(value) in expected_value else TestStatus.ERROR.value
+            )
+            expected_value = expected_value[0]
         else:
             status = TestStatus.ERROR.value
 

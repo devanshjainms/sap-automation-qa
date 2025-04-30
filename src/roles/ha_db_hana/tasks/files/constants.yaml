@@ -246,7 +246,9 @@ RESOURCE_DEFAULTS:
       operations:
         monitor:
           interval:                       ["20", "20s"]
-          timeout:                        ["120", "120s"]
+          timeout:
+            AFS:                          ["120", "120s"]
+            ANF:                          ["105", "105s"]
         start:
           interval:                       ["0", "0s"]
           timeout:                        ["60", "60s"]
