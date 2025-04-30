@@ -194,6 +194,7 @@ class HAClusterValidator(SapAutomationQA):
         virtual_machine_name,
         constants,
         fencing_mechanism,
+        nfs_provider=None,
         category=None,
     ):
         super().__init__()
@@ -205,6 +206,7 @@ class HAClusterValidator(SapAutomationQA):
         self.virtual_machine_name = virtual_machine_name
         self.fencing_mechanism = fencing_mechanism
         self.constants = constants
+        self.nfs_provider = nfs_provider
         self.parse_ha_cluster_config()
 
     def _get_expected_value(self, category, name):
@@ -581,6 +583,7 @@ def main() -> None:
             virtual_machine_name=dict(type="str"),
             pcmk_constants=dict(type="dict"),
             fencing_mechanism=dict(type="str"),
+            nfs_provider=dict(type="str", default=""),
         )
     )
 
@@ -592,6 +595,7 @@ def main() -> None:
         virtual_machine_name=module.params["virtual_machine_name"],
         constants=module.params["pcmk_constants"],
         fencing_mechanism=module.params["fencing_mechanism"],
+        nfs_provider=module.params.get("nfs_provider"),
     )
     module.exit_json(**validator.get_result())
 
