@@ -20,7 +20,7 @@ class BaseAgent:
         system_message: str,
         tools: Optional[list] = None,
         is_conversable: bool = True,
-        model_name: str = "gpt-4",
+        model_name: str = "gpt-4o",
         api_version: str = "2024-07-01-preview",
     ):
         self.logger = get_logger(self.__class__.__name__)  # Initialize logger
