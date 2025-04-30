@@ -67,6 +67,17 @@
             ascs_node_down:             "{{ hostvars[cluster_status_pre.ascs_node].node_status is failed }}"
             ers_node_down:              "{{ hostvars[cluster_status_pre.ers_node].node_status is failed }}"
 
+        - name:                         "Fail if both nodes are unavailable"
+          ansible.builtin.fail:
+            msg: |
+                                        "Error: Both ASCS and ERS nodes are unreachable.
+                                        This may be caused by a fence race condition triggered during the block network
+                                        test case execution, where both nodes potentially fenced each other.
+                                        Please verify if the priority-fencing-delay cluster property is configured.
+                                        If not, refer to the SAP on Azure high availability documentation for
+                                        instructions on how to configure it."
+          when:                         ascs_node_down and ers_node_down
+
     - name:                             "Test Execution: Monitor failover on ERS Node"
       when:
                                         - ansible_hostname == cluster_status_pre.ers_node
