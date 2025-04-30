@@ -74,6 +74,12 @@ options:
             - Type of fencing mechanism used
         type: str
         required: true
+    nfs_provider:
+        description:
+            - NFS provider type (e.g., AFS, ANF)
+        type: str
+        required: false
+        default: ""
 author:
     - Microsoft Corporation
 notes:
