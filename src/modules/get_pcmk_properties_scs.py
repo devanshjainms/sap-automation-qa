@@ -34,7 +34,8 @@ DOCUMENTATION = r"""
 module: get_pcmk_properties_scs
 short_description: Validates Pacemaker cluster configurations for SAP ASCS/ERS
 description:
-    - Validates Pacemaker cluster configurations against predefined standards for SAP Application Tier ASCS/ERS deployments
+    - Validates Pacemaker cluster configurations against predefined standards for SAP Application
+    Tier ASCS/ERS deployments
     - Checks basic cluster properties, resource configurations, constraints, and OS parameters
     - Provides detailed validation results for each parameter
     - Supports different configurations based on operating system and fencing mechanism
