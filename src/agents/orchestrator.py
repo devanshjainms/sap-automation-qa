@@ -1,6 +1,7 @@
 # orchestrator.py
 import asyncio
 import os
+from autogen_agentchat.base import TaskResult
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.conditions import TextMentionTermination
 from src.agents.planner_agent import TestPlannerAgentFactory
@@ -70,8 +71,12 @@ async def start_conversation(user_request: str):
     )
     logger.info("Running group chat ")
     group_chat.run_stream(task=full_prompt)
+
     async for task_result in group_chat.run_stream(task=full_prompt):
-        logger.info("%s: %s", type(task_result).__name__, task_result)
+        if isinstance(task_result, TaskResult):
+            logger.info(f"Stop Reason: {task_result.stop_reason}")
+        else:
+            logger.info(task_result)
 
 
 if __name__ == "__main__":
