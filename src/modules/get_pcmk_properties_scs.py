@@ -283,6 +283,7 @@ class HAClusterValidator(SapAutomationQA):
         :return: Parameters object
         :rtype: Parameters
         """
+        status = None
         if expected_value is None:
             if category in self.RESOURCE_CATEGORIES or category in ["ascs", "ers"]:
                 expected_value = self._get_resource_expected_value(
@@ -296,11 +297,20 @@ class HAClusterValidator(SapAutomationQA):
 
         if expected_value is None or value == "":
             status = TestStatus.INFO.value
-        elif isinstance(expected_value, str) and str(value) == str(expected_value):
-            status = TestStatus.SUCCESS.value
-        elif isinstance(expected_value, list) and str(value) in expected_value:
-            status = TestStatus.SUCCESS.value
-            expected_value = str(value)
+        elif isinstance(expected_value, (str, list)):
+            if isinstance(expected_value, list):
+                status = (
+                    TestStatus.SUCCESS.value
+                    if str(value) in expected_value
+                    else TestStatus.ERROR.value
+                )
+                expected_value = expected_value[0]
+            else:
+                status = (
+                    TestStatus.SUCCESS.value
+                    if str(value) == str(expected_value)
+                    else TestStatus.ERROR.value
+                )
         else:
             status = TestStatus.ERROR.value
 
