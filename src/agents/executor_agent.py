@@ -48,12 +48,12 @@ class ExecutorAgentFactory:
 
         high_availability = FunctionTool(
             run_ha_test,
-            name="Run High Availability Functional Test",
+            name="RunHighAvailabilityFunctionalTest",
             description="Run the HA Ansible playbook for SAP failover testing.",
         )
         config_validation = FunctionTool(
             run_config_validation,
-            name="Run High Availability Cluster Configuration Validation",
+            name="RunClusterConfigurationValidation",
             description="Run a Python script to validate SAP system configuration.",
         )
         agent = BaseAgent(

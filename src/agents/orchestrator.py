@@ -51,8 +51,6 @@ async def start_conversation(user_request: str):
 
     docs_context = load_test_docs(test_type)
     catalog_context = load_test_catalog()
-    logger.info(f"Docs context: {docs_context}")
-    logger.info(f"Catalog context: {catalog_context}")
 
     test_planner = TestPlannerAgentFactory.create()
     executor = ExecutorAgentFactory.create()
