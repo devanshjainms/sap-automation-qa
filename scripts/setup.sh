@@ -3,11 +3,6 @@
 
 #!/bin/bash
 
-# Determine script and project directories
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-VENV_DIR="$PROJECT_ROOT/.venv"
-
 # Function to check if a command exists
 command_exists() {
     command -v "$1" &> /dev/null
@@ -57,9 +52,9 @@ packages=("python3-pip" "ansible" "sshpass" "python3-venv")
 
 install_packages "${packages[@]}"
 
-if [ ! -d "$VENV_DIR" ]; then
+if [ ! -d "../.venv" ]; then
     log "INFO" "Creating Python virtual environment..."
-    if python3 -m venv "$VENV_DIR"; then
+    if python3 -m venv ../.venv; then
         log "INFO" "Python virtual environment created."
     else
         log "ERROR" "Failed to create Python virtual environment."
@@ -69,7 +64,7 @@ fi
 
 # Ensure virtual environment is activated
 log "INFO" "Activating Python virtual environment..."
-if source "$VENV_DIR/bin/activate"; then
+if source ../.venv/bin/activate; then
     log "INFO" "Python virtual environment activated."
 else
     log "ERROR" "Failed to activate Python virtual environment."
