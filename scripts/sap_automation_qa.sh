@@ -222,6 +222,9 @@ run_ansible_playbook() {
         log "INFO" "Extracted key_vault_id: $key_vault_id"
     fi
 
+    log "INFO" "Installing required Ansible collections..."
+    ansible-galaxy collection install community.general
+
     if [[ "$auth_type" == "SSHKEY" ]]; then
         log "INFO" "Authentication type is SSHKEY."
 
