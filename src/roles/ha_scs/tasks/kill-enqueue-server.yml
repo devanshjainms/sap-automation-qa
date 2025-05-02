@@ -32,7 +32,7 @@
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
         - name:                         "Test Execution: Check for ENSA version"
-          ansible.builtin.shell:        set -o pipefail && pgrep -f 'enq.sap{{ sap_sid | upper }}' | wc -l
+          ansible.builtin.shell:        set -o pipefail && pgrep -f 'enq.sap{{ sap_sid | upper }}'
           register:                     ensa2_check
           failed_when:                  false
 
@@ -40,13 +40,13 @@
           ansible.builtin.shell:        set -o pipefail && pgrep -f 'en.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_er_result
           failed_when:                  false
-          when:                         ensa2_check.stdout | int == 0
+          when:                         ensa2_check.stdout == ""
 
         - name:                         "Test Execution: Kill Enqueue Server Process (ENSA2)"
           ansible.builtin.shell:        set -o pipefail && pgrep -f 'enq.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_en_result
           failed_when:                  false
-          when:                         ensa2_check.stdout | int != 0
+          when:                         ensa2_check.stdout == "1"
 
         - name:                         "Test Execution: Validate ASCS node has stopped"
           get_cluster_status_scs:
