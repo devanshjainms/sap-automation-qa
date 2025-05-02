@@ -43,7 +43,7 @@
           failed_when:                  false
 
         - name:                         "Test Execution: Kill Enqueue Replication Server Process (ENSA2)"
-          when:                         ensa2_check.stdout == "1"
+          when:                         ensa2_check.stdout != ""
           ansible.builtin.shell:        set -o pipefail && pgrep -f 'enqr.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_enqr_result
           failed_when:                  false

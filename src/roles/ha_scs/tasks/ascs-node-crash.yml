@@ -68,7 +68,7 @@
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ascs_node
 
         - name:                         "Test Execution: Validate SCS cluster status ENSA2"
-          when:                         hostvars[cluster_status_pre.ascs_node].ensa2_check.stdout == "1"
+          when:                         hostvars[cluster_status_pre.ascs_node].ensa2_check.stdout != ""
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
             ansible_os_family:          "{{ ansible_os_family | upper }}"
