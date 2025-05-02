@@ -20,7 +20,7 @@
 # +--------------------------------------------------------------------------*/
 - name:                                 "Test Execution: Manual Restart of ASCS Instance"
   become:                               true
-  when:                                 pre_validations_status == "PASSED"
+  when:                                 pre_validations_status == "PASSED" and (ansible_os_family | upper) == "SUSE"
   block:
     - name:                             "Test Execution: Stop ASCS on ASCS Node"
       when:                             ansible_hostname == cluster_status_pre.ascs_node

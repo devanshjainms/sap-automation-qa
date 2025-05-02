@@ -40,13 +40,13 @@
           ansible.builtin.shell:        set -o pipefail && pgrep -f 'en.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_er_result
           failed_when:                  false
-          when:                         ensa2_check.stdout == "0"
+          when:                         ensa2_check.stdout | int == 0
 
         - name:                         "Test Execution: Kill Enqueue Server Process (ENSA2)"
           ansible.builtin.shell:        set -o pipefail && pgrep -f 'enq.sap{{ sap_sid | upper }}' | xargs kill -9
           register:                     kill_en_result
           failed_when:                  false
-          when:                         ensa2_check.stdout != "0"
+          when:                         ensa2_check.stdout | int != 0
 
         - name:                         "Test Execution: Validate ASCS node has stopped"
           get_cluster_status_scs:
