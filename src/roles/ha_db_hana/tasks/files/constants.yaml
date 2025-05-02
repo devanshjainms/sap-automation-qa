@@ -291,7 +291,7 @@ GLOBAL_INI:
 
   REDHAT:
     provider:                           "SAPHanaSR"
-    path:                               "/hana/shared/myHooks"
+    path:                               ["/usr/share/SAPHanaSR/srHook", "/hana/shared/myHooks"]
     execution_order:                    "1"
 
 

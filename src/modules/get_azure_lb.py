@@ -320,7 +320,11 @@ class AzureLoadBalancer(SapAutomationQA):
                 )
                 self.result["message"] += "Successfully validated load balancer parameters"
             else:
-                self.result["message"] += "No load balancer found"
+                self.result["message"] += (
+                    "Load Balancer details not fetched."
+                    " Ensure that the Managed Identity (MSI) has sufficient permissions "
+                    "to access the load balancer details."
+                )
 
         except Exception as ex:
             self.handle_error(ex)
