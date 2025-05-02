@@ -229,7 +229,9 @@ RESOURCE_DEFAULTS:
       operations:
         monitor:
           interval:                       ["20", "20s"]
-          timeout:                        ["105", "105s"]
+          timeout:
+            ANF:                          ["105", "105s"]
+            AFS:                          ["60", "60s"]
         start:
           interval:                       ["0", "0s"]
           timeout:                        ["600", "600s"]
@@ -260,7 +262,9 @@ RESOURCE_DEFAULTS:
       operations:
         monitor:
           interval:                       ["20", "20s"]
-          timeout:                        ["105", "105s"]
+          timeout:
+            ANF:                          ["105", "105s"]
+            AFS:                          ["60", "60s"]
         start:
           interval:                       ["0", "0s"]
           timeout:                        ["600", "600s"]
