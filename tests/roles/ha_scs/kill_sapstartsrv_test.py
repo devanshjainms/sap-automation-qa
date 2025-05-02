@@ -55,7 +55,8 @@ class TestKillSapStartSrv(RolesTestingBaseSCS):
             role_type="ha_scs",
             ansible_inventory=ansible_inventory,
             task_name="kill-sapstartsrv-process",
-            task_description="The SAP startsrv Process Kill test simulates failure of the sapstartsrv process",
+            task_description="The SAP startsrv Process Kill test simulates "
+            + "failure of the sapstartsrv process",
             module_names=[
                 "project/library/get_cluster_status_scs",
                 "project/library/log_parser",
@@ -65,6 +66,16 @@ class TestKillSapStartSrv(RolesTestingBaseSCS):
                 "bin/kill",
             ],
             extra_vars_override={"node_tier": "scs"},
+        )
+
+        playbook_content = self.file_operations(
+            operation="read",
+            file_path=f"{temp_dir}/project/roles/ha_scs/tasks/kill-sapstartsrv-process.yml",
+        )
+        self.file_operations(
+            operation="write",
+            file_path=f"{temp_dir}/project/roles/ha_scs/tasks/kill-sapstartsrv-process.yml",
+            content=playbook_content.replace("set -o pipefail &&", ""),
         )
 
         yield temp_dir
