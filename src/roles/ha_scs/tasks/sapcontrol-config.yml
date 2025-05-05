@@ -61,7 +61,7 @@
         - name:                         "Test Execution: Validate sapcontrol commands"
           ansible.builtin.set_fact:
             test_case_details_from_test_case: >-
-                                        {{ test_case_details_from_test_case + [{
+                                        {{ test_case_details_from_test_case | default([]) + [{
                                             'command': sapcontrol_result.cmd,
                                             'returnCode': sapcontrol_result.rc,
                                             'stdout': sapcontrol_result.stdout_lines,
