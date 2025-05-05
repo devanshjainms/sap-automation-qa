@@ -179,13 +179,8 @@ RESOURCE_DEFAULTS:
       operations:
         monitor:
           interval:                       ["10", "10s"]
-          timeout:                        ["240", "240s"]
         start:
           interval:                       ["0", "0s"]
-          timeout:                        ["10", "10s"]
-        stop:
-          interval:                       ["0", "0s"]
-          timeout:                        ["10", "10s"]
 
   REDHAT:
     fence_agent:
