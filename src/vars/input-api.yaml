@@ -154,7 +154,7 @@ test_groups:
           SCS configuration. It executes commands like HAGetFailoverConfig,
           HACheckFailoverConfig, and HACheckConfig, capturing their outputs and statuses to
           ensure proper configuration and functionality.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "Manual ASCS Migration"
         task_name:                  ascs-migration
