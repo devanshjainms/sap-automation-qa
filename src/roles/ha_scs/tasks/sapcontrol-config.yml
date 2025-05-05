@@ -58,17 +58,17 @@
                 - {{ res.sapcontrol_method }}: {{ 'Success' if res.rc == 0 else 'Failed' }}
               {% endfor %}
             test_case_details_from_test_case: >-
-                                              {%- set details = [] -%}
-                                              {%- for item in sapcontrol_results.results -%}
-                                                {%- set entry = {
-                                                    'command':       item.cmd,
-                                                    'returnCode':    item.rc,
-                                                    'stdout':        item.stdout_lines,
-                                                    'stderr':        item.stderr_lines
-                                                  } -%}
-                                                {%- do details.append(entry) -%}
-                                              {%- endfor -%}
-                                              {{ details }}
+                                              {{
+                                                [
+                                                  {
+                                                    'command':    item.cmd,
+                                                    'returnCode': item.rc,
+                                                    'stdout':     item.stdout_lines,
+                                                    'stderr':     item.stderr_lines
+                                                  }
+                                                  for item in sapcontrol_results.results
+                                                ]
+                                              }}
 
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
