@@ -57,18 +57,19 @@
               {% for res in sapcontrol_results.results %}
                 - {{ res.sapcontrol_method }}: {{ 'Success' if res.rc == 0 else 'Failed' }}
               {% endfor %}
+
+        - name:                         "Test Execution: Validate sapcontrol commands"
+          ansible.builtin.set_fact:
             test_case_details_from_test_case: >-
-                                              {{
-                                                [
-                                                  {
-                                                    'command':    item.cmd,
-                                                    'returnCode': item.rc,
-                                                    'stdout':     item.stdout_lines,
-                                                    'stderr':     item.stderr_lines
-                                                  }
-                                                  for item in sapcontrol_results.results
-                                                ]
-                                              }}
+                                        {{ test_case_details_from_test_case + [{
+                                            'command': sapcontrol_result.cmd,
+                                            'returnCode': sapcontrol_result.rc,
+                                            'stdout': sapcontrol_result.stdout_lines,
+                                            'stderr': sapcontrol_result.stderr_lines
+                                          }] }}
+          loop:                         "{{ sapcontrol_results.results }}"
+          loop_control:
+            loop_var:                   sapcontrol_result
 
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
