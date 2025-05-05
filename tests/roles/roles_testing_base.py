@@ -161,7 +161,7 @@ class RolesTestingBase:
             "misc/tasks/rescue.yml",
             "misc/tasks/var-log-messages.yml",
             "misc/tasks/post-telemetry-data.yml",
-            "misc/tasks/loadbalancer.yml"
+            "misc/tasks/loadbalancer.yml",
         ]
 
         task_file = f"{role_type}/tasks/{task_name}.yml"
@@ -206,7 +206,7 @@ class RolesTestingBase:
             "ansible_distribution_version": "15",
             "default_retries": 2,
             "default_timeout": 2,
-            "default_delay": 2
+            "default_delay": 2,
         }
 
         if extra_vars_override:
