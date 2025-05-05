@@ -27,7 +27,7 @@
       become:                           true
       block:
         - name:                         "Test Execution: Check for ENSA version"
-          ansible.builtin.shell:        pgrep -f 'enqr.sap{{ sap_sid | upper }}'
+          ansible.builtin.shell:        pgrep -f 'enq.sap{{ sap_sid | upper }}'
           register:                     ensa2_check
           failed_when:                  false
 
