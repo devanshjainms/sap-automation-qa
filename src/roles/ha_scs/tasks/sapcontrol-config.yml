@@ -59,15 +59,14 @@
               {% endfor %}
             test_case_details_from_test_case: >
                                               {{
-                                                sapcontrol_results.results
-                                                | map(attribute='cmd') | zip(
-                                                  sapcontrol_results.results | map(attribute='rc'),
-                                                  sapcontrol_results.results | map(attribute='stdout_lines'),
-                                                  sapcontrol_results.results | map(attribute='stderr_lines')
-                                                )
-                                                | map('list')
-                                                | map('dict', ['command', 'returnCode', 'stdout', 'stderr'])
-                                                | list
+                                                [ {
+                                                    'command': item.cmd,
+                                                    'returnCode': item.rc,
+                                                    'stdout': item.stdout_lines,
+                                                    'stderr': item.stderr_lines
+                                                  }
+                                                  for item in sapcontrol_results.results
+                                                ]
                                               }}
 
 # /*---------------------------------------------------------------------------
