@@ -3,7 +3,6 @@ import logging
 import os
 from azure.identity import DefaultAzureCredential
 from openai import AzureOpenAI
-from azure.ai.inference import ChatCompletionsClient
 from bots.common.state import StateStore
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
