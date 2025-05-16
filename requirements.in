@@ -34,3 +34,7 @@ requests
 # CLI tools
 click
 rich
+
+# AI Tools
+openai
+sqlite3
