@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 from azure.identity import DefaultAzureCredential
 from openai import AzureOpenAI
 from bots.common.state import StateStore
@@ -16,12 +17,14 @@ class IntentAgent:
         self,
         state_store: StateStore,
     ):
-        self.endpoint = os.getenv("STAF_OPENAI_ENDPOINT")
-        self.deployment = os.getenv("STAF_OPENAI_DEPLOYMENT", "gpt-3.5-turbo")
+        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-3.5-turbo")
         self.logger = logging.getLogger(self.__class__.__name__)
         self.state = state_store
+        current_dir = Path(__file__).parent
+        prompts_dir = current_dir / "prompts"
         self.jinja_env = Environment(
-            loader=FileSystemLoader("prompts"), autoescape=select_autoescape(["j2"])
+            loader=FileSystemLoader(prompts_dir), autoescape=select_autoescape(["j2"])
         )
 
         credential = DefaultAzureCredential()
