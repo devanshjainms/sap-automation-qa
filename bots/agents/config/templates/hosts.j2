@@ -1,0 +1,16 @@
+{{ system }}_{{ sap_tier }}:
+  hosts:
+{% for host in hosts %}
+    {{ host.hostname }}:
+      ansible_host       : {{ host.ip_address }}
+      ansible_user       : {{ host.ssh_user }}
+      ansible_connection : ssh
+      connection_type    : key
+      virtual_host       : {{ host.hostname }}
+      become_user        : root
+      os_type            : {{ host.operating_system }}
+      vm_name            : {{ host.vm_name }}
+{% endfor %}
+  vars:
+    node_tier       : {{ database_type }}
+    supported_tiers : [ {{ database_type }} ]

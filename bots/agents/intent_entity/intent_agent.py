@@ -2,23 +2,24 @@ import json
 import logging
 import os
 from pathlib import Path
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from autogen_agentchat import ConversableAgent
 from openai import AzureOpenAI
 from bots.common.state import StateStore
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
-class IntentAgent:
+class IntentAgent(ConversableAgent):
     """
     Agent to extract user intent and entities using Azure OpenAI with Jinja templating.
     """
 
     def __init__(
         self,
+        client: AzureOpenAI,
         state_store: StateStore,
     ):
-        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-3.5-turbo")
+        super().__init__(name="IntentAgent")
+
         self.logger = logging.getLogger(self.__class__.__name__)
         self.state = state_store
         current_dir = Path(__file__).parent
@@ -26,46 +27,34 @@ class IntentAgent:
         self.jinja_env = Environment(
             loader=FileSystemLoader(prompts_dir), autoescape=select_autoescape(["j2"])
         )
+        self.client = client
 
-        self.client = AzureOpenAI(
-            azure_endpoint=self.endpoint,
-            azure_deployment=self.deployment,
-            azure_ad_token_provider=get_bearer_token_provider(
-                DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-            ),
-            api_version="2025-04-01-preview",
-        )
-
-    def extract(self, text: str) -> tuple[str, dict]:
-        """
-        Calls Azure OpenAI to extract intent and entities from user text.
-
-        Returns:
-            intent (str): The detected intent label.
-            entities (dict): Mapping of entity names to values.
-        """
+    def on_message(self, message: str) -> str:
+        session_id = self.state.create_session(message)
         system_prompt = self.jinja_env.get_template("system_prompt.j2").render()
-        user_prompt = self.jinja_env.get_template("user_prompt.j2").render(message=text)
+        user_prompt = self.jinja_env.get_template("user_prompt.j2").render(message=message)
 
         response = self.client.chat.completions.create(
-            model=self.deployment,
+            deployment_id=self.deployment,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.0,
+            max_tokens=256,
         )
         content = response.choices[0].message.content.strip()
-        self.logger.info("OpenAI response: %s", content)
+        self.logger.debug(f"Raw intent response: {content}")
 
         try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError as e:
-            self.logger.error("Failed to parse JSON from OpenAI response", exc_info=e)
-            raise
+            result = json.loads(content)
+        except json.JSONDecodeError:
+            self.logger.error("Invalid JSON from intent model: %s", content)
+            return json.dumps({"intent": "unknown", "entities": {}})
 
-        intent = parsed.get("intent", "").strip()
-        entities = parsed.get("entities", {}) or {}
-        response = parsed.get("response", "").strip()
+        intent = result.get("intent", "")
+        entities = result.get("entities", {})
+        self.state.save_intent(session_id, intent)
+        self.state.save_entities(session_id, entities)
 
-        return intent, entities, response
+        return json.dumps({"session_id": session_id, "intent": intent, "entities": entities})
