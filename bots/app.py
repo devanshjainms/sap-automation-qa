@@ -58,7 +58,7 @@ async def main():
             final_message = chat.run_stream(task=user_input)
             async for message in final_message:
                 if isinstance(message, TextMessage):
-                    print(f"Bot: {message.text}")
+                    print(f"Bot: {message.content}")
                 elif isinstance(message, ChatMessage):
                     print(f"Chat: {message.content}")
         except Exception as e:

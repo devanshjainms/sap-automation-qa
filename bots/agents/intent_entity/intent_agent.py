@@ -42,7 +42,7 @@ class IntentAgent(BaseChatAgent):
         """Specify that this agent produces text messages."""
         return [TextMessage]
 
-    def on_messages(self, message: str) -> str:
+    def on_messages(self, message: str, cancellation_token=None) -> str:
         session_id = self.state.create_session(message)
         system_prompt = self.jinja_env.get_template("system_prompt.j2").render()
         user_prompt = self.jinja_env.get_template("user_prompt.j2").render(message=message)
