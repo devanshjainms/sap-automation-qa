@@ -5,11 +5,10 @@ import logging
 import yaml
 from openai import AzureOpenAI
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from autogen_agentchat.agents import BaseChatAgent
 from bots.common.state import StateStore
 
 
-class ConfigAgent(BaseChatAgent):
+class ConfigAgent:
     """
     ChatAgent that ensures SAP system configuration: either loads existing hosts.yaml
     and sap-parameters.yaml or creates them via Jinja templates, collecting any missing
@@ -30,98 +29,118 @@ class ConfigAgent(BaseChatAgent):
 
     def on_message(self, message: str) -> str:
         try:
-            data = json.loads(message)
+            ctx = json.loads(message)
         except json.JSONDecodeError:
             self.logger.error("ConfigAgent received invalid JSON: %s", message)
             return json.dumps({"error": "invalid_input"})
 
-        session_id = data.get("session_id")
-        entities = data.setdefault("entities", {})
-        awaiting = data.get("awaiting")
-        user_response = data.get("user_response") or data.get("prompt_response") or message
+        session_id = ctx.get("session_id")
+        entities = ctx.setdefault("entities", {})
+        stage = ctx.get("stage", "init")
+        user_text = ctx.get("text", message)
 
-        if awaiting == "system" or "system" not in entities:
-            entities["system"] = user_response.strip()
-            data["entities"] = entities
+        if "system" not in entities or stage == "ask_system":
+            ctx["stage"] = "ask_system"
+            return json.dumps({"prompt": "Which SAP system? e.g. 'DEV-WEEU-SAP01-X00'", **ctx})
 
         system = entities.get("system")
         system_path = os.path.join(self.system_base, system)
-        hosts_file = os.path.join(system_path, "hosts.yaml")
-        params_file = os.path.join(system_path, "sap-parameters.yaml")
-
+        hosts_yaml = os.path.join(system_path, "hosts.yaml")
+        params_yaml = os.path.join(system_path, "sap-parameters.yaml")
         if not os.path.isdir(system_path):
             os.makedirs(system_path, exist_ok=True)
 
-        if not os.path.isfile(hosts_file) or awaiting in ("jinja_vars", "create_confirm"):
-            if awaiting == "create_confirm":
-                if user_response.lower().startswith("y"):
-                    data["template_stage"] = "hosts"
-                    data["awaiting"] = "jinja_vars"
-                else:
-                    return json.dumps({"error": "template_creation_declined"})
-            if data.get("awaiting") == "jinja_vars":
-                stage = data.get("template_stage", "hosts")
-                template = self.jinja_env.get_template(f"{stage}.j2")
-                var_names = list(template.module.__dict__.keys())
-                prompt = (
-                    f"Extract values for variables {var_names} from this user input: '{user_response}'. "
-                    "Respond in JSON mapping variable names to their values."
+        if not os.path.isfile(hosts_yaml) or not os.path.isfile(params_yaml):
+            # Confirm creation
+            if stage == "init":
+                ctx["stage"] = "confirm"
+                return json.dumps(
+                    {
+                        "prompt": f"Config for '{system}' missing. Create from templates? (yes/no)",
+                        **ctx,
+                    }
                 )
+            if stage == "confirm":
+                if not user_text.lower().startswith("y"):
+                    return json.dumps({"error": "creation_declined"})
+                ctx["stage"] = "hosts"
+            # Process hosts template
+            if stage == "hosts":
+                tpl = self.jinja_env.get_template("hosts.j2")
+                vars_needed = list(tpl.module.__dict__.keys())
+                ctx["stage"] = "collect_hosts_vars"
+                return json.dumps(
+                    {
+                        "prompt": f"Provide values for hosts variables {vars_needed} in natural language.",
+                        **ctx,
+                    }
+                )
+            if stage == "collect_hosts_vars":
+                tpl = self.jinja_env.get_template("hosts.j2")
+                vars_needed = list(tpl.module.__dict__.keys())
+                prompt = f"Extract values for {vars_needed} from: '{user_text}' as JSON."
                 resp = self.client.chat.completions.create(
-                    deployment_id="gpt-3.5-turbo",
+                    deployment_id="gpt-4o",
                     messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a helpful assistant that extracts template variable values.",
-                        },
+                        {"role": "system", "content": "Extract template vars."},
                         {"role": "user", "content": prompt},
                     ],
                     temperature=0.0,
                 )
                 try:
-                    extracted = json.loads(resp.choices[0].message.content)
+                    var_map = json.loads(resp.choices[0].message.content)
                 except json.JSONDecodeError:
-                    return json.dumps(
-                        {"prompt": "Sorry, I couldn't extract the values. Please rephrase.", **data}
-                    )
-                rendered = template.render(**extracted)
-                filepath = hosts_file if stage == "hosts" else params_file
-                with open(filepath, "w") as f:
-                    f.write(rendered)
-                if stage == "hosts":
-                    data["template_stage"] = "sap-parameters"
-                    data["awaiting"] = "jinja_vars"
-                    return json.dumps(
-                        {
-                            "prompt": "Hosts.yaml created. Now provide values for sap-parameters template.",
-                            **data,
-                        }
-                    )
-                else:
-                    data["awaiting"] = None
+                    return json.dumps({"prompt": "Could not parse values. Please rephrase.", **ctx})
+                content = tpl.render(**var_map)
+                with open(hosts_yaml, "w") as f:
+                    f.write(content)
+                ctx["stage"] = "params"
+                return json.dumps(
+                    {"prompt": "hosts.yaml created. Now provide sap-parameters values.", **ctx}
+                )
+            # Process parameters template
+            if stage == "params":
+                tpl = self.jinja_env.get_template("sap-parameters.j2")
+                vars_needed = list(tpl.module.__dict__.keys())
+                ctx["stage"] = "collect_params_vars"
+                return json.dumps(
+                    {"prompt": f"Provide values for parameters variables {vars_needed}.", **ctx}
+                )
+            if stage == "collect_params_vars":
+                tpl = self.jinja_env.get_template("sap-parameters.j2")
+                vars_needed = list(tpl.module.__dict__.keys())
+                prompt = f"Extract values for {vars_needed} from: '{user_text}' as JSON."
+                resp = self.client.chat.completions.create(
+                    deployment_id="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "Extract template vars."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0.0,
+                )
+                try:
+                    var_map = json.loads(resp.choices[0].message.content)
+                except json.JSONDecodeError:
+                    return json.dumps({"prompt": "Could not parse values. Please rephrase.", **ctx})
+                content = tpl.render(**var_map)
+                with open(params_yaml, "w") as f:
+                    f.write(content)
+                ctx["stage"] = "done"
 
-        if os.path.isfile(hosts_file) and os.path.isfile(params_file):
-            try:
-                with open(hosts_file) as hf:
-                    hosts = yaml.safe_load(hf)
-                with open(params_file) as pf:
-                    params = yaml.safe_load(pf)
-            except Exception as e:
-                self.logger.error("YAML load error: %s", e)
-                return json.dumps({"error": "yaml_load_failed"})
-            self.state.save_entities(session_id, {"hosts": hosts, "parameters": params})
-            data["config_ready"] = True
-            data["hosts"] = hosts
-            data["parameters"] = params
-            # Signal final
-            return json.dumps(data)
+        # Finally load both YAMLs
+        try:
+            with open(hosts_yaml) as hf:
+                hosts = yaml.safe_load(hf)
+            with open(params_yaml) as pf:
+                params = yaml.safe_load(pf)
+        except Exception as e:
+            self.logger.error("YAML load error: %s", e)
+            return json.dumps({"error": "yaml_error"})
 
-        if "system" not in entities:
-            return json.dumps({"prompt": "Which SAP system identifier?", "awaiting": "system"})
-        return json.dumps(
-            {
-                "prompt": f"Missing configuration for {system}. Create from templates? (yes/no)",
-                "awaiting": "create_confirm",
-                **data,
-            }
-        )
+        # Persist and signal completion
+        self.state.save_entities(session_id, {"hosts": hosts, "parameters": params})
+        ctx["config_ready"] = True
+        ctx["hosts"] = hosts
+        ctx["parameters"] = params
+        # Indicate done with terminal marker
+        return json.dumps(ctx) + "DONE"
