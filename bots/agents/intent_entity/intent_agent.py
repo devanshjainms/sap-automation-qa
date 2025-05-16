@@ -20,6 +20,7 @@ class IntentAgent(BaseChatAgent):
         client: AzureOpenAI,
         state_store: StateStore,
     ):
+        super().__init__(name="IntentAgent", description="Extracts user intent and entities.")
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.state = state_store
