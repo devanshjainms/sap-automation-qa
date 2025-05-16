@@ -47,7 +47,7 @@ class IntentAgent:
         user_prompt = self.jinja_env.get_template("user_prompt.j2").render(message=text)
 
         response = self.client.chat.completions.create(
-            deployment_id=self.deployment,
+            model=self.deployment,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
