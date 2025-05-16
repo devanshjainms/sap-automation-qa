@@ -66,5 +66,6 @@ class IntentAgent:
 
         intent = parsed.get("intent", "").strip()
         entities = parsed.get("entities", {}) or {}
+        response = parsed.get("response", "").strip()
 
-        return intent, entities
+        return intent, entities, response

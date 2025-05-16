@@ -42,7 +42,7 @@ def main():
         logger.debug(f"Stored user message in session {session_id}")
 
         try:
-            intent, entities = intent_agent.extract(user_input)
+            intent, entities, response = intent_agent.extract(user_input)
         except Exception as e:
             logger.error("Intent extraction failed", exc_info=e)
             print("Sorry, I couldn't understand that. Please try again.")
@@ -53,6 +53,7 @@ def main():
 
         # Display results
         print(f"Intent: {intent}")
+        print(f"Response: {response}")
         if entities:
             print("Entities:")
             for name, value in entities.items():
