@@ -29,6 +29,7 @@ class IntentAgent:
             azure_endpoint=self.endpoint,
             azure_deployment=self.deployment,
             azure_ad_token=credential,
+            api_version="2025-04-01-preview",
         )
 
     def extract(self, text: str) -> tuple[str, dict]:
