@@ -7,7 +7,7 @@ from bots.common.state import StateStore
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
-class IntentAgent():
+class IntentAgent:
     """
     Agent to extract user intent and entities using Azure OpenAI with Jinja templating.
     """
@@ -17,7 +17,6 @@ class IntentAgent():
         client: AzureOpenAI,
         state_store: StateStore,
     ):
-        super().__init__(name="IntentAgent")
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.state = state_store

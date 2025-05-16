@@ -16,7 +16,6 @@ class ConfigAgent:
     """
 
     def __init__(self, state_store: StateStore, client: AzureOpenAI):
-        super().__init__(name="ConfigAgent")
         self.state = state_store
         self.logger = logging.getLogger(self.__class__.__name__)
         self.workspace_root = os.getenv("STAF_WORKSPACE_ROOT", os.getcwd())
