@@ -54,7 +54,6 @@ class IntentAgent:
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.0,
-            max_tokens=256,
         )
         content = response.choices[0].message.content.strip()
 

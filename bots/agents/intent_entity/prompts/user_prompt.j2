@@ -1,2 +1,10 @@
-Extract intent and any 'system' identifiers as JSON with keys 'intent' (string) and 'entities' (object). Only respond with valid JSON.
+{# bots/agents/intent_entity/prompts/user_prompt.j2 #}
+You must reply with valid JSON **and nothing else**, structuring it like:
+{
+  "intent": "your_intent_here",
+  "entities": {
+    "system": "PRD",
+    "other_entity": "value"
+  }
+}
 Message: '{{ message }}'
