@@ -75,8 +75,5 @@ class IntentAgent(BaseChatAgent):
         payload = json.dumps({"session_id": session_id, "intent": intent, "entities": entities})
         return ChatMessage(role="agent", content=payload)
 
-    def on_messages_stream(self, messages: List[ChatMessage]) -> ChatMessage:
-        """
-        Streaming not required; delegate to on_messages.
-        """
-        return self.on_messages(messages)
+    def on_messages_stream(self, messages, cancellation_token):
+        return super().on_messages_stream(messages, cancellation_token)
