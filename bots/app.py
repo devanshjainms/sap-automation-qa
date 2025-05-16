@@ -1,8 +1,10 @@
+import asyncio
 import logging
 import os
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AzureOpenAI
 from autogen_agentchat.teams import RoundRobinGroupChat
+from autogen_agentchat.messages import ChatMessage, TextMessage
 from autogen_agentchat.conditions import TextMentionTermination
 from bots.common.state import StateStore
 from bots.agents.intent_entity.intent_agent import IntentAgent
@@ -18,7 +20,7 @@ def configure_logging():
     )
 
 
-def main():
+async def main():
     """
     Main entry point for the STAF Chat CLI application.
     """
@@ -54,12 +56,16 @@ def main():
 
         try:
             final_message = chat.run_stream(task=user_input)
+            async for message in final_message:
+                if isinstance(message, TextMessage):
+                    print(f"Bot: {message.text}")
+                elif isinstance(message, ChatMessage):
+                    print(f"Chat: {message.content}")
         except Exception as e:
             logger.error("Chat execution error", exc_info=e)
             print("An error occurred during processing. Please try again.")
             continue
-        print(final_message)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
