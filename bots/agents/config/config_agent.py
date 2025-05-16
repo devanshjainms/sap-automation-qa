@@ -3,13 +3,13 @@ import os
 import json
 import logging
 import yaml
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-from autogen_agentchat.base import ChatAgent
-from bots.common.state import StateStore
 from openai import AzureOpenAI
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from autogen_agentchat.agents import BaseChatAgent
+from bots.common.state import StateStore
 
 
-class ConfigAgent(ChatAgent):
+class ConfigAgent(BaseChatAgent):
     """
     ChatAgent that ensures SAP system configuration: either loads existing hosts.yaml
     and sap-parameters.yaml or creates them via Jinja templates, collecting any missing

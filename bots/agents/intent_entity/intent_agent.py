@@ -2,13 +2,13 @@ import json
 import logging
 import os
 from pathlib import Path
-from autogen_agentchat.base import ChatAgent
+from autogen_agentchat.base import BaseChatAgent
 from openai import AzureOpenAI
 from bots.common.state import StateStore
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
-class IntentAgent(ChatAgent):
+class IntentAgent(BaseChatAgent):
     """
     Agent to extract user intent and entities using Azure OpenAI with Jinja templating.
     """
