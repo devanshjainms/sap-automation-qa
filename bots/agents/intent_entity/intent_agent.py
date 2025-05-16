@@ -56,6 +56,7 @@ class IntentAgent:
             temperature=0.0,
         )
         content = response.choices[0].message.content.strip()
+        self.logger.info("OpenAI response: %s", content)
 
         try:
             parsed = json.loads(content)
