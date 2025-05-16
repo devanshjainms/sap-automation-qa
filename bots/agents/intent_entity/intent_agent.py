@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from azure.identity import DefaultAzureCredential
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AzureOpenAI
 from bots.common.state import StateStore
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -27,11 +27,12 @@ class IntentAgent:
             loader=FileSystemLoader(prompts_dir), autoescape=select_autoescape(["j2"])
         )
 
-        credential = DefaultAzureCredential()
         self.client = AzureOpenAI(
             azure_endpoint=self.endpoint,
             azure_deployment=self.deployment,
-            azure_ad_token=credential,
+            azure_ad_token_provider=get_bearer_token_provider(
+                DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+            ),
             api_version="2025-04-01-preview",
         )
 
