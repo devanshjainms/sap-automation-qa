@@ -36,6 +36,7 @@ class ConfigAgent(BaseChatAgent):
         """
         self._context.clear()
 
+    @property
     def produced_message_types(self) -> list:
         """
         Specify that this agent produces text messages.

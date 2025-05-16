@@ -36,7 +36,8 @@ class IntentAgent(BaseChatAgent):
     def on_reset(self) -> None:
         """Reset internal state for a new conversation."""
         self._buffer.clear()
-
+    
+    @property
     def produced_message_types(self) -> List[TextMessage]:
         """Specify that this agent produces text messages."""
         return [TextMessage]
