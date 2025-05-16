@@ -4,7 +4,7 @@ import json
 import logging
 import yaml
 from openai import AzureOpenAI
-from autogen_agentchat.messages import ChatMessage, TextMessage
+from autogen_agentchat.messages import TextMessage
 from autogen_agentchat.agents import BaseChatAgent
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from bots.common.state import StateStore
@@ -161,7 +161,7 @@ class ConfigAgent(BaseChatAgent):
         ctx["parameters"] = params
         # Indicate done with terminal marker
         payload = json.dumps(ctx) + "DONE"
-        return ChatMessage(role="agent", content=payload)
+        return TextMessage(source="agent", content=payload)
 
     def on_messages_stream(self, messages, cancellation_token):
         return super().on_messages_stream(messages, cancellation_token)

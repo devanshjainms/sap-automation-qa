@@ -66,7 +66,7 @@ class IntentAgent(BaseChatAgent):
             result = json.loads(content)
         except json.JSONDecodeError:
             self.logger.error("Invalid JSON from intent model: %s", content)
-            return ChatMessage(
+            return TextMessage(
                 role="agent", content=json.dumps({"intent": "unknown", "entities": {}})
             )
 
@@ -76,7 +76,7 @@ class IntentAgent(BaseChatAgent):
         self.state.save_entities(session_id, entities)
 
         payload = json.dumps({"session_id": session_id, "intent": intent, "entities": entities})
-        return ChatMessage(role="agent", content=payload)
+        return TextMessage(source="agent", content=payload)
 
     def on_messages_stream(self, messages, cancellation_token):
         return super().on_messages_stream(messages, cancellation_token)
