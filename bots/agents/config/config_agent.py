@@ -44,7 +44,7 @@ class ConfigAgent(BaseChatAgent):
         """
         return [TextMessage]
 
-    def on_messages(self, message: str, cancellation_token=None) -> str:
+    async def on_messages(self, message: str, cancellation_token=None) -> str:
         try:
             ctx = json.loads(message)
         except json.JSONDecodeError:

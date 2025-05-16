@@ -42,7 +42,7 @@ class IntentAgent(BaseChatAgent):
         """Specify that this agent produces text messages."""
         return [TextMessage]
 
-    def on_messages(self, message: str, cancellation_token=None) -> str:
+    async def on_messages(self, message: str, cancellation_token=None) -> str:
         if hasattr(message, "content"):
             user_text = message.content
         else:
