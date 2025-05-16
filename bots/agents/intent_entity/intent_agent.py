@@ -15,17 +15,13 @@ class IntentAgent:
     def __init__(
         self,
         state_store: StateStore,
-        template_dir: str = None,
     ):
         self.endpoint = os.getenv("STAF_OPENAI_ENDPOINT")
         self.deployment = os.getenv("STAF_OPENAI_DEPLOYMENT", "gpt-3.5-turbo")
         self.logger = logging.getLogger(self.__class__.__name__)
         self.state = state_store
-
-        if not template_dir or not os.path.isdir(template_dir):
-            raise ValueError(f"Invalid template directory: {template_dir}")
         self.jinja_env = Environment(
-            loader=FileSystemLoader(template_dir), autoescape=select_autoescape(["j2"])
+            loader=FileSystemLoader("prompts"), autoescape=select_autoescape(["j2"])
         )
 
         credential = DefaultAzureCredential()
