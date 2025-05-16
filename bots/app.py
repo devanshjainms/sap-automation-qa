@@ -3,9 +3,10 @@ import logging
 import os
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AzureOpenAI
-from autogen_agentchat.teams import RoundRobinGroupChat
-from autogen_agentchat.messages import ChatMessage, TextMessage
+from autogen_agentchat.base import TaskResult
 from autogen_agentchat.conditions import TextMentionTermination
+from autogen_agentchat.messages import ChatMessage
+from autogen_agentchat.teams import RoundRobinGroupChat
 from bots.common.state import StateStore
 from bots.agents.intent_entity.intent_agent import IntentAgent
 from bots.agents.config.config_agent import ConfigAgent
@@ -57,7 +58,7 @@ async def main():
         try:
             final_message = chat.run_stream(task=user_input)
             async for message in final_message:
-                if isinstance(message, TextMessage):
+                if isinstance(message, TaskResult):
                     print(f"Bot: {message.content}")
                 elif isinstance(message, ChatMessage):
                     print(f"Chat: {message.content}")
