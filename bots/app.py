@@ -5,7 +5,7 @@ from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AzureOpenAI
 from autogen_agentchat.base import TaskResult
 from autogen_agentchat.conditions import TextMentionTermination
-from autogen_agentchat.messages import ChatMessage
+from autogen_agentchat.messages import AgentEvent
 from autogen_agentchat.teams import RoundRobinGroupChat
 from bots.common.state import StateStore
 from bots.agents.intent_entity.intent_agent import IntentAgent
@@ -59,8 +59,8 @@ async def main():
             final_message = chat.run_stream(task=user_input)
             async for message in final_message:
                 if isinstance(message, TaskResult):
-                    print(f"Bot: {message.content}")
-                elif isinstance(message, ChatMessage):
+                    print(f"Bot: {message.messages}")
+                else:
                     print(f"Chat: {message.content}")
         except Exception as e:
             logger.error("Chat execution error", exc_info=e)
