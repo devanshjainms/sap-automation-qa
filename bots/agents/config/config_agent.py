@@ -4,11 +4,13 @@ import json
 import logging
 import yaml
 from openai import AzureOpenAI
+from autogen_agentchat.messages import ChatMessage, TextMessage
+from autogen_agentchat.agents import BaseChatAgent
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from bots.common.state import StateStore
 
 
-class ConfigAgent:
+class ConfigAgent(BaseChatAgent):
     """
     ChatAgent that ensures SAP system configuration: either loads existing hosts.yaml
     and sap-parameters.yaml or creates them via Jinja templates, collecting any missing
@@ -25,8 +27,21 @@ class ConfigAgent:
             loader=FileSystemLoader(template_dir), autoescape=select_autoescape(["j2"])
         )
         self.client = client
+        self._context: dict = {}
 
-    def on_message(self, message: str) -> str:
+    def on_reset(self) -> None:
+        """
+        Reset internal state for new conversation.
+        """
+        self._context.clear()
+
+    def produced_message_types(self) -> list:
+        """
+        Specify that this agent produces text messages.
+        """
+        return [TextMessage]
+
+    def on_messages(self, message: str) -> str:
         try:
             ctx = json.loads(message)
         except json.JSONDecodeError:
@@ -142,4 +157,8 @@ class ConfigAgent:
         ctx["hosts"] = hosts
         ctx["parameters"] = params
         # Indicate done with terminal marker
-        return json.dumps(ctx) + "DONE"
+        payload = json.dumps(ctx) + "DONE"
+        return ChatMessage(role="agent", content=payload)
+
+    def on_messages_stream(self, messages, cancellation_token):
+        return super().on_messages_stream(messages, cancellation_token)
