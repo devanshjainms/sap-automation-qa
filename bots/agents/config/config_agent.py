@@ -97,7 +97,7 @@ class ConfigAgent(BaseChatAgent):
                 vars_needed = list(tpl.module.__dict__.keys())
                 prompt = f"Extract values for {vars_needed} from: '{user_text}' as JSON."
                 resp = self.client.chat.completions.create(
-                    deployment_id=self.deployment,
+                    model=self.deployment,
                     messages=[
                         {"role": "system", "content": "Extract template vars."},
                         {"role": "user", "content": prompt},
@@ -128,7 +128,7 @@ class ConfigAgent(BaseChatAgent):
                 vars_needed = list(tpl.module.__dict__.keys())
                 prompt = f"Extract values for {vars_needed} from: '{user_text}' as JSON."
                 resp = self.client.chat.completions.create(
-                    deployment_id=self.deployment,
+                    model=self.deployment,
                     messages=[
                         {"role": "system", "content": "Extract template vars."},
                         {"role": "user", "content": prompt},

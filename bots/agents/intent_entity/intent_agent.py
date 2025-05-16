@@ -52,13 +52,12 @@ class IntentAgent(BaseChatAgent):
         user_prompt = self.jinja_env.get_template("user_prompt.j2").render(message=user_text)
 
         response = self.client.chat.completions.create(
-            deployment_id=self.deployment,
+            model=self.deployment,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.0,
-            max_tokens=256,
         )
         content = response.choices[0].message.content.strip()
         self.logger.debug(f"Raw intent response: {content}")
