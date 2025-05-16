@@ -45,21 +45,37 @@ class ConfigAgent(BaseChatAgent):
         """
         return [TextMessage]
 
-    async def on_messages(self, messages: str, cancellation_token=None) -> Response:
+    async def on_messages(self, messages, cancellation_token=None):
+        # Accepts a list of messages, not a string
+        if isinstance(messages, list) and messages:
+            message = messages[0]
+            if hasattr(message, "content"):
+                user_text = message.content
+            else:
+                user_text = str(message)
+        else:
+            user_text = str(messages)
         try:
-            ctx = json.loads(messages)
+            ctx = json.loads(user_text)
         except json.JSONDecodeError:
-            self.logger.error("ConfigAgent received invalid JSON: %s", messages)
-            return json.dumps({"error": "invalid_input"})
+            self.logger.error("ConfigAgent received invalid JSON: %s", user_text)
+            return [TextMessage(source="agent", content=json.dumps({"error": "invalid_input"}))]
 
         session_id = ctx.get("session_id")
         entities = ctx.setdefault("entities", {})
         stage = ctx.get("stage", "init")
-        user_text = ctx.get("text", messages)
+        user_text = ctx.get("text", user_text)
 
         if "system" not in entities or stage == "ask_system":
             ctx["stage"] = "ask_system"
-            return json.dumps({"prompt": "Which SAP system? e.g. 'DEV-WEEU-SAP01-X00'", **ctx})
+            return [
+                TextMessage(
+                    source="agent",
+                    content=json.dumps(
+                        {"prompt": "Which SAP system? e.g. 'DEV-WEEU-SAP01-X00'", **ctx}
+                    ),
+                )
+            ]
 
         system = entities.get("system")
         system_path = os.path.join(self.system_base, system)
@@ -72,27 +88,41 @@ class ConfigAgent(BaseChatAgent):
             # Confirm creation
             if stage == "init":
                 ctx["stage"] = "confirm"
-                return json.dumps(
-                    {
-                        "prompt": f"Config for '{system}' missing. Create from templates? (yes/no)",
-                        **ctx,
-                    }
-                )
+                return [
+                    TextMessage(
+                        source="agent",
+                        content=json.dumps(
+                            {
+                                "prompt": f"Config for '{system}' missing. Create from templates? (yes/no)",
+                                **ctx,
+                            }
+                        ),
+                    )
+                ]
             if stage == "confirm":
                 if not user_text.lower().startswith("y"):
-                    return json.dumps({"error": "creation_declined"})
+                    return [
+                        TextMessage(
+                            source="agent", content=json.dumps({"error": "creation_declined"})
+                        )
+                    ]
                 ctx["stage"] = "hosts"
             # Process hosts template
             if stage == "hosts":
                 tpl = self.jinja_env.get_template("hosts.j2")
                 vars_needed = list(tpl.module.__dict__.keys())
                 ctx["stage"] = "collect_hosts_vars"
-                return json.dumps(
-                    {
-                        "prompt": f"Provide values for hosts variables {vars_needed} in natural language.",
-                        **ctx,
-                    }
-                )
+                return [
+                    TextMessage(
+                        source="agent",
+                        content=json.dumps(
+                            {
+                                "prompt": f"Provide values for hosts variables {vars_needed} in natural language.",
+                                **ctx,
+                            }
+                        ),
+                    )
+                ]
             if stage == "collect_hosts_vars":
                 tpl = self.jinja_env.get_template("hosts.j2")
                 vars_needed = list(tpl.module.__dict__.keys())
@@ -108,22 +138,45 @@ class ConfigAgent(BaseChatAgent):
                 try:
                     var_map = json.loads(resp.choices[0].message.content)
                 except json.JSONDecodeError:
-                    return json.dumps({"prompt": "Could not parse values. Please rephrase.", **ctx})
+                    return [
+                        TextMessage(
+                            source="agent",
+                            content=json.dumps(
+                                {"prompt": "Could not parse values. Please rephrase.", **ctx}
+                            ),
+                        )
+                    ]
                 content = tpl.render(**var_map)
                 with open(hosts_yaml, "w") as f:
                     f.write(content)
                 ctx["stage"] = "params"
-                return json.dumps(
-                    {"prompt": "hosts.yaml created. Now provide sap-parameters values.", **ctx}
-                )
+                return [
+                    TextMessage(
+                        source="agent",
+                        content=json.dumps(
+                            {
+                                "prompt": "hosts.yaml created. Now provide sap-parameters values.",
+                                **ctx,
+                            }
+                        ),
+                    )
+                ]
             # Process parameters template
             if stage == "params":
                 tpl = self.jinja_env.get_template("sap-parameters.j2")
                 vars_needed = list(tpl.module.__dict__.keys())
                 ctx["stage"] = "collect_params_vars"
-                return json.dumps(
-                    {"prompt": f"Provide values for parameters variables {vars_needed}.", **ctx}
-                )
+                return [
+                    TextMessage(
+                        source="agent",
+                        content=json.dumps(
+                            {
+                                "prompt": f"Provide values for parameters variables {vars_needed}.",
+                                **ctx,
+                            }
+                        ),
+                    )
+                ]
             if stage == "collect_params_vars":
                 tpl = self.jinja_env.get_template("sap-parameters.j2")
                 vars_needed = list(tpl.module.__dict__.keys())
@@ -139,7 +192,14 @@ class ConfigAgent(BaseChatAgent):
                 try:
                     var_map = json.loads(resp.choices[0].message.content)
                 except json.JSONDecodeError:
-                    return json.dumps({"prompt": "Could not parse values. Please rephrase.", **ctx})
+                    return [
+                        TextMessage(
+                            source="agent",
+                            content=json.dumps(
+                                {"prompt": "Could not parse values. Please rephrase.", **ctx}
+                            ),
+                        )
+                    ]
                 content = tpl.render(**var_map)
                 with open(params_yaml, "w") as f:
                     f.write(content)
@@ -153,12 +213,12 @@ class ConfigAgent(BaseChatAgent):
                 params = yaml.safe_load(pf)
         except Exception as e:
             self.logger.error("YAML load error: %s", e)
-            return Response(
-                chat_message=TextMessage(
-                    content=json.dumps({"error": "yaml_load_error", "details": str(e)}),
+            return [
+                TextMessage(
                     source="agent",
+                    content=json.dumps({"error": "yaml_load_error", "details": str(e)}),
                 )
-            )
+            ]
 
         # Persist and signal completion
         self.state.save_entities(session_id, {"hosts": hosts, "parameters": params})
@@ -167,9 +227,7 @@ class ConfigAgent(BaseChatAgent):
         ctx["parameters"] = params
         # Indicate done with terminal marker
         payload = json.dumps(ctx) + "DONE"
-        return Response(
-            chat_message=TextMessage(content=payload, source="agent"),
-        )
+        return [TextMessage(source="agent", content=payload)]
 
     def on_messages_stream(self, messages, cancellation_token):
         return super().on_messages_stream(messages, cancellation_token)

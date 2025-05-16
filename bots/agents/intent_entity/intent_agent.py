@@ -43,9 +43,14 @@ class IntentAgent(BaseChatAgent):
         """Specify that this agent produces text messages."""
         return [TextMessage]
 
-    async def on_messages(self, messages: str, cancellation_token=None) -> str:
-        if hasattr(messages, "content"):
-            user_text = messages.content
+    async def on_messages(self, messages, cancellation_token=None):
+        # Accepts a list of messages, not a string
+        if isinstance(messages, list) and messages:
+            message = messages[0]
+            if hasattr(message, "content"):
+                user_text = message.content
+            else:
+                user_text = str(message)
         else:
             user_text = str(messages)
         session_id = self.state.create_session(user_text)
@@ -67,11 +72,11 @@ class IntentAgent(BaseChatAgent):
             result = json.loads(content)
         except json.JSONDecodeError:
             self.logger.error("Invalid JSON from intent model: %s", content)
-            return Response(
-                chat_message=TextMessage(
-                    role="agent", content=json.dumps({"intent": "unknown", "entities": {}})
+            return [
+                TextMessage(
+                    source="agent", content=json.dumps({"intent": "unknown", "entities": {}})
                 )
-            )
+            ]
 
         intent = result.get("intent", "")
         entities = result.get("entities", {})
@@ -79,7 +84,7 @@ class IntentAgent(BaseChatAgent):
         self.state.save_entities(session_id, entities)
 
         payload = json.dumps({"session_id": session_id, "intent": intent, "entities": entities})
-        return Response(chat_message=TextMessage(source="agent", content=payload))
+        return [TextMessage(source="agent", content=payload)]
 
     def on_messages_stream(self, messages, cancellation_token):
         return super().on_messages_stream(messages, cancellation_token)
