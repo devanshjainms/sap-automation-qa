@@ -30,7 +30,7 @@ class IntentAgent(BaseChatAgent):
             loader=FileSystemLoader(prompts_dir), autoescape=select_autoescape(["j2"])
         )
         self.client = client
-        self.deployment = "gpt-3.5-turbo"
+        self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
         self._buffer: List[ChatMessage] = []
 
     def on_reset(self) -> None:
