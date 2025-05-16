@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List
 from openai import AzureOpenAI
 from autogen_agentchat.messages import ChatMessage, TextMessage
+from autogen_agentchat.base import Response
 from autogen_agentchat.agents import BaseChatAgent
 from bots.common.state import StateStore
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -42,11 +43,11 @@ class IntentAgent(BaseChatAgent):
         """Specify that this agent produces text messages."""
         return [TextMessage]
 
-    async def on_messages(self, message: str, cancellation_token=None) -> str:
-        if hasattr(message, "content"):
-            user_text = message.content
+    async def on_messages(self, messages: str, cancellation_token=None) -> str:
+        if hasattr(messages, "content"):
+            user_text = messages.content
         else:
-            user_text = str(message)
+            user_text = str(messages)
         session_id = self.state.create_session(user_text)
         system_prompt = self.jinja_env.get_template("system_prompt.j2").render()
         user_prompt = self.jinja_env.get_template("user_prompt.j2").render(message=user_text)
@@ -66,8 +67,10 @@ class IntentAgent(BaseChatAgent):
             result = json.loads(content)
         except json.JSONDecodeError:
             self.logger.error("Invalid JSON from intent model: %s", content)
-            return TextMessage(
-                role="agent", content=json.dumps({"intent": "unknown", "entities": {}})
+            return Response(
+                chat_message=TextMessage(
+                    role="agent", content=json.dumps({"intent": "unknown", "entities": {}})
+                )
             )
 
         intent = result.get("intent", "")
@@ -76,7 +79,7 @@ class IntentAgent(BaseChatAgent):
         self.state.save_entities(session_id, entities)
 
         payload = json.dumps({"session_id": session_id, "intent": intent, "entities": entities})
-        return TextMessage(source="agent", content=payload)
+        return Response(chat_message=TextMessage(source="agent", content=payload))
 
     def on_messages_stream(self, messages, cancellation_token):
         return super().on_messages_stream(messages, cancellation_token)

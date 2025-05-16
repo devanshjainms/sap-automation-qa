@@ -5,6 +5,7 @@ import logging
 import yaml
 from openai import AzureOpenAI
 from autogen_agentchat.messages import TextMessage
+from autogen_agentchat.base import Response
 from autogen_agentchat.agents import BaseChatAgent
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from bots.common.state import StateStore
@@ -44,17 +45,17 @@ class ConfigAgent(BaseChatAgent):
         """
         return [TextMessage]
 
-    async def on_messages(self, message: str, cancellation_token=None) -> str:
+    async def on_messages(self, messages: str, cancellation_token=None) -> Response:
         try:
-            ctx = json.loads(message)
+            ctx = json.loads(messages)
         except json.JSONDecodeError:
-            self.logger.error("ConfigAgent received invalid JSON: %s", message)
+            self.logger.error("ConfigAgent received invalid JSON: %s", messages)
             return json.dumps({"error": "invalid_input"})
 
         session_id = ctx.get("session_id")
         entities = ctx.setdefault("entities", {})
         stage = ctx.get("stage", "init")
-        user_text = ctx.get("text", message)
+        user_text = ctx.get("text", messages)
 
         if "system" not in entities or stage == "ask_system":
             ctx["stage"] = "ask_system"
@@ -152,7 +153,12 @@ class ConfigAgent(BaseChatAgent):
                 params = yaml.safe_load(pf)
         except Exception as e:
             self.logger.error("YAML load error: %s", e)
-            return json.dumps({"error": "yaml_error"})
+            return Response(
+                chat_message=TextMessage(
+                    content=json.dumps({"error": "yaml_load_error", "details": str(e)}),
+                    source="agent",
+                )
+            )
 
         # Persist and signal completion
         self.state.save_entities(session_id, {"hosts": hosts, "parameters": params})
@@ -161,7 +167,9 @@ class ConfigAgent(BaseChatAgent):
         ctx["parameters"] = params
         # Indicate done with terminal marker
         payload = json.dumps(ctx) + "DONE"
-        return TextMessage(source="agent", content=payload)
+        return Response(
+            chat_message=TextMessage(content=payload, source="agent"),
+        )
 
     def on_messages_stream(self, messages, cancellation_token):
         return super().on_messages_stream(messages, cancellation_token)
