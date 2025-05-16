@@ -2,13 +2,13 @@ import json
 import logging
 import os
 from pathlib import Path
-from autogen_agentchat import ConversableAgent
+from autogen_agentchat.base import ChatAgent
 from openai import AzureOpenAI
 from bots.common.state import StateStore
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
-class IntentAgent(ConversableAgent):
+class IntentAgent(ChatAgent):
     """
     Agent to extract user intent and entities using Azure OpenAI with Jinja templating.
     """
@@ -28,6 +28,7 @@ class IntentAgent(ConversableAgent):
             loader=FileSystemLoader(prompts_dir), autoescape=select_autoescape(["j2"])
         )
         self.client = client
+        self.deployment = "gpt-3.5-turbo"
 
     def on_message(self, message: str) -> str:
         session_id = self.state.create_session(message)

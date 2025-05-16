@@ -4,14 +4,14 @@ import json
 import logging
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from autogen_agentchat import ConversableAgent
+from autogen_agentchat.base import ChatAgent
 from bots.common.state import StateStore
 from openai import AzureOpenAI
 
 
-class ConfigAgent(ConversableAgent):
+class ConfigAgent(ChatAgent):
     """
-    ConversableAgent that ensures SAP system configuration: either loads existing hosts.yaml
+    ChatAgent that ensures SAP system configuration: either loads existing hosts.yaml
     and sap-parameters.yaml or creates them via Jinja templates, collecting any missing
     variables interactively (via natural language) before signaling readiness.
     """
@@ -68,7 +68,7 @@ class ConfigAgent(ConversableAgent):
                     "Respond in JSON mapping variable names to their values."
                 )
                 resp = self.client.chat.completions.create(
-                    deployment_id=self.deployment,
+                    deployment_id="gpt-3.5-turbo",
                     messages=[
                         {
                             "role": "system",
