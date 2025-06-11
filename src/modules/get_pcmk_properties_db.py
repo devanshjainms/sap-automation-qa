@@ -403,30 +403,16 @@ class HAClusterValidator(SapAutomationQA):
         global_ini_defaults = (
             self.constants["GLOBAL_INI"].get(self.os_type, {}).get(self.saphanasr_provider, {})
         )
-        self.log(
-            logging.INFO, f"Default global.ini parameters for validation: {global_ini_defaults}"
-        )
-
         with open(
             f"/usr/sap/{self.sid}/SYS/global/hdb/custom/config/global.ini",
             "r",
             encoding="utf-8",
         ) as file:
             global_ini_content = file.read().splitlines()
-
-        self.log(
-            logging.INFO, f"Global.ini content: {global_ini_content}"
-        )
-
         section_start = (
             global_ini_content.index("[ha_dr_provider_sushanasr]")
             if self.saphanasr_provider == HanaSRProvider.ANGI
             else global_ini_content.index("[ha_dr_provider_SAPHanaSR]")
-        )
-
-        self.log(
-            logging.INFO,
-            f"Section start index for global.ini: {section_start}",
         )
         properties_slice = global_ini_content[section_start + 1 : section_start + 4]
 
@@ -436,12 +422,20 @@ class HAClusterValidator(SapAutomationQA):
             for key, sep, val in [line.partition("=")]
             if sep
         }
+        self.log(
+            logging.INFO,
+            f"Global.ini properties parsed: {global_ini_properties}",
+        )
 
         for param_name, expected_value in global_ini_defaults.items():
             value = global_ini_properties.get(param_name, "")
             if isinstance(expected_value, list):
                 if value in expected_value:
                     expected_value = value
+            self.log(
+                logging.INFO,
+                f"param_name: {param_name}, value: {value}, expected_value: {expected_value}",
+            )
             parameters.append(
                 self._create_parameter(
                     category="global_ini",
