@@ -401,7 +401,9 @@ class HAClusterValidator(SapAutomationQA):
         """
         parameters = []
         global_ini_defaults = (
-            self.constants["GLOBAL_INI"].get(self.os_type, {}).get(self.saphanasr_provider, {})
+            self.constants["GLOBAL_INI"]
+            .get(self.os_type, {})
+            .get(self.saphanasr_provider.value, {})
         )
         with open(
             f"/usr/sap/{self.sid}/SYS/global/hdb/custom/config/global.ini",
@@ -422,10 +424,6 @@ class HAClusterValidator(SapAutomationQA):
             for key, sep, val in [line.partition("=")]
             if sep
         }
-        self.log(
-            logging.INFO,
-            f"Global.ini properties parsed: {global_ini_properties}",
-        )
 
         for param_name, expected_value in global_ini_defaults.items():
             value = global_ini_properties.get(param_name, "")
