@@ -188,6 +188,7 @@ class HAClusterValidator(SapAutomationQA):
         fencing_mechanism: str,
         virtual_machine_name: str,
         constants: dict,
+        saphanasr_provider: str,
         category=None,
     ):
         super().__init__()
@@ -199,6 +200,7 @@ class HAClusterValidator(SapAutomationQA):
         self.fencing_mechanism = fencing_mechanism
         self.virtual_machine_name = virtual_machine_name
         self.constants = constants
+        self.saphanasr_provider = saphanasr_provider
         self.parse_ha_cluster_config()
 
     def _get_expected_value(self, category, name):
@@ -387,7 +389,9 @@ class HAClusterValidator(SapAutomationQA):
         :rtype: list
         """
         parameters = []
-        global_ini_defaults = self.constants["GLOBAL_INI"].get(self.os_type, {})
+        global_ini_defaults = (
+            self.constants["GLOBAL_INI"].get(self.os_type, {}).get(self.saphanasr_provider, {})
+        )
 
         with open(
             f"/usr/sap/{self.sid}/SYS/global/hdb/custom/config/global.ini",
@@ -617,6 +621,7 @@ def main() -> None:
             fencing_mechanism=dict(type="str"),
             os_version=dict(type="str"),
             pcmk_constants=dict(type="dict"),
+            saphanasr_provider=dict(type="str"),
             filter=dict(type="str", required=False, default="os_family"),
         )
     )
@@ -629,6 +634,7 @@ def main() -> None:
         virtual_machine_name=module.params["virtual_machine_name"],
         fencing_mechanism=module.params["fencing_mechanism"],
         constants=module.params["pcmk_constants"],
+        saphanasr_provider=module.params["saphanasr_provider"],
     )
 
     module.exit_json(**validator.get_result())
