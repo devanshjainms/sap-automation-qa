@@ -165,29 +165,6 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
         except Exception:
             self.result["AUTOMATED_REGISTER"] = "unknown"
 
-    def _get_provider_specific_attributes(self, provider: HanaSRProvider) -> Dict[str, str]:
-        """
-        Returns provider-specific attribute mappings.
-
-        :param provider: The detected HANA SR provider
-        :return: Dictionary mapping generic names to provider-specific attribute names
-        """
-        if provider == HanaSRProvider.ANGI:
-            return {
-                "clone_state": f"hana_{self.database_sid}_roles",
-                "sync_state": f"hana_{self.database_sid}_sync_state",
-                "operation_mode": f"hana_{self.database_sid}_op_mode",
-                "replication_mode": f"hana_{self.database_sid}_srmode",
-                "site_name": f"hana_{self.database_sid}_site",
-            }
-        else:
-            return {
-                "clone_state": f"hana_{self.database_sid}_clone_state",
-                "sync_state": f"hana_{self.database_sid}_sync_state",
-                "operation_mode": f"hana_{self.database_sid}_op_mode",
-                "replication_mode": f"hana_{self.database_sid}_srmode",
-                "site_name": f"hana_{self.database_sid}_site",
-            }
 
     def _process_node_attributes(self, cluster_status_xml: ET.Element) -> Dict[str, Any]:
         """

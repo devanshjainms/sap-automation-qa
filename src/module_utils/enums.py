@@ -35,6 +35,8 @@ class OperatingSystemFamily(Enum):
 
     REDHAT = "REDHAT"
     SUSE = "SUSE"
+    DEBIAN = "DEBIAN"
+    WINDOWS = "WINDOWS"
 
 
 class HanaSRProvider(Enum):

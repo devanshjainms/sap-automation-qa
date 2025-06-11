@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from typing import Dict, Any
 import pytest
 from src.module_utils.get_cluster_status import BaseClusterStatusChecker
+from src.module_utils.enums import OperatingSystemFamily
 
 
 class TestableBaseClusterChecker(BaseClusterStatusChecker):
@@ -64,7 +65,7 @@ class TestBaseClusterStatusChecker:
         :return: Instance of TestableBaseClusterChecker.
         :rtype: TestableBaseClusterChecker
         """
-        return TestableBaseClusterChecker(ansible_os_family="REDHAT")
+        return TestableBaseClusterChecker(ansible_os_family=OperatingSystemFamily.REDHAT)
 
     def test_get_stonith_action_rhel94(self, mocker, base_checker):
         """

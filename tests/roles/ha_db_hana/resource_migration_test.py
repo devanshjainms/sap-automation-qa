@@ -75,6 +75,7 @@ class TestDbResourceMigration(RolesTestingBaseDB):
                 "bin/cibadmin",
                 "bin/crm_resource",
                 "bin/crm",
+                "bin/SAPHanaSR-manageProvider",
             ],
             extra_vars_override={"commands": commands, "node_tier": "hana"},
         )
