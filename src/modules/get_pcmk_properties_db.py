@@ -16,11 +16,16 @@ from ansible.module_utils.facts.compat import ansible_facts
 
 try:
     from ansible.module_utils.sap_automation_qa import SapAutomationQA
-    from ansible.module_utils.enums import OperatingSystemFamily, Parameters, TestStatus
+    from ansible.module_utils.enums import (
+        OperatingSystemFamily,
+        Parameters,
+        TestStatus,
+        HanaSRProvider,
+    )
     from ansible.module_utils.commands import CIB_ADMIN
 except ImportError:
     from src.module_utils.sap_automation_qa import SapAutomationQA
-    from src.module_utils.enums import OperatingSystemFamily, Parameters, TestStatus
+    from src.module_utils.enums import OperatingSystemFamily, Parameters, TestStatus, HanaSRProvider
     from src.module_utils.commands import CIB_ADMIN
 
 DOCUMENTATION = r"""
@@ -62,6 +67,11 @@ options:
         description:
             - Dictionary of constants for validation
         type: dict
+        required: true
+    saphanasr_provider:
+        description:
+            - SAP HANA SR provider type (e.g., SAPHanaSR, SAPHanaSR-angi)
+        type: str
         required: true
 author:
     - Microsoft Corporation
@@ -188,7 +198,7 @@ class HAClusterValidator(SapAutomationQA):
         fencing_mechanism: str,
         virtual_machine_name: str,
         constants: dict,
-        saphanasr_provider: str,
+        saphanasr_provider: HanaSRProvider,
         category=None,
     ):
         super().__init__()
@@ -400,9 +410,11 @@ class HAClusterValidator(SapAutomationQA):
         ) as file:
             global_ini_content = file.read().splitlines()
 
-        section_start = global_ini_content.index(
-            "[ha_dr_provider_SAPHanaSR]"
-        ) or global_ini_content.index("[ha_dr_provider_sushanasr]")
+        section_start = (
+            global_ini_content.index("[ha_dr_provider_sushanasr]")
+            if self.saphanasr_provider == HanaSRProvider.ANGI
+            else global_ini_content.index("[ha_dr_provider_SAPHanaSR]")
+        )
         properties_slice = global_ini_content[section_start + 1 : section_start + 4]
 
         global_ini_properties = {
@@ -634,7 +646,7 @@ def main() -> None:
         virtual_machine_name=module.params["virtual_machine_name"],
         fencing_mechanism=module.params["fencing_mechanism"],
         constants=module.params["pcmk_constants"],
-        saphanasr_provider=module.params["saphanasr_provider"],
+        saphanasr_provider=HanaSRProvider(module.params["saphanasr_provider"]),
     )
 
     module.exit_json(**validator.get_result())
