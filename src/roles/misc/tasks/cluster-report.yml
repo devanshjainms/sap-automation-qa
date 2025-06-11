@@ -5,20 +5,21 @@
 #                   Task to get the cluster report from the primary instance             #
 #                 after all the test cases have been executed.                           #
 ##########################################################################################
-- name:                                 "Get the cluster status"
-  become:                               true
-  get_cluster_status_db:
-    operation_step:                     "cluster_report"
-    database_sid:                       "{{ db_sid | lower }}"
-    saphanasr_provider:                 "{{ saphanasr_provider }}"
-  register:                             cluster_status
-  failed_when:                          cluster_status.primary_node == ""
+# - name:                                 "Get the cluster status"
+#   become:                               true
+#   get_cluster_status_db:
+#     operation_step:                     "cluster_report"
+#     database_sid:                       "{{ db_sid | lower }}"
+#     saphanasr_provider:                 "{{ saphanasr_provider }}"
+#   register:                             cluster_status
+#   failed_when:                          cluster_status.primary_node == ""
 
 - name:                                 "Get the cluster report from the primary node"
   become:                               true
-  when:
-                                        - cluster_status is defined
-                                        - cluster_status.primary_node == ansible_hostname
+  run_once:                             true
+  # when:
+  #                                       - cluster_status is defined
+  #                                       - cluster_status.primary_node == ansible_hostname
   block:
     - name:                             "Cluster report from the HA cluster"
       ansible.builtin.command:          "{{ commands | selectattr('name', 'equalto', 'crm_report_cmd') | map(attribute=(ansible_os_family | upper)) | first }}"
