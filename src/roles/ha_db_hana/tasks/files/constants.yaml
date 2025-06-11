@@ -193,6 +193,10 @@ RESOURCE_DEFAULTS:
     azurelb:
       meta_attributes:
         resource-stickiness:              "0"
+      operations:
+        monitor:
+          interval:                       ["10", "10s"]
+          timeout:                        ["20", "20s"]
 
   REDHAT:
     fence_agent:

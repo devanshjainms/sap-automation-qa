@@ -11,6 +11,7 @@ Classes:
     HAClusterValidator: Main validator class for cluster configurations.
 """
 
+import logging
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.facts.compat import ansible_facts
 
@@ -402,6 +403,9 @@ class HAClusterValidator(SapAutomationQA):
         global_ini_defaults = (
             self.constants["GLOBAL_INI"].get(self.os_type, {}).get(self.saphanasr_provider, {})
         )
+        self.log(
+            logging.INFO, f"Default global.ini parameters for validation: {global_ini_defaults}"
+        )
 
         with open(
             f"/usr/sap/{self.sid}/SYS/global/hdb/custom/config/global.ini",
@@ -410,10 +414,19 @@ class HAClusterValidator(SapAutomationQA):
         ) as file:
             global_ini_content = file.read().splitlines()
 
+        self.log(
+            logging.INFO, f"Global.ini content: {global_ini_content}"
+        )
+
         section_start = (
             global_ini_content.index("[ha_dr_provider_sushanasr]")
             if self.saphanasr_provider == HanaSRProvider.ANGI
             else global_ini_content.index("[ha_dr_provider_SAPHanaSR]")
+        )
+
+        self.log(
+            logging.INFO,
+            f"Section start index for global.ini: {section_start}",
         )
         properties_slice = global_ini_content[section_start + 1 : section_start + 4]
 
