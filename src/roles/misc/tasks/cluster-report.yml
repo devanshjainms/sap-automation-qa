@@ -10,7 +10,7 @@
   get_cluster_status_db:
     operation_step:                     "cluster_report"
     database_sid:                       "{{ db_sid | lower }}"
-    saphanasr_provider:                 "{{ saphanasr_provider }}"
+    saphanasr_provider:                 "{{ saphanasr_provider | default('SAPHanaSR') }}"
   register:                             cluster_status
   failed_when:                          cluster_status.primary_node == ""
 
