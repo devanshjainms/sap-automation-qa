@@ -213,62 +213,54 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
                 "No node attributes found in the cluster status XML.",
             )
             return result
-        attribute_map = {
-            f"hana_{self.database_sid}_op_mode": "operation_mode",
-            f"hana_{self.database_sid}_srmode": "replication_mode",
+
+        providers = {
+            HanaSRProvider.SAPHANASR: {
+                "clone_attr": f"hana_{self.database_sid}_clone_state",
+                "sync_attr": f"hana_{self.database_sid}_sync_state",
+                "primary": {"clone": "PROMOTED", "sync": "PRIM"},
+                "secondary": {"clone": "DEMOTED", "sync": "SOK"},
+            },
+            HanaSRProvider.ANGI: {
+                "clone_attr": f"hana_{self.database_sid}_clone_state",
+                "sync_attr": f"master-rsc_SAPHanaCon_{self.database_sid.upper()}_HDB00",
+                "primary": {"clone": "PROMOTED", "sync": "150"},
+                "secondary": {"clone": "DEMOTED", "sync": "100"},
+            },
         }
+        provider_config = providers.get(
+            self.saphanasr_provider, providers[HanaSRProvider.SAPHANASR]
+        )
 
         for node in node_attributes:
             node_name = node.attrib["name"]
-            node_states = {}
-            node_attributes_dict = {}
+            attrs = {attr.attrib["name"]: attr.attrib["value"] for attr in node}
+            result["operation_mode"] = attrs.get(
+                f"hana_{self.database_sid}_op_mode", result["operation_mode"]
+            )
+            result["replication_mode"] = attrs.get(
+                f"hana_{self.database_sid}_srmode", result["replication_mode"]
+            )
+            clone_state = attrs.get(provider_config["clone_attr"], "")
+            sync_state = attrs.get(provider_config["sync_attr"], "")
+            if (
+                clone_state == provider_config["primary"]["clone"]
+                and sync_state == provider_config["primary"]["sync"]
+            ):
+                result.update(
+                    {
+                        "primary_node": node_name,
+                        "primary_site_name": attrs.get(f"hana_{self.database_sid}_site", ""),
+                    }
+                )
+                result["cluster_status"]["primary"] = attrs
 
-            for attribute in node:
-                attr_name = attribute.attrib["name"]
-                attr_value = attribute.attrib["value"]
-                node_attributes_dict[attr_name] = attr_value
-
-                if attr_name in attribute_map:
-                    result[attribute_map[attr_name]] = attr_value
-
-                if attr_name == f"hana_{self.database_sid}_clone_state":
-                    node_states["clone_state"] = attr_value
-                elif attr_name == f"hana_{self.database_sid}_sync_state":
-                    node_states["sync_state"] = attr_value
-
-            if self.saphanasr_provider == HanaSRProvider.SAPHANASR:
-
-                if (
-                    node_states.get("clone_state") == "PROMOTED"
-                    and node_states.get("sync_state") == "PRIM"
-                ):
-                    result["primary_node"] = node_name
-                    result["cluster_status"]["primary"] = node_attributes_dict
-                    result["primary_site_name"] = node_attributes_dict.get(
-                        f"hana_{self.database_sid}_site", ""
-                    )
-                elif (
-                    node_states.get("clone_state") == "DEMOTED"
-                    and node_states.get("sync_state") == "SOK"
-                ):
-                    result["secondary_node"] = node_name
-                    result["cluster_status"]["secondary"] = node_attributes_dict
-            elif self.saphanasr_provider == HanaSRProvider.ANGI:
-                if (
-                    node_states.get("clone_state") == "MASTER"
-                    and node_states.get("sync_state") == "SYNCHRONIZED"
-                ):
-                    result["primary_node"] = node_name
-                    result["cluster_status"]["primary"] = node_attributes_dict
-                    result["primary_site_name"] = node_attributes_dict.get(
-                        f"hana_{self.database_sid}_site", ""
-                    )
-                elif (
-                    node_states.get("clone_state") == "SECONDARY"
-                    and node_states.get("sync_state") == "SYNCHRONIZED"
-                ):
-                    result["secondary_node"] = node_name
-                    result["cluster_status"]["secondary"] = node_attributes_dict
+            elif (
+                clone_state == provider_config["secondary"]["clone"]
+                and sync_state == provider_config["secondary"]["sync"]
+            ):
+                result["secondary_node"] = node_name
+                result["cluster_status"]["secondary"] = attrs
 
         self.result.update(result)
         return result
