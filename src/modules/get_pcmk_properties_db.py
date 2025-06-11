@@ -615,7 +615,7 @@ def main() -> None:
             fencing_mechanism=dict(type="str"),
             os_version=dict(type="str"),
             pcmk_constants=dict(type="dict"),
-            filter=dict(type="str", required=False, default="ansible_os_family"),
+            filter=dict(type="str", required=False, default="os_family"),
         )
     )
 
