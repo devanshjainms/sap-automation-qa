@@ -81,7 +81,7 @@
           get_cluster_status_db:
             operation_step:             "test_execution"
             database_sid:               "{{ db_sid | lower }}"
-            ansible_os_family:          "{{ ansible_os_family | upper }}"
+            saphanasr_provider:         "{{ saphanasr_provider }}"
           register:                     cluster_status_test_execution
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
@@ -123,7 +123,6 @@
         - name:                         "Test Execution: Remove any location_constraints"
           location_constraints:
             action:                     "remove"
-            ansible_os_family:          "{{ ansible_os_family | upper}}"
           register:                     location_constraints_result
 
         # This is required because the cluster reports incorrect location constraints
@@ -136,7 +135,7 @@
           get_cluster_status_db:
             operation_step:             "test_execution"
             database_sid:               "{{ db_sid | lower }}"
-            ansible_os_family:          "{{ ansible_os_family | upper }}"
+            saphanasr_provider:         "{{ saphanasr_provider }}"
           register:                     cluster_status_test_execution_1
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"

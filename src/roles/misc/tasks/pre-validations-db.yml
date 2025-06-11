@@ -12,15 +12,31 @@
       become:                       true
       location_constraints:
         action:                     "remove"
-        ansible_os_family:          "{{ ansible_os_family | upper}}"
       register:                     location_constraints_results
+
+    - name:                         "Pre Validation: Get SAPHanaSR Provider"
+      become:                       true
+      become_user:                  "{{ db_sid | lower }}"
+      ansible.builtin.command:      "/usr/sbin/SAPHanaSR-manageProvider --show --provider=sushanasr"
+      register:                     hanasr_command_output
+      changed_when:                 false
+
+    - name:                         "Pre Validation: Set SAPHanaSR Provider"
+      when:                         hanasr_command_output.stdout != 0
+      ansible.builtin.set_fact:
+        saphanasr_provider:         "SAPHanaSR"
+    
+    - name:                         "Pre Validation: Set SAPHanaSR-angi Provider"
+      when:                         hanasr_command_output.stdout == ""
+      ansible.builtin.set_fact:
+        saphanasr_provider:         "SAPHanaSR-angi"
 
     - name:                         "Pre Validation: Validate HANA DB cluster status on primary node"
       become:                       true
       get_cluster_status_db:
         operation_step:             "pre_failover"
-        ansible_os_family:          "{{ ansible_os_family | upper }}"
         database_sid:               "{{ db_sid | lower }}"
+        saphanasr_provider:         "{{ saphanasr_provider }}"
       register:                     cluster_status_pre
 
     - name:                         "Pre Validation: CleanUp any failed resource"

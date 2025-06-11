@@ -12,20 +12,15 @@ Classes:
 """
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.facts.compat import ansible_facts
 
 try:
-    from ansible.module_utils.sap_automation_qa import (
-        SapAutomationQA,
-        TestStatus,
-        Parameters,
-    )
+    from ansible.module_utils.sap_automation_qa import SapAutomationQA
+    from ansible.module_utils.enums import OperatingSystemFamily, Parameters, TestStatus
     from ansible.module_utils.commands import CIB_ADMIN
 except ImportError:
-    from src.module_utils.sap_automation_qa import (
-        SapAutomationQA,
-        TestStatus,
-        Parameters,
-    )
+    from src.module_utils.sap_automation_qa import SapAutomationQA
+    from src.module_utils.enums import OperatingSystemFamily, Parameters, TestStatus
     from src.module_utils.commands import CIB_ADMIN
 
 DOCUMENTATION = r"""
@@ -46,11 +41,6 @@ options:
     instance_number:
         description:
             - SAP HANA instance number
-        type: str
-        required: true
-    ansible_os_family:
-        description:
-            - Operating system family (redhat, suse, etc.)
         type: str
         required: true
     virtual_machine_name:
@@ -89,7 +79,6 @@ EXAMPLES = r"""
   get_pcmk_properties_db:
     sid: "HDB"
     instance_number: "00"
-    ansible_os_family: "{{ ansible_os_family|lower }}"
     virtual_machine_name: "{{ ansible_hostname }}"
     fencing_mechanism: "sbd"
     os_version: "{{ ansible_distribution_version }}"
@@ -186,21 +175,23 @@ class HAClusterValidator(SapAutomationQA):
         "ipaddr": ".//primitive[@type='IPaddr2']",
         "filesystem": ".//primitive[@type='Filesystem']",
         "azurelb": ".//primitive[@type='azure-lb']",
+        "angi_filesystem": ".//primitive[@type='SAPHanaFilesystem']",
+        "angi_hana": ".//primitive[@type='SAPHanaController']",
     }
 
     def __init__(
         self,
-        os_type,
-        os_version,
-        sid,
-        instance_number,
-        fencing_mechanism,
-        virtual_machine_name,
-        constants,
+        os_type: OperatingSystemFamily,
+        os_version: str,
+        sid: str,
+        instance_number: str,
+        fencing_mechanism: str,
+        virtual_machine_name: str,
+        constants: dict,
         category=None,
     ):
         super().__init__()
-        self.os_type = os_type
+        self.os_type = os_type.value.upper()
         self.os_version = os_version
         self.category = category
         self.sid = sid
@@ -620,16 +611,16 @@ def main() -> None:
         argument_spec=dict(
             sid=dict(type="str"),
             instance_number=dict(type="str"),
-            ansible_os_family=dict(type="str"),
             virtual_machine_name=dict(type="str"),
             fencing_mechanism=dict(type="str"),
             os_version=dict(type="str"),
             pcmk_constants=dict(type="dict"),
+            filter=dict(type="str", required=False, default="ansible_os_family"),
         )
     )
 
     validator = HAClusterValidator(
-        os_type=module.params["ansible_os_family"],
+        os_type=OperatingSystemFamily(str(ansible_facts(module)).upper()),
         os_version=module.params["os_version"],
         instance_number=module.params["instance_number"],
         sid=module.params["sid"],
