@@ -33,12 +33,12 @@
     - name:                             "Pre Validation: Set SAPHanaSR Provider"
       when:                             hanasr_command_output.stdout != 0
       ansible.builtin.set_fact:
-        saphanasr_provider:             "SAPHanaSR"
+        saphanasr_provider:             "SAPHanaSR-angi"
 
     - name:                             "Pre Validation: Set SAPHanaSR-angi Provider"
       when:                             hanasr_command_output.stdout == ""
       ansible.builtin.set_fact:
-        saphanasr_provider:             "SAPHanaSR-angi"
+        saphanasr_provider:             "SAPHanaSR"
 
     - name:                             "Retrieve Virtual Machine name"
       ansible.builtin.uri:
