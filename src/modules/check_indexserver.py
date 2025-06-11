@@ -126,6 +126,12 @@ class IndexServerCheck(SapAutomationQA):
                         "path": "/hana/shared/myHooks",
                     }
                 },
+                {
+                    "[ha_dr_provider_suschksrv]": {
+                        "provider": "susChkSrv",
+                        "path": "/usr/share/SAPHanaSR-angi",
+                    }
+                },
             ],
         }
 
