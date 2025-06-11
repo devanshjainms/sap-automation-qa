@@ -579,7 +579,7 @@ def main() -> None:
             pcmk_constants=dict(type="dict"),
             fencing_mechanism=dict(type="str"),
             nfs_provider=dict(type="str", default=""),
-            filter=dict(type="str", required=False, default="ansible_os_family"),
+            filter=dict(type="str", required=False, default="os_family"),
         )
     )
 
@@ -587,7 +587,7 @@ def main() -> None:
         sid=module.params["sid"],
         scs_instance_number=module.params["ascs_instance_number"],
         ers_instance_number=module.params["ers_instance_number"],
-        os_type=OperatingSystemFamily(str(ansible_facts(module)).upper()),
+        os_type=OperatingSystemFamily(str(ansible_facts(module).get("os_family", "SUSE")).upper()),
         virtual_machine_name=module.params["virtual_machine_name"],
         constants=module.params["pcmk_constants"],
         fencing_mechanism=module.params["fencing_mechanism"],

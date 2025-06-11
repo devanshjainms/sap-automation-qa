@@ -208,7 +208,7 @@ def main():
     module = AnsibleModule(
         argument_spec=dict(
             database_sid=dict(type="str", required=True),
-            filter=dict(type="str", required=False, default="ansible_os_family"),
+            filter=dict(type="str", required=False, default="os_family"),
         )
     )
 
@@ -216,7 +216,9 @@ def main():
 
     index_server_check = IndexServerCheck(
         database_sid=database_sid,
-        os_distribution=OperatingSystemFamily(str(ansible_facts(module)).upper()),
+        os_distribution=OperatingSystemFamily(
+            str(ansible_facts(module).get("os_family", "SUSE")).upper()
+        ),
     )
     index_server_check.check_indexserver()
 

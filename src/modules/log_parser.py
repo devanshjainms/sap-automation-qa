@@ -320,7 +320,7 @@ def run_module() -> None:
         keywords=dict(type="list", required=False, default=[]),
         function=dict(type="str", required=True, choices=["parse_logs", "merge_logs"]),
         logs=dict(type="list", required=False, default=[]),
-        filter=dict(type="str", required=False, default="ansible_os_family"),
+        filter=dict(type="str", required=False, default="os_family"),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
@@ -328,7 +328,7 @@ def run_module() -> None:
         start_time=module.params.get("start_time"),
         end_time=module.params.get("end_time"),
         log_file=module.params.get("log_file"),
-        ansible_os_family=OperatingSystemFamily(str(ansible_facts(module)).upper()),
+        ansible_os_family=OperatingSystemFamily(str(ansible_facts(module).get("os_family", "SUSE")).upper()),
         logs=module.params.get("logs"),
     )
     if module.params["function"] == "parse_logs":

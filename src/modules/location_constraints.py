@@ -146,14 +146,14 @@ def run_module() -> None:
     """
     module_args = dict(
         action=dict(type="str", required=True),
-        filter=dict(type="str", required=False, default="ansible_os_family"),
+        filter=dict(type="str", required=False, default="os_family"),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
     action = module.params["action"]
 
     manager = LocationConstraintsManager(
-        ansible_os_family=OperatingSystemFamily(str(ansible_facts(module)).upper())
+        ansible_os_family=OperatingSystemFamily(str(ansible_facts(module).get("os_family", "SUSE")).upper())
     )
 
     if module.check_mode:

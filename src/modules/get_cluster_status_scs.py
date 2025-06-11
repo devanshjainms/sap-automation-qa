@@ -281,11 +281,11 @@ def run_module() -> None:
     """
     module_args = dict(
         sap_sid=dict(type="str", required=True),
-        filter=dict(type="str", required=False, default="ansible_os_family"),
+        filter=dict(type="str", required=False, default="os_family"),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
-    ansible_os_family = str(ansible_facts(module)).upper()
+    ansible_os_family = str(ansible_facts(module).get("os_family", "SUSE")).upper()
 
     checker = SCSClusterStatusChecker(
         sap_sid=module.params["sap_sid"],
