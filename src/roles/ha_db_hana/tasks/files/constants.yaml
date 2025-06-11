@@ -328,14 +328,19 @@ OS_PARAMETERS:
 # Reading the global.ini file to get the provider and path for the SAPHanaSR resource agent
 GLOBAL_INI:
   SUSE:
-    provider:                           "SAPHanaSR"
-    path:                               ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
-    execution_order:                    "1"
-
+    SAPHanaSR:
+      provider:                           "SAPHanaSR"
+      path:                               ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
+      execution_order:                    "1"
+    SAPHanaSR-angi:
+      provider:                           "susHanaSR"
+      path:                               ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
+      execution_order:                    "1"
   REDHAT:
-    provider:                           "SAPHanaSR"
-    path:                               ["/usr/share/SAPHanaSR/srHook", "/hana/shared/myHooks"]
-    execution_order:                    "1"
+    SAPHanaSR:
+      provider:                           "SAPHanaSR"
+      path:                               ["/usr/share/SAPHanaSR/srHook", "/hana/shared/myHooks"]
+      execution_order:                    "1"
 
 
 # === Azure Load Balancer ===

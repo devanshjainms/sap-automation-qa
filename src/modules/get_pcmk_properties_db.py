@@ -396,7 +396,9 @@ class HAClusterValidator(SapAutomationQA):
         ) as file:
             global_ini_content = file.read().splitlines()
 
-        section_start = global_ini_content.index("[ha_dr_provider_SAPHanaSR]")
+        section_start = global_ini_content.index(
+            "[ha_dr_provider_SAPHanaSR]"
+        ) or global_ini_content.index("[ha_dr_provider_sushanasr]")
         properties_slice = global_ini_content[section_start + 1 : section_start + 4]
 
         global_ini_properties = {

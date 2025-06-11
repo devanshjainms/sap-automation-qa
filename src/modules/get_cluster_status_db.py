@@ -12,9 +12,9 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.facts.compat import ansible_facts
 
 try:
-    from ..module_utils.get_cluster_status import BaseClusterStatusChecker
-    from ..module_utils.enums import OperatingSystemFamily, HanaSRProvider
-    from ..module_utils.commands import AUTOMATED_REGISTER
+    from ansible.module_utils.get_cluster_status import BaseClusterStatusChecker
+    from ansible.module_utils.enums import OperatingSystemFamily, HanaSRProvider
+    from ansible.module_utils.commands import AUTOMATED_REGISTER
 except ImportError:
     from src.module_utils.get_cluster_status import BaseClusterStatusChecker
     from src.module_utils.commands import AUTOMATED_REGISTER
@@ -236,7 +236,6 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
                 elif attr_name == f"hana_{self.database_sid}_sync_state":
                     node_states["sync_state"] = attr_value
 
-
             if self.saphanasr_provider == HanaSRProvider.SAPHANASR:
 
                 if (
@@ -312,7 +311,7 @@ def run_module() -> None:
         operation_step=dict(type="str", required=True),
         database_sid=dict(type="str", required=True),
         saphanasr_provider=dict(type="str", required=True),
-        filter=dict(type="str", required=False, default="ansible_os_family"),
+        filter=dict(type="str", required=False, default="os_family"),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
@@ -320,7 +319,9 @@ def run_module() -> None:
     checker = HanaClusterStatusChecker(
         database_sid=module.params["database_sid"],
         saphanasr_provider=HanaSRProvider(module.params["saphanasr_provider"]),
-        ansible_os_family=OperatingSystemFamily(str(ansible_facts(module)).upper()),
+        ansible_os_family=OperatingSystemFamily(
+            str(ansible_facts(module).get("os_family", "SUSE")).upper()
+        ),
     )
     checker.run()
 
