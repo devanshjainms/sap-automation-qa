@@ -24,9 +24,11 @@
     - name:                             "Pre Validation: Get SAPHanaSR Provider"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
-      ansible.builtin.command:          "/usr/sbin/SAPHanaSR-manageProvider --show --provider=sushanasr"
+      ansible.builtin.command:          "SAPHanaSR-manageProvider --show --provider=sushanasr"
       register:                         hanasr_command_output
       changed_when:                     false
+      args:
+        chdir:                          "/usr/sbin"
 
     - name:                             "Pre Validation: Set SAPHanaSR Provider"
       when:                             hanasr_command_output.stdout != 0
