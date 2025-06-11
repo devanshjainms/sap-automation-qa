@@ -66,7 +66,7 @@ test_groups:
           service failure, triggering automatic failover to the secondary node. The test verifies
           proper failover execution, ensures data consistency, and validates service restoration after
           recovery.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       HA Functional Test- Primary Node Kill
         task_name:                  primary-node-kill
@@ -128,7 +128,7 @@ test_groups:
           the secondary node. It validates that the primary node continues normal operation while
           verifying the cluster's ability to handle secondary failures, tests automatic recovery
           mechanisms, and ensures system replication resumes properly after service restoration.
-        enabled:                    false
+        enabled:                    true
 
   - name:                           HA_SCS
     test_cases:
