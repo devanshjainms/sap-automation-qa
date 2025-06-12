@@ -1,10 +1,10 @@
 """
-This module defines various enumerations used throughout the Ansible module.
+This module defines various enumerations and data classes used throughout the sap-automation-qa
 """
 
 from enum import Enum
-from dataclasses import dataclass, field, asdict
-from typing import Dict, Any
+from dataclasses import dataclass, field
+from typing import Dict, Any, List
 
 
 class TelemetryDataDestination(Enum):
@@ -48,25 +48,37 @@ class HanaSRProvider(Enum):
     ANGI = "SAPHanaSR-angi"
 
 
+@dataclass(frozen=True)
 class Parameters:
     """
-    This class is used to store the parameters for the test case
+    This dataclass stores the parameters for the test case.
+
+    :param category: The category of the parameter
+    :type category: str
+    :param id: Unique identifier for the parameter
+    :type id: str
+    :param name: Name of the parameter
+    :type name: str
+    :param value: Current value of the parameter
+    :type value: Any
+    :param expected_value: Expected value for validation
+    :type expected_value: Any
+    :param status: Current status of the parameter validation
+    :type status: str
     """
 
-    def __init__(self, category, id, name, value, expected_value, status):
-        self.category = category
-        self.id = id
-        self.name = name
-        self.value = value
-        self.expected_value = expected_value
-        self.status = status
+    category: str
+    id: str
+    name: str
+    value: Any
+    expected_value: Any
+    status: str
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        This method is used to convert the parameters to a dictionary
+        Converts the parameters to a dictionary.
 
-        :return: Dictionary containing the parameters
-        :rtype: Dict[str, Any]
+        returns: Dictionary containing the parameters
         """
         return {
             "category": self.category,
@@ -81,20 +93,37 @@ class Parameters:
 @dataclass
 class Result:
     """
-    This class is used to store the result of the test case
+    This dataclass stores the result of the test case.
+
+    :param status: Current status of the test
+    :type status: str
+    :param message: Descriptive message about the result
+    :type message: str
+    :param details: List of detailed information
+    :type details: List[Any]
+    :param logs: List of log messages
+    :type logs: List[str]
+    :param changed: Whether the test caused any changes
+    :type changed: bool
     """
 
     status: str = TestStatus.NOT_STARTED.value
     message: str = ""
-    details: list = field(default_factory=list)
-    logs: list = field(default_factory=list)
+    details: List[Any] = field(default_factory=list)
+    logs: List[str] = field(default_factory=list)
     changed: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """
         Converts the result to a dictionary.
 
-        :return: Dictionary containing the result.
-        :rtype: Dict[str, Any]
+        Returns:
+            Dictionary containing the result
         """
-        return asdict(self)
+        return {
+            "status": self.status,
+            "message": self.message,
+            "details": self.details.copy(),
+            "logs": self.logs.copy(),
+            "changed": self.changed,
+        }

@@ -12,9 +12,9 @@ from datetime import datetime
 from typing import Dict, Any
 
 try:
-    from .sap_automation_qa import SapAutomationQA
-    from .enums import TestStatus, OperatingSystemFamily
-    from .commands import (
+    from module_utils.sap_automation_qa import SapAutomationQA
+    from module_utils.enums import TestStatus, OperatingSystemFamily
+    from module_utils.commands import (
         STONITH_ACTION,
         PACEMAKER_STATUS,
         CLUSTER_STATUS,
@@ -103,7 +103,7 @@ class BaseClusterStatusChecker(SapAutomationQA):
         except Exception as ex:
             self.log(logging.WARNING, f"Failed to get stonith action: {str(ex)}")
 
-    def _validate_cluster_basic_status(self, cluster_status_xml: ET.Element):
+    def _validate_cluster_basic_status(self, cluster_status_xml: ET.Element) -> None:
         """
         Validate the basic status of the cluster.
 

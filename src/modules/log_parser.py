@@ -11,8 +11,8 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.facts.compat import ansible_facts
 
 try:
-    from ..module_utils.sap_automation_qa import SapAutomationQA, TestStatus
-    from ..module_utils.enums import OperatingSystemFamily
+    from ansible.module_utils.sap_automation_qa import SapAutomationQA, TestStatus
+    from ansible.module_utils.enums import OperatingSystemFamily
 except ImportError:
     from src.module_utils.sap_automation_qa import SapAutomationQA, TestStatus
     from src.module_utils.enums import OperatingSystemFamily
