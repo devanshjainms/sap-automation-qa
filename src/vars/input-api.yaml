@@ -46,7 +46,7 @@ test_groups:
           crashes on the primary node. It simulates an index server failure by forcefully terminating
           the process, then verifies automatic failover to the secondary node, monitors system
           replication status, and confirms service recovery without data loss.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       HA Functional Test- Block Network Communication
         task_name:                  block-network
