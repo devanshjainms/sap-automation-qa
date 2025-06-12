@@ -89,8 +89,8 @@ DUMMY_OS_COMMAND = """kernel.numa_balancing = 0"""
 DUMMY_GLOBAL_INI = """[DEFAULT]
 dumm1 = dummy2
 
-[ha_dr_provider_SAPHanaSR]
-provider = SAPHanaSR
+[ha_dr_provider_sushanasr]
+provider = SAPHanaSR-angi
 """
 
 DUMMY_CONSTANTS = {
