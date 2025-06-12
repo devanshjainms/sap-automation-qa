@@ -84,7 +84,7 @@ test_groups:
           executing the 'echo b' command to trigger an abrupt reboot without proper shutdown. This
           tests the cluster's ability to handle unexpected primary node failures, validates proper
           failover execution, and verifies data consistency after recovery.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       HA Functional Test- Secondary Node Kill
         task_name:                  secondary-node-kill
@@ -111,7 +111,7 @@ test_groups:
           becomes unresponsive. It simulates a storage issue by freezing the filesystem on the primary
           node running HANA database, which triggers automatic failover to the secondary node. The test
           verifies proper cluster reaction, resource migration, and data consistency after recovery.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       HA Functional Test- Test SBD Inquisitor kill
         task_name:                  sbd-fencing
