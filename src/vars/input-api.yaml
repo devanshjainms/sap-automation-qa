@@ -111,7 +111,7 @@ test_groups:
           becomes unresponsive. It simulates a storage issue by freezing the filesystem on the primary
           node running HANA database, which triggers automatic failover to the secondary node. The test
           verifies proper cluster reaction, resource migration, and data consistency after recovery.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       HA Functional Test- Test SBD Inquisitor kill
         task_name:                  sbd-fencing
@@ -128,7 +128,7 @@ test_groups:
           the secondary node. It validates that the primary node continues normal operation while
           verifying the cluster's ability to handle secondary failures, tests automatic recovery
           mechanisms, and ensures system replication resumes properly after service restoration.
-        enabled:                    false
+        enabled:                    true
 
   - name:                           HA_SCS
     test_cases:
