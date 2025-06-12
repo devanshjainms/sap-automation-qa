@@ -12,9 +12,9 @@ from datetime import datetime
 from typing import Dict, Any
 
 try:
-    from module_utils.sap_automation_qa import SapAutomationQA
-    from module_utils.enums import TestStatus, OperatingSystemFamily
-    from module_utils.commands import (
+    from ansible.module_utils.sap_automation_qa import SapAutomationQA
+    from ansible.module_utils.enums import TestStatus, OperatingSystemFamily
+    from ansible.module_utils.commands import (
         STONITH_ACTION,
         PACEMAKER_STATUS,
         CLUSTER_STATUS,
