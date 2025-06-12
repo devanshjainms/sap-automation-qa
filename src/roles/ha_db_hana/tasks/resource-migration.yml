@@ -77,7 +77,6 @@
 
         - name:                         "Test Execution: Set the resource name"
           when:
-                                        - hana_resource_id.rc == 0
                                         - hana_resource_id.stdout is defined
                                         - hana_resource_id.stdout | type_debug != 'NoneType'
                                         - hana_resource_id.stdout | trim | length > 1
