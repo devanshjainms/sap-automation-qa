@@ -56,7 +56,7 @@ test_groups:
           It verifies split-brain prevention mechanisms, validates proper failover execution when nodes
           become isolated, and ensures cluster stability and data consistency after network
           sconnectivity is restored.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       HA Functional Test- Crash index server on primary node
         task_name:                  primary-crash-index
@@ -66,7 +66,7 @@ test_groups:
           service failure, triggering automatic failover to the secondary node. The test verifies
           proper failover execution, ensures data consistency, and validates service restoration after
           recovery.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       HA Functional Test- Primary Node Kill
         task_name:                  primary-node-kill
@@ -75,7 +75,7 @@ test_groups:
           processes on the primary node using SIGKILL signal. This simulates an abrupt service failure,
           triggering automatic failover to the secondary node. The test verifies proper promotion of
           secondary to primary, ensures data consistency, and validates complete cluster recovery.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       HA Functional Test- Echo B on Primary Node
         task_name:                  primary-echo-b
@@ -84,7 +84,7 @@ test_groups:
           executing the 'echo b' command to trigger an abrupt reboot without proper shutdown. This
           tests the cluster's ability to handle unexpected primary node failures, validates proper
           failover execution, and verifies data consistency after recovery.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       HA Functional Test- Secondary Node Kill
         task_name:                  secondary-node-kill
