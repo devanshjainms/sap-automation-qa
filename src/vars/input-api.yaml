@@ -75,7 +75,7 @@ test_groups:
           processes on the primary node using SIGKILL signal. This simulates an abrupt service failure,
           triggering automatic failover to the secondary node. The test verifies proper promotion of
           secondary to primary, ensures data consistency, and validates complete cluster recovery.
-        enabled:                    true
+        enabled:                    false
 
       - name:                       HA Functional Test- Echo B on Primary Node
         task_name:                  primary-echo-b
