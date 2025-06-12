@@ -6,7 +6,7 @@
 # +--------------------------------------------------------------------------*/
 
 - name:                               Get SAPHanaSR provider for SUSE
-  when:                               ansible_os_family == "SUSE"
+  when:                               (ansible_os_family | upper) == "SUSE"
   block:
   - name:                             "Get SAPHanaSR Provider using command"
     become:                           true

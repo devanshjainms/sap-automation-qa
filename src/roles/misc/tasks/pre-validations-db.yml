@@ -15,7 +15,7 @@
       register:                     location_constraints_results
 
     - name:                         "Pre validation: Get SAPHanaSR provider"
-      when:                         ansible_os_family == "SUSE"
+      when:                         (ansible_os_family | upper) == "SUSE"
       ansible.builtin.include_tasks: "roles/misc/tasks/get-saphanasr-provider.yml"
 
     - name:                         "Pre Validation: Validate HANA DB cluster status on primary node"

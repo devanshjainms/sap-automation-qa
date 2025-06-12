@@ -22,7 +22,7 @@
   become_user:                          root
   block:
     - name:                             "Get the SAPHanaSR provider"
-      when:                             ansible_os_family == "SUSE"
+      when:                             (ansible_os_family | upper) == "SUSE"
       ansible.builtin.include_tasks:    "roles/misc/tasks/get-saphanasr-provider.yml"
 
     - name:                             "Retrieve Virtual Machine name"
