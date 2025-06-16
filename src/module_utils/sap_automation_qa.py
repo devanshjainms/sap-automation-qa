@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any
 import xml.etree.ElementTree as ET
 
 try:
-    from module_utils.enums import Result, TestStatus
+    from ansible.module_utils.enums import Result, TestStatus
 except ImportError:
     from src.module_utils.enums import Result, TestStatus
 
