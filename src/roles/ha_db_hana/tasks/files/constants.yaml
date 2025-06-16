@@ -99,6 +99,22 @@ RESOURCE_DEFAULTS:
           interval:                       ["0", "0s"]
           timeout:                        ["300", "300s"]
 
+    angi_topology:
+      meta_attributes:
+        clone-node-max:                   "1"
+        target-role:                      "Started"
+        interleave:                       "true"
+      operations:
+        monitor:
+          interval:                       ["50", "50s"]
+          timeout:                        ["600", "600s"]
+        start:
+          interval:                       ["0", "0s"]
+          timeout:                        ["600", "600s"]
+        stop:
+          interval:                       ["0", "0s"]
+          timeout:                        ["300", "300s"]
+
     hana:
       meta_attributes:
         notify:                           "true"

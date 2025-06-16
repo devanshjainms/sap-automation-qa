@@ -180,6 +180,7 @@ class HAClusterValidator(SapAutomationQA):
         "sbd_stonith": ".//primitive[@type='external/sbd']",
         "fence_agent": ".//primitive[@type='fence_azure_arm']",
         "topology": ".//clone/primitive[@type='SAPHanaTopology']",
+        "angi_topology": ".//clone/primitive[@type='SAPHanaTopology']",
         "topology_meta": ".//clone/meta_attributes",
         "hana": ".//master/primitive[@type='SAPHana']",
         "hana_meta": ".//master/meta_attributes",
@@ -583,7 +584,12 @@ class HAClusterValidator(SapAutomationQA):
 
             elif self.category == "resources":
                 try:
-                    for sub_category, xpath in self.RESOURCE_CATEGORIES.items():
+                    resource_categories = self.RESOURCE_CATEGORIES.copy()
+                    if self.saphanasr_provider == HanaSRProvider.ANGI:
+                        resource_categories.pop("topology", None)
+                    else:
+                        resource_categories.pop("angi_topology", None)
+                    for sub_category, xpath in resource_categories.items():
                         elements = root.findall(xpath)
                         for element in elements:
                             parameters.extend(self._parse_resource(element, sub_category))
