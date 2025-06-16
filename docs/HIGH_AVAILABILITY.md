@@ -310,7 +310,20 @@ When using Azure Key Vault to store credentials, the framework retrieves authent
 To execute the script, run following command:
 
 ```bash
+# Run all the tests with default parameters
 ./scripts/sap_automation_qa.sh
+
+# Run specific test cases from HA_DB_HANA group
+./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash]
+
+# Run all enabled tests in HA_DB_HANA group
+./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA
+
+# Run all enabled tests in HA_SCS group
+./scripts/sap_automation_qa.sh --test_groups=HA_SCS
+
+# Run with verbose output
+./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config] -vv
 ```
 
 ### 4. Viewing Test Results
