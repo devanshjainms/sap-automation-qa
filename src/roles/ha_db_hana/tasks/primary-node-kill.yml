@@ -59,7 +59,7 @@
               get_cluster_status_db:
                 operation_step:         "test_execution"
                 database_sid:           "{{ db_sid | lower }}"
-                saphanasr_provider:         "{{ saphanasr_provider | default('SAPHanaSR') }}"
+                saphanasr_provider:     "{{ saphanasr_provider | default('SAPHanaSR') }}"
               register:                 cluster_status_test_execution
               retries:                  "{{ default_retries }}"
               delay:                    "{{ default_delay }}"

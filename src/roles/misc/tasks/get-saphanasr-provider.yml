@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 
 # /*---------------------------------------------------------------------------
-# |                          Get SAPHanaSR Provider                          |
+# |                          Get SAPHanaSR Provider (on SUSE only)            |
 # +--------------------------------------------------------------------------*/
 
 - name:                               Get SAPHanaSR provider for SUSE
