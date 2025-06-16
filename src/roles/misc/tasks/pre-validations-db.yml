@@ -25,6 +25,10 @@
         database_sid:               "{{ db_sid | lower }}"
         saphanasr_provider:         "{{ saphanasr_provider | default('SAPHanaSR') }}"
       register:                     cluster_status_pre
+      until:                        cluster_status_pre.primary_node != "" or
+                                    cluster_status_pre.secondary_node != ""
+      timeout:                      5
+      retries:                      3
 
     - name:                         "Pre Validation: CleanUp any failed resource"
       become:                       true
