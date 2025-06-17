@@ -302,9 +302,9 @@ run_ansible_playbook() {
 				log "INFO" "Filtering test configuration based on provided test groups and cases."
         local filtered_config
         filtered_config=$(get_filtered_test_config)
+				log "INFO" "Filtered test configuration: $filtered_config"
         if [[ -n "$filtered_config" ]]; then
             extra_vars="--extra-vars '$filtered_config'"
-            log "INFO" "Test configuration filtered successfully."
         fi
     fi
 
