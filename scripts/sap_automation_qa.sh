@@ -295,6 +295,8 @@ run_ansible_playbook() {
     local auth_type=$4
     local system_config_folder=$5
 
+		log "INFO" "Running ansible playbook: $playbook_name"
+
     local extra_vars=""
     if [[ -n "$TEST_GROUPS" || -n "$TEST_CASES" ]]; then
         local filtered_config
