@@ -295,8 +295,6 @@ run_ansible_playbook() {
     local auth_type=$4
     local system_config_folder=$5
 
-
-		# Get filtered test configuration if test filtering is requested
     local extra_vars=""
     if [[ -n "$TEST_GROUPS" || -n "$TEST_CASES" ]]; then
         local filtered_config
@@ -307,10 +305,10 @@ run_ansible_playbook() {
         fi
     fi
 
-		# Add extra vars if specified
 		if [[ -n "$EXTRA_VARS" ]]; then
-			log "INFO" "Using extra vars: $EXTRA_VARS"
-			extra_vars+=" --extra-vars '$EXTRA_VARS'"
+				log "INFO" "Using extra vars: $EXTRA_VARS"
+				escaped_extra_vars="${EXTRA_VARS//\'/\'\"\'\"\'}"
+				extra_vars+=" --extra-vars '$escaped_extra_vars'"
 		fi
 		log "INFO" "Running ansible playbook: $playbook_name with extra vars: $extra_vars"
 
