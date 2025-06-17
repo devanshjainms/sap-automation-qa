@@ -48,10 +48,9 @@ class HanaSRProvider(Enum):
     ANGI = "SAPHanaSR-angi"
 
 
-@dataclass(frozen=True)
 class Parameters:
     """
-    This dataclass stores the parameters for the test case.
+    This class stores the parameters for the test case.
 
     :param category: The category of the parameter
     :type category: str
@@ -67,12 +66,21 @@ class Parameters:
     :type status: str
     """
 
-    category: str
-    id: str
-    name: str
-    value: Any
-    expected_value: Any
-    status: str
+    def __init__(
+        self,
+        category: str,
+        id: str,
+        name: str,
+        value: Any,
+        expected_value: Any,
+        status: str
+    ):
+        self.category = category
+        self.id = id
+        self.name = name
+        self.value = value
+        self.expected_value = expected_value
+        self.status = status
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -90,10 +98,9 @@ class Parameters:
         }
 
 
-@dataclass
 class Result:
     """
-    This dataclass stores the result of the test case.
+    This class stores the result of the test case.
 
     :param status: Current status of the test
     :type status: str
@@ -107,11 +114,19 @@ class Result:
     :type changed: bool
     """
 
-    status: str = TestStatus.NOT_STARTED.value
-    message: str = ""
-    details: List[Any] = field(default_factory=list)
-    logs: List[str] = field(default_factory=list)
-    changed: bool = False
+    def __init__(
+        self,
+        status: str = None,
+        message: str = "",
+        details: List[Any] = None,
+        logs: List[str] = None,
+        changed: bool = False
+    ):
+        self.status = status if status is not None else TestStatus.NOT_STARTED.value
+        self.message = message
+        self.details = details if details is not None else []
+        self.logs = logs if logs is not None else []
+        self.changed = changed
 
     def to_dict(self) -> Dict[str, Any]:
         """
