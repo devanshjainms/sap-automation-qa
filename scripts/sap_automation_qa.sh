@@ -40,6 +40,9 @@ parse_arguments() {
                 TEST_CASES="${TEST_CASES#[}"
                 TEST_CASES="${TEST_CASES%]}"
                 ;;
+						--extra-vars=*)
+								EXTRA_VARS="${arg#*=}"
+								;;
             -h|--help)
                 show_usage
                 exit 0
@@ -56,11 +59,14 @@ Options:
   -v, -vv, -vvv, etc.       Set Ansible verbosity level
   --test_groups=GROUP       Specify test group to run (e.g., HA_DB_HANA, HA_SCS)
   --test_cases=[case1,case2] Specify specific test cases to run (comma-separated, in brackets)
+	--extra-vars=VAR          Specify additional Ansible extra variables (e.g., --extra-vars='{"key":"value"}')
   -h, --help                Show this help message
 
 Examples:
   $0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash]
   $0 --test_groups=HA_SCS
+	$0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash] -vv
+	$0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash] --extra-vars='{"key":"value"}'
 
 Configuration is read from vars.yaml file.
 EOF
@@ -299,6 +305,12 @@ run_ansible_playbook() {
             log "INFO" "Test configuration filtered successfully."
         fi
     fi
+
+		# Add extra vars if specified
+		if [[ -n "$EXTRA_VARS" ]]; then
+			log "INFO" "Using extra vars: $EXTRA_VARS"
+			extra_vars+=" --extra-vars '$EXTRA_VARS'"
+		fi
 
     # Set local secret_id and key_vault_id if defined
     local secret_id=$(grep "^secret_id:" "$system_params" | awk '{split($0,a,": "); print a[2]}' | xargs || true)
