@@ -98,17 +98,9 @@ class TestFilter:
         """
         filtered_json = self.filter_tests(test_group, test_cases)
         filtered_config = json.loads(filtered_json)
-
-        ansible_vars = {
-            "test_groups": filtered_config["test_groups"],
-            "sap_functional_test_type_map": filtered_config["sap_functional_test_type_map"],
-        }
-
-        for key, value in filtered_config.items():
-            if key not in ["test_groups", "sap_functional_test_type_map"]:
-                ansible_vars[key] = value
-
-        return json.dumps(ansible_vars)
+        return json.dumps({
+            "test_groups": filtered_config["test_groups"]
+        })
 
 
 def main():
