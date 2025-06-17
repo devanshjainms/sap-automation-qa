@@ -181,12 +181,11 @@ get_playbook_name() {
 # Generate filtered test configuration as JSON for Ansible extra vars
 # :return: JSON string with filtered test configuration
 get_filtered_test_config() {
-		log "INFO" "Filtering test configuration from: $input_api_file"
     local input_api_file="${cmd_dir}/../src/vars/input-api.yaml"
     local test_filter_script="${cmd_dir}/../src/module_utils/filter_tests.py"
 
     if [[ ! -f "$test_filter_script" ]]; then
-        log "ERROR" "Test filter script not found: $test_filter_script"
+        log "ERROR" "Test filter script not found: $test_filter_script" >&2
         exit 1
     fi
 
@@ -200,19 +199,17 @@ get_filtered_test_config() {
     if [[ -n "$TEST_CASES" ]]; then
         cases_arg="$TEST_CASES"
     fi
-    log "INFO" "Using group argument: $group_arg"
-    log "INFO" "Using cases argument: $cases_arg"
 
     local filtered_config
     filtered_config=$(python3 "$test_filter_script" "$input_api_file" "$group_arg" "$cases_arg" 2>&1)
     local exit_code=$?
 
     if [[ $exit_code -ne 0 ]]; then
-        log "ERROR" "Failed to filter test configuration: $filtered_config"
+        log "ERROR" "Failed to filter test configuration: $filtered_config" >&2
         exit 1
     fi
 
-	  echo "$filtered_config"
+    echo "$filtered_config"
 }
 
 # Retrieve a secret from Azure Key Vault.
