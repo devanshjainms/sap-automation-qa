@@ -324,8 +324,35 @@ run_ansible_playbook() {
             command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts --private-key $temp_file \
                 -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars"
         else
-            check_file_exists "${cmd_dir}/../WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME/ssh_key.ppk" \
-                "ssh_key.ppk not found in WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME directory."
+            local ssh_key_dir="${cmd_dir}/../WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME"
+            local ssh_key=""
+            local extensions=("ppk" "pem" "key" "private" "rsa" "ed25519" "ecdsa" "dsa" "")
+
+            for ext in "${extensions[@]}"; do
+                if [[ -n "$ext" ]]; then
+                    local key_file="${ssh_key_dir}/ssh_key.${ext}"
+                else
+                    local key_file="${ssh_key_dir}/ssh_key"
+                fi
+
+                if [[ -f "$key_file" ]]; then
+                    ssh_key="$key_file"
+                    log "INFO" "Found SSH key file: $ssh_key"
+                    break
+                fi
+            done
+
+            if [[ -z "$ssh_key" ]]; then
+                ssh_key=$(find "$ssh_key_dir" -name "*ssh_key*" -type f | head -n 1)
+                if [[ -n "$ssh_key" ]]; then
+                    log "INFO" "Found SSH key file with pattern: $ssh_key"
+                fi
+            fi
+
+            check_file_exists "$ssh_key" \
+                "SSH key file not found in WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME directory. Looked for files with patterns: ssh_key.*, *ssh_key*"
+
+            chmod 600 "$ssh_key"
             ssh_key="${cmd_dir}/../WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME/ssh_key.ppk"
             command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts --private-key $ssh_key \
                 -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars"
@@ -363,7 +390,7 @@ run_ansible_playbook() {
 		fi
 
     log "INFO" "Running ansible playbook..."
-    log "INFO" "Executing: $command"
+    log "INFO" "Executing ansible command"
     eval $command
     return_code=$?
     log "INFO" "Ansible playbook execution completed with return code: $return_code"

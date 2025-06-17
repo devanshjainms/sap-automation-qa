@@ -84,7 +84,7 @@ test_groups:
           executing the 'echo b' command to trigger an abrupt reboot without proper shutdown. This
           tests the cluster's ability to handle unexpected primary node failures, validates proper
           failover execution, and verifies data consistency after recovery.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       HA Functional Test- Secondary Node Kill
         task_name:                  secondary-node-kill
@@ -102,7 +102,7 @@ test_groups:
           by executing the 'echo b' command, triggering an immediate reboot without proper shutdown
           procedures. The test validates that the primary node maintains operation, verifies cluster
           stability, and ensures system replication resumes correctly after the secondary node recovers.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       HA Functional Test- Freeze File System on Primary Node
         task_name:                  fs-freeze
