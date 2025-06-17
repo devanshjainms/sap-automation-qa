@@ -181,9 +181,9 @@ get_playbook_name() {
 # Generate filtered test configuration as JSON for Ansible extra vars
 # :return: JSON string with filtered test configuration
 get_filtered_test_config() {
+		log "INFO" "Filtering test configuration from: $input_api_file"
     local input_api_file="${cmd_dir}/../src/vars/input-api.yaml"
     local test_filter_script="${cmd_dir}/../src/module_utils/filter_tests.py"
-		log "INFO" "Filtering test configuration from: $input_api_file"
 
     if [[ ! -f "$test_filter_script" ]]; then
         log "ERROR" "Test filter script not found: $test_filter_script"
