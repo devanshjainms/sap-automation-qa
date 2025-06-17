@@ -399,7 +399,7 @@ run_ansible_playbook() {
 				command+=" $ANSIBLE_VERBOSE"
 		fi
 
-    log "INFO" "Running ansible playbook..."
+    log "INFO" "Running ansible playbook... Command: $command"
     eval $command
     return_code=$?
     log "INFO" "Ansible playbook execution completed with return code: $return_code"
