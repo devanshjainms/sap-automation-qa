@@ -295,25 +295,21 @@ run_ansible_playbook() {
     local auth_type=$4
     local system_config_folder=$5
 
-		log "INFO" "Running ansible playbook: $playbook_name"
 
     local extra_vars=""
     if [[ -n "$TEST_GROUPS" || -n "$TEST_CASES" ]]; then
-				log "INFO" "Filtering test configuration based on provided test groups and cases."
         local filtered_config
         filtered_config=$(get_filtered_test_config)
-				log "INFO" "Filtered test configuration: $filtered_config"
         if [[ -n "$filtered_config" ]]; then
             extra_vars="--extra-vars '$filtered_config'"
         fi
     fi
 
 		if [[ -n "$EXTRA_VARS" ]]; then
-				log "INFO" "Using extra vars: $EXTRA_VARS"
+				log a "INFO" "Using additional extra vars: $EXTRA_VARS"
 				escaped_extra_vars="${EXTRA_VARS//\'/\'\"\'\"\'}"
 				extra_vars+=" --extra-vars '$escaped_extra_vars'"
 		fi
-		log "INFO" "Running ansible playbook: $playbook_name with extra vars: $extra_vars"
 
     # Set local secret_id and key_vault_id if defined
     local secret_id=$(grep "^secret_id:" "$system_params" | awk '{split($0,a,": "); print a[2]}' | xargs || true)
@@ -405,7 +401,6 @@ run_ansible_playbook() {
 		fi
 
     log "INFO" "Running ansible playbook..."
-    log "INFO" "Executing ansible command"
     eval $command
     return_code=$?
     log "INFO" "Ansible playbook execution completed with return code: $return_code"
