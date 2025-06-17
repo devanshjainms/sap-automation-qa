@@ -295,7 +295,6 @@ run_ansible_playbook() {
     local auth_type=$4
     local system_config_folder=$5
 
-		log "INFO" "Running ansible playbook: $playbook_name"
 
 		# Get filtered test configuration if test filtering is requested
     local extra_vars=""
@@ -313,6 +312,7 @@ run_ansible_playbook() {
 			log "INFO" "Using extra vars: $EXTRA_VARS"
 			extra_vars+=" --extra-vars '$EXTRA_VARS'"
 		fi
+		log "INFO" "Running ansible playbook: $playbook_name with extra vars: $extra_vars"
 
     # Set local secret_id and key_vault_id if defined
     local secret_id=$(grep "^secret_id:" "$system_params" | awk '{split($0,a,": "); print a[2]}' | xargs || true)
