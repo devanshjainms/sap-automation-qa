@@ -165,7 +165,6 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
         except Exception:
             self.result["AUTOMATED_REGISTER"] = "unknown"
 
-
     def _process_node_attributes(self, cluster_status_xml: ET.Element) -> Dict[str, Any]:
         """
         Processes node attributes and identifies primary and secondary nodes.

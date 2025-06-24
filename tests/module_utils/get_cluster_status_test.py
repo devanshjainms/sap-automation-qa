@@ -263,9 +263,7 @@ class TestBaseClusterStatusChecker:
         :param base_checker: Instance of TestableBaseClusterChecker.
         :type base_checker: TestableBaseClusterChecker
         """
-        mocker.patch.object(
-            base_checker, "execute_command_subprocess", return_value="reboot"
-        )
+        mocker.patch.object(base_checker, "execute_command_subprocess", return_value="reboot")
 
         base_checker.test_ready = True
         base_checker.test_stable = False  # Cluster is not stable
