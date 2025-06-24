@@ -6,7 +6,8 @@ Unit tests for the sap_automation_qa module.
 """
 
 import xml.etree.ElementTree as ET
-from src.module_utils.sap_automation_qa import SapAutomationQA, TestStatus
+from src.module_utils.sap_automation_qa import SapAutomationQA
+from src.module_utils.enums import TestStatus
 
 
 class MockLogger:
