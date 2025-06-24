@@ -7,8 +7,7 @@ Unit tests for the check_indexserver module.
 
 import io
 from src.modules.check_indexserver import IndexServerCheck, main
-from src.module_utils.sap_automation_qa import TestStatus
-from src.module_utils.enums import OperatingSystemFamily, HanaSRProvider
+from src.module_utils.enums import OperatingSystemFamily, TestStatus
 
 
 def fake_open_factory(file_content):

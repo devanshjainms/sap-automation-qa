@@ -263,7 +263,7 @@ class TestBaseClusterStatusChecker:
         :param base_checker: Instance of TestableBaseClusterChecker.
         :type base_checker: TestableBaseClusterChecker
         """
-        mock_execute = mocker.patch.object(
+        mocker.patch.object(
             base_checker, "execute_command_subprocess", return_value="reboot"
         )
 
@@ -348,7 +348,7 @@ class TestBaseClusterStatusChecker:
         :param base_checker: Instance of TestableBaseClusterChecker.
         :type base_checker: TestableBaseClusterChecker
         """
-        mock_execute = mocker.patch.object(
+        mocker.patch.object(
             base_checker, "execute_command_subprocess", side_effect=Exception("Test exception")
         )
         mock_handle_error = mocker.patch.object(base_checker, "handle_error")

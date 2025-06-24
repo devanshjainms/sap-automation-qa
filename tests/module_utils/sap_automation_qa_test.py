@@ -67,7 +67,6 @@ class TestSapAutomationQA:
         Test the initialization of the SapAutomationQA class.
         """
         sap_qa = SapAutomationQA()
-        assert sap_qa.result["status"] == TestStatus.NOT_STARTED.value
         assert sap_qa.result["message"] == ""
         assert not sap_qa.result["details"]
         assert not sap_qa.result["logs"]

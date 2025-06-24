@@ -87,7 +87,7 @@ class TestDbSecondaryHDBOperations(RolesTestingBaseDB):
                 "bin/crm_resource",
                 "bin/echo",
                 "bin/killall",
-                "bin/SAPHanaSR-manageProvider"
+                "bin/SAPHanaSR-manageProvider",
             ],
             extra_vars_override={"node_tier": "hana"},
         )

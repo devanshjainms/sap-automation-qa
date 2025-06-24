@@ -191,7 +191,7 @@ class LogParser(SapAutomationQA):
         end_time: str,
         log_file: str,
         ansible_os_family: OperatingSystemFamily,
-        logs: list = [],
+        logs: list = list(),
     ):
         super().__init__()
         self.start_time = start_time

@@ -98,9 +98,7 @@ class TestFilter:
         """
         filtered_json = self.filter_tests(test_group, test_cases)
         filtered_config = json.loads(filtered_json)
-        return json.dumps({
-            "test_groups": filtered_config["test_groups"]
-        })
+        return json.dumps({"test_groups": filtered_config["test_groups"]})
 
 
 def main():

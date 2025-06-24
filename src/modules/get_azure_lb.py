@@ -213,7 +213,7 @@ class AzureLoadBalancer(SapAutomationQA):
             self.result["message"] += f" Failed to get load balancers. {ex} \n"
         return []
 
-    def get_load_balancers_details(self):
+    def get_load_balancers_details(self) -> None:
         """
         Get the details of the load balancers in a specific resource group.
         """

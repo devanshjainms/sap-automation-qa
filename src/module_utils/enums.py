@@ -66,13 +66,7 @@ class Parameters:
     """
 
     def __init__(
-        self,
-        category: str,
-        id: str,
-        name: str,
-        value: Any,
-        expected_value: Any,
-        status: str
+        self, category: str, id: str, name: str, value: Any, expected_value: Any, status: str
     ):
         self.category = category
         self.id = id
@@ -85,7 +79,8 @@ class Parameters:
         """
         Converts the parameters to a dictionary.
 
-        returns: Dictionary containing the parameters
+        return: Dictionary containing the parameters
+        rtype: Dict[str, Any]
         """
         return {
             "category": self.category,
@@ -115,11 +110,11 @@ class Result:
 
     def __init__(
         self,
-        status: str = None,
+        status: str = "",
         message: str = "",
-        details: List[Any] = None,
-        logs: List[str] = None,
-        changed: bool = False
+        details: List[Any] = list(),
+        logs: List[str] = list(),
+        changed: bool = False,
     ):
         self.status = status if status is not None else TestStatus.NOT_STARTED.value
         self.message = message
@@ -131,8 +126,8 @@ class Result:
         """
         Converts the result to a dictionary.
 
-        Returns:
-            Dictionary containing the result
+        return: Dictionary containing the result
+        rtype: Dict[str, Any]
         """
         return {
             "status": self.status,

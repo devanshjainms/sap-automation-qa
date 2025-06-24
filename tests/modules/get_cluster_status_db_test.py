@@ -53,8 +53,8 @@ class TestHanaClusterStatusChecker:
 
         :param mocker: Mocking library for Python.
         :type mocker: _mocker.MagicMock
-        :param hana_checker: Instance of HanaClusterStatusChecker.
-        :type hana_checker: HanaClusterStatusChecker
+        :param hana_checker_classic: Instance of HanaClusterStatusChecker.
+        :type hana_checker_classic: HanaClusterStatusChecker
         """
         mocker.patch.object(
             hana_checker_classic,
@@ -73,8 +73,8 @@ class TestHanaClusterStatusChecker:
 
         :param mocker: Mocking library for Python.
         :type mocker: _mocker.MagicMock
-        :param hana_checker: Instance of HanaClusterStatusChecker.
-        :type hana_checker: HanaClusterStatusChecker
+        :param hana_checker_classic: Instance of HanaClusterStatusChecker.
+        :type hana_checker_classic: HanaClusterStatusChecker
         """
         mocker.patch.object(
             hana_checker_classic, "execute_command_subprocess", side_effect=Exception("Test error")
@@ -88,8 +88,8 @@ class TestHanaClusterStatusChecker:
         """
         Test processing node attributes with only the primary node.
 
-        :param hana_checker: Instance of HanaClusterStatusChecker.
-        :type hana_checker: HanaClusterStatusChecker
+        :param hana_checker_classic: Instance of HanaClusterStatusChecker.
+        :type hana_checker_classic: HanaClusterStatusChecker
         """
 
         xml_str = """
@@ -118,8 +118,8 @@ class TestHanaClusterStatusChecker:
         """
         Test processing node attributes with only the primary node when using ANGI provider.
 
-        :param hana_checker: Instance of HanaClusterStatusChecker.
-        :type hana_checker: HanaClusterStatusChecker
+        :param hana_checker_angi: Instance of HanaClusterStatusChecker.
+        :type hana_checker_angi: HanaClusterStatusChecker
         """
 
         xml_str = """
@@ -146,8 +146,8 @@ class TestHanaClusterStatusChecker:
         """
         Test processing node attributes with both primary and secondary nodes.
 
-        :param hana_checker: Instance of HanaClusterStatusChecker.
-        :type hana_checker: HanaClusterStatusChecker
+        :param hana_checker_angi: Instance of HanaClusterStatusChecker.
+        :type hana_checker_angi: HanaClusterStatusChecker
         """
         xml_str = """
         <dummy>
@@ -179,8 +179,8 @@ class TestHanaClusterStatusChecker:
         """
         Test processing node attributes with both primary and secondary nodes.
 
-        :param hana_checker: Instance of HanaClusterStatusChecker.
-        :type hana_checker: HanaClusterStatusChecker
+        :param hana_checker_classic: Instance of HanaClusterStatusChecker.
+        :type hana_checker_classic: HanaClusterStatusChecker
         """
         xml_str = """
         <dummy>
@@ -212,8 +212,8 @@ class TestHanaClusterStatusChecker:
         """
         Test the _is_cluster_ready method.
 
-        :param hana_checker: Instance of HanaClusterStatusChecker.
-        :type hana_checker: HanaClusterStatusChecker
+        :param hana_checker_classic: Instance of HanaClusterStatusChecker.
+        :type hana_checker_classic: HanaClusterStatusChecker
         """
         hana_checker_classic.result["primary_node"] = ""
         assert not hana_checker_classic._is_cluster_ready()
@@ -225,8 +225,8 @@ class TestHanaClusterStatusChecker:
         """
         Test the _is_cluster_stable method.
 
-        :param hana_checker: Instance of HanaClusterStatusChecker.
-        :type hana_checker: HanaClusterStatusChecker
+        :param hana_checker_classic: Instance of HanaClusterStatusChecker.
+        :type hana_checker_classic: HanaClusterStatusChecker
         """
         hana_checker_classic.result["primary_node"] = ""
         hana_checker_classic.result["secondary_node"] = ""
@@ -245,8 +245,8 @@ class TestHanaClusterStatusChecker:
         Test the run method of the HanaClusterStatusChecker class.
         :param mocker: Mocking library for Python.
         :type mocker: _mocker.MagicMock
-        :param hana_checker: Instance of HanaClusterStatusChecker.
-        :type hana_checker: HanaClusterStatusChecker
+        :param hana_checker_classic: Instance of HanaClusterStatusChecker.
+        :type hana_checker_classic: HanaClusterStatusChecker
         """
         mock_super_run = mocker.patch(
             "src.module_utils.get_cluster_status.BaseClusterStatusChecker.run",

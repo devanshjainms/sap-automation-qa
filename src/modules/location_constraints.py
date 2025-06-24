@@ -11,13 +11,13 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.facts.compat import ansible_facts
 
 try:
-    from ansible.module_utils.sap_automation_qa import SapAutomationQA, TestStatus
+    from ansible.module_utils.sap_automation_qa import SapAutomationQA
     from ansible.module_utils.commands import RSC_CLEAR, CONSTRAINTS
-    from ansible.module_utils.enums import OperatingSystemFamily
+    from ansible.module_utils.enums import OperatingSystemFamily, TestStatus
 except ImportError:
-    from src.module_utils.sap_automation_qa import SapAutomationQA, TestStatus
+    from src.module_utils.sap_automation_qa import SapAutomationQA
     from src.module_utils.commands import RSC_CLEAR, CONSTRAINTS
-    from src.module_utils.enums import OperatingSystemFamily
+    from src.module_utils.enums import OperatingSystemFamily, TestStatus
 
 
 DOCUMENTATION = r"""
@@ -153,7 +153,9 @@ def run_module() -> None:
     action = module.params["action"]
 
     manager = LocationConstraintsManager(
-        ansible_os_family=OperatingSystemFamily(str(ansible_facts(module).get("os_family", "SUSE")).upper())
+        ansible_os_family=OperatingSystemFamily(
+            str(ansible_facts(module).get("os_family", "SUSE")).upper()
+        )
     )
 
     if module.check_mode:
