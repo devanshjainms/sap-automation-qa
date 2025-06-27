@@ -45,9 +45,10 @@
         - name:                         "Test Execution: Validate HANA DB cluster status 1"
           when:                         cluster_status_pre.AUTOMATED_REGISTER == "true"
           get_cluster_status_db:
+            db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "test_execution"
             database_sid:               "{{ db_sid | lower }}"
-            ansible_os_family:          "{{ ansible_os_family | upper }}"
+            saphanasr_provider:         "{{ saphanasr_provider | default('SAPHanaSR') }}"
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
           register:                     cluster_status_test_execution
@@ -58,9 +59,10 @@
         - name:                         "Test Execution: Validate HANA DB cluster status"
           when:                         cluster_status_pre.AUTOMATED_REGISTER == "false"
           get_cluster_status_db:
+            db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "test_execution"
             database_sid:               "{{ db_sid | lower }}"
-            ansible_os_family:          "{{ ansible_os_family | upper }}"
+            saphanasr_provider:         "{{ saphanasr_provider | default('SAPHanaSR') }}"
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
           register:                     cluster_status_test_execution
@@ -102,9 +104,10 @@
 
         - name:                         "Test Execution: Validate HANA DB cluster status 2"
           get_cluster_status_db:
+            db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "post_failover"
             database_sid:               "{{ db_sid | lower }}"
-            ansible_os_family:          "{{ ansible_os_family | upper }}"
+            saphanasr_provider:         "{{ saphanasr_provider | default('SAPHanaSR') }}"
           register:                     cluster_status_post
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
