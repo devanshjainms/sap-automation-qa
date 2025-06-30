@@ -27,8 +27,8 @@
         virtual_machine_name:           "{{ current_hostname }}"
         fencing_mechanism:              "{{ database_cluster_type }}"
         pcmk_constants:                 "{{ lookup('file', 'constants.yaml') | from_yaml }}"
-        os_family:                      "{{ target_os_family | default('UNKNOWN') }}"
         saphanasr_provider:             "{{ saphanasr_provider | default('SAPHanaSR') }}"
+        os_family:                      "{{ target_os_family | default('UNKNOWN') }}"
         cib_output:                     "{{ cib_file_content.content | b64decode if cib_file_content.content is defined else '' }}"
       register:                         test_result
 
