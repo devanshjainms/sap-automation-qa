@@ -52,11 +52,6 @@ options:
             - Type of fencing mechanism used
         type: str
         required: true
-    os_version:
-        description:
-            - Operating system version
-        type: str
-        required: true
     pcmk_constants:
         description:
             - Dictionary of constants for validation
@@ -90,7 +85,6 @@ EXAMPLES = r"""
     instance_number: "00"
     virtual_machine_name: "{{ ansible_hostname }}"
     fencing_mechanism: "sbd"
-    os_version: "{{ ansible_distribution_version }}"
     pcmk_constants: "{{ pcmk_validation_constants }}"
   register: pcmk_validation_result
 
@@ -180,7 +174,6 @@ class HAClusterValidator(BaseHAClusterValidator):
     def __init__(
         self,
         os_type: OperatingSystemFamily,
-        os_version: str,
         sid: str,
         instance_number: str,
         fencing_mechanism: str,
@@ -199,7 +192,6 @@ class HAClusterValidator(BaseHAClusterValidator):
             category=category,
             cib_output=cib_output,
         )
-        self.os_version = os_version
         self.instance_number = instance_number
         self.saphanasr_provider = saphanasr_provider
         self.parse_ha_cluster_config()
@@ -300,25 +292,41 @@ def main() -> None:
     """
     Main entry point for the Ansible module.
     """
-    module = AnsibleModule(
-        argument_spec=dict(
-            sid=dict(type="str"),
-            instance_number=dict(type="str"),
-            virtual_machine_name=dict(type="str"),
-            fencing_mechanism=dict(type="str"),
-            os_version=dict(type="str"),
-            pcmk_constants=dict(type="dict"),
-            saphanasr_provider=dict(type="str"),
-            cib_output=dict(type="str", required=False, default=""),
-            filter=dict(type="str", required=False, default="os_family"),
+
+    try:
+        module = AnsibleModule(
+            argument_spec=dict(
+                sid=dict(type="str"),
+                instance_number=dict(type="str"),
+                virtual_machine_name=dict(type="str"),
+                fencing_mechanism=dict(type="str"),
+                pcmk_constants=dict(type="dict"),
+                saphanasr_provider=dict(type="str"),
+                cib_output=dict(type="str", required=False, default=""),
+                os_family=dict(type="str", required=False),
+                filter=dict(type="str", required=False, default="os_family"),
+            )
         )
-    )
+        os_family = module.params.get("os_family") or ansible_facts(module).get(
+            "os_family", "UNKNOWN"
+        )
+    except Exception:
+        module = AnsibleModule(
+            argument_spec=dict(
+                sid=dict(type="str"),
+                instance_number=dict(type="str"),
+                virtual_machine_name=dict(type="str"),
+                fencing_mechanism=dict(type="str"),
+                pcmk_constants=dict(type="dict"),
+                saphanasr_provider=dict(type="str"),
+                cib_output=dict(type="str", required=False, default=""),
+                os_family=dict(type="str", required=False),
+            )
+        )
+        os_family = module.params.get("os_family", "UNKNOWN")
 
     validator = HAClusterValidator(
-        os_type=OperatingSystemFamily(
-            str(ansible_facts(module).get("os_family", "UNKNOWN")).upper()
-        ),
-        os_version=module.params["os_version"],
+        os_type=OperatingSystemFamily(os_family.upper()),
         instance_number=module.params["instance_number"],
         sid=module.params["sid"],
         virtual_machine_name=module.params["virtual_machine_name"],

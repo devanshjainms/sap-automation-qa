@@ -7,12 +7,11 @@
 # |                                                                            |
 # +------------------------------------4--------------------------------------*/
 - hosts:                               localhost
-  gather_facts:                        true
+  gather_facts:                        false
   name:                                "Setup deployer for HA Testing Framework"
   vars_files:                          "./vars/input-api.yaml"
   tasks:
     - name:                            "Install python azure pacakges required"
-      become:                          true
       ansible.builtin.pip:
         name:
           - ansible-runner
@@ -36,7 +35,7 @@
         test_cases:                    "{{ test_groups
                                             | selectattr('name', 'equalto', test_group_name)
                                             | map(attribute='test_cases') | list | flatten(levels=1)
-                                            | selectattr('enabled', 'equalto', true) | list }}"
+                                            | selectattr('task_name', 'equalto', 'ha-config-offline') | list }}"
       run_once:                        true
 
     - name:                            "Run test cases by including them as roles"

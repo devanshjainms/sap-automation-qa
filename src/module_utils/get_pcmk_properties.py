@@ -447,7 +447,11 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         if not self.cib_output:
             return None
         else:
-            self.cib_output = self.parse_xml_output(self.cib_output)
+            self.cib_output = (
+                self.parse_xml_output(self.cib_output)
+                if isinstance(self.cib_output, str)
+                else self.cib_output
+            )
 
         scope_mappings = {
             "resources": ".//resources",
