@@ -7,7 +7,7 @@
 
 - name:                                 "Find all CIB files in crm_report directory"
   ansible.builtin.find:
-    paths:                              "{{ _workspace_directory }}/crm_report/"
+    paths:                              "{{ _workspace_directory }}/system_output/"
     patterns:                           "cib"
     recurse:                            true
   register:                             cib_files

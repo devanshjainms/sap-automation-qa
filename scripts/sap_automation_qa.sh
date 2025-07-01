@@ -4,26 +4,41 @@
 # Licensed under the MIT License.
 
 set -eo pipefail
-# Activate the virtual environment
-source "$(realpath $(dirname $(realpath $0))/..)/.venv/bin/activate"
 
-cmd_dir="$(dirname "$(readlink -e "${BASH_SOURCE[0]}")")"
+# Get script directory in a more portable way
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd "$script_dir/.." && pwd)"
+
+# Activate the virtual environment
+if [[ -f "$project_root/.venv/bin/activate" ]]; then
+    source "$project_root/.venv/bin/activate"
+else
+    echo "ERROR: Virtual environment not found at $project_root/.venv"
+    echo "Please run setup.sh first to create the virtual environment."
+    exit 1
+fi
+
+# Source the utils script for logging and utility functions
+source "$script_dir/utils.sh"
+
+# Use more portable command directory detection
+if command -v readlink >/dev/null 2>&1; then
+    cmd_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+else
+    # Fallback for systems without readlink -f (like some macOS versions)
+    cmd_dir="$script_dir"
+fi
 
 # Set the environment variables
 export ANSIBLE_COLLECTIONS_PATH=/opt/ansible/collections:${ANSIBLE_COLLECTIONS_PATH:+${ANSIBLE_COLLECTIONS_PATH}}
 export ANSIBLE_CONFIG="${cmd_dir}/../src/ansible.cfg"
 export ANSIBLE_MODULE_UTILS="${cmd_dir}/../src/module_utils:${ANSIBLE_MODULE_UTILS:+${ANSIBLE_MODULE_UTILS}}"
 export ANSIBLE_HOST_KEY_CHECKING=False
-# Colors for error messages
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NC='\033[0m'
+set_output_context
 
 # Global variable to store the path of the temporary file.
 temp_file=""
 
-# Parse command line arguments and extract verbose flags
-# Sets global ANSIBLE_VERBOSE variable
 # Parse command line arguments and extract verbose flags
 # Sets global ANSIBLE_VERBOSE variable
 parse_arguments() {
@@ -83,33 +98,12 @@ Configuration is read from vars.yaml file.
 EOF
 }
 
-# Print logs with color based on severity.
-# :param severity: The severity level of the log (e.g., "INFO", "ERROR").
-# :param message: The message to log.
-log() {
-    local severity=$1
-    local message=$2
-
-    if [[ "$severity" == "ERROR" ]]; then
-        echo -e "${RED}[ERROR] $message${NC}"
-    else
-        echo -e "${GREEN}[INFO] $message${NC}"
-    fi
-}
-
 log "INFO" "ANSIBLE_COLLECTIONS_PATH: $ANSIBLE_COLLECTIONS_PATH"
 log "INFO" "ANSIBLE_CONFIG: $ANSIBLE_CONFIG"
 log "INFO" "ANSIBLE_MODULE_UTILS: $ANSIBLE_MODULE_UTILS"
 
 # Define the path to the vars.yaml file
 VARS_FILE="${cmd_dir}/../vars.yaml"
-
-# Check if a command exists.
-# :param command: The command to check.
-# :return: None. Exits with a non-zero status if the command does not exist.
-command_exists() {
-    command -v "$1" &> /dev/null
-}
 
 # Validate input parameters from vars.yaml.
 # :return: None. Exits with a non-zero status if validation fails.
@@ -137,20 +131,6 @@ validate_params() {
 
     if [ ${#missing_params[@]} -ne 0 ]; then
         log "ERROR" "Error: The following parameters cannot be empty: ${missing_params[*]}"
-        exit 1
-    fi
-}
-
-# Check if a file exists.
-# :param file_path: The path to the file to check.
-# :param error_message: The error message to display if the file does not exist.
-# :return: None. Exits with a non-zero status if the file does not exist.
-check_file_exists() {
-    local file_path=$1
-    local error_message=$2
-    log "INFO" "Checking if file exists: $file_path"
-    if [[ ! -f "$file_path" ]]; then
-        log "ERROR" "Error: $error_message"
         exit 1
     fi
 }
@@ -442,7 +422,6 @@ main() {
     log "INFO" "Activate the virtual environment..."
     set -e
 
-		# Parse command line arguments
 		parse_arguments "$@"
 
 		if [[ -n "$TEST_GROUPS" ]]; then
@@ -454,7 +433,6 @@ main() {
 		if [[ "$OFFLINE_MODE" == "true" ]]; then
         log "INFO" "Offline mode enabled - using previously collected CIB data"
     fi
-
 
     # Validate parameters
     validate_params
@@ -475,7 +453,7 @@ main() {
         "sap-parameters.yaml not found in WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME directory."
 
 		if [[ "$OFFLINE_MODE" == "true" ]]; then
-        local crm_report_dir="$SYSTEM_CONFIG_FOLDER/crm_report"
+        local crm_report_dir="$SYSTEM_CONFIG_FOLDER/system_output"
         if [[ ! -d "$crm_report_dir" ]]; then
             log "ERROR" "Offline mode requires CIB data in $crm_report_dir directory. Please run online tests first to collect CIB data."
             exit 1
