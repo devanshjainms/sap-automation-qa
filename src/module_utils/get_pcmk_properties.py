@@ -52,7 +52,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         virtual_machine_name: str,
         constants: dict,
         fencing_mechanism: str,
-        cib_output: str,
+        cib_output: str = "",
         category=None,
     ):
         """
@@ -444,14 +444,14 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         :return: XML element for the scope
         :rtype: xml.etree.ElementTree.Element or None
         """
-        if not self.cib_output:
-            return None
-        else:
+        if self.cib_output:
             self.cib_output = (
                 self.parse_xml_output(self.cib_output)
                 if isinstance(self.cib_output, str)
                 else self.cib_output
             )
+        else:
+            return None
 
         scope_mappings = {
             "resources": ".//resources",
@@ -514,7 +514,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
             if not self.cib_output:
                 parameters.extend(self._parse_os_parameters())
             else:
-                self.result["message"] += "CIB output provided, skipping OS parameters parsing."
+                self.result["message"] += "CIB output provided, skipping OS parameters parsing. "
         except Exception as ex:
             self.result["message"] += f"Failed to get OS parameters: {str(ex)} \n"
         try:
@@ -523,7 +523,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
             else:
                 self.result[
                     "message"
-                ] += "CIB output provided, skipping additional parameters parsing."
+                ] += "CIB output provided, skipping additional parameters parsing. "
         except Exception as ex:
             self.result["message"] += f"Failed to get additional parameters: {str(ex)} \n"
         failed_parameters = [
@@ -539,4 +539,4 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                 ),
             }
         )
-        self.result["message"] += "HA Parameter Validation completed successfully."
+        self.result["message"] += "HA Parameter Validation completed successfully. "
