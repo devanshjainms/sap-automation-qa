@@ -1,0 +1,21 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------
+# |                          HA Configuration Validation                       |
+# +--------------------------------------------------------------------------*/
+
+- name:                                 "Find all CIB files in crm_report directory"
+  ansible.builtin.find:
+    paths:                              "{{ _workspace_directory }}/system_output/"
+    patterns:                           "cib"
+    recurse:                            true
+  register:                             cib_files
+  delegate_to:                          localhost
+
+- name:                                 "Process HA Configuration for each host"
+  ansible.builtin.include_tasks:        "process-crm-report.yml"
+  loop:                                 "{{ cib_files.files }}"
+  loop_control:
+    loop_var:                           crm_report_host
+  when:                                 cib_files.files | length > 0
