@@ -49,7 +49,7 @@
                                         - test_group_name is defined
                                         - item.enabled | default(true)
 
-    - name:                            "Render HTML report for the test group"
+    - name:                            "Render HTML report for the test group logs"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
       when:                            test_group_name is defined
 
