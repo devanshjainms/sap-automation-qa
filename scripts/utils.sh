@@ -149,7 +149,7 @@ map_package_names() {
             ansible)
                 case "$DISTRO_FAMILY" in
                     debian) mapped_packages+=("ansible") ;;
-                    rhel) mapped_packages+=("ansible") ;;
+                    rhel) mapped_packages+=("ansible-core") ;;
                     suse) mapped_packages+=("ansible") ;;
                 esac
                 ;;
