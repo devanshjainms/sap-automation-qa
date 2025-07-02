@@ -25,7 +25,8 @@
       ansible.builtin.set_fact:
         test_group_name:               "{{ sap_functional_test_type_map
                                         | selectattr('name', 'equalto', sap_functional_test_type)
-                                        | map(attribute='value') | first }}_{{ platform | upper }}"
+                                        | map(attribute='value') | first }}{{ '_' + (platform | upper)
+                                        if sap_functional_test_type == 'DatabaseHighAvailability' else '' }}"
       run_once:                        true
 
     - name:                            Set the test group facts
@@ -35,7 +36,7 @@
         test_cases:                    "{{ test_groups
                                             | selectattr('name', 'equalto', test_group_name)
                                             | map(attribute='test_cases') | list | flatten(levels=1)
-                                            | selectattr('task_name', 'equalto', 'ha-config-offline') | list }}"
+                                            | selectattr('task_name', 'contains', 'offline') | list }}"
       run_once:                        true
 
     - name:                            "Run test cases by including them as roles"
@@ -45,9 +46,7 @@
         group_invocation_id:           "{{ test_group_invocation_id }}"
         group_start_time:              "{{ test_group_start_time }}"
         group_name:                    "{{ sap_functional_test_type }}"
-      when:
-                                        - test_group_name is defined
-                                        - item.enabled | default(true)
+      when:                             test_group_name is defined
 
     - name:                            "Render HTML report for the test group logs"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"

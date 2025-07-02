@@ -422,7 +422,7 @@ class TestHAClusterValidator:
                 mock_result = kwargs
 
         def mock_ansible_facts(module):
-            return {"os_family": "RedHat"}
+            return {"os_family": "SUSE"}
 
         import src.modules.get_pcmk_properties_scs as module_under_test
 

@@ -286,27 +286,45 @@ def main() -> None:
     """
     Main entry point for the Ansible module.
     """
-    module = AnsibleModule(
-        argument_spec=dict(
-            sid=dict(type="str"),
-            ascs_instance_number=dict(type="str"),
-            ers_instance_number=dict(type="str"),
-            virtual_machine_name=dict(type="str"),
-            pcmk_constants=dict(type="dict"),
-            fencing_mechanism=dict(type="str"),
-            nfs_provider=dict(type="str", default=""),
-            cib_output=dict(type="str", required=False, default=""),
-            filter=dict(type="str", required=False, default="os_family"),
+    try:
+        module = AnsibleModule(
+            argument_spec=dict(
+                sid=dict(type="str"),
+                ascs_instance_number=dict(type="str"),
+                ers_instance_number=dict(type="str"),
+                virtual_machine_name=dict(type="str"),
+                pcmk_constants=dict(type="dict"),
+                fencing_mechanism=dict(type="str"),
+                nfs_provider=dict(type="str", default=""),
+                cib_output=dict(type="str", required=False, default=""),
+                os_family=dict(type="str", required=False),
+                filter=dict(type="str", required=False, default="os_family"),
+            )
         )
-    )
+        os_family = module.params.get("os_family") or ansible_facts(module).get(
+            "os_family", "UNKNOWN"
+        )
+    except Exception:
+        module = AnsibleModule(
+            argument_spec=dict(
+                sid=dict(type="str"),
+                ascs_instance_number=dict(type="str"),
+                ers_instance_number=dict(type="str"),
+                virtual_machine_name=dict(type="str"),
+                pcmk_constants=dict(type="dict"),
+                fencing_mechanism=dict(type="str"),
+                nfs_provider=dict(type="str", default=""),
+                cib_output=dict(type="str", required=False, default=""),
+                os_family=dict(type="str", required=False, default="UNKNOWN"),
+            )
+        )
+        os_family = module.params.get("os_family", "UNKNOWN").upper()
 
     validator = HAClusterValidator(
         sid=module.params["sid"],
         scs_instance_number=module.params["ascs_instance_number"],
         ers_instance_number=module.params["ers_instance_number"],
-        os_type=OperatingSystemFamily(
-            str(ansible_facts(module).get("os_family", "UNKNOWN")).upper()
-        ),
+        os_type=OperatingSystemFamily(os_family),
         virtual_machine_name=module.params["virtual_machine_name"],
         constants=module.params["pcmk_constants"],
         fencing_mechanism=module.params["fencing_mechanism"],

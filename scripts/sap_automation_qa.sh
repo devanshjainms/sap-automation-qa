@@ -160,13 +160,17 @@ get_playbook_name() {
     case "$test_type" in
         "DatabaseHighAvailability")
             if [[ "$offline_mode" == "true" ]]; then
-                echo "playbook_01_ha_db_offline_tests"
+                echo "playbook_01_ha_offline_tests"
             else
                 echo "playbook_00_ha_db_functional_tests"
             fi
             ;;
         "CentralServicesHighAvailability")
-            echo "playbook_00_ha_scs_functional_tests"
+            if [[ "$offline_mode" == "true" ]]; then
+                echo "playbook_01_ha_offline_tests"
+            else
+                echo "playbook_00_ha_scs_functional_tests"
+            fi
             ;;
         *)
             log "ERROR" "Unknown sap_functional_test_type: $test_type"
@@ -453,7 +457,7 @@ main() {
         "sap-parameters.yaml not found in WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME directory."
 
 		if [[ "$OFFLINE_MODE" == "true" ]]; then
-        local crm_report_dir="$SYSTEM_CONFIG_FOLDER/system_output"
+        local crm_report_dir="$SYSTEM_CONFIG_FOLDER/offline_validation"
         if [[ ! -d "$crm_report_dir" ]]; then
             log "ERROR" "Offline mode requires CIB data in $crm_report_dir directory. Please run online tests first to collect CIB data."
             exit 1
