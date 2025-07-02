@@ -44,7 +44,10 @@ else
 fi
 
 log "INFO" "Installing Python packages..."
-if pip install azure-identity azure-kusto-data azure-kusto-ingest azure-mgmt-network azure-storage-blob azure-storage-queue; then
+if ! pip install --upgrade pip; then
+		log "ERROR" "Failed to upgrade pip."
+fi
+if pip install requests azure-identity azure-kusto-data azure-kusto-ingest azure-mgmt-network azure-storage-blob azure-storage-queue; then
     log "INFO" "Python packages installed successfully."
 else
     log "ERROR" "Failed to install Python packages."

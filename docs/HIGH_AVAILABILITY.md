@@ -107,7 +107,7 @@ yum install git
 
 # SUSE
 sudo su -
-zypper install git -y
+zypper install git
 ```
 
 1.3. **Fork and clone the repository**:
