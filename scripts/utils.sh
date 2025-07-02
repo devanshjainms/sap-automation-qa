@@ -157,20 +157,20 @@ map_package_names() {
                 case "$DISTRO_FAMILY" in
                     debian) mapped_packages+=("sshpass") ;;
                     rhel) mapped_packages+=("sshpass") ;;
-                    suse) mapped_packages+=("sshpass") ;;
+                    suse)
+												>&2 log "INFO" "Skipping sshpass installation on SUSE systems (not available in standard repositories)"
+                        ;;
                 esac
                 ;;
             python3-venv)
                 case "$DISTRO_FAMILY" in
                     debian) mapped_packages+=("python3-venv") ;;
                     rhel)
-                        if [[ "$DISTRO" =~ ^(rhel|centos) ]] && [[ "${DISTRO_VERSION_ID%%.*}" -le 7 ]]; then
-                            mapped_packages+=("python3-virtualenv")
-                        else
-                            mapped_packages+=("python3-venv")
-                        fi
+                        >&2 log "INFO" "Skipping python3-venv installation on Red Hat systems"
                         ;;
-                    suse) mapped_packages+=("python3-venv") ;;
+                    suse)
+                        >&2 log "INFO" "Skipping python3-venv installation on SUSE systems"
+                        ;;
                 esac
                 ;;
             *)
