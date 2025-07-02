@@ -9,7 +9,15 @@
 
 - name:                                 "Ensure a list of package version is available for logging"
   no_log:                               true
-  ansible.builtin.package_facts:
+  block:
+    - name:                             "Try to collect package facts"
+      ansible.builtin.package_facts:
+  rescue:
+    - name:                             "Package facts collection failed - using empty list"
+      ansible.builtin.set_fact:
+        ansible_facts:
+          packages:                     {}
+      no_log:                           true
 
 - name:                                 "Create package dictionary for telemetry data"
   become:                               true
