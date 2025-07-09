@@ -146,11 +146,13 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
         db_instance_number: str,
         saphanasr_provider: HanaSRProvider,
         ansible_os_family: OperatingSystemFamily,
+        hana_resource_name: str = "",
     ):
         super().__init__(ansible_os_family)
         self.database_sid = database_sid
         self.saphanasr_provider = saphanasr_provider
         self.db_instance_number = db_instance_number
+        self.hana_resource_name = hana_resource_name
         self.result.update(
             {
                 "primary_node": "",
@@ -206,7 +208,8 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
             },
             HanaSRProvider.ANGI: {
                 "clone_attr": f"hana_{self.database_sid}_clone_state",
-                "sync_attr": f"master-rsc_SAPHanaCon_{self.database_sid.upper()}"
+                "sync_attr": f"master-{self.hana_resource_name}"
+                or f"master-rsc_SAPHanaCon_{self.database_sid.upper()}"
                 + f"_HDB{self.db_instance_number}",
                 "primary": {"clone": "PROMOTED", "sync": "150"},
                 "secondary": {"clone": "DEMOTED", "sync": "100"},
@@ -288,6 +291,7 @@ def run_module() -> None:
         database_sid=dict(type="str", required=True),
         saphanasr_provider=dict(type="str", required=True),
         db_instance_number=dict(type="str", required=True),
+        hana_resource_name=dict(type="str", required=False),
         filter=dict(type="str", required=False, default="os_family"),
     )
 
@@ -300,6 +304,7 @@ def run_module() -> None:
             str(ansible_facts(module).get("os_family", "UNKNOWN")).upper()
         ),
         db_instance_number=module.params["db_instance_number"],
+        hana_resource_name=module.params.get("hana_resource_name", ""),
     )
     checker.run()
 
