@@ -22,6 +22,7 @@
       when:                         saphanasr_provider | default('SAPHanaSR') == "SAPHanaSR-angi"
       block:
         - name:                     "Pre validation: Get HANA resource id for saphanasr_angi"
+          become:                   true
           ansible.builtin.shell: >-
                                     set -o pipefail && {{ commands
                                       | selectattr('name','equalto','get_hana_resource_id_saphanasr_angi')
@@ -42,6 +43,7 @@
       when:                         saphanasr_provider | default('SAPHanaSR') == "SAPHanaSR"
       block:
         - name:                     "Try master resource ID"
+          become:                   true
           ansible.builtin.shell: >-
                                     set -o pipefail && {{ commands
                                       | selectattr('name','equalto','get_hana_resource_id')
@@ -55,6 +57,7 @@
           failed_when:              hana_resource_id.rc != 0
       rescue:
         - name:                     "Try clone resource ID"
+          become:                   true
           ansible.builtin.shell: >-
                                     set -o pipefail && {{ commands
                                       | selectattr('name','equalto','get_hana_resource_id')
