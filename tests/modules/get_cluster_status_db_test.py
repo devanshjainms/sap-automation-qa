@@ -32,6 +32,7 @@ class TestHanaClusterStatusChecker:
             ansible_os_family=OperatingSystemFamily.REDHAT,
             saphanasr_provider=HanaSRProvider.SAPHANASR,
             db_instance_number="00",
+            hana_resource_name="rsc_SAPHanaCon_TEST_HDB00",
         )
 
     @pytest.fixture
@@ -47,6 +48,7 @@ class TestHanaClusterStatusChecker:
             ansible_os_family=OperatingSystemFamily.SUSE,
             saphanasr_provider=HanaSRProvider.ANGI,
             db_instance_number="00",
+            hana_resource_name="rsc_SAPHanaCon_TEST_HDB00",
         )
 
     def test_get_automation_register(self, mocker, hana_checker_classic):
