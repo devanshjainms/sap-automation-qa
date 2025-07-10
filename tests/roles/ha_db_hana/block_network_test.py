@@ -32,6 +32,17 @@ class TestBlockNetworkTest(RolesTestingBaseDB):
         :type: str
         """
 
+        commands = [
+            {
+                "name": "get_hana_resource_id",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+            {
+                "name": "get_hana_resource_id_saphanasr_angi",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+        ]
+
         task_counter_file = "/tmp/get_cluster_status_counter_block-network"
         if os.path.exists(task_counter_file):
             os.remove(task_counter_file)
@@ -51,6 +62,7 @@ class TestBlockNetworkTest(RolesTestingBaseDB):
             "bin/nc",
             "bin/echo",
             "bin/sleep",
+            "bin/cibadmin",
             "bin/SAPHanaSR-manageProvider",
         ]
 
@@ -65,6 +77,7 @@ class TestBlockNetworkTest(RolesTestingBaseDB):
                 "NFS_provider": "ANF",
                 "database_cluster_type": "ISCSI",
                 "sap_port_to_ping": "1128",
+                "commands": commands,
             },
         )
 

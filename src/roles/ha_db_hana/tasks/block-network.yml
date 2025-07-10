@@ -93,6 +93,7 @@
             operation_step:                 "test_execution"
             database_sid:                   "{{ db_sid | lower }}"
             saphanasr_provider:             "{{ saphanasr_provider | default('SAPHanaSR') }}"
+            hana_resource_name:             "{{ hana_resource_name | default('') }}"
           register:                         cluster_status_test_execution_primary
           retries:                          "{{ default_retries }}"
           delay:                            "{{ default_delay }}"
@@ -119,6 +120,7 @@
             operation_step:                 "test_execution"
             database_sid:                   "{{ db_sid | lower }}"
             saphanasr_provider:             "{{ saphanasr_provider | default('SAPHanaSR') }}"
+            hana_resource_name:             "{{ hana_resource_name | default('') }}"
           register:                         cluster_status_post_primary
           retries:                          "{{ default_retries }}"
           delay:                            "{{ default_delay }}"
@@ -138,6 +140,7 @@
             operation_step:                 "test_execution"
             database_sid:                   "{{ db_sid | lower }}"
             saphanasr_provider:             "{{ saphanasr_provider | default('SAPHanaSR') }}"
+            hana_resource_name:             "{{ hana_resource_name | default('') }}"
           register:                         cluster_status_test_execution_secondary
           retries:                          "{{ default_retries }}"
           delay:                            "{{ default_delay }}"
@@ -155,6 +158,7 @@
             operation_step:                 "test_execution"
             database_sid:                   "{{ db_sid | lower }}"
             saphanasr_provider:             "{{ saphanasr_provider | default('SAPHanaSR') }}"
+            hana_resource_name:             "{{ hana_resource_name | default('') }}"
           register:                         cluster_status_post_secondary
           retries:                          "{{ default_retries }}"
           delay:                            "{{ default_delay }}"

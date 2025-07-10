@@ -69,6 +69,17 @@ class TestDbSecondaryHDBOperations(RolesTestingBaseDB):
         :ytype: str
         """
 
+        commands = [
+            {
+                "name": "get_hana_resource_id",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+            {
+                "name": "get_hana_resource_id_saphanasr_angi",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+        ]
+
         task_counter_file = f"/tmp/get_cluster_status_counter_{task_type['task_name']}"
         if os.path.exists(task_counter_file):
             os.remove(task_counter_file)
@@ -87,9 +98,10 @@ class TestDbSecondaryHDBOperations(RolesTestingBaseDB):
                 "bin/crm_resource",
                 "bin/echo",
                 "bin/killall",
+                "bin/cibadmin",
                 "bin/SAPHanaSR-manageProvider",
             ],
-            extra_vars_override={"node_tier": "hana"},
+            extra_vars_override={"node_tier": "hana", "commands": commands},
         )
 
         os.makedirs(f"{temp_dir}/bin", exist_ok=True)
