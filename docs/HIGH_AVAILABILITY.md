@@ -245,7 +245,7 @@ Here is an example of the sap-parameters.yaml file format:
 ```yaml
 # The SAP and Database SID of the SAP system.
 sap_sid: "your-sap-sid"
-db_sid: "your-db-sid"
+database_sid: "your-db-sid"
 
 # Boolean indicating if the SCS and database is configured as highly available.
 scs_high_availability: true
