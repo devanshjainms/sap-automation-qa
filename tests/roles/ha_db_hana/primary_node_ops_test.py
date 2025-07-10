@@ -98,6 +98,17 @@ class TestDbHDBOperations(RolesTestingBaseDB):
         :ytype: str
         """
 
+        commands = [
+            {
+                "name": "get_hana_resource_id",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+            {
+                "name": "get_hana_resource_id_saphanasr_angi",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+        ]
+
         task_counter_file = f"/tmp/get_cluster_status_counter_{task_type['task_name']}"
         if os.path.exists(task_counter_file):
             os.remove(task_counter_file)
@@ -113,6 +124,7 @@ class TestDbHDBOperations(RolesTestingBaseDB):
             "bin/crm",
             "bin/echo",
             "bin/killall",
+            "bin/cibadmin",
             "bin/SAPHanaSR-manageProvider",
         ]
 
@@ -129,6 +141,7 @@ class TestDbHDBOperations(RolesTestingBaseDB):
                 "node_tier": "hana",
                 "NFS_provider": "ANF",
                 "database_cluster_type": "ISCSI",
+                "commands": commands,
             },
         )
 
