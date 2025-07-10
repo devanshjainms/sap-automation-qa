@@ -210,7 +210,7 @@
                                             iptables -D OUTPUT -d {{ secondary_node_ip }} -j DROP
       register:                             firewall_rule_deleted
       changed_when:                         firewall_rule_deleted.rc == 0
-      failed_when:                          firewall_rule_deleted.rc != 0
+      failed_when:                          false
       when:                                 ansible_hostname == cluster_status_pre.primary_node and
                                             secondary_node_ip is defined
 
