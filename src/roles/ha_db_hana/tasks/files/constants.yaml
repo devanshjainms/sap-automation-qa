@@ -12,7 +12,7 @@ CRM_CONFIG_DEFAULTS:
     required: false
   priority-fencing-delay:
     value: ["30", "30s"]
-    required: false
+    required: true
   stonith-action:
     value: reboot
     required: false

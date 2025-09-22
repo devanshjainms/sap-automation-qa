@@ -255,15 +255,18 @@ class HAClusterValidator(BaseHAClusterValidator):
                 if sep
             }
 
-            for param_name, expected_value in global_ini_defaults.items():
+            for param_name, expected_config in global_ini_defaults.items():
                 value = global_ini_properties.get(param_name, "")
-                if isinstance(expected_value, list):
-                    if value in expected_value:
-                        expected_value = value
+                if isinstance(expected_config, dict):
+                    expected_value = expected_config.get("value")
+                    is_required = expected_config.get("required", False)
+                else:
+                    expected_value = expected_config
+                    is_required = False
 
                 self.log(
                     logging.INFO,
-                    f"param_name: {param_name}, value: {value}, expected_value: {expected_value}",
+                    f"param_name: {param_name}, value: {value}, expected_value: {expected_config}",
                 )
                 parameters.append(
                     self._create_parameter(
@@ -271,9 +274,12 @@ class HAClusterValidator(BaseHAClusterValidator):
                         name=param_name,
                         value=value,
                         expected_value=(
-                            expected_value.get("value")
-                            if isinstance(expected_value, dict)
-                            else expected_value
+                            (
+                                expected_config.get("value")
+                                if isinstance(expected_config, dict)
+                                else expected_value
+                            ),
+                            is_required,
                         ),
                     )
                 )

@@ -89,7 +89,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         :param name: The name of the configuration parameter.
         :type name: str
         :return: The expected value for the configuration parameter.
-        :rtype: str
+        :rtype: tuple(str, bool)
         """
         _, defaults_key = self.BASIC_CATEGORIES[category]
 
@@ -98,15 +98,15 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
 
         fence_param = fence_config.get(name, {})
         if fence_param and fence_param.get("value"):
-            return fence_param.get("value", "")
+            return (fence_param.get("value", ""), fence_param.get("required", False))
 
         os_param = os_config.get(name, {})
         if os_param and os_param.get("value"):
-            return os_param.get("value", "")
+            return (os_param.get("value", ""), os_param.get("required", False))
 
         default_param = self.constants[defaults_key].get(name, {})
         if default_param and default_param.get("value"):
-            return default_param.get("value", "")
+            return (default_param.get("value", ""), default_param.get("required", False))
 
         return None
 
@@ -123,24 +123,21 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         :param op_name: The name of the operation (if applicable), defaults to None
         :type op_name: str, optional
         :return: The expected value for the resource configuration parameter.
-        :rtype: str
+        :rtype: tuple(str, bool)
         """
         resource_defaults = (
             self.constants["RESOURCE_DEFAULTS"].get(self.os_type, {}).get(resource_type, {})
         )
-
+        attr = None
         if section == "meta_attributes":
             attr = resource_defaults.get("meta_attributes", {}).get(param_name)
-            return attr.get("value") if attr else None
         elif section == "operations":
             ops = resource_defaults.get("operations", {}).get(op_name, {})
             attr = ops.get(param_name)
-            return attr.get("value") if attr else None
         elif section == "instance_attributes":
             attr = resource_defaults.get("instance_attributes", {}).get(param_name)
-            return attr.get("value") if attr else None
 
-        return None
+        return (attr.get("value"), attr.get("required", False)) if attr else None
 
     def _create_parameter(
         self,
@@ -173,22 +170,36 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         :rtype: dict
         """
         if expected_value is None:
-            expected_value = self._get_expected_value_for_category(
+            expected_config = self._get_expected_value_for_category(
                 category, subcategory, name, op_name
             )
+        else:
+            if isinstance(expected_value, tuple) and len(expected_value) == 2:
+                expected_config = expected_value  # Already in correct format
+            else:
+                expected_config = (expected_value, False)
 
-        status = self._determine_parameter_status(value, expected_value)
+        status = self._determine_parameter_status(value, expected_config)
 
-        if isinstance(expected_value, list):
-            expected_value = expected_value[0] if expected_value else ""
-        elif isinstance(expected_value, dict):
-            expected_value = (
+        display_expected_value = None
+        if expected_config is None:
+            display_expected_value = ""
+        else:
+            if isinstance(expected_config, tuple):
+                display_expected_value = expected_config[0]
+            else:
+                display_expected_value = expected_config
+
+        if isinstance(display_expected_value, list):
+            display_expected_value = display_expected_value[0] if display_expected_value else ""
+        elif isinstance(display_expected_value, dict):
+            display_expected_value = (
                 [
                     item
-                    for val in expected_value.values()
+                    for val in display_expected_value.values()
                     for item in (val if isinstance(val, list) else [val])
                 ]
-                if expected_value
+                if display_expected_value
                 else ""
             )
 
@@ -197,7 +208,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
             id=id if id else "",
             name=name if not op_name else f"{op_name}_{name}",
             value=value,
-            expected_value=expected_value if expected_value is not None else "",
+            expected_value=display_expected_value if display_expected_value is not None else "",
             status=status if status else TestStatus.ERROR.value,
         ).to_dict()
 
@@ -227,34 +238,47 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         else:
             return self._get_expected_value(category, name)
 
-    def _determine_parameter_status(self, value, expected_value):
+    def _determine_parameter_status(self, value, expected_config):
         """
         Determine the status of a parameter based on its value and expected value.
 
         :param value: The actual value of the parameter.
         :type value: str
-        :param expected_value: The expected value of the parameter.
-        :type expected_value: str or list or dict
+        :param expected_config: The expected value of the parameter and bool indicating if required.
+        :type expected_config: tuple(str, bool)
         :return: The status of the parameter.
         :rtype: str
         """
+        if expected_config is None:
+            return TestStatus.INFO.value
+
+        if isinstance(expected_config, tuple):
+            expected_value, is_required = expected_config
+        elif isinstance(expected_config, dict):
+            expected_value = expected_config.get("value")
+            is_required = expected_config.get("required", False)
+        else:
+            expected_value = expected_config
+            is_required = False
+
+        if not value or value == "":
+            if is_required:
+                return TestStatus.WARNING.value
+            else:
+                return TestStatus.INFO.value
+
         if expected_value is None or expected_value == "":
             return TestStatus.INFO.value
-        elif isinstance(expected_value, (str, list)):
-            if isinstance(expected_value, list):
-                return (
-                    TestStatus.SUCCESS.value
-                    if str(value) in expected_value
-                    else TestStatus.ERROR.value
-                )
-            else:
-                return (
-                    TestStatus.SUCCESS.value
-                    if str(value) == str(expected_value)
-                    else TestStatus.ERROR.value
-                )
+        elif isinstance(expected_value, list):
+            return (
+                TestStatus.SUCCESS.value if str(value) in expected_value else TestStatus.ERROR.value
+            )
         else:
-            return TestStatus.INFO.value
+            return (
+                TestStatus.SUCCESS.value
+                if str(value) == str(expected_value)
+                else TestStatus.ERROR.value
+            )
 
     def _parse_nvpair_elements(self, elements, category, subcategory=None, op_name=None):
         """
