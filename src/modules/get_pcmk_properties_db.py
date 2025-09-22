@@ -270,7 +270,11 @@ class HAClusterValidator(BaseHAClusterValidator):
                         category="global_ini",
                         name=param_name,
                         value=value,
-                        expected_value=expected_value,
+                        expected_value=(
+                            expected_value.get("value")
+                            if isinstance(expected_value, dict)
+                            else expected_value
+                        ),
                     )
                 )
         except Exception as ex:
