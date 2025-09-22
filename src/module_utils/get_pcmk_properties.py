@@ -96,9 +96,19 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         fence_config = self.constants["VALID_CONFIGS"].get(self.fencing_mechanism, {})
         os_config = self.constants["VALID_CONFIGS"].get(self.os_type, {})
 
-        return fence_config.get(name).get("value", "") or os_config.get(
-            name, self.constants[defaults_key].get(name)
-        ).get("value", "")
+        fence_param = fence_config.get(name, {})
+        if fence_param and fence_param.get("value"):
+            return fence_param.get("value", "")
+
+        os_param = os_config.get(name, {})
+        if os_param and os_param.get("value"):
+            return os_param.get("value", "")
+
+        default_param = self.constants[defaults_key].get(name, {})
+        if default_param and default_param.get("value"):
+            return default_param.get("value", "")
+
+        return None
 
     def _get_resource_expected_value(self, resource_type, section, param_name, op_name=None):
         """
@@ -120,12 +130,16 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         )
 
         if section == "meta_attributes":
-            return resource_defaults.get("meta_attributes", {}).get(param_name).get("value")
+            attr = resource_defaults.get("meta_attributes", {}).get(param_name)
+            return attr.get("value") if attr else None
         elif section == "operations":
             ops = resource_defaults.get("operations", {}).get(op_name, {})
-            return ops.get(param_name).get("value")
+            attr = ops.get(param_name)
+            return attr.get("value") if attr else None
         elif section == "instance_attributes":
-            return resource_defaults.get("instance_attributes", {}).get(param_name).get("value")
+            attr = resource_defaults.get("instance_attributes", {}).get(param_name)
+            return attr.get("value") if attr else None
+
         return None
 
     def _create_parameter(
@@ -224,7 +238,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         :return: The status of the parameter.
         :rtype: str
         """
-        if expected_value is None or value == "":
+        if expected_value is None or expected_value == "":
             return TestStatus.INFO.value
         elif isinstance(expected_value, (str, list)):
             if isinstance(expected_value, list):
@@ -240,7 +254,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                     else TestStatus.ERROR.value
                 )
         else:
-            return TestStatus.ERROR.value
+            return TestStatus.INFO.value
 
     def _parse_nvpair_elements(self, elements, category, subcategory=None, op_name=None):
         """
@@ -299,7 +313,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                         id=section,
                         name=param_name,
                         value=value,
-                        expected_value=expected_value,
+                        expected_value=expected_value.get("value", "") if expected_value else None,
                     )
                 )
 
@@ -400,7 +414,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                                 id=element.get("id", ""),
                                 name=attr,
                                 value=element.get(attr),
-                                expected_value=expected,
+                                expected_value=expected.get("value"),
                             )
                         )
                     else:
