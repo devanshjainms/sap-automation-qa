@@ -96,7 +96,9 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         fence_config = self.constants["VALID_CONFIGS"].get(self.fencing_mechanism, {})
         os_config = self.constants["VALID_CONFIGS"].get(self.os_type, {})
 
-        return fence_config.get(name) or os_config.get(name, self.constants[defaults_key].get(name))
+        return fence_config.get(name).get("value", "") or os_config.get(
+            name, self.constants[defaults_key].get(name)
+        ).get("value", "")
 
     def _get_resource_expected_value(self, resource_type, section, param_name, op_name=None):
         """
@@ -118,12 +120,12 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         )
 
         if section == "meta_attributes":
-            return resource_defaults.get("meta_attributes", {}).get(param_name)
+            return resource_defaults.get("meta_attributes", {}).get(param_name).get("value")
         elif section == "operations":
             ops = resource_defaults.get("operations", {}).get(op_name, {})
-            return ops.get(param_name)
+            return ops.get(param_name).get("value")
         elif section == "instance_attributes":
-            return resource_defaults.get("instance_attributes", {}).get(param_name)
+            return resource_defaults.get("instance_attributes", {}).get(param_name).get("value")
         return None
 
     def _create_parameter(
