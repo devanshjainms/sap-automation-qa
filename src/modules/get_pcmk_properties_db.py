@@ -213,6 +213,8 @@ class HAClusterValidator(BaseHAClusterValidator):
             resource_categories.pop("topology", None)
         else:
             resource_categories.pop("angi_topology", None)
+            resource_categories.pop("angi_filesystem", None)
+            resource_categories.pop("angi_hana", None)
 
         for sub_category, xpath in resource_categories.items():
             elements = root.findall(xpath)
@@ -230,18 +232,15 @@ class HAClusterValidator(BaseHAClusterValidator):
         :rtype: list
         """
         parameters = []
-        
+
         try:
-            # Get resource scope using offline/online approach
             if self.cib_output:
                 resource_scope = self._get_scope_from_cib("resources")
             else:
                 resource_scope = self.parse_xml_output(
                     self.execute_command_subprocess(CIB_ADMIN(scope="resources"))
                 )
-
             if resource_scope is not None:
-                # Reuse existing resource categories and parsing logic
                 parameters.extend(self._parse_resources_section(resource_scope))
 
         except Exception as ex:

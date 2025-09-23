@@ -231,7 +231,6 @@ class HAClusterValidator(BaseHAClusterValidator):
         parameters = []
 
         try:
-            # Get resource scope using offline/online approach
             if self.cib_output:
                 resource_scope = self._get_scope_from_cib("resources")
             else:
@@ -240,7 +239,6 @@ class HAClusterValidator(BaseHAClusterValidator):
                 )
 
             if resource_scope is not None:
-                # Reuse existing resource categories and parsing logic
                 parameters.extend(self._parse_resources_section(resource_scope))
 
         except Exception as ex:

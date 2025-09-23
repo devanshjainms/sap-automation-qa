@@ -426,37 +426,6 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                     )
         return parameters
 
-    def _parse_constraints(self, root):
-        """
-        Parse constraints configuration parameters
-
-        :param root: The XML root element to parse.
-        :type root: xml.etree.ElementTree.Element
-        :return: A list of parameter dictionaries.
-        :rtype: list
-        """
-        parameters = []
-        for element in root:
-            tag = element.tag
-            if tag in self.constants["CONSTRAINTS"]:
-                for attr, expected in self.constants["CONSTRAINTS"][tag].items():
-                    if element.get(attr) is not None:
-                        parameters.append(
-                            self._create_parameter(
-                                category="constraints",
-                                subcategory=tag,
-                                id=element.get("id", ""),
-                                name=attr,
-                                value=element.get(attr),
-                                expected_value=expected.get("value"),
-                            )
-                        )
-                    else:
-                        continue
-            else:
-                continue
-        return parameters
-
     def _parse_resources_section(self, root):
         """
         Parse resources section - can be overridden by subclasses for custom resource parsing.
@@ -526,81 +495,6 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
             return self.cib_output.find(xpath)
         return None
 
-    def parse_ha_cluster_config(self):
-        """
-        Parse HA cluster configuration XML and return a list of properties.
-        This is the main orchestration method that coordinates all parsing activities.
-        """
-        parameters = []
-
-        scopes = [
-            "rsc_defaults",
-            "crm_config",
-            "op_defaults",
-            "constraints",
-            "resources",
-        ]
-
-        for scope in scopes:
-            if self._should_skip_scope(scope):
-                continue
-
-            self.category = scope
-            if self.cib_output:
-                root = self._get_scope_from_cib(scope)
-            else:
-                root = self.parse_xml_output(
-                    self.execute_command_subprocess(CIB_ADMIN(scope=scope))
-                )
-            if not root:
-                continue
-
-            try:
-                if self.category in self.BASIC_CATEGORIES:
-                    xpath = self.BASIC_CATEGORIES[self.category][0]
-                    for element in root.findall(xpath):
-                        parameters.extend(self._parse_basic_config(element, self.category))
-
-                elif self.category == "resources":
-                    parameters.extend(self._parse_resources_section(root))
-
-                elif self.category == "constraints":
-                    parameters.extend(self._parse_constraints(root))
-
-            except Exception as ex:
-                self.result["message"] += f"Failed to get {self.category} configuration: {str(ex)}"
-                continue
-        try:
-            if not self.cib_output:
-                parameters.extend(self._parse_os_parameters())
-            else:
-                self.result["message"] += "CIB output provided, skipping OS parameters parsing. "
-        except Exception as ex:
-            self.result["message"] += f"Failed to get OS parameters: {str(ex)} \n"
-        try:
-            if not self.cib_output:
-                parameters.extend(self._get_additional_parameters())
-            else:
-                self.result[
-                    "message"
-                ] += "CIB output provided, skipping additional parameters parsing. "
-        except Exception as ex:
-            self.result["message"] += f"Failed to get additional parameters: {str(ex)} \n"
-        failed_parameters = [
-            param
-            for param in parameters
-            if param.get("status", TestStatus.ERROR.value) == TestStatus.ERROR.value
-        ]
-        self.result.update(
-            {
-                "details": {"parameters": parameters},
-                "status": (
-                    TestStatus.ERROR.value if failed_parameters else TestStatus.SUCCESS.value
-                ),
-            }
-        )
-        self.result["message"] += "HA Parameter Validation completed successfully. "
-
     def validate_from_constants(self):
         """
         Constants-first validation approach: iterate through constants and validate against CIB.
@@ -612,6 +506,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
             if not self._should_skip_scope(category):
                 parameters.extend(self._validate_basic_constants(category))
         parameters.extend(self._validate_resource_constants())
+        parameters.extend(self._validate_constraint_constants())
         try:
             if not self.cib_output:
                 parameters.extend(self._parse_os_parameters())
@@ -636,9 +531,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
             if param.get("status", TestStatus.ERROR.value) == TestStatus.ERROR.value
         ]
         warning_parameters = [
-            param
-            for param in parameters
-            if param.get("status", "") == TestStatus.WARNING.value
+            param for param in parameters if param.get("status", "") == TestStatus.WARNING.value
         ]
 
         if failed_parameters:
@@ -660,6 +553,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         """
         Validate basic configuration constants with offline validation support.
         Uses existing CIB parsing logic but focuses on constants-first approach.
+        Creates dynamic subcategories based on element IDs found in CIB.
 
         :param category: The category to validate (crm_config, rsc_defaults, op_defaults)
         :type category: str
@@ -746,3 +640,53 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         :rtype: list
         """
         return []
+
+    def _validate_constraint_constants(self):
+        """
+        Validate constraint constants with offline validation support.
+        Uses constants-first approach to validate constraints against CIB.
+
+        :return: A list of parameter dictionaries
+        :rtype: list
+        """
+        parameters = []
+
+        if "CONSTRAINTS" not in self.constants:
+            return parameters
+
+        try:
+            if self.cib_output:
+                constraints_scope = self._get_scope_from_cib("constraints")
+            else:
+                constraints_scope = self.parse_xml_output(
+                    self.execute_command_subprocess(CIB_ADMIN(scope="constraints"))
+                )
+
+            if constraints_scope is not None:
+                for constraint_type, constraint_config in self.constants["CONSTRAINTS"].items():
+                    elements = constraints_scope.findall(f".//{constraint_type}")
+
+                    for element in elements:
+                        for attr_name, expected_config in constraint_config.items():
+                            actual_value = element.get(attr_name, "")
+                            expected_value = (
+                                expected_config.get("value")
+                                if isinstance(expected_config, dict)
+                                else expected_config
+                            )
+
+                            parameters.append(
+                                self._create_parameter(
+                                    category="constraints",
+                                    subcategory=constraint_type,
+                                    id=element.get("id", ""),
+                                    name=attr_name,
+                                    value=actual_value,
+                                    expected_value=expected_value,
+                                )
+                            )
+
+        except Exception as ex:
+            self.result["message"] += f"Error validating constraint constants: {str(ex)} "
+
+        return parameters
