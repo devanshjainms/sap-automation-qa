@@ -147,7 +147,7 @@ test_groups:
           The HA parameter validation test validates HA configuration
           including Corosync settings, Pacemaker resources, SBD device configuration, and SCS system
           replication setup.
-        enabled:                    false
+        enabled:                    true
 
       - name:                       "HA Parameters Validation Offline"
         task_name:                  ha-config-offline
