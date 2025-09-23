@@ -11,6 +11,7 @@ Classes:
     BaseHAClusterValidator: Base validator class for cluster configurations.
 """
 
+import logging
 from abc import ABC
 
 try:
@@ -97,16 +98,25 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         os_config = self.constants["VALID_CONFIGS"].get(self.os_type, {})
 
         fence_param = fence_config.get(name, {})
-        if fence_param and fence_param.get("value"):
-            return (fence_param.get("value", ""), fence_param.get("required", False))
+        if fence_param:
+            if isinstance(fence_param, dict) and fence_param.get("value"):
+                return (fence_param.get("value", ""), fence_param.get("required", False))
+            elif isinstance(fence_param, (str, list)):
+                return (fence_param, False)
 
         os_param = os_config.get(name, {})
-        if os_param and os_param.get("value"):
-            return (os_param.get("value", ""), os_param.get("required", False))
+        if os_param:
+            if isinstance(os_param, dict) and os_param.get("value"):
+                return (os_param.get("value", ""), os_param.get("required", False))
+            elif isinstance(os_param, (str, list)):
+                return (os_param, False)
 
         default_param = self.constants[defaults_key].get(name, {})
-        if default_param and default_param.get("value"):
-            return (default_param.get("value", ""), default_param.get("required", False))
+        if default_param:
+            if isinstance(default_param, dict) and default_param.get("value"):
+                return (default_param.get("value", ""), default_param.get("required", False))
+            elif isinstance(default_param, (str, list)):
+                return (default_param, False)
 
         return None
 
@@ -343,7 +353,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
 
         return parameters
 
-    def _parse_basic_config(self, element, category, subcategory=None):
+    def (self, element, category, subcategory=None):
         """
         Parse basic configuration parameters
 
@@ -590,3 +600,149 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
             }
         )
         self.result["message"] += "HA Parameter Validation completed successfully. "
+
+    def validate_from_constants(self):
+        """
+        Constants-first validation approach: iterate through constants and validate against CIB.
+        This ensures all expected parameters are checked, with offline validation support.
+        """
+        parameters = []
+
+        for category in ["crm_config", "rsc_defaults", "op_defaults"]:
+            if not self._should_skip_scope(category):
+                parameters.extend(self._validate_basic_constants(category))
+        parameters.extend(self._validate_resource_constants())
+        try:
+            if not self.cib_output:
+                parameters.extend(self._parse_os_parameters())
+            else:
+                self.result["message"] += "CIB output provided, skipping OS parameters parsing. "
+        except Exception as ex:
+            self.result["message"] += f"Failed to get OS parameters: {str(ex)} "
+
+        try:
+            if not self.cib_output:
+                parameters.extend(self._get_additional_parameters())
+            else:
+                self.result[
+                    "message"
+                ] += "CIB output provided, skipping additional parameters parsing. "
+        except Exception as ex:
+            self.result["message"] += f"Failed to get additional parameters: {str(ex)} "
+
+        failed_parameters = [
+            param
+            for param in parameters
+            if param.get("status", TestStatus.ERROR.value) == TestStatus.ERROR.value
+        ]
+        warning_parameters = [
+            param
+            for param in parameters
+            if param.get("status", "") == TestStatus.WARNING.value
+        ]
+
+        if failed_parameters:
+            overall_status = TestStatus.ERROR.value
+        elif warning_parameters:
+            overall_status = TestStatus.WARNING.value
+        else:
+            overall_status = TestStatus.SUCCESS.value
+
+        self.result.update(
+            {
+                "details": {"parameters": parameters},
+                "status": overall_status,
+            }
+        )
+        self.result["message"] += "HA Parameter Validation completed successfully. "
+
+    def _validate_basic_constants(self, category):
+        """
+        Validate basic configuration constants with offline validation support.
+        Uses existing CIB parsing logic but focuses on constants-first approach.
+
+        :param category: The category to validate (crm_config, rsc_defaults, op_defaults)
+        :type category: str
+        :return: A list of parameter dictionaries
+        :rtype: list
+        """
+        parameters = []
+
+        if category not in self.BASIC_CATEGORIES:
+            return parameters
+
+        _, constants_key = self.BASIC_CATEGORIES[category]
+        category_constants = self.constants.get(constants_key, {})
+
+        for param_name, expected_config in category_constants.items():
+            param_value = self._find_param_in_cib_by_name(category, param_name)
+            expected_result = self._get_expected_value(category, param_name)
+            if expected_result:
+                expected_value, is_required = expected_result
+                expected_config_tuple = (expected_value, is_required)
+            else:
+                if isinstance(expected_config, dict):
+                    expected_value = expected_config.get("value", "")
+                    is_required = expected_config.get("required", False)
+                    expected_config_tuple = (expected_value, is_required)
+                else:
+                    expected_value = str(expected_config)
+                    expected_config_tuple = (expected_value, False)
+
+            parameters.append(
+                self._create_parameter(
+                    category=category,
+                    name=param_name,
+                    value=param_value,
+                    expected_value=expected_config_tuple,
+                )
+            )
+
+        return parameters
+
+    def _find_param_in_cib_by_name(self, category, param_name):
+        """
+        Find a parameter value in CIB XML by name within a specific category.
+        Supports both offline (pre-provided CIB) and online (execute commands) modes.
+
+        :param category: The category scope to search in (crm_config, rsc_defaults, op_defaults)
+        :type category: str
+        :param param_name: The parameter name to find
+        :type param_name: str
+        :return: The parameter value or empty string if not found
+        :rtype: str
+        """
+        try:
+            if self.cib_output:
+                root = self._get_scope_from_cib(category)
+            else:
+                root = self.parse_xml_output(
+                    self.execute_command_subprocess(CIB_ADMIN(scope=category))
+                )
+
+            if not root:
+                return ""
+
+            if category in self.BASIC_CATEGORIES:
+                xpath = self.BASIC_CATEGORIES[category][0]
+                for element in root.findall(xpath):
+                    for nvpair in element.findall(".//nvpair"):
+                        if nvpair.get("name") == param_name:
+                            return nvpair.get("value", "")
+
+        except Exception as ex:
+            self.result[
+                "message"
+            ] += f"Error finding parameter {param_name} in {category}: {str(ex)} "
+
+        return ""
+
+    def _validate_resource_constants(self):
+        """
+        Resource validation - to be overridden by subclasses.
+        Base implementation returns empty list.
+
+        :return: A list of parameter dictionaries
+        :rtype: list
+        """
+        return []

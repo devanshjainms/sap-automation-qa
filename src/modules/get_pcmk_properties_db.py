@@ -18,9 +18,11 @@ from ansible.module_utils.facts.compat import ansible_facts
 try:
     from ansible.module_utils.get_pcmk_properties import BaseHAClusterValidator
     from ansible.module_utils.enums import OperatingSystemFamily, HanaSRProvider
+    from ansible.module_utils.commands import CIB_ADMIN
 except ImportError:
     from src.module_utils.get_pcmk_properties import BaseHAClusterValidator
     from src.module_utils.enums import OperatingSystemFamily, HanaSRProvider
+    from src.module_utils.commands import CIB_ADMIN
 
 DOCUMENTATION = r"""
 ---
@@ -194,7 +196,7 @@ class HAClusterValidator(BaseHAClusterValidator):
         )
         self.instance_number = instance_number
         self.saphanasr_provider = saphanasr_provider
-        self.parse_ha_cluster_config()
+        self.validate_from_constants()
 
     def _parse_resources_section(self, root):
         """
@@ -216,6 +218,34 @@ class HAClusterValidator(BaseHAClusterValidator):
             elements = root.findall(xpath)
             for element in elements:
                 parameters.extend(self._parse_resource(element, sub_category))
+
+        return parameters
+
+    def _validate_resource_constants(self):
+        """
+        Resource validation with HANA-specific logic and offline validation support.
+        Validates resource constants by iterating through expected parameters.
+
+        :return: A list of parameter dictionaries
+        :rtype: list
+        """
+        parameters = []
+        
+        try:
+            # Get resource scope using offline/online approach
+            if self.cib_output:
+                resource_scope = self._get_scope_from_cib("resources")
+            else:
+                resource_scope = self.parse_xml_output(
+                    self.execute_command_subprocess(CIB_ADMIN(scope="resources"))
+                )
+
+            if resource_scope is not None:
+                # Reuse existing resource categories and parsing logic
+                parameters.extend(self._parse_resources_section(resource_scope))
+
+        except Exception as ex:
+            self.result["message"] += f"Error validating resource constants: {str(ex)} "
 
         return parameters
 

@@ -17,9 +17,11 @@ from ansible.module_utils.facts.compat import ansible_facts
 try:
     from ansible.module_utils.get_pcmk_properties import BaseHAClusterValidator
     from ansible.module_utils.enums import OperatingSystemFamily, TestStatus
+    from ansible.module_utils.commands import CIB_ADMIN
 except ImportError:
     from src.module_utils.get_pcmk_properties import BaseHAClusterValidator
     from src.module_utils.enums import OperatingSystemFamily, TestStatus
+    from src.module_utils.commands import CIB_ADMIN
 
 
 DOCUMENTATION = r"""
@@ -191,7 +193,7 @@ class HAClusterValidator(BaseHAClusterValidator):
         self.scs_instance_number = scs_instance_number
         self.ers_instance_number = ers_instance_number
         self.nfs_provider = nfs_provider
-        self.parse_ha_cluster_config()
+        self.validate_from_constants()
 
     def _get_expected_value_for_category(self, category, subcategory, name, op_name):
         """
@@ -217,6 +219,34 @@ class HAClusterValidator(BaseHAClusterValidator):
             )
         else:
             return self._get_expected_value(category, name)
+
+    def _validate_resource_constants(self):
+        """
+        Resource validation with SCS-specific logic and offline validation support.
+        Validates resource constants by iterating through expected parameters.
+
+        :return: A list of parameter dictionaries
+        :rtype: list
+        """
+        parameters = []
+
+        try:
+            # Get resource scope using offline/online approach
+            if self.cib_output:
+                resource_scope = self._get_scope_from_cib("resources")
+            else:
+                resource_scope = self.parse_xml_output(
+                    self.execute_command_subprocess(CIB_ADMIN(scope="resources"))
+                )
+
+            if resource_scope is not None:
+                # Reuse existing resource categories and parsing logic
+                parameters.extend(self._parse_resources_section(resource_scope))
+
+        except Exception as ex:
+            self.result["message"] += f"Error validating resource constants: {str(ex)} "
+
+        return parameters
 
     def _determine_parameter_status(self, value, expected_value):
         """
