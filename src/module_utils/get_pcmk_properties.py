@@ -353,7 +353,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
 
         return parameters
 
-    def (self, element, category, subcategory=None):
+    def _parse_basic_parameters(self, element, category, subcategory=None):
         """
         Parse basic configuration parameters
 
