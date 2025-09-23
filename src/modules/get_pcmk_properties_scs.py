@@ -279,12 +279,37 @@ class HAClusterValidator(BaseHAClusterValidator):
                     else TestStatus.ERROR.value
                 )
         elif isinstance(expected_value, dict):
-            provider_values = expected_value.get(self.nfs_provider, expected_value.get("AFS", []))
-            return (
-                TestStatus.SUCCESS.value
-                if str(value) in provider_values
-                else TestStatus.ERROR.value
-            )
+            if self.nfs_provider and self.nfs_provider in expected_value:
+                provider_config = expected_value[self.nfs_provider]
+                if isinstance(provider_config, dict) and "value" in provider_config:
+                    provider_values = provider_config["value"]
+                else:
+                    provider_values = provider_config
+            else:
+                provider_values = []
+                for _, provider_config in expected_value.items():
+                    if isinstance(provider_config, dict) and "value" in provider_config:
+                        if isinstance(provider_config["value"], list):
+                            provider_values.extend(provider_config["value"])
+                        else:
+                            provider_values.append(provider_config["value"])
+                    elif isinstance(provider_config, list):
+                        provider_values.extend(provider_config)
+                    else:
+                        provider_values.append(provider_config)
+
+            if isinstance(provider_values, list):
+                return (
+                    TestStatus.SUCCESS.value
+                    if str(value) in provider_values
+                    else TestStatus.ERROR.value
+                )
+            else:
+                return (
+                    TestStatus.SUCCESS.value
+                    if str(value) == str(provider_values)
+                    else TestStatus.ERROR.value
+                )
         else:
             return TestStatus.ERROR.value
 

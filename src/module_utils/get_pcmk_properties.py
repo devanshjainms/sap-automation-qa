@@ -11,7 +11,6 @@ Classes:
     BaseHAClusterValidator: Base validator class for cluster configurations.
 """
 
-import logging
 from abc import ABC
 
 try:
