@@ -252,11 +252,17 @@ class HAClusterValidator(BaseHAClusterValidator):
 
         :param value: The actual value of the parameter.
         :type value: str
-        :param expected_value: The expected value of the parameter.
-        :type expected_value: str or list or dict
+        :param expected_value: The expected value tuple (value, required) or legacy format.
+        :type expected_value: tuple or str or list or dict
         :return: The status of the parameter.
         :rtype: str
         """
+        if isinstance(expected_value, tuple):
+            expected_val, required = expected_value
+            if not required and (expected_val is None or value == ""):
+                return TestStatus.INFO.value
+            expected_value = expected_val
+
         if expected_value is None or value == "":
             return TestStatus.INFO.value
         elif isinstance(expected_value, (str, list)):

@@ -303,12 +303,9 @@ class HAClusterValidator(BaseHAClusterValidator):
                         name=param_name,
                         value=value,
                         expected_value=(
-                            (
-                                expected_config.get("value")
-                                if isinstance(expected_config, dict)
-                                else expected_value
-                            ),
-                            is_required,
+                            expected_config.get("value")
+                            if isinstance(expected_config, dict)
+                            else expected_value
                         ),
                     )
                 )
