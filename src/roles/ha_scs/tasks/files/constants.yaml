@@ -459,37 +459,63 @@ RESOURCE_DEFAULTS:
         AUTOMATIC_RECOVER:
           value:                    "false"
           required:                 false
-        START_PROFILE:
-          value:                    "/sapmnt/TEMPLATE_SYSTEM_SID/profile/TEMPLATE_SYSTEM_SID_ASCS00_TEMPLATE_ASCS_HOSTNAME"
-          required:                 false
-        INSTANCE_PROFILE:
-          value:                    "/sapmnt/TEMPLATE_SYSTEM_SID/profile/TEMPLATE_SYSTEM_SID_ASCS00_TEMPLATE_ASCS_HOSTNAME"
+        MINIMAL_PROBE:
+          value:                    "true"
           required:                 false
       operations:
         start:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
           timeout:
-            value:                  "60"
+            value:                  ["600", "600s"]
             required:               false
         stop:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
           timeout:
-            value:                  "60"
+            value:                  ["600", "600s"]
             required:               false
         monitor:
           interval:
-            value:                  "11"
+            value:                  ["20", "20s"]
             required:               false
           timeout:
-            value:                  "60"
-            required:               false
-          start-delay:
-            value:                  "10"
-            required:               false
+            ANF:
+              value:                ["105", "105s"]
+              required:             false
+            AFS:
+              value:                ["60", "60s"]
+              required:             false
         methods:
-          timeout:                        ["5", "5s"]
-          interval:                       ["0", "0s"]
+          timeout:
+            value:                  ["5", "5s"]
+            required:               false
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
         reload:
-          timeout:                        ["320", "320s"]
-          interval:                       ["0", "0s"]
+          timeout:
+            value:                  ["320", "320s"]
+            required:               false
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+        promote:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["320", "320s"]
+            required:               false
+        demote:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["320", "320s"]
+            required:               false
 
     ers:
       instance_attributes:

@@ -279,6 +279,7 @@ class HAClusterValidator(BaseHAClusterValidator):
                     else TestStatus.ERROR.value
                 )
         elif isinstance(expected_value, dict):
+            provider_values = []
             if self.nfs_provider and self.nfs_provider in expected_value:
                 provider_config = expected_value[self.nfs_provider]
                 if isinstance(provider_config, dict) and "value" in provider_config:
@@ -286,8 +287,8 @@ class HAClusterValidator(BaseHAClusterValidator):
                 else:
                     provider_values = provider_config
             else:
-                provider_values = []
-                for _, provider_config in expected_value.items():
+                # If provider is unknown/not set, collect all provider values
+                for provider_key, provider_config in expected_value.items():
                     if isinstance(provider_config, dict) and "value" in provider_config:
                         if isinstance(provider_config["value"], list):
                             provider_values.extend(provider_config["value"])
