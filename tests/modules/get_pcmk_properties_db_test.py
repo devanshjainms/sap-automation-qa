@@ -221,7 +221,7 @@ DUMMY_CONSTANTS = {
         "SUSE": {
             "SAPHanaSR-angi": {
                 "provider": {"value": "SAPHanaSR-angi", "required": False},
-                "path": {"value": "/usr/share/SAPHanaSR-angi", "required": False}
+                "path": {"value": "/usr/share/SAPHanaSR-angi", "required": False},
             }
         },
     },

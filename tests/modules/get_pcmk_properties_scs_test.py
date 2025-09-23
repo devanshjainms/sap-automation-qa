@@ -178,16 +178,29 @@ DUMMY_CONSTANTS = {
             },
             "ascs": {
                 "meta_attributes": {"target-role": {"value": "Started", "required": False}},
-                "operations": {"monitor": {"timeout": {"value": ["600", "600s"], "required": False}}},
-                "instance_attributes": {"InstanceName": {"value": "S4D_ASCS00_sapascs", "required": False}},
+                "operations": {
+                    "monitor": {"timeout": {"value": ["600", "600s"], "required": False}}
+                },
+                "instance_attributes": {
+                    "InstanceName": {"value": "S4D_ASCS00_sapascs", "required": False}
+                },
             },
             "ers": {
                 "meta_attributes": {"target-role": {"value": "Started", "required": False}},
-                "operations": {"monitor": {"timeout": {"value": ["600", "600s"], "required": False}}},
-                "instance_attributes": {"InstanceName": {"value": "S4D_ERS10_sapers", "required": False}},
+                "operations": {
+                    "monitor": {"timeout": {"value": ["600", "600s"], "required": False}}
+                },
+                "instance_attributes": {
+                    "InstanceName": {"value": "S4D_ERS10_sapers", "required": False}
+                },
             },
             "ipaddr": {
-                "instance_attributes": {"ip": {"value": {"AFS": ["10.0.1.100"], "ANF": ["10.0.1.101"]}, "required": False}}
+                "instance_attributes": {
+                    "ip": {
+                        "value": {"AFS": ["10.0.1.100"], "ANF": ["10.0.1.101"]},
+                        "required": False,
+                    }
+                }
             },
         }
     },
