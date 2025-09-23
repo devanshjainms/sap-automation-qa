@@ -353,32 +353,6 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
 
         return parameters
 
-    def _parse_basic_parameters(self, element, category, subcategory=None):
-        """
-        Parse basic configuration parameters
-
-        :param element: The XML element to parse.
-        :type element: xml.etree.ElementTree.Element
-        :param category: The category of the configuration parameter.
-        :type category: str
-        :param subcategory: The subcategory of the configuration parameter, defaults to None
-        :type subcategory: str, optional
-        :return: A list of parameter dictionaries.
-        :rtype: list
-        """
-        parameters = []
-        for nvpair in element.findall(".//nvpair"):
-            parameters.append(
-                self._create_parameter(
-                    category=category,
-                    subcategory=subcategory,
-                    name=nvpair.get("name", ""),
-                    value=nvpair.get("value", ""),
-                    id=nvpair.get("id", ""),
-                )
-            )
-        return parameters
-
     def _parse_resource(self, element, category):
         """
         Parse resource-specific configuration parameters
@@ -569,7 +543,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         category_constants = self.constants.get(constants_key, {})
 
         for param_name, expected_config in category_constants.items():
-            param_value = self._find_param_in_cib_by_name(category, param_name)
+            param_value, param_id = self._find_param_with_element_info(category, param_name)
             expected_result = self._get_expected_value(category, param_name)
             if expected_result:
                 expected_value, is_required = expected_result
@@ -589,23 +563,26 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                     name=param_name,
                     value=param_value,
                     expected_value=expected_config_tuple,
+                    subcategory=param_id if param_id else "",
+                    id=param_id,
                 )
             )
 
         return parameters
 
-    def _find_param_in_cib_by_name(self, category, param_name):
+    def _find_param_with_element_info(self, category, param_name):
         """
-        Find a parameter value in CIB XML by name within a specific category.
-        Supports both offline (pre-provided CIB) and online (execute commands) modes.
+        Find a parameter value and its own unique ID in CIB XML.
+        Returns both the parameter value and the parameter's own ID (not container ID).
 
         :param category: The category scope to search in (crm_config, rsc_defaults, op_defaults)
         :type category: str
         :param param_name: The parameter name to find
         :type param_name: str
-        :return: The parameter value or empty string if not found
-        :rtype: str
+        :return: Tuple of (parameter_value, parameter_id) or ("", "") if not found
+        :rtype: tuple(str, str)
         """
+        param_value, param_id = "", ""
         try:
             if self.cib_output:
                 root = self._get_scope_from_cib(category)
@@ -615,21 +592,22 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                 )
 
             if not root:
-                return ""
+                return param_value, param_id
 
             if category in self.BASIC_CATEGORIES:
-                xpath = self.BASIC_CATEGORIES[category][0]
-                for element in root.findall(xpath):
+                for element in root.findall(self.BASIC_CATEGORIES[category][0]):
                     for nvpair in element.findall(".//nvpair"):
                         if nvpair.get("name") == param_name:
-                            return nvpair.get("value", "")
+                            param_id = nvpair.get("id", "")
+                            param_value = nvpair.get("value", "")
+                            return param_value, param_id
 
         except Exception as ex:
             self.result[
                 "message"
             ] += f"Error finding parameter {param_name} in {category}: {str(ex)} "
 
-        return ""
+        return param_value, param_id
 
     def _validate_resource_constants(self):
         """
