@@ -3,12 +3,12 @@
 
 ## Technical Requirements for running Automation Framework
 
-To run the SAP Testing Automation Framework, you must meet certain prerequisites and follow techincal requirements.
+To run the SAP Testing Automation Framework, you must meet certain prerequisites and follow technical requirements.
 
 ### SAP System Deployment on Microsoft Azure
 
 - The SAP system must be hosted on Microsoft Azure Infrastructure-as-a-Service (IaaS).
-- The SAP system deploymed should follow SAP on Azure best practices as outlined in:
+- The SAP system deployed should follow SAP on Azure best practices as outlined in:
   - [SAP HANA high availability on Azure Virtual Machine](https://learn.microsoft.com/azure/sap/workloads/sap-high-availability-guide-start).
   - [SAP Netweaver high availability on Azure Virtual Machine](https://learn.microsoft.com/azure/sap/workloads/sap-high-availability-guide-start)
 
