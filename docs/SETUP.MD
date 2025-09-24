@@ -97,5 +97,5 @@ cd sap-automation-qa
 1.5. **Activate the python environment**:
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 ```
