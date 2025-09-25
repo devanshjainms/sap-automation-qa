@@ -80,7 +80,7 @@
     test_group_name:                "ConfigurationChecks"
     hostname:                       "{{ ansible_hostname }}"
     parallel_execution:             true
-    max_workers:                    5
+    max_workers:                    20
     enable_retry:                   true
   register:                         command_check_results
   when:                             command_checks is defined and command_checks | length > 0
@@ -98,7 +98,7 @@
     test_group_name:                "ConfigurationChecks"
     hostname:                       "{{ ansible_hostname }}"
     parallel_execution:             true
-    max_workers:                    5
+    max_workers:                    20
     enable_retry:                   true
   register:                         azure_check_results
   when:                             azure_checks is defined and azure_checks | length > 0
