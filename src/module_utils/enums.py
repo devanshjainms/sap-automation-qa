@@ -242,7 +242,7 @@ class Check:
     description: str
     category: str
     workload: str
-    ConfigCheckSeverity: TestSeverity = TestSeverity.WARNING
+    severity: TestSeverity = TestSeverity.WARNING
     collector_type: str = "command"
     collector_args: Dict[str, Any] = field(default_factory=dict)
     validator_type: str = "string"

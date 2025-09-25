@@ -171,7 +171,7 @@ class ConfigurationCheckModule(SapAutomationQA):
                     description=check.get("description", ""),
                     category=check.get("category", "General"),
                     workload=check.get("workload", "SAP"),
-                    ConfigCheckSeverity=TestSeverity(check.get("TestSeverity", "WARNING")),
+                    severity=TestSeverity(check.get("severity", "WARNING")),
                     collector_type=check.get("collector_type", "command"),
                     collector_args=check.get("collector_args", {}),
                     validator_type=check.get("validator_type", "string"),
@@ -230,7 +230,7 @@ class ConfigurationCheckModule(SapAutomationQA):
 
         return {
             "status": self._create_validation_result(
-                check.ConfigCheckSeverity, collected == expected
+                check.severity, collected == expected
             ),
         }
 
@@ -252,7 +252,7 @@ class ConfigurationCheckModule(SapAutomationQA):
 
             return {
                 "status": self._create_validation_result(
-                    check.ConfigCheckSeverity, min_val <= value <= max_val
+                    check.severity, min_val <= value <= max_val
                 ),
             }
         except ValueError:
@@ -276,7 +276,7 @@ class ConfigurationCheckModule(SapAutomationQA):
         collected_list = [item.strip() for item in collected_list]
         return {
             "status": self._create_validation_result(
-                check.ConfigCheckSeverity, any(item in expected_list for item in collected_list)
+                check.severity, any(item in expected_list for item in collected_list)
             ),
         }
 
@@ -407,7 +407,7 @@ class ConfigurationCheckModule(SapAutomationQA):
         try:
             collected_data = collector.collect(check, self.context)
             execution_time = time.time() - start_time
-            if check.ConfigCheckSeverity == TestSeverity.INFO:
+            if check.severity == TestSeverity.INFO:
                 return create_result(TestStatus.INFO.value, actual_value=collected_data)
             validation_result = self.validate_result(check, collected_data)
             return create_result(
@@ -540,10 +540,10 @@ class ConfigurationCheckModule(SapAutomationQA):
                     "description": check_result.check.description,
                     "category": check_result.check.category,
                     "workload": check_result.check.workload,
-                    "TestSeverity": (
-                        check_result.check.TestSeverity.value
-                        if hasattr(check_result.check.TestSeverity, "value")
-                        else str(check_result.check.TestSeverity)
+                    "severity": (
+                        check_result.check.severity.value
+                        if hasattr(check_result.check.severity, "value")
+                        else str(check_result.check.severity)
                     ),
                     "collector_type": check_result.check.collector_type,
                     "collector_args": check_result.check.collector_args,
