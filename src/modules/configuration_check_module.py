@@ -9,6 +9,7 @@ import logging
 import time
 from typing import Optional, Dict, Any, List, Type
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from ansible.module_utils.basic import AnsibleModule
 
 try:
@@ -60,11 +61,23 @@ class ConfigurationCheckModule(SapAutomationQA):
         self.start_time: Optional[datetime] = None
         self.end_time: Optional[datetime] = None
         self.context: Dict[str, Any] = {}
-        self._collectors: Dict[str, Type[Collector]] = {
+        self._collector_registry = self._init_collector_registry()
+        self._validator_registry = self._init_validator_registry()
+
+    def _init_collector_registry(self) -> Dict[str, Type[Collector]]:
+        """
+        Initialize collector registry with built-in collectors
+        """
+        return {
             "command": CommandCollector,
             "azure": AzureDataCollector,
         }
-        self._validators = {
+
+    def _init_validator_registry(self) -> Dict[str, Any]:
+        """
+        Initialize validator registry with built-in validators
+        """
+        return {
             "string": self.validate_string,
             "range": self.validate_numeric_range,
             "list": self.validate_list,
@@ -80,7 +93,11 @@ class ConfigurationCheckModule(SapAutomationQA):
         :param collector_class: Class implementing the Collector interface
         :type collector_class: Type[Collector]
         """
-        self._collectors[collector_type] = collector_class
+        if not issubclass(collector_class, Collector):
+            raise ValueError(f"{collector_class.__name__} must inherit from Collector")
+
+        self._collector_registry[collector_type] = collector_class
+        self.log(logging.INFO, f"Registered collector: {collector_type}")
 
     def register_validator(self, validator_type: str, validator_func):
         """
@@ -91,7 +108,182 @@ class ConfigurationCheckModule(SapAutomationQA):
         :param validator_func: Function implementing the validation logic
         :type validator_func: Callable
         """
-        self._validators[validator_type] = validator_func
+        self._validator_registry[validator_type] = validator_func
+        self.log(logging.INFO, f"Registered validator: {validator_type}")
+
+    def execute_check_with_retry(self, check: Check, max_retries: int = 3) -> CheckResult:
+        """
+        Execute check with retry logic for enhanced robustness
+
+        :param check: Check to execute
+        :type check: Check
+        :param max_retries: Maximum number of retry attempts
+        :type max_retries: int
+        :return: Result of the check execution
+        :rtype: CheckResult
+        """
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                self.log(
+                    logging.DEBUG,
+                    f"Executing check {check.id}, attempt {attempt + 1}/{max_retries}",
+                )
+                return self.execute_check(check)
+            except Exception as e:
+                last_error = e
+                self.log(
+                    logging.WARNING, f"Check {check.id} failed on attempt {attempt + 1}: {str(e)}"
+                )
+
+                if attempt < max_retries - 1:
+                    wait_time = 2**attempt
+                    self.log(logging.INFO, f"Retrying check {check.id} in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                else:
+                    self.log(logging.ERROR, f"Check {check.id} failed after {max_retries} attempts")
+
+        from src.module_utils.enums import TestStatus, CheckResult
+
+        return CheckResult(
+            check=check,
+            status=TestStatus.ERROR,
+            hostname=self.hostname or "unknown",
+            expected_value=None,
+            actual_value=None,
+            execution_time=0,
+            timestamp=datetime.now(),
+            details=f"Check failed after {max_retries} attempts. Last error: {str(last_error)}",
+        )
+
+    def build_execution_order(self, checks: List[Check]) -> List[List[Check]]:
+        """
+        Group checks into execution batches based on dependencies using simple topological sort
+
+        :param checks: List of checks to order
+        :type checks: List[Check]
+        :return: List of batches that can run in parallel
+        :rtype: List[List[Check]]
+        """
+        check_map = {check.id: check for check in checks}
+        batches = []
+        remaining_checks = set(check.id for check in checks)
+
+        while remaining_checks:
+            ready_checks = []
+            for check_id in remaining_checks:
+                check = check_map[check_id]
+                dependencies = getattr(check, "dependencies", [])
+                if not dependencies or not any(dep in remaining_checks for dep in dependencies):
+                    ready_checks.append(check)
+
+            if not ready_checks:
+                self.log(
+                    logging.WARNING,
+                    "Potential circular dependency detected, adding remaining checks to batch",
+                )
+                ready_checks = [check_map[check_id] for check_id in remaining_checks]
+
+            batches.append(ready_checks)
+            remaining_checks -= {check.id for check in ready_checks}
+
+        return batches
+
+    def execute_checks_parallel(
+        self,
+        filter_tags: Optional[List[str]] = None,
+        filter_categories: Optional[List[str]] = None,
+        max_workers: int = 3,
+        enable_retry: bool = True,
+    ) -> list:
+        """
+        Execute checks in parallel batches respecting dependencies
+
+        :param filter_tags: Optional list of tags to filter checks by
+        :type filter_tags: Optional[List[str]]
+        :param filter_categories: Optional list of categories to filter checks by
+        :type filter_categories: Optional[List[str]]
+        :param max_workers: Maximum number of parallel workers
+        :type max_workers: int
+        :param enable_retry: Whether to enable retry mechanism
+        :type enable_retry: bool
+        :return: List of check results
+        :rtype: List[CheckResult]
+        """
+        checks_to_run = self.checks
+
+        if filter_tags:
+            checks_to_run = [
+                check for check in checks_to_run if any(tag in check.tags for tag in filter_tags)
+            ]
+
+        if filter_categories:
+            checks_to_run = [
+                check for check in checks_to_run if check.category in filter_categories
+            ]
+
+        if not checks_to_run:
+            self.log(logging.WARNING, "No checks to execute after applying filters")
+            return []
+
+        self.start_time = datetime.now()
+        self.log(
+            logging.INFO,
+            f"Starting parallel execution of {len(checks_to_run)} checks with {max_workers} workers",
+        )
+
+        execution_batches = self.build_execution_order(checks_to_run)
+        self.log(logging.INFO, f"Organized checks into {len(execution_batches)} execution batches")
+
+        results = []
+        for batch_idx, batch in enumerate(execution_batches):
+            self.log(
+                logging.INFO,
+                f"Executing batch {batch_idx + 1}/{len(execution_batches)} with {len(batch)} checks",
+            )
+
+            with ThreadPoolExecutor(max_workers=min(max_workers, len(batch))) as executor:
+                if enable_retry:
+                    futures = [
+                        executor.submit(self.execute_check_with_retry, check) for check in batch
+                    ]
+                else:
+                    futures = [executor.submit(self.execute_check, check) for check in batch]
+
+                batch_results = [future.result() for future in futures]
+                results.extend(batch_results)
+
+        self.end_time = datetime.now()
+        duration = (self.end_time - self.start_time).total_seconds()
+
+        self.log(logging.INFO, f"Parallel execution completed in {duration:.2f} seconds")
+
+        self.result.update(
+            {
+                "check_results": [result.__dict__ for result in results],
+                "execution_summary": {
+                    "total_checks": len(results),
+                    "execution_time": duration,
+                    "parallel_batches": len(execution_batches),
+                    "max_workers": max_workers,
+                },
+            }
+        )
+
+        return results
+
+    def list_available_collectors(self) -> List[str]:
+        """
+        List all registered collector types
+        """
+        return list(self._collector_registry.keys())
+
+    def list_available_validators(self) -> List[str]:
+        """
+        List all registered validator types
+        """
+        return list(self._validator_registry.keys())
 
     def is_check_applicable(self, check: Check) -> bool:
         """
@@ -187,12 +379,12 @@ class ConfigurationCheckModule(SapAutomationQA):
             f"Loaded {len(self.checks)} checks from the configuration file.",
         )
 
-    def _create_validation_result(self, TestSeverity: TestSeverity, is_success: bool) -> TestStatus:
+    def _create_validation_result(self, severity: TestSeverity, is_success: bool) -> TestStatus:
         """
         Create a validation result based on TestSeverity and success status
 
-        :param TestSeverity: TestSeverity of the check
-        :type TestSeverity: TestSeverity
+        :param severity: TestSeverity of the check
+        :type severity: TestSeverity
         :param is_success: Whether the check was successful
         :type is_success: bool
         """
@@ -200,12 +392,12 @@ class ConfigurationCheckModule(SapAutomationQA):
             return TestStatus.SUCCESS.value
 
         TestSeverity_map = {
-            TestSeverity.INFO: TestStatus.INFO.value,
-            TestSeverity.LOW: TestStatus.WARNING.value,
-            TestSeverity.WARNING: TestStatus.WARNING.value,
-            TestSeverity.CRITICAL: TestStatus.ERROR.value,
+            severity.INFO: TestStatus.INFO.value,
+            severity.LOW: TestStatus.WARNING.value,
+            severity.WARNING: TestStatus.WARNING.value,
+            severity.CRITICAL: TestStatus.ERROR.value,
         }
-        return TestSeverity_map.get(TestSeverity, TestStatus.ERROR.value)
+        return TestSeverity_map.get(severity, TestStatus.ERROR.value)
 
     def validate_string(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """
@@ -229,9 +421,7 @@ class ConfigurationCheckModule(SapAutomationQA):
             collected = collected.lower()
 
         return {
-            "status": self._create_validation_result(
-                check.severity, collected == expected
-            ),
+            "status": self._create_validation_result(check.severity, collected == expected),
         }
 
     def validate_numeric_range(self, check: Check, collected_data: str) -> Dict[str, Any]:
@@ -343,12 +533,14 @@ class ConfigurationCheckModule(SapAutomationQA):
         :return: Validation result dictionary
         :rtype: Dict[str, Any]
         """
-        validator = self._validators.get(check.validator_type)
+        validator = self._validator_registry.get(check.validator_type)
         if validator:
             return validator(check, collected_data)
         else:
+            available = list(self._validator_registry.keys())
             return {
                 "status": TestStatus.ERROR.value,
+                "details": f"Validator '{check.validator_type}' not found. Available: {available}",
             }
 
     def execute_check(self, check: Check) -> CheckResult:
@@ -395,11 +587,12 @@ class ConfigurationCheckModule(SapAutomationQA):
         if not self.is_check_applicable(check):
             return create_result(TestStatus.SKIPPED.value, details="Check not applicable")
 
-        collector_class = self._collectors.get(check.collector_type)
+        collector_class = self._collector_registry.get(check.collector_type)
         if not collector_class:
+            available = list(self._collector_registry.keys())
             return create_result(
                 status=TestStatus.ERROR.value,
-                details=f"No collector found for type: {check.collector_type}",
+                details=f"Collector '{check.collector_type}' not found. Available: {available}",
             )
 
         collector = collector_class(parent=self)
@@ -427,7 +620,12 @@ class ConfigurationCheckModule(SapAutomationQA):
             )
 
     def execute_checks(
-        self, filter_tags: Optional[List[str]] = None, filter_categories: Optional[List[str]] = None
+        self,
+        filter_tags: Optional[List[str]] = None,
+        filter_categories: Optional[List[str]] = None,
+        parallel: bool = False,
+        max_workers: int = 3,
+        enable_retry: bool = False,
     ) -> list:
         """
         Execute all loaded checks, optionally filtered by tags or categories
@@ -436,9 +634,22 @@ class ConfigurationCheckModule(SapAutomationQA):
         :type filter_tags: Optional[List[str]]
         :param filter_categories: Optional list of categories to filter checks by
         :type filter_categories: Optional[List[str]]
+        :param parallel: Whether to execute checks in parallel
+        :type parallel: bool
+        :param max_workers: Maximum number of parallel workers (ignored if parallel=False)
+        :type max_workers: int
+        :param enable_retry: Whether to enable retry mechanism for failed checks
+        :type enable_retry: bool
         :return: List of check results
         :rtype: List[CheckResult]
         """
+        if parallel:
+            return self.execute_checks_parallel(
+                filter_tags=filter_tags,
+                filter_categories=filter_categories,
+                max_workers=max_workers,
+                enable_retry=enable_retry,
+            )
         checks_to_run = self.checks
 
         if filter_tags:
@@ -462,7 +673,10 @@ class ConfigurationCheckModule(SapAutomationQA):
 
         results = list()
         for check in checks_to_run:
-            result = self.execute_check(check)
+            if enable_retry:
+                result = self.execute_check_with_retry(check)
+            else:
+                result = self.execute_check(check)
             results.append(result)
             self.result["check_results"].append(result)
 
@@ -586,7 +800,11 @@ class ConfigurationCheckModule(SapAutomationQA):
             self.set_context(context)
             self.load_checks(raw_file_content=self.module_params["check_file_content"])
             self.execute_checks(
-                self.module_params["filter_tags"], self.module_params["filter_categories"]
+                filter_tags=self.module_params["filter_tags"],
+                filter_categories=self.module_params["filter_categories"],
+                parallel=self.module_params.get("parallel_execution", False),
+                max_workers=self.module_params.get("max_workers", 3),
+                enable_retry=self.module_params.get("enable_retry", False),
             )
             self.format_results_for_html_report()
             result = dict(self.result)
@@ -608,6 +826,9 @@ def main():
         context=dict(type="dict", required=True),
         filter_tags=dict(type="list", elements="str", required=False, default=None),
         filter_categories=dict(type="list", elements="str", required=False, default=None),
+        parallel_execution=dict(type="bool", required=False, default=False),
+        max_workers=dict(type="int", required=False, default=3),
+        enable_retry=dict(type="bool", required=False, default=False),
         workspace_directory=dict(type="str", required=True),
         hostname=dict(type="str", required=False, default=None),
         test_group_invocation_id=dict(type="str", required=True),

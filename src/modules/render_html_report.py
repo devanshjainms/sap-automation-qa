@@ -113,8 +113,8 @@ class HTMLReportRenderer(SapAutomationQA):
         test_group_name: str,
         report_template: str,
         workspace_directory: str,
-        test_case_results: List[Dict[str, Any]] = None,
-        system_info: Dict[str, Any] = None,
+        test_case_results: List[Dict[str, Any]] = [],
+        system_info: Dict[str, Any] = {},
     ):
         super().__init__()
         self.test_group_invocation_id = test_group_invocation_id
