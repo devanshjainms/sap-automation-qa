@@ -155,6 +155,54 @@ class Result:
 
 
 @dataclass
+class ApplicabilityRule:
+    """
+    Represents a rule to determine if a check is applicable based on context properties
+
+    :param property: The property to check against
+    :type property: str
+    :param value: The expected value of the property
+    :type value: Any
+    """
+
+    property: str
+    value: Any
+
+    def is_applicable(self, context_value: Any) -> bool:
+        """
+        Check if the rule applies to the given context value
+
+        :param context_value: Value from the context to check against
+        :type context_value: Any
+        :return: True if applicable, False otherwise
+        :rtype: bool
+        """
+        if isinstance(context_value, str):
+            context_value = context_value.strip()
+            if self.property == "os_version" and self.value == "all":
+                return True
+
+            if context_value.lower() == "true":
+                context_value = True
+            elif context_value.lower() == "false":
+                context_value = False
+
+        if isinstance(self.value, list):
+            if isinstance(context_value, list):
+                return bool(set(self.value).intersection(set(context_value)))
+            if self.property == "storage_type":
+                return any(val in context_value for val in self.value) or any(
+                    context_value in val for val in self.value
+                )
+            return context_value in self.value
+
+        if isinstance(self.value, bool):
+            return context_value == self.value
+
+        return context_value == self.value
+
+
+@dataclass
 class Check:
     """
     Represents a configuration check
@@ -253,51 +301,3 @@ class CheckResult:
     execution_time: float
     timestamp: datetime = field(default_factory=datetime.now)
     details: Optional[str] = None
-
-
-@dataclass
-class ApplicabilityRule:
-    """
-    Represents a rule to determine if a check is applicable based on context properties
-
-    :param property: The property to check against
-    :type property: str
-    :param value: The expected value of the property
-    :type value: Any
-    """
-
-    property: str
-    value: Any
-
-    def is_applicable(self, context_value: Any) -> bool:
-        """
-        Check if the rule applies to the given context value
-
-        :param context_value: Value from the context to check against
-        :type context_value: Any
-        :return: True if applicable, False otherwise
-        :rtype: bool
-        """
-        if isinstance(context_value, str):
-            context_value = context_value.strip()
-            if self.property == "os_version" and self.value == "all":
-                return True
-
-            if context_value.lower() == "true":
-                context_value = True
-            elif context_value.lower() == "false":
-                context_value = False
-
-        if isinstance(self.value, list):
-            if isinstance(context_value, list):
-                return bool(set(self.value).intersection(set(context_value)))
-            if self.property == "storage_type":
-                return any(val in context_value for val in self.value) or any(
-                    context_value in val for val in self.value
-                )
-            return context_value in self.value
-
-        if isinstance(self.value, bool):
-            return context_value == self.value
-
-        return context_value == self.value
