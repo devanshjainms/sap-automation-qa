@@ -253,15 +253,22 @@ class ConfigurationCheckModule(SapAutomationQA):
 
                 batch_results = [future.result() for future in futures]
                 results.extend(batch_results)
+                self.result["check_results"].extend(batch_results)
 
         self.end_time = datetime.now()
         duration = (self.end_time - self.start_time).total_seconds()
 
         self.log(logging.INFO, f"Parallel execution completed in {duration:.2f} seconds")
 
+        summary = self.get_results_summary()
+
         self.result.update(
             {
-                "check_results": [result.__dict__ for result in results],
+                "status": (
+                    TestStatus.SUCCESS.value if summary["failed"] == 0 else TestStatus.ERROR.value
+                ),
+                "message": f"Parallel execution completed with {summary['failed']} failures",
+                "summary": summary,
                 "execution_summary": {
                     "total_checks": len(results),
                     "execution_time": duration,
