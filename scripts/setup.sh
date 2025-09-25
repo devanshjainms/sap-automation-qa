@@ -19,7 +19,7 @@ install_packages "${packages[@]}"
 # Install az cli if not present
 if ! command_exists az; then
 		log "INFO" "Azure CLI not found. Installing Azure CLI..."
-		curl -L https://aka.ms/InstallAzureCli | bash -y
+		curl -L https://aka.ms/InstallAzureCli | bash
 		if command_exists az; then
 				log "INFO" "Azure CLI installed successfully."
 		else
