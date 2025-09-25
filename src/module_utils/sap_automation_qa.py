@@ -4,6 +4,7 @@ and setup base variables for the test case running in the sap-automation-qa
 """
 
 from abc import ABC
+import yaml
 import sys
 import logging
 import subprocess
@@ -129,3 +130,18 @@ class SapAutomationQA(ABC):
         :rtype: Dict[str, Any]
         """
         return self.result
+
+    def parse_yaml_from_content(self, yaml_content: str) -> Optional[Dict[str, Any]]:
+        """
+        Parses a YAML file and returns its content as a dictionary.
+
+        :param yaml_content: Content of the YAML file
+        :type yaml_content: str
+        :return: Content of the YAML file as a dictionary
+        :rtype: Optional[Dict[str, Any]]
+        """
+        try:
+            return yaml.load(yaml_content, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))
+        except yaml.YAMLError as ex:
+            self.log(logging.ERROR, f"Error parsing YAML content: {ex}")
+            return None
