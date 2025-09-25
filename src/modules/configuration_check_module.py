@@ -232,9 +232,10 @@ class ConfigurationCheckModule(SapAutomationQA):
             logging.INFO,
             f"Starting parallel execution of {len(checks_to_run)} checks with {max_workers} workers",
         )
-
         execution_batches = self.build_execution_order(checks_to_run)
         self.log(logging.INFO, f"Organized checks into {len(execution_batches)} execution batches")
+        for i, batch in enumerate(execution_batches):
+            self.log(logging.INFO, f"Batch {i+1}: {len(batch)} checks - {[check.id for check in batch]}")
 
         results = []
         for batch_idx, batch in enumerate(execution_batches):
@@ -243,7 +244,10 @@ class ConfigurationCheckModule(SapAutomationQA):
                 f"Executing batch {batch_idx + 1}/{len(execution_batches)} with {len(batch)} checks",
             )
 
-            with ThreadPoolExecutor(max_workers=min(max_workers, len(batch))) as executor:
+            actual_workers = min(max_workers, len(batch))
+            self.log(logging.INFO, f"Using {actual_workers} workers for batch {batch_idx + 1}")
+
+            with ThreadPoolExecutor(max_workers=actual_workers) as executor:
                 if enable_retry:
                     futures = [
                         executor.submit(self.execute_check_with_retry, check) for check in batch
