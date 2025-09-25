@@ -7,28 +7,37 @@ Ansible Python module to check the configuration of the workload system running 
 
 import logging
 import time
-
 from typing import Optional, Dict, Any, List, Type
 from datetime import datetime
 from ansible.module_utils.basic import AnsibleModule
 
 try:
     from ansible.module_utils.sap_automation_qa import SapAutomationQA
-    from ansible.module_utils.enums import TestStatus, TestSeverity, Check, CheckResult
+    from ansible.module_utils.enums import (
+        TestStatus,
+        TestSeverity,
+        Check,
+        CheckResult,
+        ApplicabilityRule,
+    )
     from ansible.module_utils.collector import (
         Collector,
         CommandCollector,
         AzureDataCollector,
-        ApplicabilityRule,
     )
 except ImportError:
     from src.module_utils.sap_automation_qa import SapAutomationQA
-    from src.module_utils.enums import TestStatus, TestSeverity, Check, CheckResult
+    from src.module_utils.enums import (
+        TestStatus,
+        TestSeverity,
+        Check,
+        CheckResult,
+        ApplicabilityRule,
+    )
     from src.module_utils.collector import (
         Collector,
         CommandCollector,
         AzureDataCollector,
-        ApplicabilityRule,
     )
 
 
