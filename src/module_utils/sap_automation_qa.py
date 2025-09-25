@@ -4,12 +4,12 @@ and setup base variables for the test case running in the sap-automation-qa
 """
 
 from abc import ABC
-import yaml
 import sys
 import logging
 import subprocess
 from typing import Optional, Dict, Any
 import xml.etree.ElementTree as ET
+import yaml
 
 try:
     from ansible.module_utils.enums import Result, TestStatus

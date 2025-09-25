@@ -275,7 +275,7 @@ checks:
         url:                          "https://learn.microsoft.com/en-us/defender-endpoint/mde-linux-deployment-on-sap"
     report:                           *check
 
-    - id:                               "FC-0009"
+  - id:                               "FC-0009"
     name:                             "Microsoft Defender Release Ring"
     description:                      "Checks if Microsoft Defender for Linux is using the production release ring"
     category:                         *package_check
