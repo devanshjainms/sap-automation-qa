@@ -16,6 +16,17 @@ cd "$(dirname "$script_dir")"
 packages=("python3-pip" "sshpass" "python3-venv")
 install_packages "${packages[@]}"
 
+# Install az cli if not present
+if ! command_exists az; then
+		log "INFO" "Azure CLI not found. Installing Azure CLI..."
+		curl -L https://aka.ms/InstallAzureCli | bash
+		if command_exists az; then
+				log "INFO" "Azure CLI installed successfully."
+		else
+				log "ERROR" "Failed to install Azure CLI. Please install it manually."
+				exit 1
+		fi
+
 # Verify Python3 is available
 if ! command_exists python3; then
     log "ERROR" "Python3 is not available after installation. Please install Python3 manually."
