@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>SAP Configuration Checks Report</title>
+  <style>
+    /* Base Styles */
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: #f2f2f2;
+    }
+
+    /* Layout Components */
+    .navbar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 10px;
+      background-color: #0078d7;
+      color: #ffffff;
+      transition: all 0.3s ease;
+      font-size: 20px;
+      width: 100%;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 20px;
+    }
+
+    .navbar .system-id {
+      font-weight: bold;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(auto, 1400px) minmax(0, 1fr);
+      gap: 20px;
+    }
+
+    .left-bar {
+      grid-column: 2;
+      padding: 20px;
+    }
+
+    /* System Info Styles */
+    .system-info-container {
+      background-color: #fff;
+      border-radius: 5px;
+      box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .system-info-heading {
+      width: 100%;
+      text-align: left;
+      margin-bottom: 20px;
+    }
+
+    .system-info-columns {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .system-info-column {
+      width: 30%;
+      position: relative;
+      flex-direction: column;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .system-info-container h2 {
+      color: #666;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .system-info-container p {
+      color: #666;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    .system-info p strong {
+      color: #666;
+      font-weight: 600;
+    }
+
+    /* Configuration Checks Styles */
+    .config-checks-container {
+      background-color: #fff;
+      border-radius: 5px;
+      box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .config-checks-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+
+    .config-checks-table th,
+    .config-checks-table td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+      font-size: 12px;
+    }
+
+    .config-checks-table th {
+      background-color: #f2f2f2;
+      position: sticky;
+      top: 0;
+    }
+
+    .config-checks-table tbody tr {
+      cursor: pointer;
+    }
+
+    .config-checks-table tbody tr:hover {
+      background-color: #f0f7ff;
+    }
+
+    .config-section {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #e9ecef;
+      border-radius: 5px;
+      font-size: 12px;
+    }
+
+    .config-section h4 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    .status-passed {
+      color: #2a882e;
+      font-weight: bold;
+    }
+
+    .status-error {
+      color: #df3d3d;
+      font-weight: bold;
+    }
+
+    .status-warning {
+      color: #fcd116;
+      font-weight: bold;
+    }
+
+    .status-info {
+      color: #0078d7;
+      font-weight: normal;
+    }
+
+    .summary-box {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 20px;
+    }
+
+    .status-count {
+      padding: 15px;
+      border-radius: 5px;
+      min-width: 120px;
+      text-align: center;
+    }
+
+    .status-count.passed {
+      background-color: rgba(42, 136, 46, 0.2);
+    }
+
+    .status-count.error {
+      background-color: rgba(223, 61, 61, 0.2);
+    }
+
+    .status-count.warning {
+      background-color: rgba(252, 209, 22, 0.2);
+    }
+
+    .status-count.info {
+      background-color: rgba(0, 120, 215, 0.2);
+    }
+
+    .detail-row {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .detail-label {
+      font-weight: bold;
+      color: #555;
+    }
+
+    .expanded-content {
+      display: none;
+      padding: 0;
+      background-color: #f9f9f9;
+      border-top: none;
+    }
+
+    .expanded-content td {
+      padding: 0;
+    }
+
+    .expanded-content-inner {
+      padding: 15px;
+      border-left: 4px solid #0078d7;
+    }
+
+    .references-section {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #ddd;
+    }
+
+    .references-section h4 {
+      margin-top: 0;
+      color: #0078d7;
+    }
+
+    pre {
+      background-color: #f5f5f5;
+      padding: 8px;
+      border-radius: 4px;
+      overflow-x: auto;
+      margin: 5px 0;
+    }
+
+    /* Collapsible Section Styles */
+    .section-header {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      margin: 0;
+      padding: 10px 0;
+    }
+
+    .toggle-icon {
+      display: inline-block;
+      margin-right: 10px;
+      transition: transform 0.2s ease;
+    }
+
+    .section-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .section-content.collapsed {
+      display: none;
+    }
+
+    .section-header:hover {
+      color: #0078d7;
+    }
+
+    /* Tab Styles */
+    .tabs-container {
+      margin-bottom: 20px;
+    }
+
+    .tab-navigation {
+      display: flex;
+      overflow-x: auto;
+      border-bottom: 1px solid #ccc;
+      margin-bottom: 20px;
+    }
+
+    .tab-button {
+      padding: 10px 20px;
+      background-color: #f2f2f2;
+      border: none;
+      border-radius: 5px 5px 0 0;
+      cursor: pointer;
+      margin-right: 5px;
+      font-weight: 500;
+      transition: background-color 0.3s;
+    }
+
+    .tab-button:hover {
+      background-color: #e0e0e0;
+    }
+
+    .tab-button.active {
+      background-color: #0078d7;
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Badge Styles */
+    .hostname-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      background-color: #f0f0f0;
+      border-radius: 12px;
+      font-size: 11px;
+      margin-left: 10px;
+    }
+
+    .hostname-badge.error {
+      background-color: rgba(223, 61, 61, 0.2);
+    }
+
+    /* Footer Styles */
+    .footer {
+      bottom: 0;
+      width: 100%;
+      height: 40px;
+      padding: 10px;
+      text-align: center;
+      background-color: #0078d7;
+      color: #ffffff;
+    }
+
+    /* Media Queries */
+    @media only screen and (max-width: 600px) {
+      .container {
+        max-width: 100%;
+        padding: 0 15px;
+      }
+
+      .navbar,
+      .footer {
+        flex-direction: column;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="navbar">
+    <div class="system-id">SAP Configuration Checks Report</div>
+  </div>
+  <div class="main-content">
+    <div class="container">
+      <div class="left-bar">
+        <div class="system-info-container">
+          <h2 class="system-info-heading">System Information</h2>
+          <div class="system-info-columns">
+            <div class="system-info-column">
+              <p>
+                <strong>SAP SID:</strong> {{ system_info.sap_sid }}
+              </p>
+              <p>
+                <strong>DB SID:</strong> {{ system_info.db_sid }}
+              </p>
+              <p>
+                <strong>DB Type:</strong> {{ system_info.db_type }}
+              </p>
+            </div>
+            <div class="system-info-column">
+              <p>
+                <strong>OS Version:</strong> {{ system_info.os_version }}
+              </p>
+              <p>
+                <strong>Storage Type:</strong> {{ system_info.storage_type }}
+              </p>
+              <p>
+                <strong>Hostnames:</strong> {{ system_info.hostnames|join(', ') }}
+              </p>
+            </div>
+            <div class="system-info-column">
+              <p>
+                <strong>Total Checks:</strong> {{ test_case_results|rejectattr('status', 'equalto',
+                'SKIPPED')|list|length }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-checks-container">
+          <div class="summary-box">
+            <div class="status-count passed">
+              <h3>{{ system_info.passed_count }}</h3>
+              <p>Passed</p>
+            </div>
+            <div class="status-count error">
+              <h3>{{ system_info.error_count }}</h3>
+              <p>Error</p>
+            </div>
+            <div class="status-count warning">
+              <h3>{{ system_info.warning_count }}</h3>
+              <p>Warning</p>
+            </div>
+            <div class="status-count info">
+              <h3>{{ system_info.info_count }}</h3>
+              <p>Info</p>
+            </div>
+          </div>
+
+          <div class="tab-navigation">
+            {% for hostname in system_info.hostnames %}
+            {% set host_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|rejectattr('status',
+            'equalto', 'SKIPPED')|list %}
+            {% set error_count = host_checks|selectattr('status', 'equalto', 'ERROR')|list|length %}
+            {% set no_error_count = host_checks|rejectattr('status', 'equalto', 'ERROR')|list|length %}
+            <button class="tab-button {% if loop.first %}active{% endif %}" onclick="openTab('host-{{ hostname }}')">
+              {{ hostname }}
+              <span class="hostname-badge {% if error_count > 0 %}error{% endif %}">{{ no_error_count }}/{{ host_checks|length }}</span>
+            </button>
+            {% endfor %}
+          </div>
+
+          <div class="tabs-container">
+            {% for hostname in system_info.hostnames %}
+            <div id="host-{{ hostname }}" class="tab-content {% if loop.first %}active{% endif %}">
+              {% for check_type in system_info.config_check_types|default([]) %}
+              {% set type_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|
+              selectattr('check.category', 'defined')|
+              selectattr('check.category', 'equalto', check_type)|
+              rejectattr('status', 'equalto', 'SKIPPED')|list %}
+              {% if type_checks|length > 0 %}
+              <h3>{{ check_type }}</h3>
+              <table class="config-checks-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Output</th>
+                    <th>Expected</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for check in type_checks %}
+                  {% if check.check.report == 'check' %}
+                  <tr onclick="toggleDetails('{{ check.hostname }}-{{ check.check.id }}')">
+                    <td>{{ check.check.id }}</td>
+                    <td>{{ check.check.name }}</td>
+                    <td>{{ check.actual_value|truncate(30) }}</td>
+                    <td>{{ check.check.validator_args.expected_output|default('N/A') }}</td>
+                    <td class="status-{{ check.status|lower }}">{{ check.status }}</td>
+                  </tr>
+                  <tr id="details-{{ check.hostname }}-{{ check.check.id }}" class="expanded-content">
+                    <td colspan="6">
+                      <div class="expanded-content-inner">
+                        <div class="detail-row">
+                          <div class="detail-label">Description:</div>
+                          <div>{{ check.check.description }}</div>
+                        </div>
+                        <div class="detail-row">
+                          <div class="detail-label">Collector Type:</div>
+                          <div>
+                            {{ check.check.collector_type|default('') }}</code>
+                          </div>
+                        </div>
+                        {% if check.check.collector_args.command is defined %}
+                        <div class="detail-row">
+                          <div class="detail-label">Command:</div>
+                          <div>
+                            {{ check.check.collector_args.command|default('') }}</code>
+                          </div>
+                        </div>
+                        {% endif %}
+                        <div class="detail-row">
+                          <div class="detail-label">Applicability:</div>
+                          <div>{{ check.check.applicability|default('') }}</div>
+                        </div>
+                        <div class="detail-row">
+                          <div class="detail-label">Output Type:</div>
+                          <div>{{ check.check.validator_type|default('') }}</div>
+                        </div>
+                        {% if check.check.validator_args.expected_output is defined %}
+                        <div class="detail-row">
+                          <div class="detail-label">Expected Output:</div>
+                          <div>{{ check.check.validator_args.expected_output|default('') }}</div>
+                        </div>
+                        {% endif %}
+                        <div class="detail-row">
+                          <div class="detail-label">Actual Value:</div>
+                          {{ check.actual_value|default('') }}</code>
+                        </div>
+                        <div class="detail-row">
+                          <div class="detail-label">Execution Time:</div>
+                          <div>{{ check.execution_time|default('') }}</div>
+                        </div>
+
+                        {% if check.check.references is defined and check.check.references.microsoft|default('') or
+                        check.check.references.sap|default('') or check.check.references.remediation|default('') or
+                        check.check.references.other|default('') %}
+                        <div class="references-section">
+                          <h4>References</h4>
+                          {% if check.check.references.microsoft|default('') %}
+                          <div class="detail-row">
+                            <div class="detail-label">Microsoft:</div>
+                            <div><a href="{{ check.check.references.microsoft|default('') }}" target="_blank">Microsoft
+                                Docs</a></div>
+                          </div>
+                          {% endif %}
+
+                          {% if check.check.references.sap|default('') %}
+                          <div class="detail-row">
+                            <div class="detail-label">SAP:</div>
+                            <div><a href="https://me.sap.com/notes/{{ check.check.references.sap|default('') }}"
+                                target="_blank">Note</a>
+                            </div>
+                          </div>
+                          {% endif %}
+
+                          {% if check.check.references.remediation|default('') %}
+                          <div class="detail-row">
+                            <div class="detail-label">Remediation:</div>
+                            <div>{{ check.check.references.remediation|default('') }}</div>
+                          </div>
+                          {% endif %}
+
+                          {% if check.check.references.other|default('') %}
+                          <div class="detail-row">
+                            <div class="detail-label">Other:</div>
+                            <div><a href="{{ check.check.references.other|default('') }}" target="_blank">Other
+                                Reference</a></div>
+                          </div>
+                          {% endif %}
+                        </div>
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                  {% endif %}
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% endif %}
+              {% endfor %}
+              {% set host_sections = test_case_results|selectattr('hostname', 'equalto',
+              hostname)|selectattr('check.report', 'equalto', 'section')|rejectattr('status', 'equalto', 'SKIPPED')|list
+              %}
+              {% if host_sections|length > 0 %}
+              <h3>Section Reports</h3>
+              {% for check in host_sections %}
+              <div class="config-section">
+                <h4 class="section-header" onclick="toggleSection('section-{{ check.hostname }}-{{ check.check.id }}')">
+                  <span class="toggle-icon">+</span> {{ check.check.name }} ({{ check.check.id }})</h4>
+                <div id="section-{{ check.hostname }}-{{ check.check.id }}" class="section-content collapsed">
+                  <p>
+                    <strong>Description:</strong> {{ check.check.description }}
+                  </p>
+                  <p>
+                    <strong>Command:</strong> <code>{{ check.check.collector_args.command|default('') }}</code>
+                  </p>
+                  <p>
+                    <strong>Output:</strong>
+                  </p>
+                  <pre>{{ check.actual_value }}</pre>
+                </div>
+              </div>
+              {% endfor %}
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">Report generated on: {{ report_generation_time }}</div>
+  <script>
+    function toggleDetails(checkId) {
+      const detailsRow = document.getElementById('details-' + checkId)
+      if (detailsRow.style.display === 'table-row') {
+        detailsRow.style.display = 'none'
+      } else {
+        const expandedRows = document.querySelectorAll('.expanded-content')
+        expandedRows.forEach((row) => (row.style.display = 'none'))
+        detailsRow.style.display = 'table-row'
+      }
+    }
+
+    function toggleSection(sectionId) {
+      const sectionContent = document.getElementById(sectionId)
+      if (!sectionContent) return
+
+      const toggleIcon = sectionContent.previousElementSibling.querySelector('.toggle-icon')
+
+      if (sectionContent.classList.contains('collapsed')) {
+        sectionContent.classList.remove('collapsed')
+        toggleIcon.textContent = '-'
+      } else {
+        sectionContent.classList.add('collapsed')
+        toggleIcon.textContent = '+'
+      }
+    }
+
+    function openTab(tabId) {
+      const tabContents = document.querySelectorAll('.tab-content')
+      tabContents.forEach((tab) => tab.classList.remove('active'))
+
+      const tabButtons = document.querySelectorAll('.tab-button')
+      tabButtons.forEach((button) => button.classList.remove('active'))
+
+      document.getElementById(tabId).classList.add('active')
+      event.currentTarget.classList.add('active')
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const expandedRows = document.querySelectorAll('.expanded-content')
+      expandedRows.forEach((row) => (row.style.display = 'none'))
+
+      const sectionContents = document.querySelectorAll('.section-content')
+      sectionContents.forEach((section) => {
+        section.classList.add('collapsed')
+      })
+
+      const firstTab = document.querySelector('.tab-content')
+      if (firstTab) firstTab.classList.add('active')
+
+      const firstButton = document.querySelector('.tab-button')
+      if (firstButton) firstButton.classList.add('active')
+    })
+  </script>
+</body>
+
+</html>

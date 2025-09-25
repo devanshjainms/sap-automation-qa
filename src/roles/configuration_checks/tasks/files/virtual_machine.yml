@@ -1,0 +1,848 @@
+# Enumeration definitions
+enums:
+  severity:
+    - info:                           &info "INFO"
+    - high:                           &high "HIGH"
+    - low:                            &low "LOW"
+    - warning:                        &warning "WARNING"
+    - critical:                       &critical "CRITICAL"
+    - all_severity:                   &severity [*info, *high, *low, *warning, *critical]
+
+  os_type:
+    - suse:                           &suse "SUSE"
+    - redhat:                         &redhat "REDHAT"
+    - oraclelinux:                    &oraclelinux "OracleLinux"
+    - windows:                        &windows "Windows"
+    - all_os:                         &os_type [*suse, *redhat, *oraclelinux, *windows]
+
+  os_version:
+    - suse_12_3:                      &suse_12_3 "SUSE 12 SP3"
+    - suse_12_4:                      &suse_12_4 "SUSE 12 SP4"
+    - suse_12_5:                      &suse_12_5 "SUSE 12 SP5"
+    - all_versions:                   &all_versions "all"
+
+  hardware_type:
+    - vm:                             &vm "VM"
+    - hli:                            &hli "HLI"
+    - all_hardware:                   &all_hardware [*vm, *hli]
+
+  storage_type:
+    premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","ANF","PremiumV2_LRS","AFS"]
+    anf:                              &anf ["ANF"]
+
+  workload:
+    - sap:                            &sap "SAP"
+    - all_workload:                   &workload [*sap]
+
+  db:
+    - hana:                           &hana "HANA"
+    - mssql:                          &mssql "MSSQL"
+    - oracle:                         &oracle "Oracle"
+    - db2:                            &db2 "Db2"
+    - ase:                            &ase "ASE"
+    - all_db:                         &db [*hana, *mssql, *oracle, *db2, *ase]
+
+  role:
+    - db:                             &db_role "DB"
+    - ascs:                           &ascs_role "SCS"
+    - ers:                            &ers_role "ERS"
+    - app:                            &app_role "APP"
+    - webdispatcher:                  &web_dispatch "WEB"
+    - pas:                            &pas "PAS"
+    - all_role:                       &role [*db_role, *ascs_role, *ers_role, *app_role, *web_dispatch, *pas]
+
+  cluster_type:
+    - sbd:                            &sbd "ISCSI"
+    - fencing_agent:                  &fencing_agent "AFA"
+    - all_fencing_agent:              &cluster_type [*sbd, *fencing_agent]
+
+  collector_type:
+    - command:                        &command "command"
+    - azure:                          &azure "azure"
+    - all_collector_type:             &collector_type [*command, *azure]
+
+  category:
+    - package:                        &package_check "Package"
+    - vm:                             &vm_check "Virtual Machine"
+    - sap:                            &sap_check "SAP"
+    - os:                             &os_check "Operating System"
+    - all_check_types:                &category [*package_check, *vm_check, *sap_check, *os_check]
+
+  user:
+    - root:                           &root "root"
+    - sidadm:                         &sidadm "sidadm"
+    - all_users:                      &user [*root, *sidadm]
+
+  validator_type:
+    - string:                         &string "string"
+    - range:                          &range "range"
+    - list:                           &list "list"
+    - all:                            &validator_type [*string, *range, *list]
+
+  report:
+    - check:                          &check "check"
+    - section:                        &section "section"
+    - report:                         &report [*check, *section]
+
+
+# Check definitions
+checks:
+  - id:                               "IC-0001"
+    name:                             "Virtual Machine Name"
+    description:                      "Checks the name of the virtual machine"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    collector_type:                   *command
+    collector_args:
+      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/name?api-version=2021-02-01&format=text' -s"
+    report:                           *check
+
+  - id:                               "IC-0002"
+    name:                             "Resource Group Name"
+    description:                      "Checks the resource group name of the virtual machine"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    collector_type:                   *command
+    collector_args:
+      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/resourceGroupName?api-version=2021-02-01&format=text' -s"
+    report:                           *check
+  
+  - id:                               "IC-0003"
+    name:                             "Region"
+    description:                      "Virtual Machine Region"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    collector_type:                   *command
+    collector_args:
+      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text' -s"
+    report:                           *check
+
+  - id:                               "IC-0004"
+    name:                             "Availability Zone"
+    description:                      "Virtual Machine Availabilty Zone"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    collector_type:                   *command
+    collector_args:
+      command:                        "curl -H 'Metadata: true' 'http://169.254.169.254/metadata/instance/compute/zone?api-version=2021-02-01&format=text' -s"
+    report:                           *check
+
+  - id:                               "IC-0005"
+    name:                             "Hostname"
+    description:                      "Checks the hostname of the system on Linux"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/hostname"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0006"
+    name:                             "Hostname"
+    description:                      "Checks the hostname of the system on Windows"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        *windows
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "hostname"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0007"
+    name:                             "Hosts"
+    description:                      "Checks the hosts file on Linux"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/hosts"
+      user:                           *root
+    report:                           *section
+  
+  - id:                               "IC-0008"
+    name:                             "Kernel Version"
+    description:                      "Checks the kernel version of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/uname -r"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0009"
+    name:                             "Azure Hypervisor Host"
+    description:                      "Checks the Azure hypervisor host"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /var/lib/hyperv/.kvp_pool_3 | tr -d '\\000' | grep -o -P '(?<=HostName).*(?=HostingSystemEditionId)'"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0010"
+    name:                             "Linux Release File"
+    description:                      "Checks the Linux release file"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/os-release"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0011"
+    name:                             "Linux Major and Minor Release"
+    description:                      "Checks the Linux major and minor release"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/os-release | grep VERSION_ID"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0012"
+    name:                             "OS Timezone"
+    description:                      "Checks the OS timezone"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/date +%Z"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0013"
+    name:                             "OS KDUMP Configuration"
+    description:                      "Checks the KDUMP configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/systemctl status kdump.service | grep -o 'Active:.*'"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0014"
+    name:                             "Oracle gclib version"
+    description:                      "Checks the Oracle gclib version"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  [*oracle]
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/rpm -q glibc"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0015"
+    name:                             "Sysctl"
+    description:                      "Checks the sysctl configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/sbin/sysctl -a 2> /dev/null"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0016"
+    name:                             "fstab"
+    description:                      "Checks the fstab configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/fstab"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0017"
+    name:                             "systemctl"
+    description:                      "Checks the systemctl configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/systemctl list-unit-files --state=enabled"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0018"
+    name:                             "chkconfig"
+    description:                      "Checks the chkconfig configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/sbin/chkconfig 2> /dev/null"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0019"
+    name:                             "Installed Packages"
+    description:                      "Checks the installed packages of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/rpm -qa"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0020"
+    name:                             "Microsoft Defender Health"
+    description:                      "Checks the Microsoft Defender Health"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role, *app_role]
+      database_type:                  [*hana, *ase, *db2, *oracle]
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/mdatp health"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0021"
+    name:                             "SBD Configuration"
+    description:                      "Checks the SBD configuration of the system"
+    category:                         *sap_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role]
+      database_type:                  *db
+      high_availability:              true
+      high_availability_agent:        [*sbd]
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/sysconfig/sbd"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0022"
+    name:                             "Cluster Configuration"
+    description:                      "Checks the cluster configuration of the system"
+    category:                         *sap_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role]
+      database_type:                  *db
+      high_availability:              true
+      high_availability_agent:        [*sbd, *fencing_agent]
+    collector_type:                   *command
+    collector_args:
+      command:                        "cibadmin --query --scope resources"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0023"
+    name:                             "Cluster Status"
+    description:                      "Checks the cluster status of the system"
+    category:                         *sap_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role]
+      database_type:                  *db
+      high_availability:              true
+      high_availability_agent:        [*sbd, *fencing_agent]
+    collector_type:                   *command
+    collector_args:
+      command:                        "crm_mon -1"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0024"
+    name:                             "lsscsi"
+    description:                      "Checks the lsscsi configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role]
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/usr/bin/lsscsi"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0025"
+    name:                             "storage-metadata"
+    description:                      "Checks the storage metadata of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role, *app_role]
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/usr/bin/curl -s --noproxy '*' -H Metadata:true 'http://169.254.169.254/metadata/instance/compute/storageProfile?api-version=2021-12-13';echo"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0026"
+    name:                             "lvm fullreport"
+    description:                      "Checks the lvm fullreport configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role, *app_role]
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/sbin/lvm fullreport --reportformat json"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0027"
+    name:                             "SrHook Configuration"
+    description:                      "Checks the SrHook configuration of the system"
+    category:                         *sap_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role]
+      database_type:                  [*hana]
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/sudoers.d/20-saphana"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0028"
+    name:                             "HADR Dump"
+    description:                      "Checks the HADR Dump of the system"
+    category:                         *sap_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role]
+      database_type:                  [*db2]
+    collector_type:                   *command
+    collector_args:
+      command:                        "db2pd -alldbs -hadr"
+      user:                           *sidadm
+    report:                           *section
+
+  - id:                               "IC-0029"
+    name:                             "Microsoft Defender Exclusion List"
+    description:                      "Checks the Microsoft Defender Exclusion List"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           [*db_role, *ascs_role, *app_role]
+      database_type:                  [*hana, *ase, *db2, *oracle]
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/mdatp exclusion list"
+      user:                           *root
+    report:                           *section
+
+  - id:                               "IC-0030"
+    name:                             "Kernel Version"
+    description:                      "Checks the kernel version of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/uname -r"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0031"
+    name:                             "Availability Set"
+    description:                      "Checks the availability set of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'availabilitySet.id || `No AvSet defined`' -o tsv"
+    report:                           *check
+
+  - id:                               "IC-0032"
+    name:                             "Proximity Placement Group (PPG)"
+    description:                      "Checks the PPG of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'proximityPlacementGroup.id || `No PPG defined`' -o tsv"
+    report:                           *check
+
+  - id:                               "IC-0033"
+    name:                             "Proximity Placement Group (PPG) VMs Associated"
+    description:                      "Checks the PPG VMs associated of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      ppg_id=$(az vm show 
+                                      --resource-group {{ CONTEXT.resource_group_name }}
+                                      --name {{ CONTEXT.vm_name }} 
+                                      --query 'proximityPlacementGroup.id' -o tsv); 
+                                      if [ -z "$ppg_id" ] || [ "$ppg_id" == "null" ]; then 
+                                        echo "No PPG defined"; 
+                                      else 
+                                        az proximity-placement-group show 
+                                        --ids $ppg_id
+                                        --query 'virtualMachines[].id' -o tsv; 
+                                      fi
+    report:                           *check
+
+  - id:                               "IC-0034"
+    name:                             "VM Generation"
+    description:                      "Checks the VM generation of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      osdisk_name=$(az vm show
+                                        --resource-group {{ CONTEXT.resource_group_name }}
+                                        --name {{ CONTEXT.vm_name }}
+                                        --query "storageProfile.osDisk.name" -o tsv);
+                                      hyperv_generation=$(az disk show
+                                        --name "$osdisk_name"
+                                        --resource-group {{ CONTEXT.resource_group_name }}
+                                        --query "hyperVGeneration" -o tsv);
+                                      if [ "$hyperv_generation" = "V1" ]; then
+                                        echo "Gen1";
+                                      else
+                                        echo "Gen2";
+                                      fi
+    report:                           *check
+
+  - id:                               "IC-0035"
+    name:                             "Extensions & Applications Installed"
+    description:                      "Checks the extensions and applications installed on the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      extensions=$(az vm extension list 
+                                        --resource-group {{ CONTEXT.resource_group_name }} 
+                                        --vm-name {{ CONTEXT.vm_name }} 
+                                        --query '[].name' -o tsv);
+                                      if [ -z "$extensions" ]; then
+                                        echo "No extensions installed";
+                                      else
+                                        echo "$extensions";
+                                      fi
+    report:                           *section
+
+  - id:                               "IC-0036"
+    name:                             "Secondary IP Configuration"
+    description:                      "Checks the secondary IP configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      nic_id=$(az vm show
+                                        --resource-group {{ CONTEXT.resource_group_name }}
+                                        --name {{ CONTEXT.vm_name }}
+                                        --query 'networkProfile.networkInterfaces[0].id' -o tsv)
+                                      if [ -z "$nic_id" ]; then
+                                        echo "No NIC found"
+                                      else
+                                        ip_count=$(az network nic show --ids "$nic_id" --query 'ipConfigurations | length' -o tsv)
+                                        # Check if ip_count is a number
+                                        if [[ "$ip_count" =~ ^[0-9]+$ ]]; then
+                                          if [ "$ip_count" -gt 1 ]; then
+                                            echo "Yes"
+                                          else
+                                            echo "No"
+                                          fi
+                                        else
+                                          echo "Invalid IP count: $ip_count"
+                                        fi
+                                      fi
+    report:                           *check
+
+  - id:                               "IC-0037"
+    name:                             "Security Type"
+    description:                      "Checks the security type of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      security_type=$(az vm show 
+                                        --resource-group {{ CONTEXT.resource_group_name }} 
+                                        --name {{ CONTEXT.vm_name }} 
+                                        --query "securityProfile.securityType" -o tsv);
+                                      if [ -z "$security_type" ] || [ "$security_type" == "null" ]; then
+                                        echo "Standard";
+                                      else
+                                        echo "$security_type";
+                                      fi
+    report:                           *check
+
+  - id:                               "IC-0038"
+    name:                             "Azure Disks"
+    description:                      "Checks the Azure disks of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      disk_ids=$(az vm show 
+                                        --resource-group {{ CONTEXT.resource_group_name }} 
+                                        --name {{ CONTEXT.vm_name }} 
+                                        --query "storageProfile.dataDisks[].managedDisk.id" -o tsv);
+                                      disk_json="[";
+                                      if [ -n "$disk_ids" ]; then
+                                        first=true;
+                                        for disk_id in $disk_ids; do
+                                          if [ "$first" = true ]; then
+                                            first=false;
+                                          else
+                                            disk_json="${disk_json},";
+                                          fi;
+                                          disk_details=$(az disk show --ids "$disk_id" -o json);
+                                          disk_json="${disk_json}${disk_details}";
+                                        done;
+                                      fi;
+                                      disk_json="${disk_json}]";
+                                      echo "$disk_json"
+    report:                           *section
+
+  - id:                               "IC-0039"
+    name:                             "VMSS Flex ID"
+    description:                      "Checks the VMSS flex ID of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      vmss_id=$(az vm show 
+                                        --resource-group {{ CONTEXT.resource_group_name }} 
+                                        --name {{ CONTEXT.vm_name }} 
+                                        --query "virtualMachineScaleSet.id" -o tsv);
+                                      if [ -z "$vmss_id" ] || [ "$vmss_id" == "null" ]; then
+                                        echo "No VMSS defined";
+                                      else
+                                        echo "$vmss_id";
+                                      fi
+    report:                           *check

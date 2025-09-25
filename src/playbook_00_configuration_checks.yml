@@ -1,0 +1,195 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------8
+# |                           Configuration Checks                             |
+# +------------------------------------4--------------------------------------*/
+
+- hosts:                                localhost
+  gather_facts:                         true
+  name:                                 "Setup deployer for Configuration Checks"
+  vars_files:                           "./vars/input-api.yaml"
+  tasks:
+    - name:                             "Install python azure packages required"
+      become:                           true
+      ansible.builtin.pip:
+        name:
+          - ansible-runner
+          - azure-kusto-data
+          - azure-kusto-ingest
+
+    - name:                             "Generate test group ID and timestamp"
+      ansible.builtin.set_fact:
+        test_group_invocation_id:       "{{ lookup('pipe', 'uuidgen') }}"
+        test_group_start_time:          "{{ now(utc=true,fmt='%Y-%m-%d %H:%M:%S') }}"
+        configuration_test_type:        "{{ configuration_test_type | default('all') }}"
+
+    - name:                             "Set the test group name"
+      ansible.builtin.set_fact:
+        test_group_name:                "{{ configuration_test_type_map
+                                        | selectattr('name', 'equalto', configuration_test_type)
+                                        | map(attribute='value')
+                                        | first }}"
+
+
+- hosts: "{{ sap_sid | upper }}_SCS:
+          {{ sap_sid | upper }}_ERS:
+          {{ sap_sid | upper }}_DB:
+          {{ sap_sid | upper }}_APP:
+          {{ sap_sid | upper }}_WEB:
+          {{ sap_sid | upper }}_OBSERVER:
+          {{ sap_sid | upper }}_PAS"
+  name:                                 "Host tasks"
+  gather_facts:                         true
+  vars_files:                           "./vars/input-api.yaml"
+  tasks:
+    - name:                             "Enable profile_tasks callback plugin"
+      ansible.builtin.set_fact:
+        ansible_callbacks:
+          profile_tasks:                true
+
+    - name:                             "Set configuration test type if not defined"
+      ansible.builtin.set_fact:
+        configuration_test_type:        "{{ configuration_test_type | default('all') }}"
+      run_once:                         true
+
+    - name:                             "Get test group details from control node"
+      ansible.builtin.set_fact:
+        test_group_invocation_id:       "{{ hostvars['localhost'].test_group_invocation_id }}"
+        test_group_name:                "{{ hostvars['localhost'].test_group_name }}"
+        test_group_start_time:          "{{ hostvars['localhost'].test_group_start_time }}"
+        configuration_test_type:        "{{ hostvars['localhost'].configuration_test_type }}"
+
+    - name:                             "Set role from inventory group"
+      ansible.builtin.set_fact:
+        role:                           "{{ (group_names
+                                        | select('match', sap_sid + '_.*')
+                                        | map('regex_replace', sap_sid + '_(.*)', '\\1')
+                                        | list)[0] | default('UNKNOWN') }}"
+
+    - name:                             "Load supported VM information"
+      ansible.builtin.include_vars:
+        file:                           "./roles/configuration_checks/vars/vm-support.yml"
+        name:                           vm_support
+
+    - name:                             "Run common VM information checks on all hosts"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      loop:
+        - {
+                                        name: "VM Information",
+                                        file_name: "virtual_machine",
+                                        checks_var: "vm_info_checks",
+                                        results_var: "vm_info_results"
+          }
+        - {
+                                        name: "Package Information",
+                                        file_name: "package",
+                                        checks_var: "package_info_checks",
+                                        results_var: "package_info_results"
+          }
+        - {
+                                        name: "Common SAP",
+                                        file_name: "sap",
+                                        checks_var: "common_sap_checks",
+                                        results_var: "common_sap_results"
+          }
+      loop_control:
+        loop_var:                       check_type
+
+- hosts:                                localhost
+  name:                                 "Generate Configuration Checks Report"
+  gather_facts:                         false
+  vars_files:                           "./vars/input-api.yaml"
+  tasks:
+    - name:                             "Collect all configuration check results"
+      ansible.builtin.set_fact:
+        all_results:                    []
+
+    - name:                             "Collect common check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].vm_info_results
+                                            | default([]) }}"
+      loop:                           "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                        groups[sap_sid | upper + '_ERS']|default([]) +
+                                        groups[sap_sid | upper + '_DB']|default([]) +
+                                        groups[sap_sid | upper + '_APP']|default([]) +
+                                        groups[sap_sid | upper + '_WEB']|default([]) +
+                                        groups[sap_sid | upper + '_PAS']|default([]) }}"
+      when:                             hostvars[item].vm_info_results is defined
+
+    - name:                             "Collect package info check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].package_info_results
+                                            | default([]) }}"
+      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                          groups[sap_sid | upper + '_ERS']|default([]) +
+                                          groups[sap_sid | upper + '_DB']|default([]) +
+                                          groups[sap_sid | upper + '_APP']|default([]) +
+                                          groups[sap_sid | upper + '_WEB']|default([]) +
+                                          groups[sap_sid | upper + '_PAS']|default([]) }}"
+      when:                             hostvars[item].package_info_results is defined
+
+    - name:                             "Collect common SAP check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].common_sap_results
+                                            | default([]) }}"
+      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                          groups[sap_sid | upper + '_ERS']|default([]) +
+                                          groups[sap_sid | upper + '_DB']|default([]) +
+                                          groups[sap_sid | upper + '_APP']|default([]) +
+                                          groups[sap_sid | upper + '_WEB']|default([]) +
+                                          groups[sap_sid | upper + '_PAS']|default([]) }}"
+      when:                             hostvars[item].common_sap_results is defined
+
+    - name:                             "Debug all results"
+      ansible.builtin.debug:
+        var:                            all_results
+      run_once:                         true
+
+    - name:                             "Set the summary"
+      ansible.builtin.set_fact:
+        passed_count:                   "{{ all_results | selectattr('status', 'equalto', 'PASSED') | list | length }}"
+        error_count:                    "{{ all_results | selectattr('status', 'equalto', 'ERROR') | list | length }}"
+        warning_count:                  "{{ all_results | selectattr('status', 'equalto', 'WARNING') | list | length }}"
+        info_count:                     "{{ all_results | selectattr('status', 'equalto', 'INFO') | list | length }}"
+        config_check_types:             "{{ all_results | map(attribute='check.category') | unique | list }}"
+
+
+    - name:                             "Collect system information for report"
+      ansible.builtin.set_fact:
+        system_info:
+          sap_sid:                      "{{ sap_sid | upper }}"
+          db_sid:                       "{{ db_sid | upper }}"
+          db_type:                      "{{ platform | upper }}"
+          os_version:                   "{{ ansible_distribution_version }}"
+          storage_type:                 "{{ NFS_provider | default(['Premium_LRS']) }}"
+          high_availability:            >-
+                                        "{{ (database_high_availability | default(false) | bool) or
+                                        (scs_high_availability | default(false) | bool) }}"
+          high_availability_agent:      >-
+                                        "{{ database_cluster_type
+                                        | default('AFA')
+                                        if database_high_availability
+                                        | default(false) | bool
+                                        else  scs_cluster_type
+                                        | default('AFA')
+                                        if scs_high_availability
+                                        | default(false) | bool
+                                        else 'N/A' }}"
+          hostnames:                    "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                          groups[sap_sid | upper + '_ERS']|default([]) +
+                                          groups[sap_sid | upper + '_DB']|default([]) +
+                                          groups[sap_sid | upper + '_APP']|default([]) +
+                                          groups[sap_sid | upper + '_WEB']|default([]) +
+                                          groups[sap_sid | upper + '_PAS']|default([]) }}"
+          passed_count:                 "{{ all_results | selectattr('status', 'equalto', 'PASSED') | list | length }}"
+          error_count:                  "{{ all_results | selectattr('status', 'equalto', 'ERROR') | list | length }}"
+          warning_count:                "{{ all_results | selectattr('status', 'equalto', 'WARNING') | list | length }}"
+          info_count:                   "{{ all_results | selectattr('status', 'equalto', 'INFO') | list | length }}"
+          config_check_types:           "{{ all_results | map(attribute='check.category') | unique | list }}"
+
+    - name:                            "Run test cases by including them as roles"
+      ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
+      vars:
+        html_template_name:            "./templates/config_checks_report.html"
