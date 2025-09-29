@@ -619,7 +619,7 @@ checks:
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        "if command -v az >/dev/null 2>&1; then az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'availabilitySet.id || `No AvSet defined`' -o tsv 2>/dev/null || echo 'Error: Failed to retrieve availability set'; else echo 'Error: Azure CLI not available'; fi"
+      command:                        "if command -v az >/dev/null 2>&1; then avset_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'availabilitySet.id' -o tsv 2>/dev/null); if [ -z \"$avset_id\" ] || [ \"$avset_id\" = 'null' ]; then echo 'No AvSet defined'; else echo \"$avset_id\"; fi; else echo 'Error: Azure CLI not available'; fi"
     report:                           *check
 
   - id:                               "IC-0032"
@@ -636,7 +636,7 @@ checks:
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        "if command -v az >/dev/null 2>&1; then az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'proximityPlacementGroup.id || `No PPG defined`' -o tsv 2>/dev/null || echo 'Error: Failed to retrieve PPG'; else echo 'Error: Azure CLI not available'; fi"
+      command:                        "if command -v az >/dev/null 2>&1; then ppg_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'proximityPlacementGroup.id' -o tsv 2>/dev/null); if [ -z \"$ppg_id\" ] || [ \"$ppg_id\" = 'null' ]; then echo 'No PPG defined'; else echo \"$ppg_id\"; fi; else echo 'Error: Azure CLI not available'; fi"
     report:                           *check
 
   - id:                               "IC-0033"
