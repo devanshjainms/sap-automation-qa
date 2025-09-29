@@ -619,7 +619,7 @@ checks:
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'availabilitySet.id || `No AvSet defined`' -o tsv"
+      command:                        "if command -v az >/dev/null 2>&1; then az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'availabilitySet.id || `No AvSet defined`' -o tsv 2>/dev/null || echo 'Error: Failed to retrieve availability set'; else echo 'Error: Azure CLI not available'; fi"
     report:                           *check
 
   - id:                               "IC-0032"
@@ -636,7 +636,7 @@ checks:
       database_type:                  *db
     collector_type:                   *azure
     collector_args:
-      command:                        "az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'proximityPlacementGroup.id || `No PPG defined`' -o tsv"
+      command:                        "if command -v az >/dev/null 2>&1; then az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'proximityPlacementGroup.id || `No PPG defined`' -o tsv 2>/dev/null || echo 'Error: Failed to retrieve PPG'; else echo 'Error: Azure CLI not available'; fi"
     report:                           *check
 
   - id:                               "IC-0033"
@@ -654,11 +654,19 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                      ppg_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'proximityPlacementGroup.id' -o tsv);
-                                      if [ -z "$ppg_id" ] || [ "$ppg_id" == "null" ]; then
-                                        echo "No PPG defined";
+                                      if command -v az >/dev/null 2>&1; then
+                                        ppg_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'proximityPlacementGroup.id' -o tsv 2>/dev/null);
+                                        if [ $? -eq 0 ]; then
+                                          if [ -z "$ppg_id" ] || [ "$ppg_id" == "null" ]; then
+                                            echo "No PPG defined";
+                                          else
+                                            az proximity-placement-group show --ids $ppg_id --query 'virtualMachines[].id' -o tsv 2>/dev/null || echo "Error: Failed to retrieve PPG VMs";
+                                          fi
+                                        else
+                                          echo "Error: Failed to retrieve VM PPG";
+                                        fi
                                       else
-                                        az proximity-placement-group show --ids $ppg_id --query 'virtualMachines[].id' -o tsv;
+                                        echo "Error: Azure CLI not available";
                                       fi
     report:                           *check
 
@@ -677,12 +685,24 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                      osdisk_name=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query "storageProfile.osDisk.name" -o tsv);
-                                      hyperv_generation=$(az disk show --name "$osdisk_name" --resource-group {{ CONTEXT.resource_group_name }} --query "hyperVGeneration" -o tsv);
-                                      if [ "$hyperv_generation" = "V1" ]; then
-                                        echo "Gen1";
+                                      if command -v az >/dev/null 2>&1; then
+                                        osdisk_name=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query "storageProfile.osDisk.name" -o tsv 2>/dev/null);
+                                        if [ $? -eq 0 ] && [ -n "$osdisk_name" ]; then
+                                          hyperv_generation=$(az disk show --name "$osdisk_name" --resource-group {{ CONTEXT.resource_group_name }} --query "hyperVGeneration" -o tsv 2>/dev/null);
+                                          if [ $? -eq 0 ]; then
+                                            if [ "$hyperv_generation" = "V1" ]; then
+                                              echo "Gen1";
+                                            else
+                                              echo "Gen2";
+                                            fi
+                                          else
+                                            echo "Error: Failed to retrieve disk generation";
+                                          fi
+                                        else
+                                          echo "Error: Failed to retrieve OS disk name";
+                                        fi
                                       else
-                                        echo "Gen2";
+                                        echo "Error: Azure CLI not available";
                                       fi
     report:                           *check
 
@@ -701,11 +721,19 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                      extensions=$(az vm extension list --resource-group {{ CONTEXT.resource_group_name }} --vm-name {{ CONTEXT.vm_name }} --query '[].name' -o tsv);
-                                      if [ -z "$extensions" ]; then
-                                        echo "No extensions installed";
+                                      if command -v az >/dev/null 2>&1; then
+                                        extensions=$(az vm extension list --resource-group {{ CONTEXT.resource_group_name }} --vm-name {{ CONTEXT.vm_name }} --query '[].name' -o tsv 2>/dev/null);
+                                        if [ $? -eq 0 ]; then
+                                          if [ -z "$extensions" ]; then
+                                            echo "No extensions installed";
+                                          else
+                                            echo "$extensions";
+                                          fi
+                                        else
+                                          echo "Error: Failed to retrieve VM extensions";
+                                        fi
                                       else
-                                        echo "$extensions";
+                                        echo "Error: Azure CLI not available";
                                       fi
     report:                           *section
 
@@ -724,21 +752,33 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                      nic_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'networkProfile.networkInterfaces[0].id' -o tsv)
-                                      if [ -z "$nic_id" ]; then
-                                        echo "No NIC found"
-                                      else
-                                        ip_count=$(az network nic show --ids "$nic_id" --query 'ipConfigurations | length' -o tsv)
-                                        # Check if ip_count is a number
-                                        if [[ "$ip_count" =~ ^[0-9]+$ ]]; then
-                                          if [ "$ip_count" -gt 1 ]; then
-                                            echo "Yes"
+                                      if command -v az >/dev/null 2>&1; then
+                                        nic_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'networkProfile.networkInterfaces[0].id' -o tsv 2>/dev/null)
+                                        if [ $? -eq 0 ]; then
+                                          if [ -z "$nic_id" ]; then
+                                            echo "No NIC found"
                                           else
-                                            echo "No"
+                                            ip_count=$(az network nic show --ids "$nic_id" --query 'ipConfigurations | length' -o tsv 2>/dev/null)
+                                            if [ $? -eq 0 ]; then
+                                              # Check if ip_count is a number
+                                              if [[ "$ip_count" =~ ^[0-9]+$ ]]; then
+                                                if [ "$ip_count" -gt 1 ]; then
+                                                  echo "Yes"
+                                                else
+                                                  echo "No"
+                                                fi
+                                              else
+                                                echo "Invalid IP count: $ip_count"
+                                              fi
+                                            else
+                                              echo "Error: Failed to retrieve IP configurations"
+                                            fi
                                           fi
                                         else
-                                          echo "Invalid IP count: $ip_count"
+                                          echo "Error: Failed to retrieve NIC ID"
                                         fi
+                                      else
+                                        echo "Error: Azure CLI not available"
                                       fi
     report:                           *check
 
@@ -757,11 +797,19 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                      security_type=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query "securityProfile.securityType" -o tsv);
-                                      if [ -z "$security_type" ] || [ "$security_type" == "null" ]; then
-                                        echo "Standard";
+                                      if command -v az >/dev/null 2>&1; then
+                                        security_type=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query "securityProfile.securityType" -o tsv 2>/dev/null);
+                                        if [ $? -eq 0 ]; then
+                                          if [ -z "$security_type" ] || [ "$security_type" == "null" ]; then
+                                            echo "Standard";
+                                          else
+                                            echo "$security_type";
+                                          fi
+                                        else
+                                          echo "Error: Failed to retrieve security type";
+                                        fi
                                       else
-                                        echo "$security_type";
+                                        echo "Error: Azure CLI not available";
                                       fi
     report:                           *check
 
@@ -780,22 +828,34 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                      disk_ids=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query "storageProfile.dataDisks[].managedDisk.id" -o tsv);
-                                      disk_json="[";
-                                      if [ -n "$disk_ids" ]; then
-                                        first=true;
-                                        for disk_id in $disk_ids; do
-                                          if [ "$first" = true ]; then
-                                            first=false;
-                                          else
-                                            disk_json="${disk_json},";
+                                      if command -v az >/dev/null 2>&1; then
+                                        disk_ids=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query "storageProfile.dataDisks[].managedDisk.id" -o tsv 2>/dev/null);
+                                        if [ $? -eq 0 ]; then
+                                          disk_json="[";
+                                          if [ -n "$disk_ids" ]; then
+                                            first=true;
+                                            for disk_id in $disk_ids; do
+                                              if [ "$first" = true ]; then
+                                                first=false;
+                                              else
+                                                disk_json="${disk_json},";
+                                              fi;
+                                              disk_details=$(az disk show --ids "$disk_id" -o json 2>/dev/null);
+                                              if [ $? -eq 0 ]; then
+                                                disk_json="${disk_json}${disk_details}";
+                                              else
+                                                disk_json="${disk_json}{\"error\":\"Failed to retrieve disk details for $disk_id\"}";
+                                              fi;
+                                            done;
                                           fi;
-                                          disk_details=$(az disk show --ids "$disk_id" -o json);
-                                          disk_json="${disk_json}${disk_details}";
-                                        done;
-                                      fi;
-                                      disk_json="${disk_json}]";
-                                      echo "$disk_json"
+                                          disk_json="${disk_json}]";
+                                          echo "$disk_json"
+                                        else
+                                          echo "Error: Failed to retrieve disk IDs";
+                                        fi
+                                      else
+                                        echo "Error: Azure CLI not available";
+                                      fi
     report:                           *section
 
   - id:                               "IC-0039"
@@ -813,10 +873,18 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                      vmss_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query "virtualMachineScaleSet.id" -o tsv);
-                                      if [ -z "$vmss_id" ] || [ "$vmss_id" == "null" ]; then
-                                        echo "No VMSS defined";
+                                      if command -v az >/dev/null 2>&1; then
+                                        vmss_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query "virtualMachineScaleSet.id" -o tsv 2>/dev/null);
+                                        if [ $? -eq 0 ]; then
+                                          if [ -z "$vmss_id" ] || [ "$vmss_id" == "null" ]; then
+                                            echo "No VMSS defined";
+                                          else
+                                            echo "$vmss_id";
+                                          fi
+                                        else
+                                          echo "Error: Failed to retrieve VMSS ID";
+                                        fi
                                       else
-                                        echo "$vmss_id";
+                                        echo "Error: Azure CLI not available";
                                       fi
     report:                           *check

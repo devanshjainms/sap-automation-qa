@@ -266,7 +266,7 @@ checks:
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "mdatp health | grep healthy | tr -d ' ' | cut -d':' -f2"
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep healthy | tr -d ' ' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
     validator_type:                   *string
     validator_args:
       expected_output:                "true"
@@ -289,7 +289,7 @@ checks:
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "mdatp health | grep release_ring | tr -d ' ' | tr -d '\"' | cut -d':' -f2"
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep release_ring | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
     validator_type:                   *string
     validator_args:
       expected_output:                "Production"
@@ -312,7 +312,7 @@ checks:
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "mdatp health | grep real_time_protection_enabled | tr -d ' ' | tr -d '\"' | cut -d':' -f2"
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep real_time_protection_enabled | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
     validator_type:                   *string
     validator_args:
       expected_output:                "false"
@@ -335,7 +335,7 @@ checks:
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "mdatp health | grep automatic_definition_update_enabled | tr -d ' ' | tr -d '\"' | cut -d':' -f2"
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep automatic_definition_update_enabled | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
     validator_type:                   *string
     validator_args:
       expected_output:                "true"
@@ -358,7 +358,7 @@ checks:
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "mdatp health | grep definitions_status | tr -d ' ' | tr -d '\"' | cut -d':' -f2"
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep definitions_status | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
     validator_type:                   *string
     validator_args:
       expected_output:                "up_to_date"
@@ -381,7 +381,7 @@ checks:
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "mdatp health | grep edr_early_preview_enabled | tr -d ' ' | tr -d '\"' | cut -d':' -f2"
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep edr_early_preview_enabled | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
     validator_type:                   *string
     validator_args:
       expected_output:                "disabled"
@@ -404,7 +404,7 @@ checks:
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "mdatp health | grep conflicting_applications | tr -d ' ' | tr -d '\"' | cut -d':' -f2"
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep conflicting_applications | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
     validator_type:                   *string
     validator_args:
       expected_output:                "[]"
@@ -427,7 +427,7 @@ checks:
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "mdatp health | grep supplementary_events_subsystem | tr -d ' ' | tr -d '\"' | cut -d':' -f2"
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep supplementary_events_subsystem | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
     validator_type:                   *string
     validator_args:
       expected_output:                "ebpf"
