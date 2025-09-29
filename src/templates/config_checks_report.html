@@ -389,9 +389,6 @@
               </p>
             </div>
           </div>
-        </div>
-
-        <div class="config-checks-container">
           <div class="summary-box">
             <div class="status-count passed">
               <h3>{{ system_info.passed_count }}</h3>
@@ -410,13 +407,15 @@
               <p>Info</p>
             </div>
           </div>
+        </div>
+        <div class="config-checks-container">
 
           <div class="tab-navigation">
             {% for hostname in system_info.hostnames %}
             {% set host_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|rejectattr('status',
             'equalto', 'SKIPPED')|list %}
-            {% set error_count = host_checks|selectattr('status', 'equalto', 'ERROR')|list|length %}
-            {% set no_error_count = host_checks|rejectattr('status', 'equalto', 'ERROR')|list|length %}
+            {% set error_count = host_checks|selectattr('status', 'equalto', 'FAILED')|list|length %}
+            {% set no_error_count = host_checks|rejectattr('status', 'equalto', 'FAILED')|list|length %}
             <button class="tab-button {% if loop.first %}active{% endif %}" onclick="openTab('host-{{ hostname }}')">
               {{ hostname }}
               <span class="hostname-badge {% if error_count > 0 %}error{% endif %}">{{ no_error_count }}/{{ host_checks|length }}</span>
@@ -475,14 +474,6 @@
                           </div>
                         </div>
                         {% endif %}
-                        <div class="detail-row">
-                          <div class="detail-label">Applicability:</div>
-                          <div>{{ check.check.applicability|default('') }}</div>
-                        </div>
-                        <div class="detail-row">
-                          <div class="detail-label">Output Type:</div>
-                          <div>{{ check.check.validator_type|default('') }}</div>
-                        </div>
                         {% if check.check.validator_args.expected_output is defined %}
                         <div class="detail-row">
                           <div class="detail-label">Expected Output:</div>
