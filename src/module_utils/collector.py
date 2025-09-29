@@ -106,12 +106,12 @@ class CommandCollector(Collector):
             command = check.collector_args.get("command", "")
             user = check.collector_args.get("user", "")
             if not command:
-                return ""
+                return "ERROR: No command specified"
             try:
                 command = self.sanitize_command(command)
             except ValueError as e:
                 self.parent.log(logging.ERROR, f"Command sanitization failed: {e}")
-                return ""
+                return f"ERROR: Command sanitization failed: {e}"
             command = self.substitute_context_vars(command, context)
             try:
                 command = self.sanitize_command(command)
@@ -119,13 +119,13 @@ class CommandCollector(Collector):
                 self.parent.log(
                     logging.ERROR, f"Command sanitization failed after substitution: {e}"
                 )
-                return ""
+                return f"ERROR: Command sanitization failed after substitution: {e}"
 
             check.command = command
             if user and user != "root":
                 if not re.match(r"^[a-zA-Z0-9_-]+$", user):
                     self.parent.log(logging.ERROR, f"Invalid user parameter: {user}")
-                    return ""
+                    return f"ERROR: Invalid user parameter: {user}"
                 command = f"sudo -u {shlex.quote(user)} {command}"
 
             return self.parent.execute_command_subprocess(
@@ -133,7 +133,7 @@ class CommandCollector(Collector):
             ).strip()
         except Exception as ex:
             self.parent.handle_error(ex)
-            return ""
+            return f"ERROR: Command execution failed: {str(ex)}"
 
 
 class AzureDataCollector(Collector):
@@ -154,12 +154,12 @@ class AzureDataCollector(Collector):
         try:
             command = check.collector_args.get("command", "")
             if not command:
-                return ""
+                return "ERROR: No Azure command specified"
             try:
                 command = self.sanitize_command(command)
             except ValueError as e:
                 self.parent.log(logging.ERROR, f"Azure command sanitization failed: {e}")
-                return ""
+                return f"ERROR: Azure command sanitization failed: {e}"
 
             command = self.substitute_context_vars(command, context)
             try:
@@ -168,7 +168,7 @@ class AzureDataCollector(Collector):
                 self.parent.log(
                     logging.ERROR, f"Azure command sanitization failed after substitution: {e}"
                 )
-                return ""
+                return f"ERROR: Azure command sanitization failed after substitution: {e}"
 
             check.command = command
 
@@ -177,3 +177,4 @@ class AzureDataCollector(Collector):
             ).strip()
         except Exception as ex:
             self.parent.handle_error(ex)
+            return f"ERROR: Azure command execution failed: {str(ex)}"

@@ -103,14 +103,26 @@ class SapAutomationQA(ABC):
             )
             stdout = command_output.stdout.decode("utf-8")
             stderr = command_output.stderr.decode("utf-8")
-            return stdout if not stderr else stderr
+
+            if stdout and stderr:
+                return f"{stdout}\nERROR: {stderr}"
+            elif stderr:
+                return stderr
+            else:
+                return stdout
         except subprocess.TimeoutExpired as ex:
             self.handle_error(ex, "Command timed out")
+            return f"ERROR: Command timed out after 30 seconds"
         except subprocess.CalledProcessError as ex:
-            self.handle_error(ex, ex.stderr.decode("utf-8").strip())
+            stderr_msg = ex.stderr.decode("utf-8").strip() if ex.stderr else ""
+            error_msg = f"ERROR: Command failed with exit code {ex.returncode}"
+            if stderr_msg:
+                error_msg += f": {stderr_msg}"
+            self.handle_error(ex, stderr_msg)
+            return error_msg
         except Exception as ex:
             self.handle_error(ex, "")
-        return ""
+            return f"ERROR: Unexpected error during command execution: {str(ex)}"
 
     def parse_xml_output(self, xml_output: str) -> ET.Element:
         """
