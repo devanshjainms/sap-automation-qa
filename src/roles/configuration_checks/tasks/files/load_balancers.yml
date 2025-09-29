@@ -101,14 +101,25 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                      load_balancer_id=$(az network lb show
-                                        --resource-group {{ CONTEXT.resource_group_name }}
-                                        --name {{ CONTEXT.vm_name }}
-                                        --query "id" -o tsv);
-                                      if [ -z "$load_balancer_id" ] || [ "$load_balancer_id" == "null" ]; then
-                                        echo "No Load Balancer defined";
+                                      if command -v az >/dev/null 2>&1; then
+                                        nic_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'networkProfile.networkInterfaces[0].id' -o tsv 2>/dev/null);
+                                        if [ $? -eq 0 ] && [ -n "$nic_id" ] && [ "$nic_id" != "null" ]; then
+                                          lb_backend_pools=$(az network nic show --ids "$nic_id" --query 'ipConfigurations[0].loadBalancerBackendAddressPools[0].id' -o tsv 2>/dev/null);
+                                          if [ -n "$lb_backend_pools" ] && [ "$lb_backend_pools" != "null" ]; then
+                                            load_balancer_id=$(echo "$lb_backend_pools" | grep -oP '.*(?=/backendAddressPools)');
+                                            if [ -n "$load_balancer_id" ]; then
+                                              echo "$load_balancer_id";
+                                            else
+                                              echo "No Load Balancer defined";
+                                            fi
+                                          else
+                                            echo "No Load Balancer defined";
+                                          fi
+                                        else
+                                          echo "Error: Failed to retrieve NIC";
+                                        fi
                                       else
-                                        echo "$load_balancer_id";
+                                        echo "Error: Azure CLI not available";
                                       fi
     validator_type:                   *string
     validator_args:
