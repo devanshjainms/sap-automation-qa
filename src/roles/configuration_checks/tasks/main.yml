@@ -76,7 +76,7 @@
 
 - name:                             Load checks file for {{check_type.name}}
   ansible.builtin.set_fact:
-    check_file_content:             "{{ lookup('file', check_type.file_name + '.yml') }}"
+    check_file_content:             "{{ lookup('file', 'files/' + check_type.file_name + '.yml') }}"
 
 - name:                             Parse check file to identify collector types
   ansible.builtin.set_fact:

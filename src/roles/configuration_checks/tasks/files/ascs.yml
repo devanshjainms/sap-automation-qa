@@ -83,8 +83,6 @@ enums:
     - section:                        &section "section"
     - report:                         &report [*check, *section]
 
-# Checks for more than SAP roles, e.g. ASCS+ERS, ASCS+DB, ASCS+APP etc.
-
 checks:
   - id:                                 "ASCS-0001"
     name:                               "Load Balancer timestamps"

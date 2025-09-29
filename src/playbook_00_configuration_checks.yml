@@ -113,7 +113,7 @@
       when:                             >-
                                         role == 'DB' and
                                         (configuration_test_type == 'all' or
-                                         configuration_test_type == 'Database')
+                                          configuration_test_type == 'Database')
 
     - name:                             "Debug DB checks execution"
       ansible.builtin.debug:
