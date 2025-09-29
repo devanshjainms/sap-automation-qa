@@ -94,52 +94,56 @@
   when:                             command_checks is defined or azure_checks is defined
 
 - name:                             Execute command-based configuration checks
-  become:                           true
-  configuration_check_module:
-    check_file_content:             "{{ command_checks_yaml }}"
-    context:                        "{{ system_context }}"
-    filter_tags:                    "{{ tags_filter | default(omit) }}"
-    filter_categories:              "{{ categories_filter | default(omit) }}"
-    workspace_directory:            "{{ _workspace_directory }}"
-    test_group_invocation_id:       "{{ test_group_invocation_id }}"
-    test_group_name:                "ConfigurationChecks"
-    hostname:                       "{{ ansible_hostname }}"
-    parallel_execution:             true
-    max_workers:                    20
-    enable_retry:                   true
-  register:                         command_check_results
   when:                             command_checks is defined and command_checks | length > 0
+  block:
+    - name:                         Run command-based configuration checks
+      become:                       true
+      configuration_check_module:
+        check_file_content:         "{{ command_checks_yaml }}"
+        context:                    "{{ system_context }}"
+        filter_tags:                "{{ tags_filter | default(omit) }}"
+        filter_categories:          "{{ categories_filter | default(omit) }}"
+        workspace_directory:        "{{ _workspace_directory }}"
+        test_group_invocation_id:   "{{ test_group_invocation_id }}"
+        test_group_name:            "ConfigurationChecks"
+        hostname:                   "{{ ansible_hostname }}"
+        parallel_execution:         true
+        max_workers:                20
+        enable_retry:               true
+      register:                     command_check_results
   rescue:
     - name:                         Log command check failure
       ansible.builtin.debug:
-        msg:                        "Command-based configuration checks failed"
+        msg:                        "Command-based configuration checks failed {{ command_check_results.msg }}"
 
 - name:                             Execute Azure-based configuration checks
-  become:                           true
-  delegate_to:                      localhost
-  configuration_check_module:
-    check_file_content:             "{{ azure_checks_yaml }}"
-    context:                        "{{ system_context }}"
-    filter_tags:                    "{{ tags_filter | default(omit) }}"
-    filter_categories:              "{{ categories_filter | default(omit) }}"
-    workspace_directory:            "{{ _workspace_directory }}"
-    test_group_invocation_id:       "{{ test_group_invocation_id }}"
-    test_group_name:                "ConfigurationChecks"
-    hostname:                       "{{ ansible_hostname }}"
-    parallel_execution:             true
-    max_workers:                    20
-    enable_retry:                   true
-  register:                         azure_check_results
   when:                             azure_checks is defined and azure_checks | length > 0
+  block:
+    - name:                         Run Azure-based configuration checks
+      become:                       true
+      delegate_to:                  localhost
+      configuration_check_module:
+        check_file_content:         "{{ azure_checks_yaml }}"
+        context:                    "{{ system_context }}"
+        filter_tags:                "{{ tags_filter | default(omit) }}"
+        filter_categories:          "{{ categories_filter | default(omit) }}"
+        workspace_directory:        "{{ _workspace_directory }}"
+        test_group_invocation_id:   "{{ test_group_invocation_id }}"
+        test_group_name:            "ConfigurationChecks"
+        hostname:                   "{{ ansible_hostname }}"
+        parallel_execution:         true
+        max_workers:                20
+        enable_retry:               true
+      register:                     azure_check_results
   rescue:
     - name:                         Log Azure check failure
       ansible.builtin.debug:
-        msg:                        "Azure-based configuration checks failed but continuing"
+        msg:                        "Azure-based configuration checks failed but continuing {{ azure_check_results.msg }}"
 
 - name:                             Merge check results with error handling
   ansible.builtin.set_fact:
     combined_results:               "{{ (command_check_results.check_results | default([])) +
-                                       (azure_check_results.check_results | default([])) }}"
+                                        (azure_check_results.check_results | default([])) }}"
     execution_summary:
       total_command_checks:         "{{ command_checks | default([]) | length }}"
       total_azure_checks:           "{{ azure_checks | default([]) | length }}"
