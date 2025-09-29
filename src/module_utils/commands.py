@@ -58,3 +58,14 @@ RSC_CLEAR = {
 }
 
 CIB_ADMIN = lambda scope: ["cibadmin", "--query", "--scope", scope]
+
+DANGEROUS_COMMANDS = [
+    r"[;&|`$(){}[\]<>]",
+    r"sudo\s+rm",
+    r"rm\s+-rf",
+    r"\|\s*bash",
+    r"\|\s*sh",
+    r"wget.*\|",
+    r"eval\s*",
+    r"exec\s*",
+]

@@ -14,7 +14,32 @@
     use_proxy:                      false
     headers:
       Metadata:                     true
+    timeout:                        10
   register:                         compute_metadata
+  retries:                          3
+  delay:                           2
+  until:                           compute_metadata is not failed
+  ignore_errors:                   true
+
+- name:                             Handle IMDS failure gracefully
+  ansible.builtin.set_fact:
+    compute_metadata:
+      json:
+        compute:
+          resourceGroupName:        "unknown"
+          location:                 "unknown"
+          vmSize:                   "unknown"
+          osType:                   "{{ ansible_os_family }}"
+          zone:                     "unknown"
+    imds_available:                 false
+    execution_warnings:             "{{ execution_warnings | default([]) + ['IMDS endpoint unavailable - using fallback values'] }}"
+  when:                             compute_metadata is failed
+
+- name:                             Set IMDS success flag
+  ansible.builtin.set_fact:
+    imds_available:                 true
+    execution_warnings:             "{{ execution_warnings | default([]) }}"
+  when:                             compute_metadata is not failed
 
 
 - name:                             Prepare system context information for {{check_type.name}}
@@ -84,6 +109,10 @@
     enable_retry:                   true
   register:                         command_check_results
   when:                             command_checks is defined and command_checks | length > 0
+  rescue:
+    - name:                         Log command check failure
+      ansible.builtin.debug:
+        msg:                        "Command-based configuration checks failed"
 
 - name:                             Execute Azure-based configuration checks
   become:                           true
@@ -102,12 +131,27 @@
     enable_retry:                   true
   register:                         azure_check_results
   when:                             azure_checks is defined and azure_checks | length > 0
+  rescue:
+    - name:                         Log Azure check failure
+      ansible.builtin.debug:
+        msg:                        "Azure-based configuration checks failed but continuing"
 
-- name:                             Merge check results
+- name:                             Merge check results with error handling
   ansible.builtin.set_fact:
     combined_results:               "{{ (command_check_results.check_results | default([])) +
                                        (azure_check_results.check_results | default([])) }}"
+    execution_summary:
+      total_command_checks:         "{{ command_checks | default([]) | length }}"
+      total_azure_checks:           "{{ azure_checks | default([]) | length }}"
+      command_checks_executed:      "{{ command_check_results.check_results | default([]) | length }}"
+      azure_checks_executed:        "{{ azure_check_results.check_results | default([]) | length }}"
+      command_check_failed:         "{{ command_check_results.failed | default(false) }}"
+      azure_check_failed:           "{{ azure_check_results.failed | default(false) }}"
+      imds_available:               "{{ imds_available | default(true) }}"
+      execution_warnings:           "{{ execution_warnings | default([]) }}"
+      execution_errors:             "{{ execution_errors | default([]) }}"
 
-- name:                             Set dynamic result variable
+- name:                             Set dynamic result variable with metadata
   ansible.builtin.set_fact:
     "{{ check_type.results_var }}": "{{ combined_results }}"
+    "{{ check_type.results_var }}_metadata": "{{ execution_summary }}"

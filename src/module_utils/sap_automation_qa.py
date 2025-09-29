@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
 """
 This module is used to setup the context for the test cases
 and setup base variables for the test case running in the sap-automation-qa

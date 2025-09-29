@@ -6,12 +6,16 @@ Collectors for data collection in SAP Automation QA
 """
 from abc import ABC, abstractmethod
 import logging
+import re
+import shlex
 from typing import Any
 
 try:
     from ansible.module_utils.sap_automation_qa import SapAutomationQA
+    from ansible.module_utils.commands import DANGEROUS_COMMANDS
 except ImportError:
     from src.module_utils.sap_automation_qa import SapAutomationQA
+    from src.module_utils.commands import DANGEROUS_COMMANDS
 
 
 class Collector(ABC):
@@ -39,6 +43,27 @@ class Collector(ABC):
         :type context: Context
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def sanitize_command(self, command: str) -> str:
+        """
+        Sanitize command to prevent injection attacks
+
+        :param command: Raw command string
+        :type command: str
+        :return: Sanitized command or None if dangerous
+        :rtype: str
+        :raises ValueError: If command contains dangerous patterns
+        """
+
+        for pattern in DANGEROUS_COMMANDS:
+            if re.search(pattern, command, re.IGNORECASE):
+                self.parent.log(logging.ERROR, f"Dangerous command pattern detected: {pattern}")
+                raise ValueError(f"Command contains potentially dangerous pattern: {pattern}")
+        if len(command) > 1000:
+            self.parent.log(logging.ERROR, f"Command too long: {len(command)} chars")
+            raise ValueError("Command exceeds maximum length of 1000 characters")
+
+        return command
 
     def substitute_context_vars(self, command: str, context: dict) -> str:
         """
@@ -82,11 +107,26 @@ class CommandCollector(Collector):
             user = check.collector_args.get("user", "")
             if not command:
                 return ""
-
+            try:
+                command = self.sanitize_command(command)
+            except ValueError as e:
+                self.parent.log(logging.ERROR, f"Command sanitization failed: {e}")
+                return ""
             command = self.substitute_context_vars(command, context)
+            try:
+                command = self.sanitize_command(command)
+            except ValueError as e:
+                self.parent.log(
+                    logging.ERROR, f"Command sanitization failed after substitution: {e}"
+                )
+                return ""
+
             check.command = command
             if user and user != "root":
-                command = f"sudo -u {user} {command}"
+                if not re.match(r"^[a-zA-Z0-9_-]+$", user):
+                    self.parent.log(logging.ERROR, f"Invalid user parameter: {user}")
+                    return ""
+                command = f"sudo -u {shlex.quote(user)} {command}"
 
             return self.parent.execute_command_subprocess(
                 command, shell_command=check.collector_args.get("shell", True)
@@ -115,8 +155,21 @@ class AzureDataCollector(Collector):
             command = check.collector_args.get("command", "")
             if not command:
                 return ""
+            try:
+                command = self.sanitize_command(command)
+            except ValueError as e:
+                self.parent.log(logging.ERROR, f"Azure command sanitization failed: {e}")
+                return ""
 
             command = self.substitute_context_vars(command, context)
+            try:
+                command = self.sanitize_command(command)
+            except ValueError as e:
+                self.parent.log(
+                    logging.ERROR, f"Azure command sanitization failed after substitution: {e}"
+                )
+                return ""
+
             check.command = command
 
             return self.parent.execute_command_subprocess(

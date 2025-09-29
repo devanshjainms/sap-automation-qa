@@ -105,11 +105,17 @@
     - name:                             "Collect all configuration check results"
       ansible.builtin.set_fact:
         all_results:                    []
+        execution_metadata:             []
 
     - name:                             "Collect common check results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].vm_info_results
                                             | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'vm_info',
+                                          'metadata': hostvars[item].vm_info_results_metadata
+                                          | default({})}] }}"
       loop:                           "{{ groups[sap_sid | upper + '_SCS']|default([]) +
                                         groups[sap_sid | upper + '_ERS']|default([]) +
                                         groups[sap_sid | upper + '_DB']|default([]) +
@@ -122,6 +128,11 @@
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].package_info_results
                                             | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'vm_info',
+                                          'metadata': hostvars[item].vm_info_results_metadata
+                                          | default({})}] }}"
       loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
                                           groups[sap_sid | upper + '_ERS']|default([]) +
                                           groups[sap_sid | upper + '_DB']|default([]) +
@@ -134,6 +145,11 @@
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].common_sap_results
                                             | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'vm_info',
+                                          'metadata': hostvars[item].vm_info_results_metadata
+                                          | default({})}] }}"
       loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
                                           groups[sap_sid | upper + '_ERS']|default([]) +
                                           groups[sap_sid | upper + '_DB']|default([]) +

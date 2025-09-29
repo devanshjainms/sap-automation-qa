@@ -63,6 +63,9 @@ class ConfigurationCheckModule(SapAutomationQA):
         self.context: Dict[str, Any] = {}
         self._collector_registry = self._init_collector_registry()
         self._validator_registry = self._init_validator_registry()
+        self.failure_count = 0
+        self.max_failures = 5
+        self.last_failure_time = None
 
     def _init_collector_registry(self) -> Dict[str, Type[Collector]]:
         """
@@ -143,8 +146,6 @@ class ConfigurationCheckModule(SapAutomationQA):
                     time.sleep(wait_time)
                 else:
                     self.log(logging.ERROR, f"Check {check.id} failed after {max_retries} attempts")
-
-        from src.module_utils.enums import TestStatus, CheckResult
 
         return CheckResult(
             check=check,
@@ -235,7 +236,9 @@ class ConfigurationCheckModule(SapAutomationQA):
         execution_batches = self.build_execution_order(checks_to_run)
         self.log(logging.INFO, f"Organized checks into {len(execution_batches)} execution batches")
         for i, batch in enumerate(execution_batches):
-            self.log(logging.INFO, f"Batch {i+1}: {len(batch)} checks - {[check.id for check in batch]}")
+            self.log(
+                logging.INFO, f"Batch {i+1}: {len(batch)} checks - {[check.id for check in batch]}"
+            )
 
         results = []
         for batch_idx, batch in enumerate(execution_batches):
@@ -799,8 +802,9 @@ class ConfigurationCheckModule(SapAutomationQA):
 
     def run(self):
         """
-        Run the module
+        Run the module with enhanced error handling and reporting
         """
+        execution_start_time = datetime.now()
         try:
             context = self.module_params["context"]
             custom_hostname = self.module_params["hostname"]
@@ -809,7 +813,34 @@ class ConfigurationCheckModule(SapAutomationQA):
                 context["hostname"] = custom_hostname
 
             self.set_context(context)
+
+            if not self.module_params["check_file_content"]:
+                self.module.fail_json(
+                    msg="No check file content provided",
+                    error_type="CONFIGURATION_ERROR",
+                    error_details="Check file content is required but was empty or None",
+                )
+
             self.load_checks(raw_file_content=self.module_params["check_file_content"])
+            if not self.checks:
+                self.log(logging.WARNING, "No applicable checks found for current context")
+                self.result.update(
+                    {
+                        "status": "SUCCESS",
+                        "message": "No applicable checks found for current context",
+                        "check_results": [],
+                        "summary": {
+                            "passed": 0,
+                            "failed": 0,
+                            "warnings": 0,
+                            "skipped": 0,
+                            "total": 0,
+                        },
+                        "execution_warnings": ["No checks matched the current system context"],
+                    }
+                )
+                self.module.exit_json(**self.result)
+                return
             self.execute_checks(
                 filter_tags=self.module_params["filter_tags"],
                 filter_categories=self.module_params["filter_categories"],
@@ -819,13 +850,57 @@ class ConfigurationCheckModule(SapAutomationQA):
             )
             self.format_results_for_html_report()
             result = dict(self.result)
+            execution_end_time = datetime.now()
+            execution_duration = (execution_end_time - execution_start_time).total_seconds()
+
+            result.update(
+                {
+                    "execution_metadata": {
+                        "start_time": execution_start_time.isoformat(),
+                        "end_time": execution_end_time.isoformat(),
+                        "duration_seconds": execution_duration,
+                        "total_checks_attempted": len(self.checks),
+                        "checks_completed": len(result.get("check_results", [])),
+                        "python_module_version": "1.0.0",
+                        "execution_mode": (
+                            "parallel"
+                            if self.module_params.get("parallel_execution", False)
+                            else "sequential"
+                        ),
+                    }
+                }
+            )
 
             if "summary" in result:
                 summary = dict(result["summary"])
                 result["summary"] = summary
             self.module.exit_json(**result)
         except Exception as e:
-            self.module.fail_json(msg=f"Error: {str(e)}")
+            execution_end_time = datetime.now()
+            execution_duration = (execution_end_time - execution_start_time).total_seconds()
+
+            error_details = {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "execution_duration": execution_duration,
+                "module_params": {
+                    k: v for k, v in self.module_params.items() if k != "check_file_content"
+                },
+                "checks_loaded": len(self.checks) if hasattr(self, "checks") else 0,
+                "timestamp": datetime.now().isoformat(),
+            }
+
+            # Try to provide partial results if any checks were completed
+            partial_results = self.result.get("check_results", [])
+            if partial_results:
+                error_details["partial_results_available"] = True
+                error_details["completed_checks"] = len(partial_results)
+
+            self.module.fail_json(
+                msg=f"Configuration check execution failed: {str(e)}",
+                error_details=error_details,
+                **self.result,  # Include any partial results
+            )
 
 
 def main():

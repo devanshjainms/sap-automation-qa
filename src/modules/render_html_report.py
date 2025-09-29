@@ -141,7 +141,17 @@ class HTMLReportRenderer(SapAutomationQA):
         )
         try:
             with open(log_file_path, "r", encoding="utf-8") as log_file:
-                return [json.loads(line) for line in log_file.readlines()]
+                results = []
+                for line_num, line in enumerate(log_file.readlines(), 1):
+                    try:
+                        results.append(json.loads(line))
+                    except json.JSONDecodeError as json_ex:
+                        self.log(
+                            logging.WARNING,
+                            f"Invalid JSON on line {line_num} in {log_file_path}: {json_ex}",
+                        )
+                        continue
+                return results
         except FileNotFoundError as ex:
             self.log(
                 logging.ERROR,
