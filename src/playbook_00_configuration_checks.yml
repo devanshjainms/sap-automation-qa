@@ -67,6 +67,10 @@
                                         | map('regex_replace', sap_sid + '_(.*)', '\\1')
                                         | list)[0] | default('UNKNOWN') }}"
 
+    - name:                             "Debug host role assignment"
+      ansible.builtin.debug:
+        msg:                            "Host {{ inventory_hostname }} assigned role: {{ role }} from groups: {{ group_names }}"
+
     - name:                             "Load supported VM information"
       ansible.builtin.include_vars:
         file:                           "./roles/configuration_checks/vars/vm-support.yml"
@@ -96,6 +100,89 @@
           }
       loop_control:
         loop_var:                       check_type
+
+    - name:                             "Run role-specific checks for DB hosts"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      vars:
+        check_type:
+          name:                         "Database (HANA) Checks"
+          file_name:                    "hana"
+          checks_var:                   "db_hana_checks"
+          results_var:                  "db_hana_results"
+      when:                             >-
+                                        role == 'DB' and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'Database')
+
+    - name:                             "Debug DB checks execution"
+      ansible.builtin.debug:
+        msg:                            "Executing Database (HANA) checks on host {{ inventory_hostname }}"
+      when:                             >-
+                                        role == 'DB' and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'Database')
+
+    - name:                             "Run role-specific checks for ASCS/SCS hosts"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      vars:
+        check_type:
+          name:                         "ASCS/SCS Checks"
+          file_name:                    "ascs"
+          checks_var:                   "ascs_scs_checks"
+          results_var:                  "ascs_scs_results"
+      when:                             >-
+                                        role in ['SCS', 'ERS'] and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'CentralServiceInstances')
+
+    - name:                             "Debug ASCS/SCS checks execution"
+      ansible.builtin.debug:
+        msg:                            "Executing ASCS/SCS checks on host {{ inventory_hostname }}"
+      when:                             >-
+                                        role in ['SCS', 'ERS'] and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'CentralServiceInstances')
+
+    - name:                             "Run role-specific checks for Application Server hosts"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      vars:
+        check_type:
+          name:                         "Application Server Checks"
+          file_name:                    "app"
+          checks_var:                   "app_server_checks"
+          results_var:                  "app_server_results"
+      when:                             >-
+                                        role in ['APP', 'PAS', 'WEB'] and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'ApplicationInstances' or
+                                         configuration_test_type == 'WebDispatcherInstances')
+
+    - name:                             "Debug Application Server checks execution"
+      ansible.builtin.debug:
+        msg:                            "Executing Application Server checks on host {{ inventory_hostname }}"
+      when:                             >-
+                                        role in ['APP', 'PAS', 'WEB'] and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'ApplicationInstances' or
+                                         configuration_test_type == 'WebDispatcherInstances')
+
+    - name:                             "Run Load Balancer checks for HA environments"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      vars:
+        check_type:
+          name:                         "Load Balancer Checks"
+          file_name:                    "load_balancers"
+          checks_var:                   "load_balancer_checks"
+          results_var:                  "load_balancer_results"
+      when:                             >-
+                                        (role in ['DB', 'SCS', 'ERS'] and
+                                         ((role == 'DB' and database_high_availability | default(false) | bool) or
+                                          (role in ['SCS', 'ERS'] and scs_high_availability | default(false) | bool)))
+      run_once:                         true
 
 - hosts:                                localhost
   name:                                 "Generate Configuration Checks Report"
@@ -130,8 +217,8 @@
                                             | default([]) }}"
         execution_metadata:             "{{ execution_metadata + [
                                           {'host': item,
-                                          'check_type': 'vm_info',
-                                          'metadata': hostvars[item].vm_info_results_metadata
+                                          'check_type': 'package_info',
+                                          'metadata': hostvars[item].package_info_results_metadata
                                           | default({})}] }}"
       loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
                                           groups[sap_sid | upper + '_ERS']|default([]) +
@@ -147,8 +234,8 @@
                                             | default([]) }}"
         execution_metadata:             "{{ execution_metadata + [
                                           {'host': item,
-                                          'check_type': 'vm_info',
-                                          'metadata': hostvars[item].vm_info_results_metadata
+                                          'check_type': 'common_sap',
+                                          'metadata': hostvars[item].common_sap_results_metadata
                                           | default({})}] }}"
       loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
                                           groups[sap_sid | upper + '_ERS']|default([]) +
@@ -158,9 +245,67 @@
                                           groups[sap_sid | upper + '_PAS']|default([]) }}"
       when:                             hostvars[item].common_sap_results is defined
 
+    - name:                             "Collect DB (HANA) check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].db_hana_results
+                                            | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'db_hana',
+                                          'metadata': hostvars[item].db_hana_results_metadata
+                                          | default({})}] }}"
+      loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
+      when:                             hostvars[item].db_hana_results is defined
+
+    - name:                             "Collect ASCS/SCS check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].ascs_scs_results
+                                            | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'ascs_scs',
+                                          'metadata': hostvars[item].ascs_scs_results_metadata
+                                          | default({})}] }}"
+      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                          groups[sap_sid | upper + '_ERS']|default([]) }}"
+      when:                             hostvars[item].ascs_scs_results is defined
+
+    - name:                             "Collect Application Server check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].app_server_results
+                                            | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'app_server',
+                                          'metadata': hostvars[item].app_server_results_metadata
+                                          | default({})}] }}"
+      loop:                             "{{ groups[sap_sid | upper + '_APP']|default([]) +
+                                          groups[sap_sid | upper + '_PAS']|default([]) +
+                                          groups[sap_sid | upper + '_WEB']|default([]) }}"
+      when:                             hostvars[item].app_server_results is defined
+
+    - name:                             "Collect Load Balancer check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].load_balancer_results
+                                            | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'load_balancer',
+                                          'metadata': hostvars[item].load_balancer_results_metadata
+                                          | default({})}] }}"
+      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                          groups[sap_sid | upper + '_ERS']|default([]) +
+                                          groups[sap_sid | upper + '_DB']|default([]) }}"
+      when:                             hostvars[item].load_balancer_results is defined
+
     - name:                             "Debug all results"
       ansible.builtin.debug:
         var:                            all_results
+      run_once:                         true
+
+    - name:                             "Debug execution metadata"
+      ansible.builtin.debug:
+        msg:                            "Configuration checks completed. Check types executed: {{ execution_metadata | map(attribute='check_type') | unique | list }}"
       run_once:                         true
 
     - name:                             "Set the summary"
