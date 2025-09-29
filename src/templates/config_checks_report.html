@@ -149,7 +149,7 @@
       font-weight: bold;
     }
 
-    .status-error {
+    .status-failed {
       color: #df3d3d;
       font-weight: bold;
     }
@@ -181,7 +181,7 @@
       background-color: rgba(42, 136, 46, 0.2);
     }
 
-    .status-count.error {
+    .status-count.failed {
       background-color: rgba(223, 61, 61, 0.2);
     }
 
@@ -319,7 +319,7 @@
       margin-left: 10px;
     }
 
-    .hostname-badge.error {
+    .hostname-badge.failed {
       background-color: rgba(223, 61, 61, 0.2);
     }
 
@@ -389,6 +389,9 @@
               </p>
             </div>
           </div>
+        </div>
+        <div class="system-info-container">
+          <h2 class="system-info-heading">Configuration Checks Summary</h2>
           <div class="summary-box">
             <div class="status-count passed">
               <h3>{{ system_info.passed_count }}</h3>
@@ -418,7 +421,7 @@
             {% set no_error_count = host_checks|rejectattr('status', 'equalto', 'FAILED')|list|length %}
             <button class="tab-button {% if loop.first %}active{% endif %}" onclick="openTab('host-{{ hostname }}')">
               {{ hostname }}
-              <span class="hostname-badge {% if error_count > 0 %}error{% endif %}">{{ no_error_count }}/{{ host_checks|length }}</span>
+              <span class="hostname-badge {% if error_count > 0 %}failed{% endif %}">{{ error_count }}</span>
             </button>
             {% endfor %}
           </div>
