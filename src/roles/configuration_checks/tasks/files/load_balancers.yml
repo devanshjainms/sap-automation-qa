@@ -101,17 +101,18 @@ checks:
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                      load_balancer_id=$(az network lb show 
-                                        --resource-group {{ CONTEXT.resource_group_name }} 
-                                        --name {{ CONTEXT.vm_name }} 
+                                      load_balancer_id=$(az network lb show
+                                        --resource-group {{ CONTEXT.resource_group_name }}
+                                        --name {{ CONTEXT.vm_name }}
                                         --query "id" -o tsv);
                                       if [ -z "$load_balancer_id" ] || [ "$load_balancer_id" == "null" ]; then
                                         echo "No Load Balancer defined";
                                       else
                                         echo "$load_balancer_id";
                                       fi
-    validator_type:                   *properties
+    validator_type:                   *string
     validator_args:
+      expected_output:                "No Load Balancer defined"
       properties:
         - name:                       "Idle Timeout"
           property:                   "idletimeout"
