@@ -474,6 +474,24 @@
       border-width: 3px;
     }
 
+    .status-count.active {
+      background: currentColor;
+      color: white;
+      transform: scale(1.08);
+      box-shadow: 0 16px 32px -12px currentColor;
+      border-width: 3px;
+    }
+
+    .status-count.active::before {
+      opacity: 0.2;
+    }
+
+    .status-count.active h3,
+    .status-count.active p {
+      color: white;
+      opacity: 1;
+    }
+
     .status-count h3 {
       margin: 0 0 8px 0;
       font-size: 42px;
@@ -823,20 +841,20 @@
         <div class="system-info-container">
           <h2 class="system-info-heading">Configuration Checks Summary</h2>
           <div class="summary-box">
-            <div class="status-count passed">
-              <h3>{{ system_info.passed_count }}</h3>
+            <div class="status-count passed" onclick="filterByStatus('passed')" data-status="passed">
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'PASSED')|list|length }}</h3>
               <p>Passed</p>
             </div>
-            <div class="status-count error">
-              <h3>{{ system_info.error_count }}</h3>
+            <div class="status-count error" onclick="filterByStatus('error')" data-status="error">
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'FAILED')|list|length }}</h3>
               <p>Error</p>
             </div>
-            <div class="status-count warning">
-              <h3>{{ system_info.warning_count }}</h3>
+            <div class="status-count warning" onclick="filterByStatus('warning')" data-status="warning">
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'WARNING')|list|length }}</h3>
               <p>Warning</p>
             </div>
-            <div class="status-count info">
-              <h3>{{ system_info.info_count }}</h3>
+            <div class="status-count info" onclick="filterByStatus('info')" data-status="info">
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'INFO')|list|length }}</h3>
               <p>Info</p>
             </div>
           </div>
@@ -1113,6 +1131,71 @@
         }, 300)
       })
     })
+
+    // Filter checks by status
+    let activeFilter = null
+
+    function filterByStatus(status) {
+      const statusBoxes = document.querySelectorAll('.status-count')
+      const allRows = document.querySelectorAll('.config-checks-table tbody tr:not(.expanded-content)')
+
+      // Toggle filter - if clicking the same status, clear filter
+      if (activeFilter === status) {
+        activeFilter = null
+        statusBoxes.forEach(box => box.classList.remove('active'))
+        allRows.forEach(row => {
+          row.style.display = ''
+        })
+        return
+      }
+
+      // Set new filter
+      activeFilter = status
+
+      // Update active state on status boxes
+      statusBoxes.forEach(box => {
+        if (box.dataset.status === status) {
+          box.classList.add('active')
+        } else {
+          box.classList.remove('active')
+        }
+      })
+
+      // Filter table rows
+      allRows.forEach(row => {
+        // The status is in the 5th column (td)
+        const statusCell = row.querySelector('td:nth-child(5)')
+        if (!statusCell) {
+          row.style.display = 'none'
+          return
+        }
+
+        const rowStatus = statusCell.textContent.toLowerCase().trim()
+
+        // Map statuses: "failed" -> "error", "ok"/"passed" -> "passed"
+        let mappedStatus = rowStatus
+        if (rowStatus === 'failed') {
+          mappedStatus = 'error'
+        } else if (rowStatus === 'ok' || rowStatus === 'passed') {
+          mappedStatus = 'passed'
+        }
+
+        if (mappedStatus === status) {
+          row.style.display = ''
+        } else {
+          row.style.display = 'none'
+          // Also hide any expanded details
+          const detailsId = row.getAttribute('onclick')?.match(/toggleDetails\('([^']+)'\)/)?.[1]
+          if (detailsId) {
+            const detailsRow = document.getElementById('details-' + detailsId)
+            if (detailsRow) {
+              detailsRow.style.display = 'none'
+              detailsRow.classList.remove('show')
+            }
+          }
+        }
+      })
+    }
   </script>
 </body>
 
