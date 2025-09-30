@@ -987,11 +987,12 @@ checks:
       database_type:                    [*hana]
     collector_type:                     *command
     collector_args:
-      command:                          "DEVICE=$(df /hana/data | tail -1 | awk '{print $1}'); if [[ $DEVICE == /dev/mapper/* ]] || [[ $DEVICE == /dev/* ]]; then BLOCK_DEV=$(lsblk -ndo pkname $DEVICE 2>/dev/null | head -1); if [ -n \"$BLOCK_DEV\" ]; then cat /sys/block/${BLOCK_DEV}/queue/logical_block_size 2>/dev/null || echo 'N/A'; else echo 'N/A'; fi; else echo 'N/A'; fi"
+      command:                          "stat -f -c '%s' /hana/data 2>/dev/null || echo 'N/A'"
       user:                             *root
-    validator_type:                     *string
+    validator_type:                     *range
     validator_args:
-      expected_output:                  "4096"
+      min:                              "4096"
+      max:                              "999999"
     report:                             *check
     references:
       sap:                              "2972496"
@@ -1011,11 +1012,12 @@ checks:
       database_type:                    [*hana]
     collector_type:                     *command
     collector_args:
-      command:                          "DEVICE=$(df /hana/log | tail -1 | awk '{print $1}'); if [[ $DEVICE == /dev/mapper/* ]] || [[ $DEVICE == /dev/* ]]; then BLOCK_DEV=$(lsblk -ndo pkname $DEVICE 2>/dev/null | head -1); if [ -n \"$BLOCK_DEV\" ]; then cat /sys/block/${BLOCK_DEV}/queue/logical_block_size 2>/dev/null || echo 'N/A'; else echo 'N/A'; fi; else echo 'N/A'; fi"
+      command:                          "stat -f -c '%s' /hana/log 2>/dev/null || echo 'N/A'"
       user:                             *root
-    validator_type:                     *string
+    validator_type:                     *range
     validator_args:
-      expected_output:                  "4096"
+      min:                              "4096"
+      max:                              "999999"
     report:                             *check
     references:
       sap:                              "2972496"
