@@ -88,34 +88,6 @@ class ConfigurationCheckModule(SapAutomationQA):
             "check_support": self.validate_vm_support,
         }
 
-    def register_collector(self, collector_type: str, collector_class: Type[Collector]) -> None:
-        """
-        Register a custom collector implementation
-
-        :param collector_type: Identifier for the collector type
-        :type collector_type: str
-        :param collector_class: Class implementing the Collector interface
-        :type collector_class: Type[Collector]
-        :raises ValueError: If the collector_class does not inherit from Collector
-        """
-        if not issubclass(collector_class, Collector):
-            raise ValueError(f"{collector_class.__name__} must inherit from Collector")
-
-        self._collector_registry[collector_type] = collector_class
-        self.log(logging.INFO, f"Registered collector: {collector_type}")
-
-    def register_validator(self, validator_type: str, validator_func):
-        """
-        Register a custom validator function
-
-        :param validator_type: Identifier for the validator type
-        :type validator_type: str
-        :param validator_func: Function implementing the validation logic
-        :type validator_func: Callable
-        """
-        self._validator_registry[validator_type] = validator_func
-        self.log(logging.INFO, f"Registered validator: {validator_type}")
-
     def execute_check_with_retry(self, check: Check, max_retries: int = 3) -> CheckResult:
         """
         Execute check with retry logic for enhanced robustness
@@ -288,24 +260,6 @@ class ConfigurationCheckModule(SapAutomationQA):
         )
 
         return results
-
-    def list_available_collectors(self) -> List[str]:
-        """
-        List all registered collector types
-
-        :return: List of collector type names
-        :rtype: List[str]
-        """
-        return list(self._collector_registry.keys())
-
-    def list_available_validators(self) -> List[str]:
-        """
-        List all registered validator types
-
-        :return: List of validator type names
-        :rtype: List[str]
-        """
-        return list(self._validator_registry.keys())
 
     def is_check_applicable(self, check: Check) -> bool:
         """
@@ -484,6 +438,8 @@ class ConfigurationCheckModule(SapAutomationQA):
         :rtype: Dict[str, Any]
         """
         expected_list = check.validator_args.get("valid_list", [])
+        if not isinstance(expected_list, list):
+            expected_list = []
         collected_list = str(collected_data).strip().split(",") if collected_data else []
         collected_list = [item.strip() for item in collected_list]
         return {
@@ -595,21 +551,15 @@ class ConfigurationCheckModule(SapAutomationQA):
             :return: CheckResult object
             :rtype: CheckResult
             """
-            expected_value = ""
+            expected_value = "N/A"
             if check.validator_type == "range":
                 min_val = check.validator_args.get("min", "N/A")
                 max_val = check.validator_args.get("max", "N/A")
                 expected_value = f"Min: {min_val}, Max: {max_val}"
             elif check.validator_type == "list":
                 valid_list = check.validator_args.get("valid_list", [])
-                if isinstance(valid_list, list):
+                if isinstance(valid_list, list) and valid_list:
                     expected_value = ", ".join(str(v) for v in valid_list)
-                elif isinstance(valid_list, str):
-                    try:
-                        valid_list = ast.literal_eval(valid_list)
-                        expected_value = ", ".join(str(v) for v in valid_list)
-                    except:
-                        expected_value = "N/A"
                 else:
                     expected_value = "N/A"
             else:
