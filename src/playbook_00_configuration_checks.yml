@@ -111,7 +111,7 @@
           checks_var:                   "db_hana_checks"
           results_var:                  "db_hana_results"
       when:                             >-
-                                        role == 'DB' and
+                                        role == 'DBA' and
                                         (configuration_test_type == 'all' or
                                           configuration_test_type == 'Database')
 
@@ -119,7 +119,7 @@
       ansible.builtin.debug:
         msg:                            "Executing Database (HANA) checks on host {{ inventory_hostname }}"
       when:                             >-
-                                        role == 'DB' and
+                                        role == 'DBA' and
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'Database')
 
@@ -155,7 +155,7 @@
           checks_var:                   "app_server_checks"
           results_var:                  "app_server_results"
       when:                             >-
-                                        role in ['APPA', 'PASA', 'WEBA'] and
+                                        role in ['APP', 'PAS', 'WEB'] and
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'ApplicationInstances' or
                                          configuration_test_type == 'WebDispatcherInstances')
@@ -164,7 +164,7 @@
       ansible.builtin.debug:
         msg:                            "Executing Application Server checks on host {{ inventory_hostname }}"
       when:                             >-
-                                        role in ['APPA', 'PASA', 'WEBA'] and
+                                        role in ['APP', 'PAS', 'WEB'] and
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'ApplicationInstances' or
                                          configuration_test_type == 'WebDispatcherInstances')
