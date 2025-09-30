@@ -595,18 +595,27 @@ class ConfigurationCheckModule(SapAutomationQA):
             :return: CheckResult object
             :rtype: CheckResult
             """
-
+            expected_value = ""
             if check.validator_type == "range":
-                expected_value = (
-                    f"Min: {check.validator_args.get('min')}, "
-                    + f"Max: {check.validator_args.get('max')}"
-                )
+                min_val = check.validator_args.get("min", "N/A")
+                max_val = check.validator_args.get("max", "N/A")
+                expected_value = f"Min: {min_val}, Max: {max_val}"
             elif check.validator_type == "list":
-                expected_value = ",".join(
-                    ast.literal_eval(check.validator_args.get("valid_list", []))
-                )
+                valid_list = check.validator_args.get("valid_list", [])
+                if isinstance(valid_list, list):
+                    expected_value = ", ".join(str(v) for v in valid_list)
+                elif isinstance(valid_list, str):
+                    try:
+                        valid_list = ast.literal_eval(valid_list)
+                        expected_value = ", ".join(str(v) for v in valid_list)
+                    except:
+                        expected_value = "N/A"
+                else:
+                    expected_value = "N/A"
             else:
-                expected_value = check.validator_args.get("expected_output", "N/A")
+                expected_value = check.validator_args.get(
+                    "expected", check.validator_args.get("expected_output", "N/A")
+                )
 
             return CheckResult(
                 check=check,
