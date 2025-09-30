@@ -871,7 +871,7 @@ checks:
       user:                             *root
     validator_type:                     *string
     validator_args:
-      expected_output:                  "256"
+      expected_output:                  "256.00"
     report:                             *check
     references:
       sap:                              "2972496"
