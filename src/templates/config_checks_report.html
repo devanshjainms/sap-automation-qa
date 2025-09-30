@@ -901,7 +901,7 @@
                     <td>{{ check.check.id }}</td>
                     <td>{{ check.check.name }}</td>
                     <td>{{ check.actual_value|truncate(30) }}</td>
-                    <td>{{ check.check.validator_args.expected_output|default('N/A') }}</td>
+                    <td>{{ check.check.validator_args.expected_output) }}</td>
                     <td class="status-{{ check.status|lower }}">{{ check.status }}</td>
                   </tr>
                   <tr id="details-{{ check.hostname }}-{{ check.check.id }}" class="expanded-content">

@@ -5,6 +5,7 @@
 Ansible Python module to check the configuration of the workload system running on Azure
 """
 
+import ast
 import logging
 import time
 from typing import Optional, Dict, Any, List, Type
@@ -95,6 +96,7 @@ class ConfigurationCheckModule(SapAutomationQA):
         :type collector_type: str
         :param collector_class: Class implementing the Collector interface
         :type collector_class: Type[Collector]
+        :raises ValueError: If the collector_class does not inherit from Collector
         """
         if not issubclass(collector_class, Collector):
             raise ValueError(f"{collector_class.__name__} must inherit from Collector")
@@ -290,12 +292,18 @@ class ConfigurationCheckModule(SapAutomationQA):
     def list_available_collectors(self) -> List[str]:
         """
         List all registered collector types
+
+        :return: List of collector type names
+        :rtype: List[str]
         """
         return list(self._collector_registry.keys())
 
     def list_available_validators(self) -> List[str]:
         """
         List all registered validator types
+
+        :return: List of validator type names
+        :rtype: List[str]
         """
         return list(self._validator_registry.keys())
 
@@ -594,7 +602,9 @@ class ConfigurationCheckModule(SapAutomationQA):
                     + f"Max: {check.validator_args.get('max')}"
                 )
             elif check.validator_type == "list":
-                expected_value = ",".join(check.validator_args.get("valid_list", []))
+                expected_value = ",".join(
+                    ast.literal_eval(check.validator_args.get("valid_list", []))
+                )
             else:
                 expected_value = check.validator_args.get("expected_output", "N/A")
 
