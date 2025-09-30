@@ -111,7 +111,7 @@
           checks_var:                   "db_hana_checks"
           results_var:                  "db_hana_results"
       when:                             >-
-                                        role == 'DBA' and
+                                        role == 'DB' and
                                         (configuration_test_type == 'all' or
                                           configuration_test_type == 'Database')
 
@@ -119,7 +119,7 @@
       ansible.builtin.debug:
         msg:                            "Executing Database (HANA) checks on host {{ inventory_hostname }}"
       when:                             >-
-                                        role == 'DBA' and
+                                        role == 'DB' and
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'Database')
 
