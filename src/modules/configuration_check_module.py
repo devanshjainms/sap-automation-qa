@@ -5,7 +5,6 @@
 Ansible Python module to check the configuration of the workload system running on Azure
 """
 
-import ast
 import logging
 import time
 from typing import Optional, Dict, Any, List, Type
