@@ -900,7 +900,7 @@
                   <tr onclick="toggleDetails('{{ check.hostname }}-{{ check.check.id }}')">
                     <td>{{ check.check.id }}</td>
                     <td>{{ check.check.name }}</td>
-                    <td>{{ check.actual_value|truncate(30) }}</td>
+                    <td>{{ check.actual_value|truncate(40) }}</td>
                     <td>{{ check.check.validator_args.expected_output|default('FROM HTML') }}</td>
                     <td class="status-{{ check.status|lower }}">{{ check.status }}</td>
                   </tr>
@@ -928,7 +928,7 @@
                         {% if check.check.validator_args.expected_output is defined %}
                         <div class="detail-row">
                           <div class="detail-label">Expected Output:</div>
-                          <div>{{ check.check.validator_args.expected_output|default('FROM HTML 2') }}</div>
+                          <div>{{ check.check.validator_args.expected_output|default('') }}</div>
                         </div>
                         {% endif %}
                         <div class="detail-row">
