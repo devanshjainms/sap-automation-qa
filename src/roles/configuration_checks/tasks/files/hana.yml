@@ -30,6 +30,7 @@ enums:
   storage_type:
     premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","ANF","PremiumV2_LRS","AFS"]
     anf:                              &anf ["ANF"]
+    all_storage:                      &all_storage ["Premium_LRS","UltraSSD_LRS","StandardSSD_LRS","Standard_LRS","ANF","PremiumV2_LRS","AFS"]
 
   workload:
     - sap:                            &sap "SAP"
@@ -805,7 +806,7 @@ checks:
   - id:                                 "DB-HANA-0032"
     name:                               "Swap space"
     description:                        "Swap space should be 2GB"
-    category:                           *os_check
+    category:                           *sap_check
     severity:                           *high
     workload:                           *sap
     applicability:
@@ -826,3 +827,195 @@ checks:
     report:                             *check
     references:
       sap:                              "1999997"
+
+  - id:                                 DB-HANA-0033
+    name:                               "Filesystem type for /hana/data"
+    description:                        "The filesystem type for /hana/data should be xfs or nfs or nfs4"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "df -T /hana/data | tail -1 | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *list
+    validator_args:
+      valid_list:                       ["xfs", "nfs", "nfs4"]
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0034
+    name:                               "Stripe size for /hana/data LVM"
+    description:                        "The stripe size for /hana/data LVM should be 256 KB"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "LV=$(df /hana/data | tail -1 | awk '{print $1}'); if [[ $LV == /dev/mapper/* ]] || [[ $LV == /dev/* ]]; then lvs -o stripesize --units k --noheadings $LV 2>/dev/null | awk '{print $1}' | sed 's/k//' || echo 'N/A'; else echo 'N/A'; fi"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected:                         "256"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0035
+    name:                               "Filesystem type for /hana/log"
+    description:                        "The filesystem type for /hana/log should be xfs or nfs or nfs4"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "df -T /hana/log | tail -1 | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *list
+    validator_args:
+      valid_list:                       ["xfs", "nfs", "nfs4"]
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0036
+    name:                               "Stripe size for /hana/log LVM"
+    description:                        "The stripe size for /hana/log LVM should be 32 KB"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "LV=$(df /hana/log | tail -1 | awk '{print $1}'); if [[ $LV == /dev/mapper/* ]] || [[ $LV == /dev/* ]]; then lvs -o stripesize --units k --noheadings $LV 2>/dev/null | awk '{print $1}' | sed 's/k//' || echo 'N/A'; else echo 'N/A'; fi"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected:                         "32"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0037
+    name:                               "Filesystem type for /hana/shared"
+    description:                        "The filesystem type for /hana/shared should be xfs or nfs or nfs4"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "df -T /hana/shared | tail -1 | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *list
+    validator_args:
+      valid_list:                       ["xfs", "nfs", "nfs4"]
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0038
+    name:                               "Filesystem type for /usr/sap"
+    description:                        "The filesystem type for /usr/sap should be xfs or nfs or nfs4"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "df -T /usr/sap | tail -1 | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *list
+    validator_args:
+      valid_list:                       ["xfs", "nfs", "nfs4"]
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0039
+    name:                               "Sector size for /hana/data Premium SSD V2"
+    description:                        "The logical block size for /hana/data on Premium SSD V2 should be 4096 bytes"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "DEVICE=$(df /hana/data | tail -1 | awk '{print $1}'); if [[ $DEVICE == /dev/mapper/* ]] || [[ $DEVICE == /dev/* ]]; then BLOCK_DEV=$(lsblk -ndo pkname $DEVICE 2>/dev/null | head -1); if [ -n \"$BLOCK_DEV\" ]; then cat /sys/block/${BLOCK_DEV}/queue/logical_block_size 2>/dev/null || echo 'N/A'; else echo 'N/A'; fi; else echo 'N/A'; fi"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "4096"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0040
+    name:                               "Sector size for /hana/log Premium SSD V2"
+    description:                        "The logical block size for /hana/log on Premium SSD V2 should be 4096 bytes"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "DEVICE=$(df /hana/log | tail -1 | awk '{print $1}'); if [[ $DEVICE == /dev/mapper/* ]] || [[ $DEVICE == /dev/* ]]; then BLOCK_DEV=$(lsblk -ndo pkname $DEVICE 2>/dev/null | head -1); if [ -n \"$BLOCK_DEV\" ]; then cat /sys/block/${BLOCK_DEV}/queue/logical_block_size 2>/dev/null || echo 'N/A'; else echo 'N/A'; fi; else echo 'N/A'; fi"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "4096"
+    report:                             *check
+    references:
+      sap:                              "2972496"

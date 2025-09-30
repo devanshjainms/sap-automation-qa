@@ -475,7 +475,7 @@ class ConfigurationCheckModule(SapAutomationQA):
         :return: Validation result dictionary
         :rtype: Dict[str, Any]
         """
-        expected_list = check.validator_args.get("expected_output", [])
+        expected_list = check.validator_args.get("valid_list", [])
         collected_list = str(collected_data).strip().split(",") if collected_data else []
         collected_list = [item.strip() for item in collected_list]
         return {
