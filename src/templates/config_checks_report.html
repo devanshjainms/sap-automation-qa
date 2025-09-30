@@ -901,7 +901,7 @@
                     <td>{{ check.check.id }}</td>
                     <td>{{ check.check.name }}</td>
                     <td>{{ check.actual_value|truncate(40) }}</td>
-                    <td>{{ check.check.validator_args.expected_output }}</td>
+                    <td>{{ check.expected_value }}</td>
                     <td class="status-{{ check.status|lower }}">{{ check.status }}</td>
                   </tr>
                   <tr id="details-{{ check.hostname }}-{{ check.check.id }}" class="expanded-content">
@@ -925,10 +925,10 @@
                           </div>
                         </div>
                         {% endif %}
-                        {% if check.check.validator_args.expected_output is defined %}
+                        {% if check.expected_value is defined %}
                         <div class="detail-row">
                           <div class="detail-label">Expected Output:</div>
-                          <div>{{ check.check.validator_args.expected_output|default('') }}</div>
+                          <div>{{ check.expected_value|default('') }}</div>
                         </div>
                         {% endif %}
                         <div class="detail-row">
