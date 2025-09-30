@@ -133,7 +133,7 @@
           checks_var:                   "ascs_scs_checks"
           results_var:                  "ascs_scs_results"
       when:                             >-
-                                        role in ['SCSA', 'ERSA'] and
+                                        role in ['SCS', 'ERS'] and
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'CentralServiceInstances')
 
@@ -141,7 +141,7 @@
       ansible.builtin.debug:
         msg:                            "Executing ASCS/SCS checks on host {{ inventory_hostname }}"
       when:                             >-
-                                        role in ['SCSA', 'ERSA'] and
+                                        role in ['SCS', 'ERS'] and
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'CentralServiceInstances')
 
