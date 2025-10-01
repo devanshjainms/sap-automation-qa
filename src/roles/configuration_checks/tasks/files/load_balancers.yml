@@ -98,7 +98,7 @@ checks:
       hardware_type:                  *vm
       role:                           *role
       database_type:                  *db
-    collector_type:                   *azure
+    collector_type:                   *command
     collector_args:
       command:                        |-
                                       if command -v az >/dev/null 2>&1; then

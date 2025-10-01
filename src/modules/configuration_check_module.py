@@ -550,7 +550,7 @@ class ConfigurationCheckModule(SapAutomationQA):
             :return: CheckResult object
             :rtype: CheckResult
             """
-            expected_value = "N/A"
+            expected_value = ""
             if check.validator_type == "range":
                 min_val = check.validator_args.get("min", "N/A")
                 max_val = check.validator_args.get("max", "N/A")
@@ -559,11 +559,9 @@ class ConfigurationCheckModule(SapAutomationQA):
                 valid_list = check.validator_args.get("valid_list", [])
                 if isinstance(valid_list, list) and valid_list:
                     expected_value = ", ".join(str(v) for v in valid_list)
-                else:
-                    expected_value = "N/A"
             else:
                 expected_value = check.validator_args.get(
-                    "expected", check.validator_args.get("expected_output", "N/A")
+                    "expected", check.validator_args.get("expected_output", "")
                 )
 
             return CheckResult(
@@ -898,6 +896,7 @@ def main():
         hostname=dict(type="str", required=False, default=None),
         test_group_invocation_id=dict(type="str", required=True),
         test_group_name=dict(type="str", required=True),
+        azure_resources=dict(type="dict", required=False, default={}),
     )
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
     runner = ConfigurationCheckModule(module)

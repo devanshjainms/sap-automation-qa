@@ -139,6 +139,20 @@ class CommandCollector(Collector):
 class AzureDataCollector(Collector):
     """Collects data from Azure resources"""
 
+    def __init__(self, parent: SapAutomationQA):
+        super().__init__(parent)
+
+    def parse_context_vars(self, context: dict) -> dict:
+        """
+        Parse context variables to extract Azure-specific parameters.
+
+        :param context: Context object containing variables
+        :type context: Dict[str, Any]
+        :return: Parsed context with Azure parameters
+        :rtype: Dict[str, Any]
+        """
+        return context
+
     def collect(self, check, context) -> Any:
         """
         Collect data from Azure resources using the Azure Python Client.
@@ -152,29 +166,7 @@ class AzureDataCollector(Collector):
         :rtype: Any
         """
         try:
-            command = check.collector_args.get("command", "")
-            if not command:
-                return "ERROR: No Azure command specified"
-            try:
-                command = self.sanitize_command(command)
-            except ValueError as e:
-                self.parent.log(logging.ERROR, f"Azure command sanitization failed: {e}")
-                return f"ERROR: Azure command sanitization failed: {e}"
-
-            command = self.substitute_context_vars(command, context)
-            try:
-                command = self.sanitize_command(command)
-            except ValueError as e:
-                self.parent.log(
-                    logging.ERROR, f"Azure command sanitization failed after substitution: {e}"
-                )
-                return f"ERROR: Azure command sanitization failed after substitution: {e}"
-
-            check.command = command
-
-            return self.parent.execute_command_subprocess(
-                command, shell_command=check.collector_args.get("shell", True)
-            ).strip()
+            return self.parse_context_vars
         except Exception as ex:
             self.parent.handle_error(ex)
             return f"ERROR: Azure command execution failed: {str(ex)}"

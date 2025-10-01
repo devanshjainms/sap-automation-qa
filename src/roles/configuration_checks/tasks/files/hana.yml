@@ -1021,3 +1021,59 @@ checks:
     report:                             *check
     references:
       sap:                              "2972496"
+
+  - id:                                 DB-HANA-0041
+    name:                               "Disk performance for /hana/data (MBPS)"
+    description:                        "The disk performance for /hana/data should be >= 400 MByte/s"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disk"
+      property:                         "max_mbps"
+      mount_point:                      "/hana/data"
+      aggregate:                        "sum"
+    validator_type:                     *range
+    validator_args:
+      min:                              "400"
+      max:                              "999999"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 DB-HANA-0042
+    name:                               "Disk performance for /hana/data (IOPS)"
+    description:                        "The disk performance for /hana/data should be >= 7000 IOPS"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     ["UltraSSD_LRS"]
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disk"
+      property:                         "max_iops"
+      mount_point:                      "/hana/data"
+      aggregate:                        "sum"
+    validator_type:                     *range
+    validator_args:
+      min:                              "7000"
+      max:                              "999999"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
