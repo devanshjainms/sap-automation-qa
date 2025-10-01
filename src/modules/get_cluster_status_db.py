@@ -146,13 +146,15 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
         db_instance_number: str,
         saphanasr_provider: HanaSRProvider,
         ansible_os_family: OperatingSystemFamily,
-        hana_resource_name: str = "",
+        hana_clone_resource_name: str = "",
+        hana_primitive_resource_name: str = "",
     ):
         super().__init__(ansible_os_family)
         self.database_sid = database_sid
         self.saphanasr_provider = saphanasr_provider
         self.db_instance_number = db_instance_number
-        self.hana_resource_name = hana_resource_name
+        self.hana_clone_resource_name = hana_clone_resource_name
+        self.hana_primitive_resource_name = hana_primitive_resource_name
         self.result.update(
             {
                 "primary_node": "",
@@ -170,7 +172,7 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
         Retrieves the value of the AUTOMATED_REGISTER attribute.
         """
         param_commands = {
-            "AUTOMATED_REGISTER": AUTOMATED_REGISTER(self.hana_resource_name),
+            "AUTOMATED_REGISTER": AUTOMATED_REGISTER(self.hana_primitive_resource_name),
             "PRIORITY_FENCING_DELAY": PRIORITY_FENCING_DELAY,
         }
 
@@ -216,8 +218,8 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
             HanaSRProvider.ANGI: {
                 "clone_attr": f"hana_{self.database_sid}_clone_state",
                 "sync_attr": (
-                    f"master-{self.hana_resource_name}"
-                    if self.hana_resource_name
+                    f"master-{self.hana_clone_resource_name}"
+                    if self.hana_clone_resource_name
                     else f"master-rsc_SAPHanaCon_{self.database_sid.upper()}"
                     + f"_HDB{self.db_instance_number}"
                 ),
@@ -301,7 +303,8 @@ def run_module() -> None:
         database_sid=dict(type="str", required=True),
         saphanasr_provider=dict(type="str", required=True),
         db_instance_number=dict(type="str", required=True),
-        hana_resource_name=dict(type="str", required=False),
+        hana_clone_resource_name=dict(type="str", required=False),
+        hana_primitive_resource_name=dict(type="str", required=False),
         filter=dict(type="str", required=False, default="os_family"),
     )
 
@@ -314,7 +317,8 @@ def run_module() -> None:
             str(ansible_facts(module).get("os_family", "UNKNOWN")).upper()
         ),
         db_instance_number=module.params["db_instance_number"],
-        hana_resource_name=module.params.get("hana_resource_name", ""),
+        hana_clone_resource_name=module.params.get("hana_clone_resource_name", ""),
+        hana_primitive_resource_name=module.params.get("hana_primitive_resource_name", ""),
     )
     checker.run()
 
