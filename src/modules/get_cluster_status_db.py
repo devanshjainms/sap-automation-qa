@@ -14,10 +14,10 @@ from ansible.module_utils.facts.compat import ansible_facts
 try:
     from ansible.module_utils.get_cluster_status import BaseClusterStatusChecker
     from ansible.module_utils.enums import OperatingSystemFamily, HanaSRProvider
-    from ansible.module_utils.commands import CIBADMIN_COMMAND
+    from ansible.module_utils.commands import AUTOMATED_REGISTER, PRIORITY_FENCING_DELAY
 except ImportError:
     from src.module_utils.get_cluster_status import BaseClusterStatusChecker
-    from src.module_utils.commands import CIBADMIN_COMMAND
+    from src.module_utils.commands import AUTOMATED_REGISTER, PRIORITY_FENCING_DELAY
     from src.module_utils.enums import OperatingSystemFamily, HanaSRProvider
 
 
@@ -169,12 +169,17 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
         """
         Retrieves the value of the AUTOMATED_REGISTER attribute.
         """
-        for parameter in ["AUTOMATED_REGISTER", "priority-fencing-delay"]:
+        param_commands = {
+            "AUTOMATED_REGISTER": AUTOMATED_REGISTER(self.hana_resource_name),
+            "PRIORITY_FENCING_DELAY": PRIORITY_FENCING_DELAY,
+        }
+
+        for param_name, command in param_commands.items():
             try:
-                cmd_output = self.execute_command_subprocess(CIBADMIN_COMMAND(parameter)).strip()
-                self.result[parameter] = ET.fromstring(cmd_output).get("value")
+                cmd_output = self.execute_command_subprocess(command).strip()
+                self.result[param_name] = ET.fromstring(cmd_output).get("value")
             except Exception:
-                self.result[parameter] = "unknown"
+                self.result[param_name] = "unknown"
 
     def _process_node_attributes(self, cluster_status_xml: ET.Element) -> Dict[str, Any]:
         """

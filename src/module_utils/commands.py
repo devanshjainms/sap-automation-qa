@@ -30,11 +30,20 @@ STONITH_ACTION = {
     OperatingSystemFamily.SUSE: ["crm", "configure", "get_property", "stonith-action"],
 }
 
-CIBADMIN_COMMAND = lambda parameter: [
-    "cibadmin",
-    "--query",
-    "--xpath",
-    "//nvpair[@name='" + parameter + "']",
+AUTOMATED_REGISTER = lambda rsc: [
+    "crm_resource",
+    "--resource",
+    rsc,
+    "--get-parameter=AUTOMATED_REGISTER",
+]
+
+PRIORITY_FENCING_DELAY = [
+    "crm_attribute",
+    "--type",
+    "crm_config",
+    "--name",
+    "priority-fencing-delay",
+    "--quiet",
 ]
 
 FREEZE_FILESYSTEM = lambda file_system, mount_point: [
