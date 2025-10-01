@@ -51,9 +51,9 @@ class TestHanaClusterStatusChecker:
             hana_resource_name="rsc_SAPHanaCon_TEST_HDB00",
         )
 
-    def test_get_automation_register(self, mocker, hana_checker_classic):
+    def test_get_cluster_pramaeters(self, mocker, hana_checker_classic):
         """
-        Test the _get_automation_register method.
+        Test the _get_cluster_pramaeters method.
 
         :param mocker: Mocking library for Python.
         :type mocker: _mocker.MagicMock
@@ -67,13 +67,13 @@ class TestHanaClusterStatusChecker:
             + 'name="AUTOMATED_REGISTER" value="true"/>',
         )
 
-        hana_checker_classic._get_automation_register()
+        hana_checker_classic._get_cluster_pramaeters()
 
         assert hana_checker_classic.result["AUTOMATED_REGISTER"] == "true"
 
-    def test_get_automation_register_exception(self, mocker, hana_checker_classic):
+    def test_get_cluster_pramaeters_exception(self, mocker, hana_checker_classic):
         """
-        Test the _get_automation_register method when an exception occurs.
+        Test the _get_cluster_pramaeters method when an exception occurs.
 
         :param mocker: Mocking library for Python.
         :type mocker: _mocker.MagicMock
@@ -84,7 +84,7 @@ class TestHanaClusterStatusChecker:
             hana_checker_classic, "execute_command_subprocess", side_effect=Exception("Test error")
         )
 
-        hana_checker_classic._get_automation_register()
+        hana_checker_classic._get_cluster_pramaeters()
 
         assert hana_checker_classic.result["AUTOMATED_REGISTER"] == "unknown"
 
@@ -257,7 +257,7 @@ class TestHanaClusterStatusChecker:
             return_value={"status": "PASSED"},
         )
 
-        mock_get_automation = mocker.patch.object(hana_checker_classic, "_get_automation_register")
+        mock_get_automation = mocker.patch.object(hana_checker_classic, "_get_cluster_pramaeters")
 
         result = hana_checker_classic.run()
 

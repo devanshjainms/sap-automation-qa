@@ -14,10 +14,10 @@ from ansible.module_utils.facts.compat import ansible_facts
 try:
     from ansible.module_utils.get_cluster_status import BaseClusterStatusChecker
     from ansible.module_utils.enums import OperatingSystemFamily, HanaSRProvider
-    from ansible.module_utils.commands import AUTOMATED_REGISTER
+    from ansible.module_utils.commands import CIBADMIN_COMMAND
 except ImportError:
     from src.module_utils.get_cluster_status import BaseClusterStatusChecker
-    from src.module_utils.commands import AUTOMATED_REGISTER
+    from src.module_utils.commands import CIBADMIN_COMMAND
     from src.module_utils.enums import OperatingSystemFamily, HanaSRProvider
 
 
@@ -161,18 +161,20 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
                 "replication_mode": "",
                 "primary_site_name": "",
                 "AUTOMATED_REGISTER": "false",
+                "PRIORITY_FENCING_DELAY": "",
             }
         )
 
-    def _get_automation_register(self) -> None:
+    def _get_cluster_pramaeters(self) -> None:
         """
         Retrieves the value of the AUTOMATED_REGISTER attribute.
         """
-        try:
-            cmd_output = self.execute_command_subprocess(AUTOMATED_REGISTER).strip()
-            self.result["AUTOMATED_REGISTER"] = ET.fromstring(cmd_output).get("value")
-        except Exception:
-            self.result["AUTOMATED_REGISTER"] = "unknown"
+        for parameter in ["AUTOMATED_REGISTER", "priority-fencing-delay"]:
+            try:
+                cmd_output = self.execute_command_subprocess(CIBADMIN_COMMAND(parameter)).strip()
+                self.result[parameter] = ET.fromstring(cmd_output).get("value")
+            except Exception:
+                self.result[parameter] = "unknown"
 
     def _process_node_attributes(self, cluster_status_xml: ET.Element) -> Dict[str, Any]:
         """
@@ -281,7 +283,7 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
         :rtype: Dict[str, str]
         """
         result = super().run()
-        self._get_automation_register()
+        self._get_cluster_pramaeters()
         return result
 
 

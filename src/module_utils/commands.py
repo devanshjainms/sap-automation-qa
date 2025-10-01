@@ -30,13 +30,12 @@ STONITH_ACTION = {
     OperatingSystemFamily.SUSE: ["crm", "configure", "get_property", "stonith-action"],
 }
 
-AUTOMATED_REGISTER = [
+CIBADMIN_COMMAND = lambda parameter: [
     "cibadmin",
     "--query",
     "--xpath",
-    "//nvpair[@name='AUTOMATED_REGISTER']",
+    "//nvpair[@name='" + parameter + "']",
 ]
-
 
 FREEZE_FILESYSTEM = lambda file_system, mount_point: [
     "mount",
