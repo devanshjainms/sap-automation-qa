@@ -178,8 +178,7 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
 
         for param_name, command in param_commands.items():
             try:
-                cmd_output = self.execute_command_subprocess(command).strip()
-                self.result[param_name] = ET.fromstring(cmd_output).get("value")
+                self.result[param_name] = self.execute_command_subprocess(command).strip()
             except Exception:
                 self.result[param_name] = "unknown"
 
