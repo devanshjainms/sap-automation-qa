@@ -97,7 +97,7 @@
           register:                 hana_primitive_resource_id
           failed_when:              hana_primitive_resource_id.rc != 0
 
-        - name:                     "Pre validation: Set fact the hana_clone_resource_name"
+        - name:                     "Pre validation: Set fact the hana_primitive_resource_name"
           ansible.builtin.set_fact:
             hana_primitive_resource_name: "{{ hana_primitive_resource_id.stdout }}"
 

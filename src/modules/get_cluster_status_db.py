@@ -169,7 +169,7 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
 
     def _get_cluster_parameters(self) -> None:
         """
-        Retrieves the value of the AUTOMATED_REGISTER attribute.
+        Retrieves the values of the AUTOMATED_REGISTER and PRIORITY_FENCING_DELAY attributes.
         """
         param_commands = {
             "AUTOMATED_REGISTER": (

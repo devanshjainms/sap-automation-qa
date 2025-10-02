@@ -72,7 +72,7 @@ class TestHanaClusterStatusChecker:
 
         assert hana_checker_classic.result["AUTOMATED_REGISTER"] == "true"
 
-    def test_get_cluster_pramaeters_exception(self, mocker, hana_checker_classic):
+    def test_get_cluster_parameters_exception(self, mocker, hana_checker_classic):
         """
         Test the _get_cluster_parameters method when an exception occurs.
 
