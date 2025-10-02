@@ -65,7 +65,7 @@ class TestHanaClusterStatusChecker:
         mocker.patch.object(
             hana_checker_classic,
             "execute_command_subprocess",
-            return_value='true',
+            return_value="true",
         )
 
         hana_checker_classic._get_cluster_parameters()
