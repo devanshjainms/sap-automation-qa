@@ -167,12 +167,16 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
             }
         )
 
-    def _get_cluster_pramaeters(self) -> None:
+    def _get_cluster_parameters(self) -> None:
         """
         Retrieves the value of the AUTOMATED_REGISTER attribute.
         """
         param_commands = {
-            "AUTOMATED_REGISTER": AUTOMATED_REGISTER(self.hana_primitive_resource_name),
+            "AUTOMATED_REGISTER": (
+                AUTOMATED_REGISTER(self.hana_primitive_resource_name)
+                if self.hana_primitive_resource_name
+                else AUTOMATED_REGISTER(self.hana_clone_resource_name)
+            ),
             "PRIORITY_FENCING_DELAY": PRIORITY_FENCING_DELAY,
         }
 
@@ -289,7 +293,7 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
         :rtype: Dict[str, str]
         """
         result = super().run()
-        self._get_cluster_pramaeters()
+        self._get_cluster_parameters()
         return result
 
 
