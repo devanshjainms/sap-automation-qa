@@ -343,6 +343,12 @@ class FileSystemCollector(Collector):
             )
             azure_disk_data = context.get("azure_disks_metadata", {})
 
+            return {
+                "filesystems": filesystems,
+                "lvm_volumes": lvm_volumes,
+                "lvm_groups": lvm_groups
+            }
+
         except Exception as ex:
             self.parent.handle_error(ex)
             return f"ERROR: Filesystem data collection failed: {str(ex)}"

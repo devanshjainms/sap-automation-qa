@@ -871,8 +871,6 @@ class ConfigurationCheckModule(SapAutomationQA):
                 "checks_loaded": len(self.checks) if hasattr(self, "checks") else 0,
                 "timestamp": datetime.now().isoformat(),
             }
-
-            # Try to provide partial results if any checks were completed
             partial_results = self.result.get("check_results", [])
             if partial_results:
                 error_details["partial_results_available"] = True
@@ -881,7 +879,7 @@ class ConfigurationCheckModule(SapAutomationQA):
             self.module.fail_json(
                 msg=f"Configuration check execution failed: {str(e)}",
                 error_details=error_details,
-                **self.result,  # Include any partial results
+                **self.result,
             )
 
 
