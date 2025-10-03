@@ -43,7 +43,7 @@
 
 - name:                             Collect azure disks data
   ansible.builtin.uri:
-    url:                            http://169.254.169.254/metadata/instance/compute/storageProfile?api-version=2021-12-13
+    url:                            http://169.254.169.254/metadata/instance/compute/storageProfile/dataDisks/?api-version=2021-12-13
     use_proxy:                      false
     headers:
       Metadata:                     true
@@ -54,8 +54,9 @@
   ignore_errors:                    true
 
 - name:                             Extract disk names
+  when:                             disks_metadata is not failed and disks_metadata.json is defined
   ansible.builtin.set_fact:
-    azure_disk_names:               "{{ (disks_metadata.stdout | from_json) | map(attribute='name') | list }}"
+    azure_disk_names:               "{{ (disks_metadata.json | from_json) | map(attribute='name') | list }}"
 
 - name:                             Collect detailed azure disks data (loop per disk defined in azure_disk_names)
   when:                             azure_disk_names is defined and azure_disk_names | length > 0
