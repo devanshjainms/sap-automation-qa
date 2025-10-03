@@ -1037,10 +1037,9 @@ checks:
       database_type:                    [*hana]
     collector_type:                     *azure
     collector_args:
-      resource_type:                    "disk"
+      resource_type:                    "disks"
       property:                         "max_mbps"
       mount_point:                      "/hana/data"
-      aggregate:                        "sum"
     validator_type:                     *range
     validator_args:
       min:                              "400"
@@ -1065,10 +1064,9 @@ checks:
       database_type:                    [*hana]
     collector_type:                     *azure
     collector_args:
-      resource_type:                    "disk"
+      resource_type:                    "disks"
       property:                         "max_iops"
       mount_point:                      "/hana/data"
-      aggregate:                        "sum"
     validator_type:                     *range
     validator_args:
       min:                              "7000"

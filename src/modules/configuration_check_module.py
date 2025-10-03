@@ -24,7 +24,8 @@ try:
     from ansible.module_utils.collector import (
         Collector,
         CommandCollector,
-        AzureDataCollector,
+        AzureDataParser,
+        FileSystemCollector,
     )
 except ImportError:
     from src.module_utils.sap_automation_qa import SapAutomationQA
@@ -38,7 +39,8 @@ except ImportError:
     from src.module_utils.collector import (
         Collector,
         CommandCollector,
-        AzureDataCollector,
+        AzureDataParser,
+        FileSystemCollector,
     )
 
 
@@ -73,7 +75,7 @@ class ConfigurationCheckModule(SapAutomationQA):
         """
         return {
             "command": CommandCollector,
-            "azure": AzureDataCollector,
+            "azure": AzureDataParser,
         }
 
     def _init_validator_registry(self) -> Dict[str, Any]:
@@ -790,6 +792,9 @@ class ConfigurationCheckModule(SapAutomationQA):
                 context["hostname"] = custom_hostname
 
             self.set_context(context)
+            self.context.update(
+                FileSystemCollector(parent=self).collect(check=None, context=self.context)
+            )
 
             if not self.module_params["check_file_content"]:
                 self.module.fail_json(
