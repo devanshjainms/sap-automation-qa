@@ -378,21 +378,30 @@ class FileSystemCollector(Collector):
                 "findmnt -r -n -o TARGET,SOURCE,FSTYPE,OPTIONS", shell_command=True
             ).strip()
             df_output = self.parent.execute_command_subprocess("df -BG", shell_command=True).strip()
+            azure_disk_data = json.loads(context.get("azure_disks_metadata", "{}"))
+            anf_storage_data = json.loads(context.get("anf_storage_metadata", "{}"))
+            afs_storage_data = json.loads(context.get("afs_storage_metadata", "{}"))
+            self.parent.log(
+                logging.INFO,
+                f"findmnt_output: {findmnt_output}\n"
+                f"df_output: {df_output}\n"
+                f"Type: {type(azure_disk_data)}, Content: {azure_disk_data}\n"
+                f"Type: {type(anf_storage_data)}, Content: {anf_storage_data}\n"
+                f"Type: {type(afs_storage_data)}, Content: {afs_storage_data}",
+            )
 
             filesystems = self._parse_filesystem_data(
                 findmnt_output,
                 df_output,
                 lvm_volumes,
                 lvm_groups,
-                azure_disk_data=context.get("azure_disks_metadata", {}),
-                anf_storage_data=context.get("anf_storage_metadata", {}),
-                afs_storage_data=context.get("afs_storage_metadata", {}),
+                azure_disk_data=azure_disk_data,
+                anf_storage_data=anf_storage_data,
+                afs_storage_data=afs_storage_data,
             )
 
             self.parent.log(
                 logging.INFO,
-                f"findmnt_output: {findmnt_output}\n"
-                f"df_output: {df_output}\n"
                 f"Collected filesystems: {filesystems}\n"
                 + f"Collected LVM volumes: {lvm_volumes}\n"
                 + f"Collected LVM groups: {lvm_groups}",
