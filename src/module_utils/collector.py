@@ -365,7 +365,15 @@ class FileSystemCollector(Collector):
                 anf_storage_data=context.get("anf_storage_metadata", {}),
                 afs_storage_data=context.get("afs_storage_metadata", {}),
             )
-            azure_disk_data = context.get("azure_disks_metadata", {})
+
+            self.parent.log(
+                logging.INFO,
+                f"findmnt_output: {findmnt_output}\n"
+                f"df_output: {df_output}\n"
+                f"Collected filesystems: {filesystems}\n"
+                + f"Collected LVM volumes: {lvm_volumes}\n"
+                + f"Collected LVM groups: {lvm_groups}",
+            )
 
             return {
                 "filesystems": filesystems,

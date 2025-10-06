@@ -130,7 +130,7 @@ checks:
       high_availability_agent:          *cluster_type
     collector_type:                     *command
     collector_args:
-      command:                          cibadmin --query --xpath "//nvpair[@name='AUTOMATED_REGISTER']" | grep -o 'value=\"[^\"]*\"' | cut -d'"' -f2
+      command:                          cibadmin --query --xpath "//nvpair[@name='AUTOMATED_REGISTER']" | grep -o 'value=\"[^\"]*\"' | tail -n 1 | cut -d'"' -f2
       user:                             *root
     validator_type:                     *string
     validator_args:
