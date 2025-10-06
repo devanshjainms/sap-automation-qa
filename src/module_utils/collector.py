@@ -346,9 +346,9 @@ class FileSystemCollector(Collector):
             return {
                 "filesystems": filesystems,
                 "lvm_volumes": lvm_volumes,
-                "lvm_groups": lvm_groups
+                "lvm_groups": lvm_groups,
             }
 
         except Exception as ex:
             self.parent.handle_error(ex)
-            return f"ERROR: Filesystem data collection failed: {str(ex)}"
+            return {"ERROR: Filesystem data collection failed": str(ex)}
