@@ -792,10 +792,11 @@ class ConfigurationCheckModule(SapAutomationQA):
                 context["hostname"] = custom_hostname
 
             self.set_context(context)
-            temp_context = FileSystemCollector(parent=self).collect(
-                check=None, context=self.context
-            )
-            self.context.update(temp_context)
+            if self.context.get("check_type", {}).get("file_name") == "hana":
+                temp_context = FileSystemCollector(parent=self).collect(
+                    check=None, context=self.context
+                )
+                self.context.update(temp_context)
 
             if not self.module_params["check_file_content"]:
                 self.module.fail_json(

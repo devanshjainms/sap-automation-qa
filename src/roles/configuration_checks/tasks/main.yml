@@ -48,6 +48,7 @@
 - name:                             Prepare system context information for {{check_type.name}}
   ansible.builtin.set_fact:
     system_context:
+      check_type:                   "{{ check_type }}"
       vm_name:                      "{{ compute_metadata.json.compute.name }}"
       resource_group_name:          "{{ compute_metadata.json.compute.resourceGroupName }}"
       supported_configurations:     "{{ vm_support }}"
