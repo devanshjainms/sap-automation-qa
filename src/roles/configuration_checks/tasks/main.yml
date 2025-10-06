@@ -41,86 +41,9 @@
     execution_warnings:             "{{ execution_warnings | default([]) }}"
   when:                             compute_metadata is not failed
 
-- name:                             Collect azure disks data
-  ansible.builtin.uri:
-    url:                            http://169.254.169.254/metadata/instance/compute/storageProfile/dataDisks/?api-version=2021-12-13
-    use_proxy:                      false
-    headers:
-      Metadata:                     true
-    timeout:                        10
-  register:                         disks_metadata
-  retries:                          3
-  delay:                            2
-  ignore_errors:                    true
-
-- name:                             Extract disk names
-  when:                             disks_metadata is not failed and disks_metadata.json is defined
-  ansible.builtin.set_fact:
-    azure_disk_names:               "{{ disks_metadata.json | map(attribute='name') | list }}"
-
-- name:                             Collect detailed azure disks data (loop per disk defined in azure_disk_names)
-  when:                             azure_disk_names is defined and azure_disk_names | length > 0
-  register:                         azure_disks_metadata_results
-  loop:                             "{{ azure_disk_names }}"
-  delegate_to:                      localhost
-  ansible.builtin.shell: |
-                                    az disk show --name {{ item }} \
-                                    --subscription {{ compute_metadata.json.compute.subscriptionId }} \
-                                    --resource-group {{ compute_metadata.json.compute.resourceGroupName }} \
-                                    --query "{name:name, sku:sku.name, size:sizeGb, encryption:encryption.type, iops:diskIOPSReadWrite, mbps:diskMBpsReadWrite, size:diskSizeGB}" --output json
-
-- name:                             Collect ANF storage data if NFS is used
-  when:                             NFS_provider is defined and 'ANF' in NFS_provider and ANF_account_rg is defined and ANF_account_name is defined
-  register:                         anf_storage_metadata_results
-  delegate_to:                      localhost
-  ansible.builtin.shell: |
-                                    for pool in $(az netappfiles pool list \
-                                      --resource-group "{{ ANF_account_rg | default(compute_metadata.json.compute.resourceGroupName) }}" \
-                                      --account-name "{{ ANF_account_name }}" \
-                                      --query '[].name' -o tsv | awk -F/ '{print $NF}'); do
-                                        qos=$(az netappfiles pool show \
-                                          --resource-group "{{ ANF_account_rg | default(compute_metadata.json.compute.resourceGroupName) }}" \
-                                          --account-name "{{ ANF_account_name }}" \
-                                          --pool-name "$pool" \
-                                          --query "qosType" -o tsv)
-                                        for vol in $(az netappfiles volume list \
-                                          --resource-group "{{ ANF_account_rg | default(compute_metadata.json.compute.resourceGroupName) }}" \
-                                          --account-name "{{ ANF_account_name }}" \
-                                          --pool-name "$pool" \
-                                          --query '[].name' -o tsv | awk -F/ '{print $NF}'); do
-                                            az netappfiles volume show \
-                                              --resource-group "{{ ANF_account_rg | default(compute_metadata.json.compute.resourceGroupName) }}" \
-                                              --account-name "{{ ANF_account_name }}" \
-                                              --pool-name "$pool" \
-                                              --volume-name "$vol" \
-                                              --query "{name:name, id:id, throughputMibps:throughputMibps, provisionedAvailabilityZone:provisionedAvailabilityZone, protocolTypes:protocolTypes, serviceLevel:serviceLevel, qosType:'$qos', ip:mountTargets[0].ipAddress, token:creationToken}" \
-                                              -o json
-                                        done
-                                    done
-
-
-- name:                             Collect AFS storage data if NFS is used
-  when:                             NFS_provider is defined and 'AFS' in NFS_provider
-  register:                         afs_storage_metadata_results
-  delegate_to:                      localhost
-  ansible.builtin.shell: |
-                                    for sa in $(az storage account list \
-                                    --query "[?kind=='FileStorage'].{rg:resourceGroup,name:name,id:id}" \
-                                    -o tsv | awk '{print $1":"$2":"$3}'); do rg=$(echo $sa | cut -d: -f1); \
-                                     acc=$(echo $sa | cut -d: -f2); sid=$(echo $sa | cut -d: -f3); \
-                                     dns="$acc.file.core.windows.net"; for sh in $(az storage share-rm list --resource-group $rg --storage-account $acc \
-                                     --query "[?enabledProtocols=='NFS'].[name,accessTier,quotaGiB]" -o tsv); \
-                                     do name=$(echo $sh | awk '{print $1}'); tier=$(echo $sh | awk '{print $2}'); \
-                                     quota=$(echo $sh | awk '{print $3}'); \
-                                     peip=$(az network private-endpoint list \
-                                     --query "[?privateLinkServiceConnections[?privateLinkServiceId=='$sid']].customDnsConfigs[].ipAddresses[]" -o tsv); \
-                                     for ip in $peip; do thr=$((100 + ( (quota*4+99)/100 ) + ( (quota*6+99)/100 ) )); \
-                                     iops=$((quota+3000)); \
-                                     if [ $iops -gt 100000 ]; then iops=100000; fi; \
-                                     echo "{\"Type\":\"AFS\",\"Name\":\"$name\",\"Pool\":\"$acc\",\"ServiceLevel\":\"$tier\",\"ThroughputMibps\":$thr,\"ProtocolTypes\":\"NFS4.1\",\"NFSAddressDNS\":\"$dns:/$acc/$name\",\"NFSAddress\":\"$ip:/$acc/$name\",\"QoSType\":\"Manual\",\"IOPS\":$iops,\"Id\":\"$sid\"}"; \
-                                     done; done; done
-
-
+- name:                             Include disks task when HANA checks to be run
+  ansible.builtin.include_tasks:    disks.yml
+  when:                             check_type.file_name == "hana"
 
 - name:                             Prepare system context information for {{check_type.name}}
   ansible.builtin.set_fact:
