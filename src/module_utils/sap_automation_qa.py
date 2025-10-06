@@ -10,6 +10,7 @@ from abc import ABC
 import sys
 import logging
 import subprocess
+import traceback
 from typing import Optional, Dict, Any
 import xml.etree.ElementTree as ET
 import yaml
@@ -75,6 +76,7 @@ class SapAutomationQA(ABC):
         self.result["status"] = TestStatus.ERROR.value
         self.result["message"] = error_message
         self.result["logs"].append(error_message)
+        self.result["logs"].append(f"Traceback:\n{traceback.format_exc()}")
 
     def execute_command_subprocess(self, command: Any, shell_command: bool = False) -> str:
         """
