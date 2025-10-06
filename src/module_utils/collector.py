@@ -269,7 +269,7 @@ class FileSystemCollector(Collector):
 
             if filesystem_entry["fstype"] == "nfs" or filesystem_entry["fstype"] == "nfs4":
                 nfs_address = filesystem_entry["source"].split(":")[0]
-                for nfs_share in anf_storage_data + afs_storage_data:
+                for nfs_share in afs_storage_data:
                     if nfs_share.get("NFSAddress", "") == nfs_address:
                         filesystem_entry["max_mbps"] = nfs_share.get("throughput_mibps", 0)
                         filesystem_entry["max_iops"] = nfs_share.get("iops", 0)
