@@ -238,23 +238,24 @@ class FileSystemCollector(Collector):
                     "free": parts[3],
                     "used_percent": parts[4],
                 }
-
         for line in [line.strip() for line in findmnt_output.split("\n") if line.strip()]:
-            parts = line.split()
+            parts = line.split(maxsplit=3)
             if len(parts) >= 4:
                 target = parts[0]
                 findmnt_data[target] = {"source": parts[1], "fstype": parts[2], "options": parts[3]}
         for mountpoint, df_info in df_data.items():
             findmnt_info = findmnt_data.get(mountpoint, {})
             vg_name, stripe_size = "", ""
-            for vgname, prop in lvm_volume.items():
-                if prop.get("dm_path") == df_info["filesystem"]:
-                    vg_name = vgname
-                    stripe_size = prop.get("stripe_size", "")
+            filesystem_path = df_info["filesystem"]
+            for lv_name, lv_prop in lvm_volume.items():
+                if lv_prop.get("dm_path") == filesystem_path:
+                    vg_name = lv_prop.get("vg_name", "")
+                    stripe_size = lv_prop.get("stripe_size", "")
                     break
+
             filesystem_entry = {
                 "target": mountpoint,
-                "source": df_info["filesystem"],
+                "source": filesystem_path,
                 "fstype": findmnt_info.get("fstype", ""),
                 "options": findmnt_info.get("options", ""),
                 "size": df_info["size"],
@@ -263,32 +264,38 @@ class FileSystemCollector(Collector):
                 "used_percent": df_info["used_percent"],
                 "vg": vg_name,
                 "stripe_size": stripe_size,
-                "max_mbps": "",
-                "max_iops": "",
+                "max_mbps": 0,
+                "max_iops": 0,
             }
 
-            if filesystem_entry["fstype"] == "nfs" or filesystem_entry["fstype"] == "nfs4":
-                nfs_address = filesystem_entry["source"].split(":")[0]
-                for nfs_share in afs_storage_data:
-                    if nfs_share.get("NFSAddress", "") == nfs_address:
-                        filesystem_entry["max_mbps"] = nfs_share.get("throughput_mibps", 0)
-                        filesystem_entry["max_iops"] = nfs_share.get("iops", 0)
-                        break
+            if filesystem_entry["fstype"] in ["nfs", "nfs4"]:
+                nfs_source = filesystem_entry["source"]
+                if ":" in nfs_source:
+                    nfs_address = nfs_source.split(":")[0]
+
+                    for nfs_share in afs_storage_data:
+                        share_address = nfs_share.get("NFSAddress", "")
+                        if ":" in share_address and share_address.split(":")[0] == nfs_address:
+                            filesystem_entry["max_mbps"] = nfs_share.get("ThroughputMibps", 0)
+                            filesystem_entry["max_iops"] = nfs_share.get("IOPS", 0)
+                            break
             else:
-                if df_info.get("filesystem", "").startswith("/dev/sed") or df_info.get(
-                    "filesystem", ""
-                ).startswith("/dev/nvme0n"):
+                if filesystem_path.startswith("/dev/sd") or filesystem_path.startswith("/dev/nvme"):
+                    disk_name = (
+                        filesystem_path.split("/")[-1]
+                        if "/" in filesystem_path
+                        else filesystem_path
+                    )
+
                     for disk_data in azure_disk_data:
-                        if disk_data.get("name", "") == filesystem_entry["source"]:
+                        if disk_data.get("name", "").endswith(disk_name):
                             filesystem_entry["max_mbps"] = disk_data.get("mbps", 0)
                             filesystem_entry["max_iops"] = disk_data.get("iops", 0)
-                    filesystem_entry["max_iops"] = 4
-                else:
-                    for name, prop in lvm_group.items():
-                        if name == filesystem_entry["vg"]:
-                            filesystem_entry["max_mbps"] = prop.get("total_mbps", 0)
-                            filesystem_entry["max_iops"] = prop.get("total_iops", 0)
                             break
+                elif filesystem_path.startswith("/dev/mapper/") and vg_name:
+                    vg_info = lvm_group.get(vg_name, {})
+                    filesystem_entry["max_mbps"] = vg_info.get("total_mbps", 0)
+                    filesystem_entry["max_iops"] = vg_info.get("total_iops", 0)
 
             filesystems.append(filesystem_entry)
 
@@ -308,34 +315,47 @@ class FileSystemCollector(Collector):
                 ).strip()
             )
             for lvm_volume in lvm_volumes.get("report", []):
-                vol_groups = lvm_volume.get("vg", {})
+                vol_groups = lvm_volume.get("vg", [])
                 for vol_group in vol_groups:
-                    lvm_group_result[vol_group.get("vg_name")] = {
-                        "name": vol_group.get("vg_name"),
-                        "disks": vol_group.get("pv_count", []),
-                        "logical_volumes": vol_group.get("lv_count", []),
+                    vg_name = vol_group.get("vg_name")
+                    lvm_group_result[vg_name] = {
+                        "name": vg_name,
+                        "disks": vol_group.get("pv_count", 0),
+                        "logical_volumes": vol_group.get("lv_count", 0),
                         "total_size": vol_group.get("vg_size"),
                         "total_iops": 0,
                         "total_mbps": 0,
                     }
+
+                logical_volumes = lvm_volume.get("lv", [])
+                segments = lvm_volume.get("seg", [])
+
+                for lv in logical_volumes:
+                    lv_name = lv.get("lv_name")
+                    vg_name = (
+                        lv.get("lv_full_name", "").split("/")[0]
+                        if "/" in lv.get("lv_full_name", "")
+                        else ""
+                    )
                     stripe_size, stripes = "", ""
+                    lv_uuid = lv.get("lv_uuid")
+                    for segment in segments:
+                        if segment.get("lv_uuid") == lv_uuid:
+                            stripes = segment.get("stripes", "")
+                            stripe_size = segment.get("stripe_size", "")
+                            break
 
-                    for segment in vol_group.get("seg", []):
-                        stripe_size = segment.get("stripes")
-                        stripes = segment.get("stripe_size")
-
-                    if vol_group.get("vg_name") != "rootvg":
-                        for lv in lvm_volume.get("lv", []):
-                            log_volume_result[vol_group.get("vg_name")] = {
-                                "name": lv.get("lv_name"),
-                                "vg_name": vol_group.get("vg_name"),
-                                "path": lv.get("lv_path"),
-                                "dm_path": lv.get("lv_dm_path"),
-                                "layout": lv.get("lv_layout"),
-                                "size": lv.get("lv_size"),
-                                "stripe_size": stripe_size,
-                                "stripes": stripes,
-                            }
+                    if vg_name != "rootvg":
+                        log_volume_result[lv_name] = {
+                            "name": lv_name,
+                            "vg_name": vg_name,
+                            "path": lv.get("lv_path"),
+                            "dm_path": lv.get("lv_dm_path"),
+                            "layout": lv.get("lv_layout"),
+                            "size": lv.get("lv_size"),
+                            "stripe_size": stripe_size,
+                            "stripes": stripes,
+                        }
 
         except Exception as ex:
             return f"ERROR: LVM volume collection failed: {str(ex)}"
