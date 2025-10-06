@@ -379,8 +379,31 @@ class FileSystemCollector(Collector):
             ).strip()
             df_output = self.parent.execute_command_subprocess("df -BG", shell_command=True).strip()
             azure_disk_data = context.get("azure_disks_metadata", [])
-            anf_storage_data = json.loads(context.get("anf_storage_metadata", "{}"))
-            afs_storage_data = json.loads(context.get("afs_storage_metadata", "{}"))
+            afs_storage_data, anf_storage_data = [], []
+            try:
+                afs_storage_data = json.loads(context.get("afs_storage_metadata", "{}"))
+            except Exception as ex:
+                for line in context.get("afs_storage_metadata", "").splitlines():
+                    if line.strip():
+                        try:
+                            afs_storage_data.append(json.loads(line.strip()))
+                        except json.JSONDecodeError:
+                            self.parent.log(
+                                logging.WARNING,
+                                f"Failed to parse line in AFS storage metadata: {line.strip()}",
+                            )
+            try:
+                anf_storage_data = json.loads(context.get("anf_storage_metadata", "{}"))
+            except Exception as ex:
+                for line in context.get("anf_storage_metadata", "").splitlines():
+                    if line.strip():
+                        try:
+                            anf_storage_data.append(json.loads(line.strip()))
+                        except json.JSONDecodeError:
+                            self.parent.log(
+                                logging.WARNING,
+                                f"Failed to parse line in ANF storage metadata: {line.strip()}",
+                            )
             self.parent.log(
                 logging.INFO,
                 f"findmnt_output: {findmnt_output}\n"
