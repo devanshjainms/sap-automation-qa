@@ -76,9 +76,9 @@
                                     {% else %}
                                       "AFA"
                                     {% endif %}
-      azure_disks_metadata:         "{{ azure_disks_metadata_results | default({}) }}"
-      anf_storage_metadata:         "{{ anf_storage_metadata_results | default({}) }}"
-      afs_storage_metadata:         "{{ afs_storage_metadata_results | default({}) }}"
+      azure_disks_metadata:         "{{ azure_disks_metadata_results.results | default([]) | map(attribute='stdout') | list }}"
+      anf_storage_metadata:         "{{ anf_storage_metadata_results.stdout | default({}) }}"
+      afs_storage_metadata:         "{{ afs_storage_metadata_results.stdout | default({}) }}"
 
 - name:                             Load checks file for {{check_type.name}}
   ansible.builtin.set_fact:

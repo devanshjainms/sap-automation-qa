@@ -33,6 +33,11 @@
                                     --resource-group {{ compute_metadata.json.compute.resourceGroupName }} \
                                     --query "{name:name, sku:sku.name, size:sizeGb, encryption:encryption.type, iops:diskIOPSReadWrite, mbps:diskMBpsReadWrite, size:diskSizeGB}" --output json
 
+- name:                             Debug azure disks data collected
+  when:                             azure_disks_metadata_results is defined
+  ansible.builtin.debug:
+    var:                            azure_disks_metadata_results
+
 - name:                             Collect ANF storage data if NFS is used
   when:                             NFS_provider is defined and 'ANF' in NFS_provider and ANF_account_rg is defined and ANF_account_name is defined
   register:                         anf_storage_metadata_results
@@ -62,6 +67,10 @@
                                         done
                                     done
 
+- name:                             Debug ANF storage data collected
+  when:                             anf_storage_metadata_results is defined
+  ansible.builtin.debug:
+    var:                            anf_storage_metadata_results
 
 - name:                             Collect AFS storage data if NFS is used
   when:                             NFS_provider is defined and 'AFS' in NFS_provider
@@ -69,17 +78,22 @@
   delegate_to:                      localhost
   ansible.builtin.shell: |
                                     for sa in $(az storage account list \
-                                    --query "[?kind=='FileStorage'].{rg:resourceGroup,name:name,id:id}" \
-                                    -o tsv | awk '{print $1":"$2":"$3}'); do rg=$(echo $sa | cut -d: -f1); \
-                                     acc=$(echo $sa | cut -d: -f2); sid=$(echo $sa | cut -d: -f3); \
-                                     dns="$acc.file.core.windows.net"; for sh in $(az storage share-rm list --resource-group $rg --storage-account $acc \
-                                     --query "[?enabledProtocols=='NFS'].[name,accessTier,quotaGiB]" -o tsv); \
-                                     do name=$(echo $sh | awk '{print $1}'); tier=$(echo $sh | awk '{print $2}'); \
-                                     quota=$(echo $sh | awk '{print $3}'); \
-                                     peip=$(az network private-endpoint list \
-                                     --query "[?privateLinkServiceConnections[?privateLinkServiceId=='$sid']].customDnsConfigs[].ipAddresses[]" -o tsv); \
-                                     for ip in $peip; do thr=$((100 + ( (quota*4+99)/100 ) + ( (quota*6+99)/100 ) )); \
-                                     iops=$((quota+3000)); \
-                                     if [ $iops -gt 100000 ]; then iops=100000; fi; \
-                                     echo "{\"Type\":\"AFS\",\"Name\":\"$name\",\"Pool\":\"$acc\",\"ServiceLevel\":\"$tier\",\"ThroughputMibps\":$thr,\"ProtocolTypes\":\"NFS4.1\",\"NFSAddressDNS\":\"$dns:/$acc/$name\",\"NFSAddress\":\"$ip:/$acc/$name\",\"QoSType\":\"Manual\",\"IOPS\":$iops,\"Id\":\"$sid\"}"; \
-                                     done; done; done
+                                      --query "[?kind=='FileStorage'].{rg:resourceGroup,name:name,id:id}" \
+                                      -o tsv | awk '{print $1":"$2":"$3}'); do rg=$(echo $sa | cut -d: -f1); \
+                                      acc=$(echo $sa | cut -d: -f2); sid=$(echo $sa | cut -d: -f3); \
+                                      dns="$acc.file.core.windows.net"; for sh in $(az storage share-rm list --resource-group $rg --storage-account $acc \
+                                      --query "[?enabledProtocols=='NFS'].[name,accessTier,quotaGiB]" -o tsv); \
+                                      do name=$(echo $sh | awk '{print $1}'); tier=$(echo $sh | awk '{print $2}'); \
+                                      quota=$(echo $sh | awk '{print $3}'); \
+                                      peip=$(az network private-endpoint list \
+                                      --query "[?privateLinkServiceConnections[?privateLinkServiceId=='$sid']].customDnsConfigs[].ipAddresses[]" -o tsv); \
+                                      for ip in $peip; do thr=$((100 + ( (quota*4+99)/100 ) + ( (quota*6+99)/100 ) )); \
+                                      iops=$((quota+3000)); \
+                                      if [ $iops -gt 100000 ]; then iops=100000; fi; \
+                                      echo "{\"Type\":\"AFS\",\"Name\":\"$name\",\"Pool\":\"$acc\",\"ServiceLevel\":\"$tier\",\"ThroughputMibps\":$thr,\"ProtocolTypes\":\"NFS4.1\",\"NFSAddressDNS\":\"$dns:/$acc/$name\",\"NFSAddress\":\"$ip:/$acc/$name\",\"QoSType\":\"Manual\",\"IOPS\":$iops,\"Id\":\"$sid\"}"; \
+                                      done; done; done
+
+- name:                             Debug AFS storage data collected
+  when:                             afs_storage_metadata_results is defined
+  ansible.builtin.debug:
+    var:                            afs_storage_metadata_results
