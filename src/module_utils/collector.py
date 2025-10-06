@@ -307,32 +307,35 @@ class FileSystemCollector(Collector):
                     shell_command=True,
                 ).strip()
             )
-            for i in lvm_volumes.get("report", []):
-                vol_group = i.get("vg", {})
+            for lvm_volume in lvm_volumes.get("report", []):
+                vol_groups = lvm_volume.get("vg", {})
+                for vol_group in vol_groups:
+                    lvm_group_result[vol_group.get("vg_name")] = {
+                        "name": vol_group.get("vg_name"),
+                        "disks": vol_group.get("pv_count", []),
+                        "logical_volumes": vol_group.get("lv_count", []),
+                        "total_size": vol_group.get("vg_size"),
+                        "total_iops": 0,
+                        "total_mbps": 0,
+                    }
+                    stripe_size, stripes = "", ""
 
-                # Update lvm group
-                lvm_group_result[vol_group.get("vg_name")] = {
-                    "name": vol_group.get("vg_name"),
-                    "disks": vol_group.get("pv_count", []),
-                    "logical_volumes": vol_group.get("lv_count", []),
-                    "total_size": vol_group.get("vg_size"),
-                    "total_iops": 0,
-                    "total_mbps": 0,
-                }
+                    for segment in vol_group.get("seg", []):
+                        stripe_size = segment.get("stripes")
+                        stripes = segment.get("stripe_size")
 
-                # Update lvm volume
-                if vol_group.get("vg_name") != "rootvg":
-                    for lv in i.get("lv", []):
-                        log_volume_result[vol_group.get("vg_name")] = {
-                            "name": lv.get("lv_name"),
-                            "vg_name": vol_group.get("vg_name"),
-                            "path": lv.get("lv_path"),
-                            "dm_path": lv.get("lv_dm_path"),
-                            "layout": lv.get("lv_layout"),
-                            "size": lv.get("lv_size"),
-                            "stripe_size": vol_group.get("seg").get("stripesize"),
-                            "stripes": vol_group.get("seg").get("stripes"),
-                        }
+                    if vol_group.get("vg_name") != "rootvg":
+                        for lv in lvm_volume.get("lv", []):
+                            log_volume_result[vol_group.get("vg_name")] = {
+                                "name": lv.get("lv_name"),
+                                "vg_name": vol_group.get("vg_name"),
+                                "path": lv.get("lv_path"),
+                                "dm_path": lv.get("lv_dm_path"),
+                                "layout": lv.get("lv_layout"),
+                                "size": lv.get("lv_size"),
+                                "stripe_size": stripe_size,
+                                "stripes": stripes,
+                            }
 
         except Exception as ex:
             return f"ERROR: LVM volume collection failed: {str(ex)}"
