@@ -378,7 +378,7 @@ class FileSystemCollector(Collector):
                 "findmnt -r -n -o TARGET,SOURCE,FSTYPE,OPTIONS", shell_command=True
             ).strip()
             df_output = self.parent.execute_command_subprocess("df -BG", shell_command=True).strip()
-            azure_disk_data = json.loads(context.get("azure_disks_metadata", "{}"))
+            azure_disk_data = context.get("azure_disks_metadata", [])
             anf_storage_data = json.loads(context.get("anf_storage_metadata", "{}"))
             afs_storage_data = json.loads(context.get("afs_storage_metadata", "{}"))
             self.parent.log(
