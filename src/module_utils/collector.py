@@ -146,16 +146,39 @@ class AzureDataParser(Collector):
     def __init__(self, parent: SapAutomationQA):
         super().__init__(parent)
 
-    def parse_context_vars(self, context: dict) -> dict:
+    def parse_disks_vars(self, filesystem_data, disks_metadata, mount_point, property) -> str:
         """
-        Parse context variables to extract Azure-specific parameters.
+        Parse the required property for given mount point from filesystem data and disks metadata.
 
-        :param context: Context object containing variables
-        :type context: Dict[str, Any]
+        :param filesystem_data: Filesystem data collected from the system
+        :type filesystem_data: List[Dict[str, Any]]
+        :param disks_metadata: Metadata about Azure disks
+        :type disks_metadata: Dict[str, Any]
+        :param mount_point: Mount point to look for
+        :type mount_point: str
+        :param property: Property to extract (e.g., size, type)
+        :type property: str
         :return: Parsed context with Azure parameters
-        :rtype: Dict[str, Any]
+        :rtype: str
         """
-        return {}
+        value = ""
+        try:
+            for fs in filesystem_data:
+                if fs.get("target") == mount_point:
+                    disk_name = fs.get("source")
+                    for disk in disks_metadata:
+                        if disk.get("name") == disk_name:
+                            value = disk.get(property, "N/A")
+                            break
+                    else:
+                        value = "N/A"
+                    break
+            else:
+                value = "N/A"
+        except Exception as ex:
+            self.parent.handle_error(ex)
+            value = f"ERROR: Parsing failed: {str(ex)}"
+        return value
 
     def collect(self, check, context) -> Any:
         """
@@ -172,8 +195,9 @@ class AzureDataParser(Collector):
             if resource_type == "disks":
                 mount_point = check.collector_args.get("mount_point", "")
                 property = check.collector_args.get("property", "")
-
-            return "ERROR: Unsupported resource type"
+                return self.parse_disks_vars(filesystem_data, disks_metadata, mount_point, property)
+            else:
+                return "ERROR: Unsupported resource type"
 
         except Exception as ex:
             self.parent.handle_error(ex)
