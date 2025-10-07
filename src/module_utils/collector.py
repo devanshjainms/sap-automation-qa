@@ -378,7 +378,37 @@ class FileSystemCollector(Collector):
                 "findmnt -r -n -o TARGET,SOURCE,FSTYPE,OPTIONS", shell_command=True
             ).strip()
             df_output = self.parent.execute_command_subprocess("df -BG", shell_command=True).strip()
-            azure_disk_data = context.get("azure_disks_metadata", [])
+             # Handle azure_disk_data
+            azure_disk_raw = context.get("azure_disks_metadata", [])
+            azure_disk_data = []
+            if azure_disk_raw:
+                if isinstance(azure_disk_raw, list):
+                    for item in azure_disk_raw:
+                        if isinstance(item, dict):
+                            azure_disk_data.append(item)
+                        elif isinstance(item, str):
+                            try:
+                                azure_disk_data.append(json.loads(item))
+                            except json.JSONDecodeError:
+                                self.parent.log(
+                                    logging.WARNING,
+                                    f"Failed to parse Azure disk data: {item}",
+                                )
+                elif isinstance(azure_disk_raw, dict):
+                    azure_disk_data = [azure_disk_raw]
+                elif isinstance(azure_disk_raw, str):
+                    try:
+                        azure_disk_data = json.loads(azure_disk_raw)
+                    except json.JSONDecodeError:
+                        for line in azure_disk_raw.splitlines():
+                            if line.strip():
+                                try:
+                                    azure_disk_data.append(json.loads(line.strip()))
+                                except json.JSONDecodeError:
+                                    self.parent.log(
+                                        logging.WARNING,
+                                        f"Failed to parse Azure disk line: {line.strip()}",
+                                    )
             afs_storage_raw = context.get("afs_storage_metadata", "")
             afs_storage_data = []
             if afs_storage_raw:
