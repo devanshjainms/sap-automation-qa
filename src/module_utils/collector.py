@@ -406,9 +406,15 @@ class FileSystemCollector(Collector):
                 vol_groups = lvm_volume.get("vg", [])
                 for vol_group in vol_groups:
                     vg_name = vol_group.get("vg_name")
+                    pv_count = vol_group.get("pv_count", 0)
+                    try:
+                        pv_count = int(pv_count) if pv_count else 0
+                    except (ValueError, TypeError):
+                        pv_count = 0
+
                     lvm_group_result[vg_name] = {
                         "name": vg_name,
-                        "disks": vol_group.get("pv_count", 0),
+                        "disks": pv_count,
                         "logical_volumes": vol_group.get("lv_count", 0),
                         "total_size": vol_group.get("vg_size"),
                         "total_iops": 0,
@@ -420,11 +426,12 @@ class FileSystemCollector(Collector):
 
                 for lv in logical_volumes:
                     lv_name = lv.get("lv_name")
-                    vg_name = (
-                        lv.get("lv_full_name", "").split("/")[0]
-                        if "/" in lv.get("lv_full_name", "")
-                        else ""
-                    )
+                    vg_name = ""
+                    if lv.get("lv_full_name") and "/" in lv.get("lv_full_name", ""):
+                        vg_name = lv.get("lv_full_name", "").split("/")[0]
+                    elif lv.get("vg_name"):
+                        vg_name = lv.get("vg_name")
+
                     stripe_size, stripes = "", ""
                     lv_uuid = lv.get("lv_uuid")
                     for segment in segments:
@@ -433,7 +440,7 @@ class FileSystemCollector(Collector):
                             stripe_size = segment.get("stripe_size", "")
                             break
 
-                    if vg_name != "rootvg":
+                    if vg_name and vg_name != "rootvg":
                         log_volume_result[lv_name] = {
                             "name": lv_name,
                             "vg_name": vg_name,
