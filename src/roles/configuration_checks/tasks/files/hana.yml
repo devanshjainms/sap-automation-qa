@@ -1038,7 +1038,7 @@ checks:
     collector_type:                     *azure
     collector_args:
       resource_type:                    "disks"
-      property:                         "max_mbps"
+      property:                         "mbps"
       mount_point:                      "/hana/data"
     validator_type:                     *range
     validator_args:
@@ -1065,7 +1065,7 @@ checks:
     collector_type:                     *azure
     collector_args:
       resource_type:                    "disks"
-      property:                         "max_iops"
+      property:                         "iops"
       mount_point:                      "/hana/data"
     validator_type:                     *range
     validator_args:

@@ -150,18 +150,21 @@ class AzureDataParser(Collector):
         """
         Parse the required property for given mount point from filesystem data and disks metadata.
 
-        :param filesystem_data: Filesystem data collected from the system
+        For LVM striped volumes, this aggregates metrics across all underlying disks.
+        For single disks, returns the metric for that disk.
+
+        :param filesystem_data: Filesystem data collected from the system (enriched by FileSystemCollector)
         :type filesystem_data: List[Dict[str, Any]]
         :param disks_metadata: Metadata about Azure disks (can be list of dicts/list of JSON string)
         :type disks_metadata: Union[List[Dict[str, Any]], List[str]]
         :param mount_point: Mount point to look for
         :type mount_point: str
-        :param property: Property to extract (e.g., size, type)
+        :param property: Property to extract (e.g., mbps, iops, size)
         :type property: str
-        :return: Parsed context with Azure parameters
+        :return: Aggregated property value or "N/A" if not found
         :rtype: str
         """
-        value = ""
+        value = "N/A"
         try:
             parsed_disks = []
             for disk in disks_metadata:
@@ -179,21 +182,72 @@ class AzureDataParser(Collector):
                 else:
                     self.parent.log(logging.WARNING, f"Unexpected disk metadata type: {type(disk)}")
 
+            if not parsed_disks:
+                self.parent.log(logging.WARNING, "No valid disk metadata found")
+                return value
+
+            fs_entry = None
             for fs in filesystem_data:
                 if fs.get("target") == mount_point:
-                    disk_name = fs.get("source")
-                    for disk in parsed_disks:
-                        if disk.get("name") == disk_name:
-                            value = disk.get(property, "N/A")
-                            break
-                    else:
-                        value = "N/A"
+                    fs_entry = fs
                     break
+
+            if not fs_entry:
+                self.parent.log(
+                    logging.WARNING, f"Mount point {mount_point} not found in filesystem data"
+                )
+                return value
+
+            if "azure_disk_names" in fs_entry and fs_entry["azure_disk_names"]:
+                total_value = 0
+                matched_disks = 0
+
+                for disk_name in fs_entry["azure_disk_names"]:
+                    disk = next((d for d in parsed_disks if d.get("name") == disk_name), None)
+                    if disk and property in disk:
+                        disk_value = disk.get(property, 0)
+                        try:
+                            total_value += float(disk_value) if disk_value else 0
+                            matched_disks += 1
+                        except (ValueError, TypeError):
+                            self.parent.log(
+                                logging.WARNING,
+                                f"Could not convert {property}={disk_value} to number for disk {disk_name}",
+                            )
+
+                if matched_disks > 0:
+                    value = str(int(total_value))
+                    self.parent.log(
+                        logging.INFO,
+                        f"Aggregated {property} for {mount_point}: {value} (from {matched_disks} disks)",
+                    )
+                else:
+                    self.parent.log(
+                        logging.WARNING,
+                        f"No matching disks found for {mount_point} with property {property}",
+                    )
             else:
-                value = "N/A"
+                disk_name = fs_entry.get("source")
+                disk = next((d for d in parsed_disks if d.get("name") == disk_name), None)
+                if not disk:
+                    device_name = disk_name.split("/")[-1] if "/" in disk_name else disk_name
+                    disk = next((d for d in parsed_disks if device_name in d.get("name", "")), None)
+                if disk and property in disk:
+                    value = str(disk.get(property, "N/A"))
+                    self.parent.log(
+                        logging.INFO,
+                        f"Found {property}={value} for {mount_point} from disk {disk.get('name')}",
+                    )
+                else:
+                    self.parent.log(
+                        logging.WARNING,
+                        f"Property '{property}' not found for mount point '{mount_point}' (source: {disk_name})",
+                    )
+
         except Exception as ex:
             self.parent.handle_error(ex)
             value = f"ERROR: Parsing failed: {str(ex)}"
+
         return value
 
     def collect(self, check, context) -> Any:
@@ -314,6 +368,23 @@ class FileSystemCollector(Collector):
                     vg_info = lvm_group.get(vg_name, {})
                     filesystem_entry["max_mbps"] = vg_info.get("total_mbps", 0)
                     filesystem_entry["max_iops"] = vg_info.get("total_iops", 0)
+
+                    pv_count = vg_info.get("disks", 0)
+                    if pv_count > 0:
+                        disk_groups = {}
+                        for disk in azure_disk_data:
+                            disk_size = disk.get("size", 0)
+                            if disk_size not in disk_groups:
+                                disk_groups[disk_size] = []
+                            disk_groups[disk_size].append(disk.get("name"))
+                        for size, disk_names in disk_groups.items():
+                            if len(disk_names) == pv_count:
+                                filesystem_entry["azure_disk_names"] = disk_names
+                                self.parent.log(
+                                    logging.INFO,
+                                    f"Heuristically matched {pv_count} disks of size {size}GB to VG {vg_name}",
+                                )
+                                break
 
             filesystems.append(filesystem_entry)
 

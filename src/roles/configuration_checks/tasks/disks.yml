@@ -45,12 +45,14 @@
   when:                             azure_disk_names is defined and azure_disk_names | length > 0
   register:                         azure_disks_metadata_results
   loop:                             "{{ azure_disk_names }}"
+  loop_control:
+    index_var:                      disk_index
   delegate_to:                      localhost
   ansible.builtin.shell: |
                                     az disk show --name {{ item }} \
                                     --subscription {{ compute_metadata.json.compute.subscriptionId }} \
                                     --resource-group {{ compute_metadata.json.compute.resourceGroupName }} \
-                                    --query "{name:name, sku:sku.name, size:sizeGb, encryption:encryption.type, iops:diskIOPSReadWrite, mbps:diskMBpsReadWrite, size:diskSizeGB}" --output json
+                                    --query "{name:name, sku:sku.name, size:sizeGb, encryption:encryption.type, iops:diskIOPSReadWrite, mbps:diskMBpsReadWrite, lun:{{ disks_metadata.json[disk_index].lun | default('null') }}}" --output json
 
 - name:                             Debug azure disks data collected
   when:                             azure_disks_metadata_results is defined
