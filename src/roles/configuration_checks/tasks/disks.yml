@@ -18,18 +18,21 @@
   ignore_errors:                    true
 
 - name:                             Collect mount information
+  become:                           true
   ansible.builtin.shell:
     cmd:                            findmnt -r -n -o TARGET,SOURCE,FSTYPE,OPTIONS
   register:                         mount_info
   changed_when:                     false
 
 - name:                             Collect disk usage information
+  become:                           true
   ansible.builtin.shell:
     cmd:                            df -BG
   register:                         df_info
   changed_when:                     false
 
 - name:                             LVM fullreport
+  become:                           true
   ansible.builtin.shell:
     cmd:                            /sbin/lvm fullreport --reportformat json
   register:                         lvm_fullreport
