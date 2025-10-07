@@ -303,19 +303,18 @@ class FileSystemCollector(Collector):
 
         return filesystems
 
-    def collect_lvm_volumes(self):
+    def collect_lvm_volumes(self, lvm_fullreport):
         """
         Collect LVM volume information.
+
+        :param lvm_fullreport: Pre-fetched LVM fullreport JSON string
+        :return: Tuple of logical volumes and volume groups
+        :rtype: Tuple[Dict[str, Any], Dict[str, Any]]
         """
         log_volume_result = {}
         lvm_group_result = {}
         try:
-            lvm_volumes = json.loads(
-                self.parent.execute_command_subprocess(
-                    "/sbin/lvm fullreport --reportformat json",
-                    shell_command=True,
-                ).strip()
-            )
+            lvm_volumes = lvm_fullreport
             for lvm_volume in lvm_volumes.get("report", []):
                 vol_groups = lvm_volume.get("vg", [])
                 for vol_group in vol_groups:
@@ -420,11 +419,11 @@ class FileSystemCollector(Collector):
         :rtype: Dict[str, Any]
         """
         try:
-            lvm_volumes, lvm_groups = self.collect_lvm_volumes()
-            findmnt_output = self.parent.execute_command_subprocess(
-                "findmnt -r -n -o TARGET,SOURCE,FSTYPE,OPTIONS", shell_command=True
-            ).strip()
-            df_output = self.parent.execute_command_subprocess("df -BG", shell_command=True).strip()
+            lvm_volumes, lvm_groups = self.collect_lvm_volumes(
+                lvm_fullreport=context.get("lvm_fullreport", "")
+            )
+            findmnt_output = context.get("mount_info", "")
+            df_output = context.get("df_info", "")
 
             azure_disk_data = self._parse_metadata(
                 context.get("azure_disks_metadata", []), "Azure disk"

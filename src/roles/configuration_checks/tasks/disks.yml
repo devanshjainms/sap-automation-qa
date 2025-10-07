@@ -17,6 +17,25 @@
   delay:                            2
   ignore_errors:                    true
 
+- name:                             Collect mount information
+  ansible.builtin.shell:
+    cmd:                            findmnt -r -n -o TARGET,SOURCE,FSTYPE,OPTIONS
+  register:                         mount_info
+  changed_when:                     false
+
+- name:                             Collect disk usage information
+  ansible.builtin.shell:
+    cmd:                            df -BG
+  register:                         df_info
+  changed_when:                     false
+
+- name:                             LVM fullreport
+  ansible.builtin.shell:
+    cmd:                            /sbin/lvm fullreport --reportformat json
+  register:                         lvm_fullreport
+  changed_when:                     false
+  failed_when:                      false
+
 - name:                             Extract disk names
   when:                             disks_metadata is not failed and disks_metadata.json is defined
   ansible.builtin.set_fact:
