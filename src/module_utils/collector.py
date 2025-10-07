@@ -192,11 +192,7 @@ class AzureDataParser(Collector):
             filesystem_data = context.get("filesystems", [])
             disks_metadata = context.get("azure_disks_metadata", {})
 
-            self.parent.log(
-                logging.INFO,
-                f"Filesystem data type: {type(filesystem_data)}, Count: {len(filesystem_data)}\n"
-                + f"Disks metadata type: {type(disks_metadata)}, Count: {len(disks_metadata)}",
-            )
+            self.parent.log(logging.INFO, f"Context in the Azure collector context: {context}\n")
 
             if resource_type == "disks":
                 mount_point = check.collector_args.get("mount_point", "")
