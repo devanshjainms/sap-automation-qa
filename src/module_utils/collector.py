@@ -152,8 +152,8 @@ class AzureDataParser(Collector):
 
         :param filesystem_data: Filesystem data collected from the system
         :type filesystem_data: List[Dict[str, Any]]
-        :param disks_metadata: Metadata about Azure disks
-        :type disks_metadata: Dict[str, Any]
+        :param disks_metadata: Metadata about Azure disks (can be list of dicts/list of JSON string)
+        :type disks_metadata: Union[List[Dict[str, Any]], List[str]]
         :param mount_point: Mount point to look for
         :type mount_point: str
         :param property: Property to extract (e.g., size, type)
@@ -163,10 +163,26 @@ class AzureDataParser(Collector):
         """
         value = ""
         try:
+            parsed_disks = []
+            for disk in disks_metadata:
+                if isinstance(disk, str):
+                    try:
+                        parsed_disks.append(json.loads(disk))
+                    except json.JSONDecodeError:
+                        self.parent.log(
+                            logging.WARNING,
+                            f"Failed to parse disk metadata JSON string: {disk[:100]}",
+                        )
+                        continue
+                elif isinstance(disk, dict):
+                    parsed_disks.append(disk)
+                else:
+                    self.parent.log(logging.WARNING, f"Unexpected disk metadata type: {type(disk)}")
+
             for fs in filesystem_data:
                 if fs.get("target") == mount_point:
                     disk_name = fs.get("source")
-                    for disk in disks_metadata:
+                    for disk in parsed_disks:
                         if disk.get("name") == disk_name:
                             value = disk.get(property, "N/A")
                             break
