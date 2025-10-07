@@ -80,8 +80,8 @@
       azure_disks_metadata:         "{{ azure_disks_metadata_results.results | default([]) | map(attribute='stdout') | list }}"
       anf_storage_metadata:         "{{ anf_storage_metadata_results.stdout | default({}) }}"
       afs_storage_metadata:         "{{ afs_storage_metadata_results.stdout | default({}) }}"
-      mount_info:                   "{{ mount_info.stdout_lines | default([]) }}"
-      df_info:                      "{{ df_info.stdout_lines | default([]) }}"
+      mount_info:                   "{{ mount_info.stdout | default([]) }}"
+      df_info:                      "{{ df_info.stdout | default([]) }}"
       lvm_fullreport:               "{{ lvm_fullreport.stdout | default('{}') | from_json }}"
 
 - name:                             Debug system context prepared
