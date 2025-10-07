@@ -192,6 +192,12 @@ class AzureDataParser(Collector):
             filesystem_data = context.get("filesystems", [])
             disks_metadata = context.get("azure_disks_metadata", {})
 
+            self.parent.log(
+                logging.INFO,
+                f"Filesystem data type: {type(filesystem_data)}, Count: {len(filesystem_data)}\n"
+                + f"Disks metadata type: {type(disks_metadata)}, Count: {len(disks_metadata)}",
+            )
+
             if resource_type == "disks":
                 mount_point = check.collector_args.get("mount_point", "")
                 property = check.collector_args.get("property", "")
@@ -361,6 +367,51 @@ class FileSystemCollector(Collector):
             return f"ERROR: LVM volume collection failed: {str(ex)}"
         return log_volume_result, lvm_group_result
 
+    def _parse_metadata(self, raw_data, data_type="metadata"):
+        """
+        Parse metadata that can be in various formats: dict, list, or JSON strings.
+
+        :param raw_data: Raw metadata from context
+        :param data_type: Type of data for logging purposes
+        :return: List of dictionaries
+        """
+        parsed_data = []
+
+        if not raw_data:
+            return parsed_data
+
+        if isinstance(raw_data, list):
+            for item in raw_data:
+                if isinstance(item, dict):
+                    parsed_data.append(item)
+                elif isinstance(item, str):
+                    try:
+                        parsed_data.append(json.loads(item))
+                    except json.JSONDecodeError:
+                        self.parent.log(
+                            logging.WARNING,
+                            f"Failed to parse {data_type} item: {item}",
+                        )
+        elif isinstance(raw_data, dict):
+            parsed_data = [raw_data]
+        elif isinstance(raw_data, str):
+            try:
+                parsed_data = json.loads(raw_data)
+                if not isinstance(parsed_data, list):
+                    parsed_data = [parsed_data]
+            except json.JSONDecodeError:
+                for line in raw_data.splitlines():
+                    if line.strip():
+                        try:
+                            parsed_data.append(json.loads(line.strip()))
+                        except json.JSONDecodeError:
+                            self.parent.log(
+                                logging.WARNING,
+                                f"Failed to parse {data_type} line: {line.strip()}",
+                            )
+
+        return parsed_data
+
     def collect(self, check, context) -> Any:
         """
         Collect filesystem information exactly like PowerShell CollectFileSystems
@@ -378,86 +429,24 @@ class FileSystemCollector(Collector):
                 "findmnt -r -n -o TARGET,SOURCE,FSTYPE,OPTIONS", shell_command=True
             ).strip()
             df_output = self.parent.execute_command_subprocess("df -BG", shell_command=True).strip()
-             # Handle azure_disk_data
-            azure_disk_raw = context.get("azure_disks_metadata", [])
-            azure_disk_data = []
-            if azure_disk_raw:
-                if isinstance(azure_disk_raw, list):
-                    for item in azure_disk_raw:
-                        if isinstance(item, dict):
-                            azure_disk_data.append(item)
-                        elif isinstance(item, str):
-                            try:
-                                azure_disk_data.append(json.loads(item))
-                            except json.JSONDecodeError:
-                                self.parent.log(
-                                    logging.WARNING,
-                                    f"Failed to parse Azure disk data: {item}",
-                                )
-                elif isinstance(azure_disk_raw, dict):
-                    azure_disk_data = [azure_disk_raw]
-                elif isinstance(azure_disk_raw, str):
-                    try:
-                        azure_disk_data = json.loads(azure_disk_raw)
-                    except json.JSONDecodeError:
-                        for line in azure_disk_raw.splitlines():
-                            if line.strip():
-                                try:
-                                    azure_disk_data.append(json.loads(line.strip()))
-                                except json.JSONDecodeError:
-                                    self.parent.log(
-                                        logging.WARNING,
-                                        f"Failed to parse Azure disk line: {line.strip()}",
-                                    )
-            afs_storage_raw = context.get("afs_storage_metadata", "")
-            afs_storage_data = []
-            if afs_storage_raw:
-                if isinstance(afs_storage_raw, list):
-                    afs_storage_data = afs_storage_raw
-                elif isinstance(afs_storage_raw, dict):
-                    afs_storage_data = [afs_storage_raw]
-                elif isinstance(afs_storage_raw, str):
-                    try:
-                        afs_storage_data = json.loads(afs_storage_raw)
-                    except json.JSONDecodeError:
-                        for line in afs_storage_raw.splitlines():
-                            if line.strip():
-                                try:
-                                    afs_storage_data.append(json.loads(line.strip()))
-                                except json.JSONDecodeError:
-                                    self.parent.log(
-                                        logging.WARNING,
-                                        f"Failed to parse line in AFS storage metadata: {line.strip()}",
-                                    )
 
-            # Handle anf_storage_data
-            anf_storage_raw = context.get("anf_storage_metadata", "")
-            anf_storage_data = []
-            if anf_storage_raw:
-                if isinstance(anf_storage_raw, list):
-                    anf_storage_data = anf_storage_raw
-                elif isinstance(anf_storage_raw, dict):
-                    anf_storage_data = [anf_storage_raw]
-                elif isinstance(anf_storage_raw, str):
-                    try:
-                        anf_storage_data = json.loads(anf_storage_raw)
-                    except json.JSONDecodeError:
-                        for line in anf_storage_raw.splitlines():
-                            if line.strip():
-                                try:
-                                    anf_storage_data.append(json.loads(line.strip()))
-                                except json.JSONDecodeError:
-                                    self.parent.log(
-                                        logging.WARNING,
-                                        f"Failed to parse line in ANF storage metadata: {line.strip()}",
-                                    )
+            azure_disk_data = self._parse_metadata(
+                context.get("azure_disks_metadata", []), "Azure disk"
+            )
+            afs_storage_data = self._parse_metadata(
+                context.get("afs_storage_metadata", ""), "AFS storage"
+            )
+            anf_storage_data = self._parse_metadata(
+                context.get("anf_storage_metadata", ""), "ANF storage"
+            )
+
             self.parent.log(
                 logging.INFO,
                 f"findmnt_output: {findmnt_output}\n"
                 f"df_output: {df_output}\n"
-                f"Type: {type(azure_disk_data)}, Content: {azure_disk_data}\n"
-                f"Type: {type(anf_storage_data)}, Content: {anf_storage_data}\n"
-                f"Type: {type(afs_storage_data)}, Content: {afs_storage_data}",
+                f"Azure disk data type: {type(azure_disk_data)}, Count: {len(azure_disk_data)}\n"
+                f"ANF storage data type: {type(anf_storage_data)}, Count: {len(anf_storage_data)}\n"
+                f"AFS storage data type: {type(afs_storage_data)}, Count: {len(afs_storage_data)}",
             )
 
             filesystems = self._parse_filesystem_data(
