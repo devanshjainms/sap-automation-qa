@@ -379,31 +379,48 @@ class FileSystemCollector(Collector):
             ).strip()
             df_output = self.parent.execute_command_subprocess("df -BG", shell_command=True).strip()
             azure_disk_data = context.get("azure_disks_metadata", [])
-            afs_storage_data, anf_storage_data = [], []
-            try:
-                afs_storage_data = json.loads(context.get("afs_storage_metadata", "{}"))
-            except Exception as ex:
-                for line in context.get("afs_storage_metadata", "").splitlines():
-                    if line.strip():
-                        try:
-                            afs_storage_data.append(json.loads(line.strip()))
-                        except json.JSONDecodeError:
-                            self.parent.log(
-                                logging.WARNING,
-                                f"Failed to parse line in AFS storage metadata: {line.strip()}",
-                            )
-            try:
-                anf_storage_data = json.loads(context.get("anf_storage_metadata", "{}"))
-            except Exception as ex:
-                for line in context.get("anf_storage_metadata", "").splitlines():
-                    if line.strip():
-                        try:
-                            anf_storage_data.append(json.loads(line.strip()))
-                        except json.JSONDecodeError:
-                            self.parent.log(
-                                logging.WARNING,
-                                f"Failed to parse line in ANF storage metadata: {line.strip()}",
-                            )
+            afs_storage_raw = context.get("afs_storage_metadata", "")
+            afs_storage_data = []
+            if afs_storage_raw:
+                if isinstance(afs_storage_raw, list):
+                    afs_storage_data = afs_storage_raw
+                elif isinstance(afs_storage_raw, dict):
+                    afs_storage_data = [afs_storage_raw]
+                elif isinstance(afs_storage_raw, str):
+                    try:
+                        afs_storage_data = json.loads(afs_storage_raw)
+                    except json.JSONDecodeError:
+                        for line in afs_storage_raw.splitlines():
+                            if line.strip():
+                                try:
+                                    afs_storage_data.append(json.loads(line.strip()))
+                                except json.JSONDecodeError:
+                                    self.parent.log(
+                                        logging.WARNING,
+                                        f"Failed to parse line in AFS storage metadata: {line.strip()}",
+                                    )
+
+            # Handle anf_storage_data
+            anf_storage_raw = context.get("anf_storage_metadata", "")
+            anf_storage_data = []
+            if anf_storage_raw:
+                if isinstance(anf_storage_raw, list):
+                    anf_storage_data = anf_storage_raw
+                elif isinstance(anf_storage_raw, dict):
+                    anf_storage_data = [anf_storage_raw]
+                elif isinstance(anf_storage_raw, str):
+                    try:
+                        anf_storage_data = json.loads(anf_storage_raw)
+                    except json.JSONDecodeError:
+                        for line in anf_storage_raw.splitlines():
+                            if line.strip():
+                                try:
+                                    anf_storage_data.append(json.loads(line.strip()))
+                                except json.JSONDecodeError:
+                                    self.parent.log(
+                                        logging.WARNING,
+                                        f"Failed to parse line in ANF storage metadata: {line.strip()}",
+                                    )
             self.parent.log(
                 logging.INFO,
                 f"findmnt_output: {findmnt_output}\n"
