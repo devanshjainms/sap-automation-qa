@@ -58,10 +58,9 @@
   ansible.builtin.set_fact:
     device_lun_map: >-
                                     {{
-                                      device_lun_mapping_raw.stdout_lines
+                                      dict(device_lun_mapping_raw.stdout_lines
                                       | map('split', ':')
-                                      | map('list')
-                                      | items2dict
+                                      | map('list'))
                                     }}
   when:                             device_lun_mapping_raw is defined and device_lun_mapping_raw.stdout_lines | length > 0
 
