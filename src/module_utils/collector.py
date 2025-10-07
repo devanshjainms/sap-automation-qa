@@ -293,8 +293,16 @@ class FileSystemCollector(Collector):
         azure_disk_data,
         anf_storage_data,
         afs_storage_data,
+        vg_to_disk_names=None,
     ):
-        """Parse filesystem data like PowerShell script does"""
+        """
+        Parse filesystem data like PowerShell script does.
+
+        :param vg_to_disk_names: Pre-computed mapping of VG names to Azure disk names
+        :type vg_to_disk_names: Dict[str, List[str]]
+        """
+        if vg_to_disk_names is None:
+            vg_to_disk_names = {}
         filesystems = []
         findmnt_data = {}
         df_data = {}
@@ -365,30 +373,89 @@ class FileSystemCollector(Collector):
                             filesystem_entry["max_iops"] = disk_data.get("iops", 0)
                             break
                 elif filesystem_path.startswith("/dev/mapper/") and vg_name:
-                    vg_info = lvm_group.get(vg_name, {})
-                    filesystem_entry["max_mbps"] = vg_info.get("total_mbps", 0)
-                    filesystem_entry["max_iops"] = vg_info.get("total_iops", 0)
+                    disk_names = vg_to_disk_names.get(vg_name, [])
 
-                    pv_count = vg_info.get("disks", 0)
-                    if pv_count > 0:
-                        disk_groups = {}
-                        for disk in azure_disk_data:
-                            disk_size = disk.get("size", 0)
-                            if disk_size not in disk_groups:
-                                disk_groups[disk_size] = []
-                            disk_groups[disk_size].append(disk.get("name"))
-                        for size, disk_names in disk_groups.items():
-                            if len(disk_names) == pv_count:
-                                filesystem_entry["azure_disk_names"] = disk_names
-                                self.parent.log(
-                                    logging.INFO,
-                                    f"Heuristically matched {pv_count} disks of size {size}GB to VG {vg_name}",
-                                )
-                                break
+                    if disk_names:
+                        filesystem_entry["azure_disk_names"] = disk_names
+                        self.parent.log(
+                            logging.INFO,
+                            f"Mapped VG {vg_name} to {len(disk_names)} Azure disks: {disk_names}",
+                        )
+                    else:
+                        self.parent.log(
+                            logging.WARNING,
+                            f"No disk mapping found for VG {vg_name}. Ensure device-to-lun mapping is available.",
+                        )
 
             filesystems.append(filesystem_entry)
 
         return filesystems
+
+    def _map_vg_to_disk_names(self, lvm_fullreport, imds_metadata, device_lun_map):
+        """
+        Map LVM volume groups to Azure disk names using direct device→lun→diskname correlation.
+
+        Chain: PV device (/dev/sdc) → LUN (0) → disk name (via IMDS) → Azure disk
+
+        :param lvm_fullreport: LVM fullreport JSON with PV information
+        :param imds_metadata: IMDS metadata with lun-to-diskname mappings
+        :param device_lun_map: Mapping of device names to LUN numbers (e.g., {"sdc": "0"})
+        :return: Dict mapping VG names to lists of Azure disk names
+        :rtype: Dict[str, List[str]]
+        """
+        vg_to_disk_names = {}
+
+        try:
+            lun_to_diskname = {}
+            for disk_info in imds_metadata:
+                lun = disk_info.get("lun")
+                name = disk_info.get("name")
+                if lun is not None and name:
+                    lun_to_diskname[str(lun)] = name
+
+            self.parent.log(
+                logging.DEBUG,
+                f"IMDS lun→diskname: {lun_to_diskname}",
+            )
+            for report in lvm_fullreport.get("report", []):
+                pvs = report.get("pv", [])
+                for pv in pvs:
+                    pv_name = pv.get("pv_name")
+                    vg_name = pv.get("vg_name")
+
+                    if not pv_name or not vg_name:
+                        continue
+                    device_name = pv_name.split("/")[-1] if "/" in pv_name else pv_name
+                    lun = device_lun_map.get(device_name)
+                    if lun is None:
+                        self.parent.log(
+                            logging.WARNING,
+                            f"No LUN mapping found for device {device_name} (PV: {pv_name})",
+                        )
+                        continue
+                    disk_name = lun_to_diskname.get(str(lun))
+                    if not disk_name:
+                        self.parent.log(
+                            logging.WARNING,
+                            f"No IMDS entry for LUN {lun} (device: {device_name})",
+                        )
+                        continue
+                    if vg_name not in vg_to_disk_names:
+                        vg_to_disk_names[vg_name] = []
+                    vg_to_disk_names[vg_name].append(disk_name)
+
+                    self.parent.log(
+                        logging.DEBUG,
+                        f"Mapped: {pv_name} → LUN {lun} → {disk_name} (VG: {vg_name})",
+                    )
+
+        except Exception as ex:
+            self.parent.log(
+                logging.ERROR,
+                f"Failed to map VG to disk names: {ex}",
+            )
+
+        return vg_to_disk_names
 
     def collect_lvm_volumes(self, lvm_fullreport):
         """
@@ -513,9 +580,9 @@ class FileSystemCollector(Collector):
         :rtype: Dict[str, Any]
         """
         try:
-            lvm_volumes, lvm_groups = self.collect_lvm_volumes(
-                lvm_fullreport=context.get("lvm_fullreport", "")
-            )
+            lvm_fullreport = context.get("lvm_fullreport", "")
+            lvm_volumes, lvm_groups = self.collect_lvm_volumes(lvm_fullreport)
+
             findmnt_output = context.get("mount_info", "")
             df_output = context.get("df_info", "")
 
@@ -528,14 +595,31 @@ class FileSystemCollector(Collector):
             anf_storage_data = self._parse_metadata(
                 context.get("anf_storage_metadata", ""), "ANF storage"
             )
+            imds_metadata = self._parse_metadata(
+                context.get("imds_disks_metadata", []), "IMDS disk"
+            )
+
+            device_lun_map = context.get("device_lun_map", {})
+            vg_to_disk_names = {}
+            if device_lun_map and imds_metadata:
+                vg_to_disk_names = self._map_vg_to_disk_names(
+                    lvm_fullreport, imds_metadata, device_lun_map
+                )
+            elif imds_metadata:
+                self.parent.log(
+                    logging.WARNING,
+                    "device_lun_map not found in context. LVM disk mapping may be incomplete.",
+                )
 
             self.parent.log(
                 logging.INFO,
                 f"findmnt_output: {findmnt_output}\n"
                 f"df_output: {df_output}\n"
                 f"Azure disk data type: {type(azure_disk_data)}, Count: {len(azure_disk_data)}\n"
+                f"IMDS metadata type: {type(imds_metadata)}, Count: {len(imds_metadata)}\n"
                 f"ANF storage data type: {type(anf_storage_data)}, Count: {len(anf_storage_data)}\n"
-                f"AFS storage data type: {type(afs_storage_data)}, Count: {len(afs_storage_data)}",
+                f"AFS storage data type: {type(afs_storage_data)}, Count: {len(afs_storage_data)}\n"
+                f"VG→disk_names mapping: {vg_to_disk_names}",
             )
 
             filesystems = self._parse_filesystem_data(
@@ -546,6 +630,7 @@ class FileSystemCollector(Collector):
                 azure_disk_data=azure_disk_data,
                 anf_storage_data=anf_storage_data,
                 afs_storage_data=afs_storage_data,
+                vg_to_disk_names=vg_to_disk_names,
             )
 
             self.parent.log(

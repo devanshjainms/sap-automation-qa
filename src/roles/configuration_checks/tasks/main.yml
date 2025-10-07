@@ -78,6 +78,7 @@
                                       "AFA"
                                     {% endif %}
       imds_disks_metadata:          "{{ disks_metadata.json | default([]) }}"
+      device_lun_map:               "{{ device_lun_map | default({}) }}"
       azure_disks_metadata:         "{{ azure_disks_metadata_results.results | default([]) | map(attribute='stdout') | list }}"
       anf_storage_metadata:         "{{ anf_storage_metadata_results.stdout | default({}) }}"
       afs_storage_metadata:         "{{ afs_storage_metadata_results.stdout | default({}) }}"

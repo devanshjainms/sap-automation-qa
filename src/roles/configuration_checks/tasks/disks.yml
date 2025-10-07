@@ -39,6 +39,41 @@
   changed_when:                     false
   failed_when:                      false
 
+- name:                             Collect device-to-lun mapping from Azure symlinks
+  become:                           true
+  ansible.builtin.shell:
+    cmd: |
+                                    for lun_link in /dev/disk/azure/scsi1/lun*; do
+                                      if [ -L "$lun_link" ]; then
+                                        lun=$(basename "$lun_link" | sed 's/lun//')
+                                        device=$(readlink -f "$lun_link" | xargs basename)
+                                        echo "${device}:${lun}"
+                                      fi
+                                    done
+  register:                         device_lun_mapping_raw
+  changed_when:                     false
+  failed_when:                      false
+
+- name:                             Parse device-to-lun mapping into dictionary
+  ansible.builtin.set_fact:
+    device_lun_map: >-
+                                    {{
+                                      device_lun_mapping_raw.stdout_lines
+                                      | map('split', ':')
+                                      | map('list')
+                                      | items2dict
+                                    }}
+  when:                             device_lun_mapping_raw is defined and device_lun_mapping_raw.stdout_lines | length > 0
+
+- name:                             Set empty device_lun_map if no mapping found
+  ansible.builtin.set_fact:
+    device_lun_map:                 {}
+  when:                             device_lun_mapping_raw is not defined or device_lun_mapping_raw.stdout_lines | length == 0
+
+- name:                             Debug device-to-lun mapping
+  ansible.builtin.debug:
+    var:                            device_lun_map
+
 - name:                             Extract disk names
   when:                             disks_metadata is not failed and disks_metadata.json is defined
   ansible.builtin.set_fact:
