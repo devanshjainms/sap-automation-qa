@@ -379,7 +379,7 @@ checks:
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "/sbin/chkconfig 2> /dev/null"
+      command:                        "systemctl list-unit-files 2> /dev/null"
       user:                           *root
     report:                           *section
 
