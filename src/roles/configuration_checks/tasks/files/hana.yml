@@ -996,7 +996,6 @@ checks:
     validator_type:                     *range
     validator_args:
       min:                              "4096"
-      max:                              "999999"
     report:                             *check
     references:
       sap:                              "2972496"
@@ -1021,7 +1020,6 @@ checks:
     validator_type:                     *range
     validator_args:
       min:                              "4096"
-      max:                              "999999"
     report:                             *check
     references:
       sap:                              "2972496"
@@ -1047,7 +1045,6 @@ checks:
     validator_type:                     *range
     validator_args:
       min:                              "400"
-      max:                              "999999"
     report:                             *check
     references:
       sap:                              "2972496"
@@ -1074,7 +1071,6 @@ checks:
     validator_type:                     *range
     validator_args:
       min:                              "7000"
-      max:                              "999999"
     report:                             *check
     references:
       sap:                              "2972496"

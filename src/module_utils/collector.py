@@ -263,6 +263,9 @@ class AzureDataParser(Collector):
         then parses it according to the check requirements.
         """
         try:
+            command = check.collector_args.get("command", "")
+            if command:
+                return CommandCollector(self.parent).collect(check, context)
             resource_type = check.collector_args.get("resource_type", "")
             filesystem_data = context.get("filesystems", [])
             disks_metadata = context.get("azure_disks_metadata", {})
