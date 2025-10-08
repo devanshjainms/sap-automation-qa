@@ -853,8 +853,8 @@ checks:
       sap:                              "2972496"
 
   - id:                                 DB-HANA-0034
-    name:                               "Stripe size for /hana/data LVM"
-    description:                        "The stripe size for /hana/data LVM should be 256 KB"
+    name:                               "Stripe size for /hana/data"
+    description:                        "The stripe size for /hana/data should be 256k (256.00k or 262144 bytes)"
     category:                           *sap_check
     severity:                           *high
     workload:                           *sap
@@ -865,16 +865,18 @@ checks:
       storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
-    collector_type:                     *command
+    collector_type:                     *azure
     collector_args:
-      command:                          "LV=$(df /hana/data | tail -1 | awk '{print $1}'); if [[ $LV == /dev/mapper/* ]] || [[ $LV == /dev/* ]]; then lvs -o stripesize --units k --noheadings $LV 2>/dev/null | awk '{print $1}' | sed 's/k//' || echo 'N/A'; else echo 'N/A'; fi"
-      user:                             *root
+      resource_type:                    "disks"
+      property:                         "stripe_size"
+      mount_point:                      "/hana/data"
     validator_type:                     *string
     validator_args:
-      expected_output:                  "256.00"
+      expected:                         "256.00"
     report:                             *check
     references:
       sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
   - id:                                 DB-HANA-0035
     name:                               "Filesystem type for /hana/log"
@@ -901,8 +903,8 @@ checks:
       sap:                              "2972496"
 
   - id:                                 DB-HANA-0036
-    name:                               "Stripe size for /hana/log LVM"
-    description:                        "The stripe size for /hana/log LVM should be 32 KB"
+    name:                               "Stripe size for /hana/log"
+    description:                        "The stripe size for /hana/log should be 256k (256.00k or 262144 bytes)"
     category:                           *sap_check
     severity:                           *high
     workload:                           *sap
@@ -913,16 +915,18 @@ checks:
       storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
-    collector_type:                     *command
+    collector_type:                     *azure
     collector_args:
-      command:                          "LV=$(df /hana/log | tail -1 | awk '{print $1}'); if [[ $LV == /dev/mapper/* ]] || [[ $LV == /dev/* ]]; then lvs -o stripesize --units k --noheadings $LV 2>/dev/null | awk '{print $1}' | sed 's/k//' || echo 'N/A'; else echo 'N/A'; fi"
-      user:                             *root
+      resource_type:                    "disks"
+      property:                         "stripe_size"
+      mount_point:                      "/hana/log"
     validator_type:                     *string
     validator_args:
-      expected_output:                  "32"
+      expected:                         "256.00k"
     report:                             *check
     references:
       sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
   - id:                                 DB-HANA-0037
     name:                               "Filesystem type for /hana/shared"
@@ -1077,8 +1081,8 @@ checks:
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
   - id:                                 DB-HANA-0043
-    name:                               "Stripe size for /hana/data"
-    description:                        "The stripe size for /hana/data should be 256k (256.00k or 262144 bytes)"
+    name:                               "Disk performance for /hana/log (MBPS)"
+    description:                        "The disk performance for /hana/log should be >= 250 MByte/s"
     category:                           *sap_check
     severity:                           *high
     workload:                           *sap
@@ -1092,11 +1096,37 @@ checks:
     collector_type:                     *azure
     collector_args:
       resource_type:                    "disks"
-      property:                         "stripe_size"
-      mount_point:                      "/hana/data"
-    validator_type:                     *string
+      property:                         "mbps"
+      mount_point:                      "/hana/log"
+    validator_type:                     *range
     validator_args:
-      expected:                         "256.00k"
+      min:                              "250"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 DB-HANA-0044
+    name:                               "Disk performance for /hana/log (IOPS)"
+    description:                        "The disk performance for /hana/log should be >= 7000 IOPS"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disks"
+      property:                         "iops"
+      mount_point:                      "/hana/log"
+    validator_type:                     *range
+    validator_args:
+      min:                              "2000"
     report:                             *check
     references:
       sap:                              "2972496"
