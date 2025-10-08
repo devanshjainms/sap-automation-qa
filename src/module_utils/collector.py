@@ -431,19 +431,34 @@ class FileSystemCollector(Collector):
             
             for report in reports:
                 pvs = report.get("pv", [])
+                vgs = report.get("vg", [])
+                
+                # Extract VG names from this report (each report typically has one VG)
+                vg_names = [vg.get("vg_name") for vg in vgs if vg.get("vg_name")]
+                
                 self.parent.log(
                     logging.INFO,
-                    f"Processing report with {len(pvs)} PVs",
+                    f"Processing report with {len(pvs)} PVs and {len(vg_names)} VGs: {vg_names}",
                 )
+                
+                # If no VG found in this report, skip
+                if not vg_names:
+                    self.parent.log(
+                        logging.WARNING,
+                        f"Report has PVs but no VG names found, skipping",
+                    )
+                    continue
+                
+                # Use the first VG name (typically each report corresponds to one VG)
+                vg_name = vg_names[0]
                 
                 for pv in pvs:
                     pv_name = pv.get("pv_name")
-                    vg_name = pv.get("vg_name")
 
-                    if not pv_name or not vg_name:
+                    if not pv_name:
                         self.parent.log(
                             logging.INFO,
-                            f"Skipping PV with missing name or VG: pv_name={pv_name}, vg_name={vg_name}",
+                            f"Skipping PV with missing pv_name",
                         )
                         continue
                     
@@ -473,7 +488,7 @@ class FileSystemCollector(Collector):
 
                     self.parent.log(
                         logging.INFO,
-                        f"Mapped: {pv_name} → LUN {lun} → {disk_name} (VG: {vg_name})",
+                        f"✓ Mapped: {pv_name} → LUN {lun} → {disk_name} (VG: {vg_name})",
                     )
 
         except Exception as ex:
