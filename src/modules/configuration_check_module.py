@@ -604,10 +604,14 @@ class ConfigurationCheckModule(SapAutomationQA):
                 if isinstance(valid_list, list) and valid_list:
                     expected_value = ", ".join(str(v) for v in valid_list)
             elif check.validator_type == "properties":
-                props = check.validator_args.get("properties", {})
-                if isinstance(props, dict) and props:
+                props = check.validator_args.get("properties", [])
+                if isinstance(props, list) and props:
                     expected_value = ", ".join(
-                        [f"{k}:{v}" for k, v in props.items() if v is not None]
+                        [
+                            f"{prop.get('name', prop.get('property', ''))}:{prop.get('value', '')}"
+                            for prop in props
+                            if isinstance(prop, dict)
+                        ]
                     )
             else:
                 expected_value = check.validator_args.get(
