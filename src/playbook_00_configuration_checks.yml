@@ -115,6 +115,20 @@
                                         (configuration_test_type == 'all' or
                                           configuration_test_type == 'Database')
 
+    - name:                             "Run filesystem role-specific checks for DB hosts"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      vars:
+        check_type:
+          name:                         "Filesystem (HANA) Checks"
+          file_name:                    "filesystem"
+          checks_var:                   "filesystem_hana_checks"
+          results_var:                  "filesystem_hana_results"
+      when:                             >-
+                                        role == 'DB' and
+                                        (configuration_test_type == 'all' or
+                                          configuration_test_type == 'Database')
+
     - name:                             "Debug DB checks execution"
       ansible.builtin.debug:
         msg:                            "Executing Database (HANA) checks on host {{ inventory_hostname }}"
