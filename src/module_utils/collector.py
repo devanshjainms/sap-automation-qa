@@ -61,7 +61,7 @@ class Collector(ABC):
             if re.search(pattern, command, re.IGNORECASE):
                 self.parent.log(logging.ERROR, f"Dangerous command pattern detected: {pattern}")
                 raise ValueError(f"Command contains potentially dangerous pattern: {pattern}")
-        if len(command) > 1000:
+        if len(command) > 3000:
             self.parent.log(logging.ERROR, f"Command too long: {len(command)} chars")
             raise ValueError("Command exceeds maximum length of 1000 characters")
 
