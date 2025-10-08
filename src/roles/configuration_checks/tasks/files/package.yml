@@ -279,7 +279,7 @@ checks:
     name:                             "Microsoft Defender Release Ring"
     description:                      "Checks if Microsoft Defender for Linux is using the production release ring"
     category:                         *package_check
-    severity:                         *high
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -302,7 +302,7 @@ checks:
     name:                             "Microsoft Defender Realtime Protection"
     description:                      "Checks if Microsoft Defender for Linux has realtime protection disabled"
     category:                         *package_check
-    severity:                         *high
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -325,7 +325,7 @@ checks:
     name:                             "Microsoft Defender Automatic Definition Update"
     description:                      "Checks if Microsoft Defender for Linux has automatic definition updates enabled"
     category:                         *package_check
-    severity:                         *high
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -371,7 +371,7 @@ checks:
     name:                             "Microsoft Defender EDR Early Preview"
     description:                      "Checks if Microsoft Defender for Linux has EDR early preview disabled"
     category:                         *package_check
-    severity:                         *high
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -394,7 +394,7 @@ checks:
     name:                             "Microsoft Defender Conflicting Applications"
     description:                      "Checks if Microsoft Defender for Linux has no conflicting applications"
     category:                         *package_check
-    severity:                         *high
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]
@@ -417,7 +417,7 @@ checks:
     name:                             "Microsoft Defender Supplementary Events Subsystem"
     description:                      "Checks if Microsoft Defender for Linux is using the eBPF subsystem"
     category:                         *package_check
-    severity:                         *high
+    severity:                         *low
     workload:                         *sap
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux]

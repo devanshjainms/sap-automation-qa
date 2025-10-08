@@ -872,7 +872,7 @@ checks:
       mount_point:                      "/hana/data"
     validator_type:                     *string
     validator_args:
-      expected:                         "256.00"
+      expected:                         "256.00k"
     report:                             *check
     references:
       sap:                              "2972496"
