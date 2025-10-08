@@ -136,6 +136,11 @@
       ansible.builtin.debug:
         msg:                        "Command-based configuration checks failed {{ command_check_results.msg }}"
 
+- name:                             Debug the logs from configuration check python module
+  when:                             command_check_results is defined and command_check_results.log is defined
+  ansible.builtin.debug:
+    msg:                            "{{ command_check_results.log }}"
+
 - name:                             Execute Azure-based configuration checks
   when:                             azure_checks is defined and azure_checks | length > 0
   block:
@@ -159,6 +164,11 @@
     - name:                         Log Azure check failure
       ansible.builtin.debug:
         msg:                        "Azure-based configuration checks failed but continuing {{ azure_check_results.msg }}"
+
+- name:                             Debug the logs from configuration check python module
+  when:                             azure_check_results is defined and azure_check_results.log is defined
+  ansible.builtin.debug:
+    msg:                            "{{ azure_check_results.log }}"
 
 - name:                             Merge check results with error handling
   ansible.builtin.set_fact:

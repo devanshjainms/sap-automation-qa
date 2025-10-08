@@ -1075,3 +1075,29 @@ checks:
     references:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 DB-HANA-0043
+    name:                               "Stripe size for /hana/data"
+    description:                        "The stripe size for /hana/data should be 256k (256.00k or 262144 bytes)"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disks"
+      property:                         "stripe_size"
+      mount_point:                      "/hana/data"
+    validator_type:                     *string
+    validator_args:
+      expected:                         "256.00k"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"

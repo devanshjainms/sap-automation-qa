@@ -182,10 +182,6 @@ class AzureDataParser(Collector):
                 else:
                     self.parent.log(logging.WARNING, f"Unexpected disk metadata type: {type(disk)}")
 
-            if not parsed_disks:
-                self.parent.log(logging.WARNING, "No valid disk metadata found")
-                return value
-
             fs_entry = None
             for fs in filesystem_data:
                 if fs.get("target") == mount_point:
@@ -197,10 +193,19 @@ class AzureDataParser(Collector):
                     logging.WARNING, f"Mount point {mount_point} not found in filesystem data"
                 )
                 return value
+            if property in fs_entry and fs_entry.get(property) is not None:
+                value = str(fs_entry[property])
+                self.parent.log(
+                    logging.INFO,
+                    f"Found {property}='{value}' for {mount_point} from filesystem data",
+                )
+                return value
+            if not parsed_disks:
+                self.parent.log(logging.WARNING, "No valid disk metadata found")
+                return value
 
             if "azure_disk_names" in fs_entry and fs_entry["azure_disk_names"]:
-                total_value = 0
-                matched_disks = 0
+                total_value, matched_disks = 0, 0
 
                 for disk_name in fs_entry["azure_disk_names"]:
                     disk = next((d for d in parsed_disks if d.get("name") == disk_name), None)
@@ -406,11 +411,6 @@ class FileSystemCollector(Collector):
         vg_to_disk_names = {}
 
         try:
-            self.parent.log(
-                logging.INFO,
-                f"Starting VG mapping with device_lun_map: {device_lun_map}, lvm_fullreport type: {type(lvm_fullreport)}",
-            )
-            
             lun_to_diskname = {}
             for disk_info in imds_metadata:
                 lun = disk_info.get("lun")
@@ -418,40 +418,25 @@ class FileSystemCollector(Collector):
                 if lun is not None and name:
                     lun_to_diskname[str(lun)] = name
 
-            self.parent.log(
-                logging.DEBUG,
-                f"IMDS lun→diskname: {lun_to_diskname}",
-            )
-            
             reports = lvm_fullreport.get("report", [])
             self.parent.log(
                 logging.INFO,
                 f"Found {len(reports)} LVM reports",
             )
-            
+
             for report in reports:
                 pvs = report.get("pv", [])
                 vgs = report.get("vg", [])
-                
-                # Extract VG names from this report (each report typically has one VG)
+
                 vg_names = [vg.get("vg_name") for vg in vgs if vg.get("vg_name")]
-                
-                self.parent.log(
-                    logging.INFO,
-                    f"Processing report with {len(pvs)} PVs and {len(vg_names)} VGs: {vg_names}",
-                )
-                
-                # If no VG found in this report, skip
                 if not vg_names:
                     self.parent.log(
                         logging.WARNING,
                         f"Report has PVs but no VG names found, skipping",
                     )
                     continue
-                
-                # Use the first VG name (typically each report corresponds to one VG)
                 vg_name = vg_names[0]
-                
+
                 for pv in pvs:
                     pv_name = pv.get("pv_name")
 
@@ -461,13 +446,7 @@ class FileSystemCollector(Collector):
                             f"Skipping PV with missing pv_name",
                         )
                         continue
-                    
                     device_name = pv_name.split("/")[-1] if "/" in pv_name else pv_name
-                    self.parent.log(
-                        logging.INFO,
-                        f"Processing PV: {pv_name} → device: {device_name}, VG: {vg_name}",
-                    )
-                    
                     lun = device_lun_map.get(device_name)
                     if lun is None:
                         self.parent.log(
@@ -485,11 +464,6 @@ class FileSystemCollector(Collector):
                     if vg_name not in vg_to_disk_names:
                         vg_to_disk_names[vg_name] = []
                     vg_to_disk_names[vg_name].append(disk_name)
-
-                    self.parent.log(
-                        logging.INFO,
-                        f"✓ Mapped: {pv_name} → LUN {lun} → {disk_name} (VG: {vg_name})",
-                    )
 
         except Exception as ex:
             self.parent.log(
@@ -623,7 +597,7 @@ class FileSystemCollector(Collector):
         """
         try:
             lvm_fullreport = context.get("lvm_fullreport", "")
-            
+
             # Check if lvm_fullreport is empty or malformed
             if not lvm_fullreport or lvm_fullreport == {} or not lvm_fullreport.get("report"):
                 self.parent.log(
@@ -631,7 +605,7 @@ class FileSystemCollector(Collector):
                     f"lvm_fullreport is empty or invalid: {lvm_fullreport}. "
                     f"LVM data collection may have failed. VG-to-disk mapping will not work.",
                 )
-            
+
             lvm_volumes, lvm_groups = self.collect_lvm_volumes(lvm_fullreport)
 
             findmnt_output = context.get("mount_info", "")
