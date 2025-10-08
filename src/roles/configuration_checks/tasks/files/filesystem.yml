@@ -92,9 +92,9 @@ checks:
 
   - id:                                 "FS-HANA--0001"
     name:                               "SAP HANA File system"
-    description:                        "SAP HANA File system"
+    description:                        "SAP HANA File system with disk correlation"
     category:                           *sap_check
-    severity:                           *high
+    severity:                           *info
     workload:                           *sap
     applicability:
       os_type:                          [*suse, *redhat]
@@ -103,9 +103,10 @@ checks:
       storage_type:                     *premium_storage
       role:                             [*db_role]
       database_type:                    [*hana]
-    collector_type:                     *azure
+    collector_type:                     *command
     collector_args:
-      command:                          echo {{ CONTEXT.filesystems | to_json }}
+      command:                          echo "{{ CONTEXT.filesystems }}"
+      shell:                            true
     report:                             *section
 
   - id:                                 FS-HANA--0002

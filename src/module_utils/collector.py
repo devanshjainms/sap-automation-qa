@@ -192,13 +192,16 @@ class AzureDataParser(Collector):
                     logging.WARNING, f"Mount point {mount_point} not found in filesystem data"
                 )
                 return value
-            if property in fs_entry and fs_entry.get(property) is not None:
-                value = str(fs_entry[property])
-                self.parent.log(
-                    logging.INFO,
-                    f"Found {property}='{value}' for {mount_point} from filesystem data",
-                )
-                return value
+
+            if property in fs_entry:
+                val = fs_entry[property]
+                if (isinstance(val, (int, float)) and val > 0) or (isinstance(val, str) and val):
+                    value = str(val)
+                    self.parent.log(
+                        logging.INFO,
+                        f"Found {property}='{value}' for {mount_point} from filesystem data",
+                    )
+                    return value
             if not parsed_disks:
                 self.parent.log(logging.WARNING, "No valid disk metadata found")
                 return value
@@ -363,8 +366,8 @@ class FileSystemCollector(Collector):
                     "disk_type": sku,
                     "size": azure_disk.get("size"),
                     "disk_size_gb": azure_disk.get("disk_size_gb"),
-                    "max_iops": azure_disk.get("iops", 0),
-                    "max_mbps": azure_disk.get("mbps", 0),
+                    "iops": azure_disk.get("iops", 0),
+                    "mbps": azure_disk.get("mbps", 0),
                     "resource_group": azure_disk.get("resource_group"),
                     "location": azure_disk.get("location"),
                     "zones": azure_disk.get("zones", []),
@@ -457,8 +460,8 @@ class FileSystemCollector(Collector):
                 "used_percent": df_info["used_percent"],
                 "vg": vg_name,
                 "stripe_size": stripe_size,
-                "max_mbps": 0,
-                "max_iops": 0,
+                "mbps": 0,
+                "iops": 0,
                 "disk_correlation": None,
             }
 
@@ -470,8 +473,8 @@ class FileSystemCollector(Collector):
                     for nfs_share in afs_storage_data:
                         share_address = nfs_share.get("NFSAddress", "")
                         if ":" in share_address and share_address.split(":")[0] == nfs_address:
-                            filesystem_entry["max_mbps"] = nfs_share.get("ThroughputMibps", 0)
-                            filesystem_entry["max_iops"] = nfs_share.get("IOPS", 0)
+                            filesystem_entry["mbps"] = nfs_share.get("ThroughputMibps", 0)
+                            filesystem_entry["iops"] = nfs_share.get("IOPS", 0)
                             filesystem_entry["disk_correlation"] = {
                                 "storage_type": "nfs",
                                 "nfs_server": nfs_address,
@@ -505,17 +508,17 @@ class FileSystemCollector(Collector):
                             "storage_type": "azure_disk",
                             "device_chain": [correlation],
                         }
-                        filesystem_entry["max_mbps"] = correlation["azure_disk_properties"].get(
-                            "max_mbps", 0
+                        filesystem_entry["mbps"] = correlation["azure_disk_properties"].get(
+                            "mbps", 0
                         )
-                        filesystem_entry["max_iops"] = correlation["azure_disk_properties"].get(
-                            "max_iops", 0
+                        filesystem_entry["iops"] = correlation["azure_disk_properties"].get(
+                            "iops", 0
                         )
                     else:
                         for disk_data in azure_disk_data:
                             if disk_data.get("name", "").endswith(device_name):
-                                filesystem_entry["max_mbps"] = disk_data.get("mbps", 0)
-                                filesystem_entry["max_iops"] = disk_data.get("iops", 0)
+                                filesystem_entry["mbps"] = disk_data.get("mbps", 0)
+                                filesystem_entry["iops"] = disk_data.get("iops", 0)
                                 break
 
                 elif filesystem_path.startswith("/dev/mapper/") and vg_name:
@@ -549,10 +552,10 @@ class FileSystemCollector(Collector):
                                         if correlation:
                                             device_chain.append(correlation)
                                             total_iops += correlation["azure_disk_properties"].get(
-                                                "max_iops", 0
+                                                "iops", 0
                                             )
                                             total_mbps += correlation["azure_disk_properties"].get(
-                                                "max_mbps", 0
+                                                "mbps", 0
                                             )
 
                         if device_chain:
@@ -567,8 +570,8 @@ class FileSystemCollector(Collector):
                                     "total_mbps": total_mbps,
                                 },
                             }
-                            filesystem_entry["max_iops"] = total_iops
-                            filesystem_entry["max_mbps"] = total_mbps
+                            filesystem_entry["iops"] = total_iops
+                            filesystem_entry["mbps"] = total_mbps
 
                         self.parent.log(
                             logging.INFO,
