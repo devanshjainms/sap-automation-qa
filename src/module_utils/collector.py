@@ -193,15 +193,28 @@ class AzureDataParser(Collector):
                 )
                 return value
 
+            self.parent.log(
+                logging.INFO,
+                f"Found fs_entry for {mount_point}: keys={list(fs_entry.keys())}, "
+                f"{property}={fs_entry.get(property, 'NOT_FOUND')}"
+            )
+
             if property in fs_entry:
                 val = fs_entry[property]
-                if (isinstance(val, (int, float)) and val > 0) or (isinstance(val, str) and val):
+                is_valid = False
+                if isinstance(val, str):
+                    is_valid = bool(val and val.strip())
+                elif isinstance(val, (int, float)):
+                    is_valid = val > 0
+                
+                if is_valid:
                     value = str(val)
                     self.parent.log(
                         logging.INFO,
                         f"Found {property}='{value}' for {mount_point} from filesystem data",
                     )
                     return value
+            
             if not parsed_disks:
                 self.parent.log(logging.WARNING, "No valid disk metadata found")
                 return value
@@ -273,6 +286,12 @@ class AzureDataParser(Collector):
             disks_metadata = context.get("azure_disks_metadata", {})
 
             self.parent.log(logging.INFO, f"Context in the Azure collector context: {context}\n")
+            self.parent.log(
+                logging.INFO,
+                f"parse_disks_vars called: mount={check.collector_args.get('mount_point')}, "
+                f"property={check.collector_args.get('property')}, "
+                f"filesystem_data has {len(filesystem_data)} entries"
+            )
 
             if resource_type == "disks":
                 mount_point = check.collector_args.get("mount_point", "")
@@ -360,14 +379,20 @@ class FileSystemCollector(Collector):
 
             if azure_disk:
                 sku = azure_disk.get("sku", "")
+                iops_val = azure_disk.get("iops", 0)
+                mbps_val = azure_disk.get("mbps", 0)
+                self.parent.log(
+                    logging.DEBUG,
+                    f"Azure disk {azure_disk.get('name')}: iops={iops_val}, mbps={mbps_val}, raw_data={azure_disk}"
+                )
                 correlation["azure_disk_properties"] = {
                     "name": azure_disk.get("name"),
                     "sku": sku,
                     "disk_type": sku,
                     "size": azure_disk.get("size"),
                     "disk_size_gb": azure_disk.get("disk_size_gb"),
-                    "iops": azure_disk.get("iops", 0),
-                    "mbps": azure_disk.get("mbps", 0),
+                    "iops": iops_val,
+                    "mbps": mbps_val,
                     "resource_group": azure_disk.get("resource_group"),
                     "location": azure_disk.get("location"),
                     "zones": azure_disk.get("zones", []),
@@ -508,12 +533,14 @@ class FileSystemCollector(Collector):
                             "storage_type": "azure_disk",
                             "device_chain": [correlation],
                         }
-                        filesystem_entry["mbps"] = correlation["azure_disk_properties"].get(
-                            "mbps", 0
+                        mbps_from_corr = correlation["azure_disk_properties"].get("mbps", 0)
+                        iops_from_corr = correlation["azure_disk_properties"].get("iops", 0)
+                        self.parent.log(
+                            logging.INFO,
+                            f"Setting {filesystem_path} metrics from correlation: iops={iops_from_corr}, mbps={mbps_from_corr}"
                         )
-                        filesystem_entry["iops"] = correlation["azure_disk_properties"].get(
-                            "iops", 0
-                        )
+                        filesystem_entry["mbps"] = mbps_from_corr
+                        filesystem_entry["iops"] = iops_from_corr
                     else:
                         for disk_data in azure_disk_data:
                             if disk_data.get("name", "").endswith(device_name):
