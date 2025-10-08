@@ -7,6 +7,7 @@ Ansible Python module to check the configuration of the workload system running 
 
 import logging
 import time
+import json
 from typing import Optional, Dict, Any, List, Type
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -87,6 +88,7 @@ class ConfigurationCheckModule(SapAutomationQA):
             "range": self.validate_numeric_range,
             "list": self.validate_list,
             "check_support": self.validate_vm_support,
+            "properties": self.validate_properties,
         }
 
     def execute_check_with_retry(self, check: Check, max_retries: int = 3) -> CheckResult:
@@ -375,6 +377,44 @@ class ConfigurationCheckModule(SapAutomationQA):
             severity.CRITICAL: TestStatus.ERROR.value,
         }
         return TestSeverity_map.get(severity, TestStatus.ERROR.value)
+
+    def validate_properties(self, check: Check, collected_data: str) -> Dict[str, Any]:
+        """
+        Validate collected properties against expected properties
+
+        :param check: Check definition
+        :type check: Check
+        :param collected_data: Collected properties as JSON string
+        :type collected_data: str
+        :return: Validation result
+        :rtype: Dict[str, Any]
+        """
+        expected_properties = check.validator_args.get("properties", [])
+        if not isinstance(expected_properties, list):
+            expected_properties = []
+
+        try:
+            collected_properties = json.loads(collected_data) if collected_data else {}
+        except (json.JSONDecodeError, TypeError):
+            return {
+                "status": TestStatus.ERROR.value,
+            }
+        if isinstance(collected_properties, dict) and "error" in collected_properties:
+            return {
+                "status": TestStatus.ERROR.value,
+            }
+        is_valid = True
+        for prop in expected_properties:
+            if not isinstance(prop, dict):
+                continue
+            if prop.get("property", "") not in collected_properties or str(
+                collected_properties[prop.get("property", "")]
+            ) != str(prop.get("value", "")):
+                is_valid = False
+                break
+        return {
+            "status": self._create_validation_result(check.severity, is_valid),
+        }
 
     def validate_string(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """

@@ -78,7 +78,8 @@ enums:
     - string:                         &string "string"
     - range:                          &range "range"
     - list:                           &list "list"
-    - all:                            &validator_type [*string, *range, *list]
+    - properties:                     &properties "properties"
+    - all:                            &validator_type [*string, *range, *list, *properties]
 
   report:
     - check:                          &check "check"
@@ -90,7 +91,7 @@ checks:
     name:                             "Load Balancers Idle Timeout"
     description:                      "Checks the idle timeout of the load balancers"
     category:                         *load_balancer_check
-    severity:                         *high
+    severity:                         *info
     workload:                         *workload
     applicability:
       os_type:                        [*suse, *redhat, *oraclelinux, *windows]
@@ -98,7 +99,7 @@ checks:
       hardware_type:                  *vm
       role:                           *role
       database_type:                  *db
-    collector_type:                   *command
+    collector_type:                   *azure
     collector_args:
       command:                        |-
                                       if command -v az >/dev/null 2>&1; then
@@ -121,28 +122,74 @@ checks:
                                       else
                                         echo "Error: Azure CLI not available";
                                       fi
-    validator_type:                   *string
+    report:                           *check
+
+  - id:                               "IC-0041"
+    name:                             "Load Balancers Idle Timeout"
+    description:                      "Checks the idle timeout of the load balancers"
+    category:                         *load_balancer_check
+    severity:                         *high
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      if command -v az >/dev/null 2>&1; then
+                                        nic_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'networkProfile.networkInterfaces[0].id' -o tsv 2>/dev/null);
+                                        if [ $? -eq 0 ] && [ -n "$nic_id" ] && [ "$nic_id" != "null" ]; then
+                                          lb_backend_pools=$(az network nic show --ids "$nic_id" --query 'ipConfigurations[0].loadBalancerBackendAddressPools[0].id' -o tsv 2>/dev/null);
+                                          if [ -n "$lb_backend_pools" ] && [ "$lb_backend_pools" != "null" ]; then
+                                            load_balancer_id=$(echo "$lb_backend_pools" | grep -oP '.*(?=/backendAddressPools)');
+                                            if [ -n "$load_balancer_id" ]; then
+                                              lb_json=$(az network lb show --ids "$load_balancer_id" -o json 2>/dev/null);
+                                              if [ $? -eq 0 ] && [ -n "$lb_json" ]; then
+                                                idle_timeout=$(echo "$lb_json" | grep -oP '"idleTimeoutInMinutes":\s*\K[0-9]+' | head -1);
+                                                floating_ip=$(echo "$lb_json" | grep -oP '"enableFloatingIP":\s*\K(true|false)' | head -1);
+                                                protocol=$(echo "$lb_json" | grep -oP '"protocol":\s*"\K[^"]+' | head -1);
+                                                probe_interval=$(echo "$lb_json" | grep -oP '"intervalInSeconds":\s*\K[0-9]+' | head -1);
+                                                probe_threshold=$(echo "$lb_json" | grep -oP '"numberOfProbes":\s*\K[0-9]+' | head -1);
+                                                idle_timeout=${idle_timeout:-N/A};
+                                                floating_ip=${floating_ip:-N/A};
+                                                protocol=${protocol:-N/A};
+                                                probe_interval=${probe_interval:-N/A};
+                                                probe_threshold=${probe_threshold:-N/A};
+                                                echo "{\"idletimeout\":\"$idle_timeout\",\"floatingip\":\"$floating_ip\",\"protocol\":\"$protocol\",\"probeinterval\":\"$probe_interval\",\"probethreshold\":\"$probe_threshold\"}";
+                                              else
+                                                echo '{"error": "Failed to retrieve Load Balancer details"}';
+                                              fi
+                                            else
+                                              echo '{"error": "No Load Balancer defined"}';
+                                            fi
+                                          else
+                                            echo '{"error": "No Load Balancer backend pools not found"}';
+                                          fi
+                                        else
+                                          echo '{"error": "Failed to retrieve NIC"}';
+                                        fi
+                                      else
+                                        echo '{"error": "Azure CLI not available"}';
+                                      fi
+    validator_type:                   *properties
     validator_args:
-      expected_output:                "No Load Balancer defined"
       properties:
         - name:                       "Idle Timeout"
           property:                   "idletimeout"
-          type:                       *string
           value:                      "30"
         - name:                       "Floating IP"
           property:                   "floatingip"
-          type:                       *string
           value:                      "false"
         - name:                       "Protocols"
           property:                   "protocols"
-          type:                       *string
           value:                      "All"
         - name:                       "Probe Interval"
           property:                   "probeinterval"
-          type:                       *string
           value:                      "15"
         - name:                       "Probe Threshold"
-          property:                   "ProbeThreshold"
-          type:                       *string
+          property:                   "probethreshold"
           value:                      "2"
     report:                           *check
