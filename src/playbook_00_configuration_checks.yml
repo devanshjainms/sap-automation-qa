@@ -270,6 +270,18 @@
       loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].db_hana_results is defined
 
+    - name:                             "Collect File system check results for HANA"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].filesystem_hana_results
+                                            | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'filesystem',
+                                          'metadata': hostvars[item].filesystem_hana_results_metadata
+                                          | default({})}] }}"
+      loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
+      when:                             hostvars[item].filesystem_hana_results is defined
+
     - name:                             "Collect ASCS/SCS check results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].ascs_scs_results

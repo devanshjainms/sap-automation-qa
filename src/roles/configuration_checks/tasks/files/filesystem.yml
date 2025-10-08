@@ -90,9 +90,9 @@ enums:
 
 checks:
 
-  - id:                                 "FS-HANA-0001"
-    name:                               "Swap space"
-    description:                        "Swap space should be 2GB"
+  - id:                                 "FS-HANA--0001"
+    name:                               "SAP HANA File system"
+    description:                        "SAP HANA File system"
     category:                           *sap_check
     severity:                           *high
     workload:                           *sap
@@ -103,19 +103,12 @@ checks:
       storage_type:                     *premium_storage
       role:                             [*db_role]
       database_type:                    [*hana]
-    collector_type:                     *command
+    collector_type:                     *azure
     collector_args:
-      command:                          "free -m | grep Swap | awk '{print $2}'"
-      user:                             *root
-    validator_type:                     *range
-    validator_args:
-      min:                              "2046"
-      max:                              "2049"
-    report:                             *check
-    references:
-      sap:                              "1999997"
+      command:                          echo {{ CONTEXT.filesystems }}
+    report:                             *section
 
-  - id:                                 FS-HANA-0002
+  - id:                                 FS-HANA--0002
     name:                               "Filesystem type for /hana/data"
     description:                        "The filesystem type for /hana/data should be xfs or nfs or nfs4"
     category:                           *sap_check
@@ -139,7 +132,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 FS-HANA0003
+  - id:                                 FS-HANA-0003
     name:                               "Stripe size for /hana/data"
     description:                        "The stripe size for /hana/data should be 256k (256.00k or 262144 bytes)"
     category:                           *sap_check
@@ -165,7 +158,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 FS-HANA0004
+  - id:                                 FS-HANA-0004
     name:                               "Filesystem type for /hana/log"
     description:                        "The filesystem type for /hana/log should be xfs or nfs or nfs4"
     category:                           *sap_check
@@ -189,7 +182,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 FS-HANA0005
+  - id:                                 FS-HANA-0005
     name:                               "Stripe size for /hana/log"
     description:                        "The stripe size for /hana/log should be 256k (256.00k or 262144 bytes)"
     category:                           *sap_check
@@ -215,7 +208,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 FS-HANA0006
+  - id:                                 FS-HANA-0006
     name:                               "Filesystem type for /hana/shared"
     description:                        "The filesystem type for /hana/shared should be xfs or nfs or nfs4"
     category:                           *sap_check
@@ -239,7 +232,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 FS-HANA0007
+  - id:                                 FS-HANA-0007
     name:                               "Filesystem type for /usr/sap"
     description:                        "The filesystem type for /usr/sap should be xfs or nfs or nfs4"
     category:                           *sap_check
@@ -263,7 +256,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 FS-HANA0008
+  - id:                                 FS-HANA-0008
     name:                               "Sector size for /hana/data Premium SSD V2"
     description:                        "The logical block size for /hana/data on Premium SSD V2 should be 4096 bytes"
     category:                           *sap_check
@@ -287,7 +280,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 FS-HANA0009
+  - id:                                 FS-HANA-0009
     name:                               "Sector size for /hana/log Premium SSD V2"
     description:                        "The logical block size for /hana/log on Premium SSD V2 should be 4096 bytes"
     category:                           *sap_check
@@ -311,7 +304,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 FS-HANA0010
+  - id:                                 FS-HANA-0010
     name:                               "Disk performance for /hana/data (MBPS)"
     description:                        "The disk performance for /hana/data should be >= 400 MByte/s"
     category:                           *sap_check
@@ -337,7 +330,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 FS-HANA0011
+  - id:                                 FS-HANA-0011
     name:                               "Disk performance for /hana/data (IOPS)"
     description:                        "The disk performance for /hana/data should be >= 7000 IOPS"
     category:                           *sap_check
@@ -363,7 +356,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 FS-HANA0012
+  - id:                                 FS-HANA-0012
     name:                               "Disk performance for /hana/log (MBPS)"
     description:                        "The disk performance for /hana/log should be >= 250 MByte/s"
     category:                           *sap_check
@@ -389,7 +382,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 FS-HANA0013
+  - id:                                 FS-HANA-0013
     name:                               "Disk performance for /hana/log (IOPS)"
     description:                        "The disk performance for /hana/log should be >= 7000 IOPS"
     category:                           *sap_check
@@ -414,3 +407,28 @@ checks:
     references:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 "FS-HANA--0014"
+    name:                               "Swap space"
+    description:                        "Swap space should be 2GB"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "free -m | grep Swap | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *range
+    validator_args:
+      min:                              "2046"
+      max:                              "2049"
+    report:                             *check
+    references:
+      sap:                              "1999997"

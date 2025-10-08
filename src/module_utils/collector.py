@@ -833,7 +833,7 @@ class FileSystemCollector(Collector):
                 f"IMDS metadata type: {type(imds_metadata)}, Count: {len(imds_metadata)}\n"
                 f"ANF storage data type: {type(anf_storage_data)}, Count: {len(anf_storage_data)}\n"
                 f"AFS storage data type: {type(afs_storage_data)}, Count: {len(afs_storage_data)}\n"
-                f"VG→disk_names mapping: {vg_to_disk_names}",
+                f"VG disk_names mapping: {vg_to_disk_names}",
             )
 
             filesystems = self._parse_filesystem_data(
