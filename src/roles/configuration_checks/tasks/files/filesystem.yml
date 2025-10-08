@@ -89,7 +89,7 @@ enums:
 # Checks for DB roles for database_type == hana
 
 checks:
-  
+
   - id:                                 "FS-HANA-0001"
     name:                               "Swap space"
     description:                        "Swap space should be 2GB"

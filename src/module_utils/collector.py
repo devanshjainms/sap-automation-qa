@@ -9,7 +9,6 @@ from abc import ABC, abstractmethod
 import logging
 import re
 import shlex
-import ipaddress
 from typing import Any
 
 try:
@@ -292,6 +291,99 @@ class FileSystemCollector(Collector):
     def __init__(self, parent: SapAutomationQA):
         super().__init__(parent)
 
+    def _build_disk_correlation_data(
+        self,
+        device_name,
+        device_lun_map,
+        imds_metadata,
+        azure_disk_data,
+    ):
+        """
+        Build comprehensive correlated disk data chain:
+        PV device (/dev/sdc) → LUN (0) → disk name (via IMDS) → Azure disk properties
+
+        :param device_name: Device name (e.g., 'sdc', 'nvme0n1')
+        :type device_name: str
+        :param device_lun_map: Mapping of device names to LUN numbers
+        :type device_lun_map: Dict[str, str]
+        :param imds_metadata: IMDS metadata with LUN-to-diskname mappings
+        :type imds_metadata: List[Dict[str, Any]]
+        :param azure_disk_data: Azure disk metadata with performance metrics
+        :type azure_disk_data: List[Dict[str, Any]]
+        :return: Comprehensive disk correlation data or None if chain breaks
+        :rtype: Dict[str, Any] | None
+        """
+        try:
+            lun = device_lun_map.get(device_name)
+            if lun is None:
+                self.parent.log(
+                    logging.DEBUG,
+                    f"No LUN mapping for device {device_name}",
+                )
+                return None
+            imds_disk = next(
+                (d for d in imds_metadata if str(d.get("lun")) == str(lun)),
+                None,
+            )
+            if not imds_disk:
+                self.parent.log(
+                    logging.DEBUG,
+                    f"No IMDS metadata for LUN {lun} (device: {device_name})",
+                )
+                return None
+
+            disk_name = imds_disk.get("name")
+            if not disk_name:
+                return None
+            azure_disk = next(
+                (d for d in azure_disk_data if d.get("name") == disk_name),
+                None,
+            )
+
+            correlation = {
+                "device": f"/dev/{device_name}",
+                "lun": lun,
+                "imds_disk_name": disk_name,
+                "imds_metadata": {
+                    "name": imds_disk.get("name"),
+                    "lun": imds_disk.get("lun"),
+                    "caching": imds_disk.get("caching"),
+                    "createOption": imds_disk.get("createOption"),
+                    "diskSizeGB": imds_disk.get("diskSizeGB"),
+                    "managedDisk": imds_disk.get("managedDisk", {}),
+                },
+                "azure_disk_properties": {},
+            }
+
+            if azure_disk:
+                sku = azure_disk.get("sku", "")
+                correlation["azure_disk_properties"] = {
+                    "name": azure_disk.get("name"),
+                    "sku": sku,
+                    "disk_type": sku,
+                    "size": azure_disk.get("size"),
+                    "disk_size_gb": azure_disk.get("disk_size_gb"),
+                    "max_iops": azure_disk.get("iops", 0),
+                    "max_mbps": azure_disk.get("mbps", 0),
+                    "resource_group": azure_disk.get("resource_group"),
+                    "location": azure_disk.get("location"),
+                    "zones": azure_disk.get("zones", []),
+                }
+            else:
+                self.parent.log(
+                    logging.DEBUG,
+                    f"No Azure disk metadata found for {disk_name}",
+                )
+
+            return correlation
+
+        except Exception as ex:
+            self.parent.log(
+                logging.WARNING,
+                f"Failed to build disk correlation for {device_name}: {ex}",
+            )
+            return None
+
     def _parse_filesystem_data(
         self,
         findmnt_output,
@@ -302,15 +394,28 @@ class FileSystemCollector(Collector):
         anf_storage_data,
         afs_storage_data,
         vg_to_disk_names=None,
+        device_lun_map=None,
+        imds_metadata=None,
+        lvm_fullreport=None,
     ):
         """
-        Parse filesystem data like PowerShell script does.
+        Parse filesystem data with comprehensive disk correlation
 
         :param vg_to_disk_names: Pre-computed mapping of VG names to Azure disk names
         :type vg_to_disk_names: Dict[str, List[str]]
+        :param device_lun_map: Mapping of device names to LUN numbers
+        :type device_lun_map: Dict[str, str]
+        :param imds_metadata: IMDS metadata for disk correlation
+        :type imds_metadata: List[Dict[str, Any]]
+        :param lvm_fullreport: LVM fullreport for PV correlation
+        :type lvm_fullreport: Dict[str, Any]
         """
         if vg_to_disk_names is None:
             vg_to_disk_names = {}
+        if device_lun_map is None:
+            device_lun_map = {}
+        if imds_metadata is None:
+            imds_metadata = []
         filesystems = []
         findmnt_data = {}
         df_data = {}
@@ -335,7 +440,7 @@ class FileSystemCollector(Collector):
             findmnt_info = findmnt_data.get(mountpoint, {})
             vg_name, stripe_size = "", ""
             filesystem_path = df_info["filesystem"]
-            for lv_name, lv_prop in lvm_volume.items():
+            for lv_prop in lvm_volume.values():
                 if lv_prop.get("dm_path") == filesystem_path:
                     vg_name = lv_prop.get("vg_name", "")
                     stripe_size = lv_prop.get("stripe_size", "")
@@ -354,6 +459,7 @@ class FileSystemCollector(Collector):
                 "stripe_size": stripe_size,
                 "max_mbps": 0,
                 "max_iops": 0,
+                "disk_correlation": None,
             }
 
             if filesystem_entry["fstype"] in ["nfs", "nfs4"]:
@@ -366,33 +472,114 @@ class FileSystemCollector(Collector):
                         if ":" in share_address and share_address.split(":")[0] == nfs_address:
                             filesystem_entry["max_mbps"] = nfs_share.get("ThroughputMibps", 0)
                             filesystem_entry["max_iops"] = nfs_share.get("IOPS", 0)
+                            filesystem_entry["disk_correlation"] = {
+                                "storage_type": "nfs",
+                                "nfs_server": nfs_address,
+                                "nfs_export": nfs_source.split(":")[1] if ":" in nfs_source else "",
+                                "storage_metadata": {
+                                    "throughput_mibps": nfs_share.get("ThroughputMibps", 0),
+                                    "iops": nfs_share.get("IOPS", 0),
+                                    "nfs_address": share_address,
+                                },
+                            }
                             break
             else:
                 if filesystem_path.startswith("/dev/sd") or filesystem_path.startswith("/dev/nvme"):
-                    disk_name = (
+                    device_name = (
                         filesystem_path.split("/")[-1]
                         if "/" in filesystem_path
                         else filesystem_path
                     )
+                    base_device = re.sub(r"[0-9]+$", "", device_name)
+                    if device_name.startswith("nvme") and "p" in device_name:
+                        base_device = device_name.split("p")[0]
+                    correlation = self._build_disk_correlation_data(
+                        base_device,
+                        device_lun_map,
+                        imds_metadata,
+                        azure_disk_data,
+                    )
 
-                    for disk_data in azure_disk_data:
-                        if disk_data.get("name", "").endswith(disk_name):
-                            filesystem_entry["max_mbps"] = disk_data.get("mbps", 0)
-                            filesystem_entry["max_iops"] = disk_data.get("iops", 0)
-                            break
+                    if correlation:
+                        filesystem_entry["disk_correlation"] = {
+                            "storage_type": "azure_disk",
+                            "device_chain": [correlation],
+                        }
+                        filesystem_entry["max_mbps"] = correlation["azure_disk_properties"].get(
+                            "max_mbps", 0
+                        )
+                        filesystem_entry["max_iops"] = correlation["azure_disk_properties"].get(
+                            "max_iops", 0
+                        )
+                    else:
+                        for disk_data in azure_disk_data:
+                            if disk_data.get("name", "").endswith(device_name):
+                                filesystem_entry["max_mbps"] = disk_data.get("mbps", 0)
+                                filesystem_entry["max_iops"] = disk_data.get("iops", 0)
+                                break
+
                 elif filesystem_path.startswith("/dev/mapper/") and vg_name:
                     disk_names = vg_to_disk_names.get(vg_name, [])
 
                     if disk_names:
                         filesystem_entry["azure_disk_names"] = disk_names
+                        device_chain = []
+                        total_iops, total_mbps = 0, 0
+                        if lvm_fullreport:
+                            for report in lvm_fullreport.get("report", []):
+                                pvs = report.get("pv", [])
+                                vgs = report.get("vg", [])
+                                if any(vg.get("vg_name") == vg_name for vg in vgs):
+                                    for pv in pvs:
+                                        pv_name = pv.get("pv_name")
+                                        if not pv_name:
+                                            continue
+
+                                        device_name = (
+                                            pv_name.split("/")[-1] if "/" in pv_name else pv_name
+                                        )
+
+                                        correlation = self._build_disk_correlation_data(
+                                            device_name,
+                                            device_lun_map,
+                                            imds_metadata,
+                                            azure_disk_data,
+                                        )
+
+                                        if correlation:
+                                            device_chain.append(correlation)
+                                            total_iops += correlation["azure_disk_properties"].get(
+                                                "max_iops", 0
+                                            )
+                                            total_mbps += correlation["azure_disk_properties"].get(
+                                                "max_mbps", 0
+                                            )
+
+                        if device_chain:
+                            filesystem_entry["disk_correlation"] = {
+                                "storage_type": "lvm_striped",
+                                "volume_group": vg_name,
+                                "stripe_size": stripe_size,
+                                "device_count": len(device_chain),
+                                "device_chain": device_chain,
+                                "aggregated_metrics": {
+                                    "total_iops": total_iops,
+                                    "total_mbps": total_mbps,
+                                },
+                            }
+                            filesystem_entry["max_iops"] = total_iops
+                            filesystem_entry["max_mbps"] = total_mbps
+
                         self.parent.log(
                             logging.INFO,
-                            f"Mapped VG {vg_name} to {len(disk_names)} Azure disks: {disk_names}",
+                            f"Mapped VG {vg_name} to {len(disk_names)} Azure disks with "
+                            + f"total {total_iops} IOPS and {total_mbps} MBps",
                         )
                     else:
                         self.parent.log(
                             logging.WARNING,
-                            f"No disk mapping found for VG {vg_name}. Ensure device-to-lun mapping is available.",
+                            f"No disk mapping found for VG {vg_name}. "
+                            + "Ensure device-to-lun mapping is available.",
                         )
 
             filesystems.append(filesystem_entry)
@@ -435,7 +622,7 @@ class FileSystemCollector(Collector):
                 if not vg_names:
                     self.parent.log(
                         logging.WARNING,
-                        f"Report has PVs but no VG names found, skipping",
+                        "Report has PVs but no VG names found, skipping",
                     )
                     continue
                 vg_name = vg_names[0]
@@ -446,7 +633,7 @@ class FileSystemCollector(Collector):
                     if not pv_name:
                         self.parent.log(
                             logging.INFO,
-                            f"Skipping PV with missing pv_name",
+                            "Skipping PV with missing pv_name",
                         )
                         continue
                     device_name = pv_name.split("/")[-1] if "/" in pv_name else pv_name
@@ -601,7 +788,6 @@ class FileSystemCollector(Collector):
         try:
             lvm_fullreport = context.get("lvm_fullreport", "")
 
-            # Check if lvm_fullreport is empty or malformed
             if not lvm_fullreport or lvm_fullreport == {} or not lvm_fullreport.get("report"):
                 self.parent.log(
                     logging.ERROR,
@@ -659,11 +845,14 @@ class FileSystemCollector(Collector):
                 anf_storage_data=anf_storage_data,
                 afs_storage_data=afs_storage_data,
                 vg_to_disk_names=vg_to_disk_names,
+                device_lun_map=device_lun_map,
+                imds_metadata=imds_metadata,
+                lvm_fullreport=lvm_fullreport,
             )
 
             self.parent.log(
                 logging.INFO,
-                f"Collected filesystems: {filesystems}\n"
+                f"Collected filesystems with disk correlation data: {len(filesystems)} entries\n"
                 + f"Collected LVM volumes: {lvm_volumes}\n"
                 + f"Collected LVM groups: {lvm_groups}",
             )
