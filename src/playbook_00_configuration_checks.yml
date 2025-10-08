@@ -182,7 +182,6 @@
                                         (role in ['DB', 'SCS', 'ERS'] and
                                          ((role == 'DB' and database_high_availability | default(false) | bool) or
                                           (role in ['SCS', 'ERS'] and scs_high_availability | default(false) | bool)))
-      run_once:                         true
 
 - hosts:                                localhost
   name:                                 "Generate Configuration Checks Report"
