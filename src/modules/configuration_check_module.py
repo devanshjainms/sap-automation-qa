@@ -387,7 +387,9 @@ class ConfigurationCheckModule(SapAutomationQA):
         :return: Validation result
         :rtype: Dict[str, Any]
         """
-        expected = check.validator_args.get("expected_output", "")
+        expected = check.validator_args.get("expected") or check.validator_args.get(
+            "expected_output", ""
+        )
         collected = str(collected_data).strip() if collected_data is not None else ""
 
         if check.validator_args.get("strip_whitespace", True):
