@@ -499,7 +499,7 @@ class FileSystemCollector(Collector):
                 logging.ERROR, f"Failed to gather correlated filesystem information: {ex}"
             )
             self.parent.handle_error(ex)
-            return {}
+            return []
 
     def collect(self, check, context) -> Any:
         """
