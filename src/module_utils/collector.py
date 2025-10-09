@@ -146,24 +146,37 @@ class AzureDataParser(Collector):
     def __init__(self, parent: SapAutomationQA):
         super().__init__(parent)
 
-    def parse_disks_vars(self, filesystem_data, disks_metadata, mount_point, property) -> str:
+    def parse_filesystem_vars(self, check, context) -> str:
+        """
+        Parse filesystem variables from the given data.
+
+        :param check: Check object with collector arguments
+        :type check: Check
+        :param context: Context object containing all required data
+        :type context: Dict[str, Any]
+        :return: Parsed filesystem variables
+        :rtype: str
+        """
+        return context.get("formatted_filesystem_info", "N/A")
+
+    def parse_disks_vars(self, check, context) -> str:
         """
         Parse the required property for given mount point from filesystem data and disks metadata.
 
         For LVM striped volumes, this aggregates metrics across all underlying disks.
         For single disks, returns the metric for that disk.
 
-        :param filesystem_data: Filesystem data collected from the system (enriched by FileSystemCollector)
-        :type filesystem_data: List[Dict[str, Any]]
-        :param disks_metadata: Metadata about Azure disks (can be list of dicts/list of JSON string)
-        :type disks_metadata: Union[List[Dict[str, Any]], List[str]]
-        :param mount_point: Mount point to look for
-        :type mount_point: str
-        :param property: Property to extract (e.g., mbps, iops, size)
-        :type property: str
+        :param check: Check object with collector arguments
+        :type check: Check
+        :param context: Context object containing all required data
+        :type context: Dict[str, Any]
         :return: Aggregated property value or "N/A" if not found
         :rtype: str
         """
+        filesystem_data = context.get("filesystems", [])
+        disks_metadata = context.get("azure_disks_metadata", {})
+        mount_point = check.collector_args.get("mount_point", "")
+        property = check.collector_args.get("property", "")
         value = "N/A"
         try:
             parsed_disks = []
@@ -266,18 +279,18 @@ class AzureDataParser(Collector):
             command = check.collector_args.get("command", "")
             if command:
                 return CommandCollector(self.parent).collect(check, context)
+
             resource_type = check.collector_args.get("resource_type", "")
-            filesystem_data = context.get("filesystems", [])
-            disks_metadata = context.get("azure_disks_metadata", {})
-
-            self.parent.log(logging.INFO, f"Context in the Azure collector context: {context}\n")
-
-            if resource_type == "disks":
-                mount_point = check.collector_args.get("mount_point", "")
-                property = check.collector_args.get("property", "")
-                return self.parse_disks_vars(filesystem_data, disks_metadata, mount_point, property)
-            else:
-                return "ERROR: Unsupported resource type"
+            method_name = f"parse_{resource_type}_vars"
+            parameters = {
+                "context": context,
+                "check": check,
+            }
+            return (
+                getattr(self, method_name)(**parameters)
+                if hasattr(self, method_name)
+                else "ERROR: Unsupported resource type"
+            )
 
         except Exception as ex:
             self.parent.handle_error(ex)
