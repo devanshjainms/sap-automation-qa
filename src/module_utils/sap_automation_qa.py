@@ -97,7 +97,7 @@ class SapAutomationQA(ABC):
         try:
             command_output = subprocess.run(
                 command,
-                timeout=30,
+                timeout=100,
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -114,7 +114,7 @@ class SapAutomationQA(ABC):
                 return stdout
         except subprocess.TimeoutExpired as ex:
             self.handle_error(ex, "Command timed out")
-            return f"ERROR: Command timed out after 30 seconds"
+            return f"ERROR: Command timed out after 100 seconds"
         except subprocess.CalledProcessError as ex:
             stderr_msg = ex.stderr.decode("utf-8").strip() if ex.stderr else ""
             error_msg = f"ERROR: Command failed with exit code {ex.returncode}"
