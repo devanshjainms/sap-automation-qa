@@ -1258,15 +1258,13 @@
               <h3>Tabular Data Reports</h3>
               {% for check in host_tables %}
               <div class="config-section table-report-section">
-                <div class="table-header-info">
-                  <h4 class="table-check-name">{{ check.check.name }} {{ check.check.id }}</h4>
-                  <p class="table-check-description">{{ check.check.description }}</p>
-                  {% if check.check.collector_args.command is defined %}
-                  <p class="table-check-command">
-                    <strong>Command:</strong> <code>{{ check.check.collector_args.command }}</code>
-                  </p>
-                  {% endif %}
-                </div>
+                <h4 class="table-check-name">{{ check.check.name }} {{ check.check.id }}</h4>
+                <p class="table-check-description">{{ check.check.description }}</p>
+                {% if check.check.collector_args.command is defined %}
+                <p class="table-check-command">
+                  <strong>Command:</strong> <code>{{ check.check.collector_args.command }}</code>
+                </p>
+                {% endif %}
                 <div class="dynamic-table-container">
                   {{ render_table(check.actual_value) }}
                 </div>

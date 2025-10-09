@@ -146,6 +146,44 @@ class AzureDataParser(Collector):
     def __init__(self, parent: SapAutomationQA):
         super().__init__(parent)
 
+    def parse_azure_disks_vars(self, check, context) -> str:
+        """
+        Parse Azure disks variables from the given data.
+
+        :param check: Check object with collector arguments
+        :type check: Check
+        :param context: Context object containing all required data
+        :type context: Dict[str, Any]
+        :return: Parsed Azure disks variables
+        :rtype: str
+        """
+        return context.get("azure_disks_info", "N/A")
+
+    def parse_lvm_groups_vars(self, check, context) -> str:
+        """
+        Parse LVM group info from the given data.
+
+        :param check: Check object with collector arguments
+        :type check: Check
+        :param context: Context object containing all required data
+        :type context: Dict[str, Any]
+        :return: Parsed LVM group variables
+        :rtype: str
+        """
+        return context.get("lvm_groups_info", "N/A")
+
+    def parse_lvm_volumes_vars(self, check, context) -> str:
+        """
+        Parse LVM volume info from the given data.
+        :param check: Check object with collector arguments
+        :type check: Check
+        :param context: Context object containing all required data
+        :type context: Dict[str, Any]
+        :return: Parsed LVM volume variables
+        :rtype: str
+        """
+        return context.get("lvm_volumes_info", "N/A")
+
     def parse_filesystem_vars(self, check, context) -> str:
         """
         Parse filesystem variables from the given data.

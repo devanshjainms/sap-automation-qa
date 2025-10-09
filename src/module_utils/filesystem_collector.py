@@ -22,7 +22,7 @@ except ImportError:
 
 class FileSystemCollector(Collector):
     """
-    Collects filesystem information - mimics PowerShell CollectFileSystems function
+    Collects filesystem information
     """
 
     def __init__(self, parent: SapAutomationQA):
@@ -40,7 +40,7 @@ class FileSystemCollector(Collector):
         vg_to_disk_names=None,
     ):
         """
-        Parse filesystem data like PowerShell script does.
+        Parse filesystem data.
 
         :param vg_to_disk_names: Pre-computed mapping of VG names to Azure disk names
         :type vg_to_disk_names: Dict[str, List[str]]
@@ -501,9 +501,172 @@ class FileSystemCollector(Collector):
             self.parent.handle_error(ex)
             return []
 
+    def gather_azure_disks_info(self, context, lvm_fullreport, device_lun_map):
+        """
+        Gather correlated Azure disk information with LUN, device mapping, and performance metrics.
+
+        :param context: Context containing Azure metadata
+        :param lvm_fullreport: LVM fullreport JSON
+        :param device_lun_map: Mapping of device names to LUN numbers
+        :return: List of Azure disk information dictionaries
+        :rtype: List[Dict[str, Any]]
+        """
+        azure_disks_info = []
+
+        try:
+            imds_metadata = self._parse_metadata(
+                context.get("imds_disks_metadata", []), "IMDS disk"
+            )
+            azure_disk_data = self._parse_metadata(
+                context.get("azure_disks_metadata", []), "Azure disk"
+            )
+
+            diskname_to_details = {}
+            for disk_data in azure_disk_data:
+                disk_name = disk_data.get("name", "")
+                if disk_name:
+                    diskname_to_details[disk_name] = disk_data
+            lun_to_imds = {}
+            for disk_info in imds_metadata:
+                lun = disk_info.get("lun")
+                if lun is not None:
+                    lun_to_imds[str(lun)] = disk_info
+            device_to_vg = {}
+            if lvm_fullreport and lvm_fullreport.get("report"):
+                for report in lvm_fullreport.get("report", []):
+                    pvs = report.get("pv", [])
+                    vgs = report.get("vg", [])
+                    vg_name = vgs[0].get("vg_name") if vgs else ""
+
+                    for pv in pvs:
+                        pv_name = pv.get("pv_name", "")
+                        if pv_name:
+                            device_name = pv_name.split("/")[-1] if "/" in pv_name else pv_name
+                            device_to_vg[device_name] = vg_name
+            for device_name, lun in device_lun_map.items():
+                imds_data = lun_to_imds.get(str(lun), {})
+                disk_name = imds_data.get("name", "")
+                disk_details = diskname_to_details.get(disk_name, {})
+                vg_name = device_to_vg.get(device_name, "")
+
+                azure_disks_info.append(
+                    {
+                        "LUNID": lun,
+                        "Name": disk_name,
+                        "DeviceName": f"/dev/{device_name}",
+                        "VolumeGroup": vg_name,
+                        "Size": disk_details.get("size", imds_data.get("diskSizeGB", "")),
+                        "DiskType": disk_details.get(
+                            "sku", imds_data.get("storageProfile", {}).get("sku", "")
+                        ),
+                        "IOPS": disk_details.get("iops", ""),
+                        "MBPS": disk_details.get("mbps", ""),
+                        "PerformanceTier": disk_details.get("tier", ""),
+                        "StorageType": disk_details.get("encryption", ""),
+                        "Caching": imds_data.get("caching", ""),
+                        "WriteAccelerator": imds_data.get("writeAcceleratorEnabled", False),
+                    }
+                )
+
+            self.parent.log(
+                logging.INFO,
+                f"Successfully correlated Azure disk info for {len(azure_disks_info)} disks",
+            )
+
+        except Exception as ex:
+            self.parent.log(logging.ERROR, f"Failed to gather Azure disk information: {ex}")
+
+        return azure_disks_info
+
+    def gather_lvm_groups_info(self, lvm_groups, vg_to_disk_names, azure_disk_data):
+        """
+        Gather correlated LVM volume group information with aggregated performance metrics.
+
+        :param lvm_groups: LVM groups from collect_lvm_volumes
+        :param vg_to_disk_names: Mapping of VG names to Azure disk names
+        :param azure_disk_data: Parsed Azure disk metadata
+        :return: List of LVM group information dictionaries
+        :rtype: List[Dict[str, Any]]
+        """
+        lvm_groups_info = []
+
+        try:
+            diskname_to_perf = {}
+            for disk_data in azure_disk_data:
+                disk_name = disk_data.get("name", "")
+                if disk_name:
+                    diskname_to_perf[disk_name] = {
+                        "iops": disk_data.get("iops", 0),
+                        "mbps": disk_data.get("mbps", 0),
+                    }
+            for vg_name, vg_data in lvm_groups.items():
+                disk_names = vg_to_disk_names.get(vg_name, [])
+                total_iops = 0
+                total_mbps = 0
+                for disk_name in disk_names:
+                    perf_data = diskname_to_perf.get(disk_name, {})
+                    total_iops += perf_data.get("iops", 0)
+                    total_mbps += perf_data.get("mbps", 0)
+
+                lvm_groups_info.append(
+                    {
+                        "Name": vg_name,
+                        "Disks": vg_data.get("disks", 0),
+                        "LogicalVolumes": vg_data.get("logical_volumes", 0),
+                        "TotalSize": vg_data.get("total_size", ""),
+                        "TotalIOPS": total_iops,
+                        "TotalMBPS": total_mbps,
+                    }
+                )
+
+            self.parent.log(
+                logging.INFO,
+                f"Successfully correlated LVM group info for {len(lvm_groups_info)} volume groups",
+            )
+
+        except Exception as ex:
+            self.parent.log(logging.ERROR, f"Failed to gather LVM group information: {ex}")
+
+        return lvm_groups_info
+
+    def gather_lvm_volumes_info(self, lvm_volumes):
+        """
+        Gather correlated LVM logical volume information.
+
+        :param lvm_volumes: LVM volumes from collect_lvm_volumes
+        :return: List of LVM volume information dictionaries
+        :rtype: List[Dict[str, Any]]
+        """
+        lvm_volumes_info = []
+
+        try:
+            for lv_name, lv_data in lvm_volumes.items():
+                lvm_volumes_info.append(
+                    {
+                        "Name": lv_name,
+                        "VGName": lv_data.get("vg_name", ""),
+                        "LVPath": lv_data.get("path", ""),
+                        "DMPath": lv_data.get("dm_path", ""),
+                        "Layout": lv_data.get("layout", ""),
+                        "Size": lv_data.get("size", ""),
+                        "StripeSize": lv_data.get("stripe_size", ""),
+                        "Stripes": lv_data.get("stripes", ""),
+                    }
+                )
+
+            self.parent.log(
+                logging.INFO,
+                f"Successfully correlated LVM volume info for {len(lvm_volumes_info)} logical volumes",
+            )
+
+        except Exception as ex:
+            self.parent.log(logging.ERROR, f"Failed to gather LVM volume information: {ex}")
+
+        return lvm_volumes_info
+
     def collect(self, check, context) -> Any:
         """
-        Collect filesystem information exactly like PowerShell CollectFileSystems
+        Collect filesystem information
 
         :param check: Check object
         :type check: Check
@@ -580,11 +743,31 @@ class FileSystemCollector(Collector):
                 vg_to_disk_names=vg_to_disk_names,
             )
 
+            # Gather additional correlated information structures
+            azure_disks_info = self.gather_azure_disks_info(
+                context=context,
+                lvm_fullreport=lvm_fullreport,
+                device_lun_map=device_lun_map,
+            )
+
+            lvm_groups_info = self.gather_lvm_groups_info(
+                lvm_groups=lvm_groups,
+                vg_to_disk_names=vg_to_disk_names,
+                azure_disk_data=azure_disk_data,
+            )
+
+            lvm_volumes_info = self.gather_lvm_volumes_info(
+                lvm_volumes=lvm_volumes,
+            )
+
             return {
                 "filesystems": filesystems,
                 "lvm_volumes": lvm_volumes,
                 "lvm_groups": lvm_groups,
                 "formatted_filesystem_info": formatted_filesystem_info,
+                "azure_disks_info": azure_disks_info,
+                "lvm_groups_info": lvm_groups_info,
+                "lvm_volumes_info": lvm_volumes_info,
             }
 
         except Exception as ex:

@@ -892,6 +892,9 @@ class ConfigurationCheckModule(SapAutomationQA):
             result.update(
                 {
                     "formatted_filesystem_info": self.context.get("formatted_filesystem_info", {}),
+                    "azure_disks_info": self.context.get("azure_disks_info", []),
+                    "lvm_groups_info": self.context.get("lvm_groups_info", []),
+                    "lvm_volumes_info": self.context.get("lvm_volumes_info", []),
                     "execution_metadata": {
                         "start_time": execution_start_time.isoformat(),
                         "end_time": execution_end_time.isoformat(),
