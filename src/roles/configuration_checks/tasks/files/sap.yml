@@ -474,10 +474,10 @@ checks:
       high_availability_agent:          [*fencing_agent]
     collector_type:                     *command
     collector_args:
-      command:                          "/bin/cat /etc/corosync/corosync.conf | xargs | grep -i 'token: 30000 ' | wc -l"
+      command:                          "grep -E '^[[:space:]]*token:' /etc/corosync/corosync.conf | awk '{print $2}'"
     validator_type:                     *string
     validator_args:
-      expected_output:                         "1"
+      expected_output:                  "30000"
     report:                             *check
     references:
       microsoft:                        "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-rhel-pacemaker"
