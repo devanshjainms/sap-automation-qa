@@ -325,7 +325,7 @@ class FileSystemCollector(Collector):
 
     def gather_all_filesystem_info(
         self, context, filesystems, lvm_volumes, vg_to_disk_names
-    ) -> dict:
+    ) -> list:
         """
         Gather all filesystem information and correlate as a single dictionary.
 
@@ -344,8 +344,8 @@ class FileSystemCollector(Collector):
         :type lvm_volumes: Dict[str, Any]
         :param vg_to_disk_names: Pre-computed mapping of VG names to Azure disk names
         :type vg_to_disk_names: Dict[str, List[str]]
-        :return: Dictionary keyed by target/mount point with all filesystem information
-        :rtype: dict
+        :return: List keyed by target/mount point with all filesystem information
+        :rtype: list
         """
         try:
             lvm_fullreport = context.get("lvm_fullreport", "")
@@ -370,7 +370,7 @@ class FileSystemCollector(Collector):
                 if disk_name:
                     diskname_to_diskdata[disk_name] = disk_data
 
-            correlated_info = {}
+            correlated_info = []
 
             for fs in filesystems:
                 target = fs.get("target", "")
@@ -466,23 +466,25 @@ class FileSystemCollector(Collector):
                                 f"Correlated direct disk {target}: MBPS={max_mbps}, IOPS={max_iops}",
                             )
                             break
-                correlated_info[target] = {
-                    "target": target,
-                    "source": source,
-                    "fstype": fstype,
-                    "vg": vg_name,
-                    "options": fs.get("options", ""),
-                    "size": fs.get("size", ""),
-                    "free": fs.get("free", ""),
-                    "used": fs.get("used", ""),
-                    "used_percent": fs.get("used_percent", ""),
-                    "max_mbps": max_mbps,
-                    "max_iops": max_iops,
-                    "stripe_size": stripe_size,
-                    "stripes": stripes,
-                    "azure_disk_names": azure_disk_names,
-                    "disk_count": disk_count,
-                }
+                correlated_info.append(
+                    {
+                        "target": target,
+                        "source": source,
+                        "fstype": fstype,
+                        "vg": vg_name,
+                        "options": fs.get("options", ""),
+                        "size": fs.get("size", ""),
+                        "free": fs.get("free", ""),
+                        "used": fs.get("used", ""),
+                        "used_percent": fs.get("used_percent", ""),
+                        "max_mbps": max_mbps,
+                        "max_iops": max_iops,
+                        "stripe_size": stripe_size,
+                        "stripes": stripes,
+                        "azure_disk_names": azure_disk_names,
+                        "disk_count": disk_count,
+                    }
+                )
 
             self.parent.log(
                 logging.INFO,
