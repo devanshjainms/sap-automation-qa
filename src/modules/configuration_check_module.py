@@ -26,8 +26,8 @@ try:
         Collector,
         CommandCollector,
         AzureDataParser,
-        FileSystemCollector,
     )
+    from ansible.module_utils.filesystem_collector import FileSystemCollector
 except ImportError:
     from src.module_utils.sap_automation_qa import SapAutomationQA
     from src.module_utils.enums import (
@@ -41,8 +41,8 @@ except ImportError:
         Collector,
         CommandCollector,
         AzureDataParser,
-        FileSystemCollector,
     )
+    from src.module_utils.filesystem_collector import FileSystemCollector
 
 
 class ConfigurationCheckModule(SapAutomationQA):
