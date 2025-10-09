@@ -5,6 +5,111 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  {# Macro to render data as HTML tables - data is already a Python object (dict/list) #}
+  {% macro render_table(data, is_nested=false) %}
+    {% if not data %}
+      <div class="table-empty-state">No data available</div>
+    {% elif data is mapping %}
+      {# Dictionary - check for nested structures #}
+      {% set has_nested = namespace(value=false) %}
+      {% for value in data.values() %}
+        {% if value is mapping or value is iterable and value is not string %}
+          {% set has_nested.value = true %}
+        {% endif %}
+      {% endfor %}
+      
+      {% if has_nested.value %}
+        {# Render with nested sections #}
+        {% for key, value in data.items() %}
+          {% if value is mapping or (value is iterable and value is not string) %}
+            <div class="nested-section">
+              <div class="nested-section-title">{{ key }}</div>
+              {{ render_table(value, is_nested=true) }}
+            </div>
+          {% else %}
+            <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
+              <tbody>
+                <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+              </tbody>
+            </table>
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        {# Simple key-value table #}
+        <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
+          <tbody>
+            {% for key, value in data.items() %}
+              <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    {% elif data is iterable and data is not string %}
+      {# List #}
+      {% if data|length > 0 and data[0] is mapping %}
+        {# List of dictionaries - table with headers #}
+        {% set all_keys = [] %}
+        {% for item in data %}
+          {% if item is mapping %}
+            {% for key in item.keys() %}
+              {% if key not in all_keys %}
+                {% set _ = all_keys.append(key) %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+        <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
+          <thead>
+            <tr>
+              {% for key in all_keys|sort %}
+                <th>{{ key }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in data %}
+              {% if item is mapping %}
+                <tr>
+                  {% for key in all_keys|sort %}
+                    <td>
+                      {% set value = item.get(key, '') %}
+                      {% if value is mapping or (value is iterable and value is not string) %}
+                        {{ render_table(value, is_nested=true) }}
+                      {% else %}
+                        {{ value }}
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+                </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        {# Simple list #}
+        <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
+          <thead><tr><th>Value</th></tr></thead>
+          <tbody>
+            {% for item in data %}
+              <tr>
+                <td>
+                  {% if item is mapping or (item is iterable and item is not string) %}
+                    {{ render_table(item, is_nested=true) }}
+                  {% else %}
+                    {{ item }}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    {% else %}
+      <div>{{ data }}</div>
+    {% endif %}
+  {% endmacro %}
+
   <style>
     :root {
       --primary-color: #0078d7;
@@ -598,6 +703,108 @@
       box-shadow: var(--shadow-md);
     }
 
+    /* Dynamic Table Styles */
+    .dynamic-table-container {
+      margin-top: 16px;
+      overflow-x: auto;
+    }
+
+    .table-report-section {
+      background: white;
+      border: 1px solid #e2e8f0;
+    }
+
+    .dynamic-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      background: white;
+    }
+
+    .dynamic-table th {
+      background: linear-gradient(135deg, #334155 0%, #475569 100%);
+      color: white;
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid #1e293b;
+    }
+
+    .dynamic-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 14px;
+      color: #475569;
+      vertical-align: top;
+    }
+
+    .dynamic-table tbody tr {
+      transition: var(--transition);
+      background: white;
+    }
+
+    .dynamic-table tbody tr:hover {
+      background: linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
+      transform: scale(1.002);
+    }
+
+    .dynamic-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Nested section styles for grouped data */
+    .nested-section {
+      margin: 16px 0;
+      padding: 16px;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-radius: var(--radius-sm);
+      border-left: 4px solid var(--primary-color);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .nested-section-title {
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 12px;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nested-section-title::before {
+      content: '▸';
+      color: var(--primary-color);
+      font-weight: bold;
+    }
+
+    .nested-table {
+      margin-left: 0;
+    }
+
+    /* Alternating row colors for better readability */
+    .dynamic-table tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    .dynamic-table tbody tr:nth-child(even):hover {
+      background: linear-gradient(90deg, #e0f2fe 0%, #dbeafe 50%, #e0f2fe 100%);
+    }
+
+    /* Empty state */
+    .table-empty-state {
+      padding: 32px;
+      text-align: center;
+      color: #94a3b8;
+      font-style: italic;
+    }
+
     /* Collapsible Section Styles */
     .section-header {
       cursor: pointer;
@@ -987,11 +1194,38 @@
               </table>
               {% endif %}
               {% endfor %}
+
+              {% set host_tables = test_case_results|selectattr('hostname', 'equalto',
+              hostname)|selectattr('check.report', 'equalto', 'table')|rejectattr('status', 'equalto', 'SKIPPED')|list
+              %}
+              {% if host_tables|length > 0 %}
+              <h3>Tabular Data Reports</h3>
+              {% for check in host_tables %}
+              <div class="config-section table-report-section">
+                <h4 class="section-header" onclick="toggleSection('table-{{ check.hostname }}-{{ check.check.id }}')">
+                  <span class="toggle-icon">+</span> {{ check.check.name }} ({{ check.check.id }})</h4>
+                <div id="table-{{ check.hostname }}-{{ check.check.id }}" class="section-content collapsed">
+                  <p>
+                    <strong>Description:</strong> {{ check.check.description }}
+                  </p>
+                  {% if check.check.collector_args.command is defined %}
+                  <p>
+                    <strong>Command:</strong> <code>{{ check.check.collector_args.command }}</code>
+                  </p>
+                  {% endif %}
+                  <div class="dynamic-table-container">
+                    {{ render_table(check.actual_value) }}
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+              {% endif %}
+
               {% set host_sections = test_case_results|selectattr('hostname', 'equalto',
               hostname)|selectattr('check.report', 'equalto', 'section')|rejectattr('status', 'equalto', 'SKIPPED')|list
               %}
               {% if host_sections|length > 0 %}
-              <h3>Section Reports</h3>
+              <h3>Detailed Output Reports</h3>
               {% for check in host_sections %}
               <div class="config-section">
                 <h4 class="section-header" onclick="toggleSection('section-{{ check.hostname }}-{{ check.check.id }}')">

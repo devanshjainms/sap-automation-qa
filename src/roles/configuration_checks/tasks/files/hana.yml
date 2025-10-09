@@ -84,7 +84,8 @@ enums:
   report:
     - check:                          &check "check"
     - section:                        &section "section"
-    - report:                         &report [*check, *section]
+    - table:                          &table "table"
+    - report:                         &report [*check, *section, *table]
 
 # Checks for DB roles for database_type == hana
 
@@ -1144,7 +1145,7 @@ checks:
     collector_type:                     *azure
     collector_args:
       resource_type:                    "filesystem"
-    report:                             *section
+    report:                             *table
     references:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
