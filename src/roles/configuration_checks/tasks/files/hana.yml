@@ -90,7 +90,7 @@ enums:
 
 checks:
   - id:                                 "DB-HANA-0001"
-    name:                               "SAP HANA Automatic Site Takeover"
+    name:                               "PREFER_SITE_TAKEOVER"
     description:                        "SAP HANA Automatic Site Takeover"
     category:                           *sap_check
     severity:                           *high
@@ -114,7 +114,7 @@ checks:
     report:                             *check
 
   - id:                                 "DB-HANA-0002"
-    name:                               "SAP HANA Automated Register"
+    name:                               "AUTOMATED_REGISTER"
     description:                        "SAP HANA Automated Register"
     category:                           *sap_check
     severity:                           *high
@@ -138,7 +138,7 @@ checks:
     report:                             *check
 
   - id:                                 "DB-HANA-0003"
-    name:                               "SAP HANA stonith action (fencing)"
+    name:                               "stonith-action"
     description:                        "SAP HANA stonith action (fencing)"
     category:                           *sap_check
     severity:                           *high
@@ -235,7 +235,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0009"
-    name:                               "SAP HANA sysctl net.core.wmem_max"
+    name:                               "sysctl net.core.wmem_max"
     description:                        "SAP HANA sysctl net.core.wmem_max"
     category:                           *os_check
     severity:                           *high
@@ -260,7 +260,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0010"
-    name:                               "SAP HANA sysctl net.ipv4.tcp_rmem"
+    name:                               "sysctl net.ipv4.tcp_rmem"
     description:                        "SAP HANA sysctl net.ipv4.tcp_rmem"
     category:                           *os_check
     severity:                           *high
@@ -285,7 +285,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0011"
-    name:                               "SAP HANA sysctl net.ipv4.tcp_wmem"
+    name:                               "sysctl net.ipv4.tcp_wmem"
     description:                        "SAP HANA sysctl net.ipv4.tcp_wmem"
     category:                           *sap_check
     severity:                           *high
@@ -310,7 +310,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0012"
-    name:                               "SAP HANA sysctl net.core.netdev_max_backlog"
+    name:                               "sysctl net.core.netdev_max_backlog"
     description:                        "SAP HANA sysctl net.core.netdev_max_backlog"
     category:                           *os_check
     severity:                           *high
@@ -335,7 +335,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0013"
-    name:                               "SAP HANA sysctl net.ipv4.tcp_slow_start_after_idle"
+    name:                               "sysctl net.ipv4.tcp_slow_start_after_idle"
     description:                        "SAP HANA sysctl net.ipv4.tcp_slow_start_after_idle"
     category:                           *os_check
     severity:                           *high
@@ -360,7 +360,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0014"
-    name:                               "SAP HANA sysctl net.ipv4.tcp_moderate_rcvbuf"
+    name:                               "sysctl net.ipv4.tcp_moderate_rcvbuf"
     description:                        "SAP HANA sysctl net.ipv4.tcp_moderate_rcvbuf"
     category:                           *os_check
     severity:                           *high
@@ -385,7 +385,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0015"
-    name:                               "SAP HANA sysctl net.ipv4.tcp_window_scaling"
+    name:                               "sysctl net.ipv4.tcp_window_scaling"
     description:                        "SAP HANA sysctl net.ipv4.tcp_window_scaling"
     category:                           *os_check
     severity:                           *high
@@ -410,7 +410,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0016"
-    name:                               "SAP HANA sysctl net.ipv4.tcp_timestamps"
+    name:                               "sysctl net.ipv4.tcp_timestamps"
     description:                        "SAP HANA sysctl net.ipv4.tcp_timestamps"
     category:                           *os_check
     severity:                           *high
@@ -435,7 +435,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0017"
-    name:                               "SAP HANA sysctl net.ipv4.tcp_sack"
+    name:                               "sysctl net.ipv4.tcp_sack"
     description:                        "SAP HANA sysctl net.ipv4.tcp_sack"
     category:                           *os_check
     severity:                           *high
@@ -460,7 +460,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0018"
-    name:                               "SAP HANA sysctl net.ipv6.conf.all.disable_ipv6"
+    name:                               "sysctl net.ipv6.conf.all.disable_ipv6"
     description:                        "SAP HANA sysctl net.ipv6.conf.all.disable_ipv6"
     category:                           *os_check
     severity:                           *high
@@ -485,7 +485,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0019"
-    name:                               "SAP HANA sysctl net.ipv4.tcp_max_syn_backlog"
+    name:                               "sysctl net.ipv4.tcp_max_syn_backlog"
     description:                        "SAP HANA sysctl net.ipv4.tcp_max_syn_backlog"
     category:                           *os_check
     severity:                           *high
@@ -510,7 +510,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0020"
-    name:                               "SAP HANA sysctl net.ipv4.ip_local_port_range"
+    name:                               "sysctl net.ipv4.ip_local_port_range"
     description:                        "SAP HANA sysctl net.ipv4.ip_local_port_range"
     category:                           *os_check
     severity:                           *high
@@ -535,7 +535,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0021"
-    name:                               "SAP HANA sysctl net.ipv4.conf.all.rp_filter"
+    name:                               "sysctl net.ipv4.conf.all.rp_filter"
     description:                        "SAP HANA sysctl net.ipv4.conf.all.rp_filter"
     category:                           *os_check
     severity:                           *high
@@ -560,7 +560,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0022"
-    name:                               "SAP HANA sysctl sunrpc.tcp_slot_table_entries"
+    name:                               "sysctl sunrpc.tcp_slot_table_entries"
     description:                        "SAP HANA sysctl sunrpc.tcp_slot_table_entries"
     category:                           *os_check
     severity:                           *high
@@ -585,7 +585,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0023"
-    name:                               "SAP HANA sysctl vm.swappiness"
+    name:                               "sysctl vm.swappiness"
     description:                        "SAP HANA sysctl vm.swappiness"
     category:                           *os_check
     severity:                           *high
@@ -610,7 +610,7 @@ checks:
       sap:                              "3024346"
 
   - id:                                 "DB-HANA-0024"
-    name:                               "SAP HANA Red Hat tuned-adm profile"
+    name:                               "Red Hat tuned-adm profile"
     description:                        "SAP HANA Red Hat tuned-adm profile"
     category:                           *sap_check
     severity:                           *high
@@ -786,7 +786,7 @@ checks:
     severity:                           *high
     workload:                           *sap
     applicability:
-      os_type:                          [*suse, *redhat]
+      os_type:                          [*suse]
       os_version:                       *all_versions
       hardware_type:                    *vm
       storage_type:                     *premium_storage
@@ -802,3 +802,328 @@ checks:
     report:                             *check
     references:
       other:                            "https://www.suse.com/support/kb/doc/?id=000019447"
+
+  - id:                                 "DB-HANA-0032"
+    name:                               "Swap space"
+    description:                        "Swap space should be 2GB"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "free -m | grep Swap | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *range
+    validator_args:
+      min:                              "2046"
+      max:                              "2049"
+    report:                             *check
+    references:
+      sap:                              "1999997"
+
+  - id:                                 DB-HANA-0033
+    name:                               "Filesystem type for /hana/data"
+    description:                        "The filesystem type for /hana/data should be xfs or nfs or nfs4"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "df -T /hana/data | tail -1 | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *list
+    validator_args:
+      valid_list:                       ["xfs", "nfs", "nfs4"]
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0034
+    name:                               "Stripe size for /hana/data"
+    description:                        "The stripe size for /hana/data should be 256k (256.00k or 262144 bytes)"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disks"
+      property:                         "stripe_size"
+      mount_point:                      "/hana/data"
+    validator_type:                     *string
+    validator_args:
+      expected:                         "256.00k"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 DB-HANA-0035
+    name:                               "Filesystem type for /hana/log"
+    description:                        "The filesystem type for /hana/log should be xfs or nfs or nfs4"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "df -T /hana/log | tail -1 | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *list
+    validator_args:
+      valid_list:                       ["xfs", "nfs", "nfs4"]
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0036
+    name:                               "Stripe size for /hana/log"
+    description:                        "The stripe size for /hana/log should be 256k (256.00k or 262144 bytes)"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disks"
+      property:                         "stripe_size"
+      mount_point:                      "/hana/log"
+    validator_type:                     *string
+    validator_args:
+      expected:                         "256.00k"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 DB-HANA-0037
+    name:                               "Filesystem type for /hana/shared"
+    description:                        "The filesystem type for /hana/shared should be xfs or nfs or nfs4"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "df -T /hana/shared | tail -1 | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *list
+    validator_args:
+      valid_list:                       ["xfs", "nfs", "nfs4"]
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0038
+    name:                               "Filesystem type for /usr/sap"
+    description:                        "The filesystem type for /usr/sap should be xfs or nfs or nfs4"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "df -T /usr/sap | tail -1 | awk '{print $2}'"
+      user:                             *root
+    validator_type:                     *list
+    validator_args:
+      valid_list:                       ["xfs", "nfs", "nfs4"]
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0039
+    name:                               "Sector size for /hana/data Premium SSD V2"
+    description:                        "The logical block size for /hana/data on Premium SSD V2 should be 4096 bytes"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "stat -f -c '%s' /hana/data 2>/dev/null || echo 'N/A'"
+      user:                             *root
+    validator_type:                     *range
+    validator_args:
+      min:                              "4096"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0040
+    name:                               "Sector size for /hana/log Premium SSD V2"
+    description:                        "The logical block size for /hana/log on Premium SSD V2 should be 4096 bytes"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *premium_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          "stat -f -c '%s' /hana/log 2>/dev/null || echo 'N/A'"
+      user:                             *root
+    validator_type:                     *range
+    validator_args:
+      min:                              "4096"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+
+  - id:                                 DB-HANA-0041
+    name:                               "Disk performance for /hana/data (MBPS)"
+    description:                        "The disk performance for /hana/data should be >= 400 MByte/s"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disks"
+      property:                         "mbps"
+      mount_point:                      "/hana/data"
+    validator_type:                     *range
+    validator_args:
+      min:                              "400"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 DB-HANA-0042
+    name:                               "Disk performance for /hana/data (IOPS)"
+    description:                        "The disk performance for /hana/data should be >= 7000 IOPS"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disks"
+      property:                         "iops"
+      mount_point:                      "/hana/data"
+    validator_type:                     *range
+    validator_args:
+      min:                              "7000"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 DB-HANA-0043
+    name:                               "Disk performance for /hana/log (MBPS)"
+    description:                        "The disk performance for /hana/log should be >= 250 MByte/s"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disks"
+      property:                         "mbps"
+      mount_point:                      "/hana/log"
+    validator_type:                     *range
+    validator_args:
+      min:                              "250"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 DB-HANA-0044
+    name:                               "Disk performance for /hana/log (IOPS)"
+    description:                        "The disk performance for /hana/log should be >= 7000 IOPS"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disks"
+      property:                         "iops"
+      mount_point:                      "/hana/log"
+    validator_type:                     *range
+    validator_args:
+      min:                              "2000"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"

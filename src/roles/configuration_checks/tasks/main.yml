@@ -43,7 +43,7 @@
 
 - name:                             Include disks task when HANA checks to be run
   ansible.builtin.include_tasks:    disks.yml
-  when:                             check_type.file_name == "filesystem"
+  when:                             check_type.file_name == "hana"
 
 - name:                             Prepare system context information for {{check_type.name}}
   ansible.builtin.set_fact:
