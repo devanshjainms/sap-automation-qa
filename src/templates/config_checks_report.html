@@ -6,12 +6,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
-  {# Macro to render data as HTML tables - data is already a Python object (dict/list) #}
   {% macro render_table(data, is_nested=false) %}
     {% if not data %}
       <div class="table-empty-state">No data available</div>
     {% elif data is mapping %}
-      {# Dictionary - check for nested structures #}
       {% set has_nested = namespace(value=false) %}
       {% for value in data.values() %}
         {% if value is mapping or value is iterable and value is not string %}
@@ -20,7 +18,6 @@
       {% endfor %}
       
       {% if has_nested.value %}
-        {# Render with nested sections #}
         {% for key, value in data.items() %}
           {% if value is mapping or (value is iterable and value is not string) %}
             <div class="nested-section">
@@ -36,7 +33,6 @@
           {% endif %}
         {% endfor %}
       {% else %}
-        {# Simple key-value table #}
         <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
           <tbody>
             {% for key, value in data.items() %}
@@ -46,11 +42,11 @@
         </table>
       {% endif %}
     {% elif data is iterable and data is not string %}
-      {# List #}
       {% if data|length > 0 and data[0] is mapping %}
-        {# List of dictionaries - table with headers #}
-        {% set all_keys = [] %}
-        {% for item in data %}
+        {% set first_item = data[0] %}
+        {% set all_keys = first_item.keys()|list %}
+        
+        {% for item in data[1:] %}
           {% if item is mapping %}
             {% for key in item.keys() %}
               {% if key not in all_keys %}
@@ -62,7 +58,7 @@
         <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
           <thead>
             <tr>
-              {% for key in all_keys|sort %}
+              {% for key in all_keys %}
                 <th>{{ key }}</th>
               {% endfor %}
             </tr>
@@ -71,11 +67,15 @@
             {% for item in data %}
               {% if item is mapping %}
                 <tr>
-                  {% for key in all_keys|sort %}
+                  {% for key in all_keys %}
                     <td>
                       {% set value = item.get(key, '') %}
-                      {% if value is mapping or (value is iterable and value is not string) %}
+                      {% if value is mapping %}
                         {{ render_table(value, is_nested=true) }}
+                      {% elif value is iterable and value is not string %}
+                        {% for list_item in value %}
+                          {{ list_item }}<br>
+                        {% endfor %}
                       {% else %}
                         {{ value }}
                       {% endif %}
@@ -87,23 +87,28 @@
           </tbody>
         </table>
       {% else %}
-        {# Simple list #}
-        <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
-          <thead><tr><th>Value</th></tr></thead>
-          <tbody>
-            {% for item in data %}
-              <tr>
-                <td>
-                  {% if item is mapping or (item is iterable and item is not string) %}
-                    {{ render_table(item, is_nested=true) }}
-                  {% else %}
-                    {{ item }}
-                  {% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        {% if is_nested %}
+          {% for item in data %}
+            {{ item }}<br>
+          {% endfor %}
+        {% else %}
+          <table class="dynamic-table">
+            <thead><tr><th>Value</th></tr></thead>
+            <tbody>
+              {% for item in data %}
+                <tr>
+                  <td>
+                    {% if item is mapping or (item is iterable and item is not string) %}
+                      {{ render_table(item, is_nested=true) }}
+                    {% else %}
+                      {{ item }}
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
       {% endif %}
     {% else %}
       <div>{{ data }}</div>
@@ -805,6 +810,57 @@
       font-style: italic;
     }
 
+    /* Table header info styles */
+    .table-header-info {
+      padding: 20px;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+      border-left: 4px solid var(--primary-color);
+    }
+
+    .table-check-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0 0 8px 0;
+    }
+
+    .table-check-id {
+      font-size: 12px;
+      color: #64748b;
+      margin: 0 0 12px 0;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .table-check-description {
+      font-size: 14px;
+      color: #475569;
+      margin: 0 0 12px 0;
+      line-height: 1.6;
+    }
+
+    .table-check-command {
+      font-size: 13px;
+      color: #475569;
+      margin: 0;
+    }
+
+    .table-check-command code {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: 12px;
+    }
+
+    .table-report-section {
+      margin-bottom: 32px;
+    }
+
     /* Collapsible Section Styles */
     .section-header {
       cursor: pointer;
@@ -1202,20 +1258,17 @@
               <h3>Tabular Data Reports</h3>
               {% for check in host_tables %}
               <div class="config-section table-report-section">
-                <h4 class="section-header" onclick="toggleSection('table-{{ check.hostname }}-{{ check.check.id }}')">
-                  <span class="toggle-icon">+</span> {{ check.check.name }} ({{ check.check.id }})</h4>
-                <div id="table-{{ check.hostname }}-{{ check.check.id }}" class="section-content collapsed">
-                  <p>
-                    <strong>Description:</strong> {{ check.check.description }}
-                  </p>
+                <div class="table-header-info">
+                  <h4 class="table-check-name">{{ check.check.name }} {{ check.check.id }}</h4>
+                  <p class="table-check-description">{{ check.check.description }}</p>
                   {% if check.check.collector_args.command is defined %}
-                  <p>
+                  <p class="table-check-command">
                     <strong>Command:</strong> <code>{{ check.check.collector_args.command }}</code>
                   </p>
                   {% endif %}
-                  <div class="dynamic-table-container">
-                    {{ render_table(check.actual_value) }}
-                  </div>
+                </div>
+                <div class="dynamic-table-container">
+                  {{ render_table(check.actual_value) }}
                 </div>
               </div>
               {% endfor %}
