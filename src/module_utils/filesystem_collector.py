@@ -323,6 +323,182 @@ class FileSystemCollector(Collector):
 
         return parsed_data
 
+    def gather_all_filesystem_info(
+        self, context, filesystems, lvm_volumes, vg_to_disk_names
+    ) -> dict:
+        """
+        Gather all filesystem information and correlate as a single dictionary.
+
+        Returns a dictionary keyed by mount point/target with comprehensive filesystem metadata.
+        Fully populate all fields by correlating LVM data, Azure disk data, and VG-to-disk mappings.
+        For LVM volumes, aggregates IOPS/MBPS from all underlying Azure disks in the volume group.
+
+        Each entry contains: Target, Source, FSType, VG, Options, Size, Free, Used,
+        UsedPercent, MaxMBPS, MaxIOPS, StripeSize
+
+        :param context: Context object containing all required filesystem data
+        :type context: Dict[str, Any]
+        :param filesystems: List of filesystem dictionaries from _parse_filesystem_data
+        :type filesystems: List[Dict[str, Any]]
+        :param lvm_volumes: LVM volume information from collect_lvm_volumes
+        :type lvm_volumes: Dict[str, Any]
+        :param vg_to_disk_names: Pre-computed mapping of VG names to Azure disk names
+        :type vg_to_disk_names: Dict[str, List[str]]
+        :return: Dictionary keyed by target/mount point with all filesystem information
+        :rtype: dict
+        """
+        try:
+            lvm_fullreport = context.get("lvm_fullreport", "")
+            if not lvm_fullreport or not lvm_fullreport.get("report"):
+                self.parent.log(
+                    logging.WARNING,
+                    "lvm_fullreport is empty or invalid. LVM data correlation will be incomplete.",
+                )
+
+            azure_disk_data = self._parse_metadata(
+                context.get("azure_disks_metadata", []), "Azure disk"
+            )
+            afs_storage_data = self._parse_metadata(
+                context.get("afs_storage_metadata", ""), "AFS storage"
+            )
+            anf_storage_data = self._parse_metadata(
+                context.get("anf_storage_metadata", ""), "ANF storage"
+            )
+            diskname_to_diskdata = {}
+            for disk_data in azure_disk_data:
+                disk_name = disk_data.get("name", "")
+                if disk_name:
+                    diskname_to_diskdata[disk_name] = disk_data
+
+            correlated_info = {}
+
+            for fs in filesystems:
+                target = fs.get("target", "")
+                if not target:
+                    self.parent.log(
+                        logging.WARNING, f"Skipping filesystem entry with no target: {fs}"
+                    )
+                    continue
+
+                source = fs.get("source", "")
+                vg_name = fs.get("vg", "")
+                fstype = fs.get("fstype", "")
+                stripe_size = fs.get("stripe_size", "")
+                stripes = ""
+                lv_size = ""
+
+                if not stripe_size and vg_name and source:
+                    for lv_name, lv_info in lvm_volumes.items():
+                        if lv_info.get("dm_path") == source:
+                            stripe_size = lv_info.get("stripe_size", "")
+                            stripes = lv_info.get("stripes", "")
+                            lv_size = lv_info.get("size", "")
+                            self.parent.log(
+                                logging.INFO,
+                                f"Found LVM details for {target}: "
+                                + f"stripe_size={stripe_size}, stripes={stripes}",
+                            )
+                            break
+
+                max_mbps = fs.get("max_mbps", 0)
+                max_iops = fs.get("max_iops", 0)
+                azure_disk_names = []
+                disk_count = 0
+                if fstype in ["nfs", "nfs4"]:
+                    if ":" in source:
+                        nfs_address = source.split(":")[0]
+                        for nfs_share in afs_storage_data:
+                            share_address = nfs_share.get("NFSAddress", "")
+                            if ":" in share_address and share_address.split(":")[0] == nfs_address:
+                                max_mbps = nfs_share.get("ThroughputMibps", 0)
+                                max_iops = nfs_share.get("IOPS", 0)
+                                self.parent.log(
+                                    logging.INFO,
+                                    f"Correlated NFS {target} with "
+                                    + f"AFS: MBPS={max_mbps}, IOPS={max_iops}",
+                                )
+                                break
+
+                elif source.startswith("/dev/mapper/") and vg_name:
+                    disk_names = vg_to_disk_names.get(vg_name, [])
+
+                    if disk_names:
+                        azure_disk_names = disk_names
+                        disk_count = len(disk_names)
+                        total_mbps = 0
+                        total_iops = 0
+
+                        for disk_name in disk_names:
+                            disk_data = diskname_to_diskdata.get(disk_name)
+                            if disk_data:
+                                total_mbps += disk_data.get("mbps", 0)
+                                total_iops += disk_data.get("iops", 0)
+                            else:
+                                self.parent.log(
+                                    logging.WARNING,
+                                    f"No disk data found for {disk_name} in VG {vg_name}",
+                                )
+
+                        max_mbps = total_mbps
+                        max_iops = total_iops
+
+                        self.parent.log(
+                            logging.INFO,
+                            f"Aggregated performance for {target} (VG {vg_name}): "
+                            f"{disk_count} disks, MBPS={max_mbps}, IOPS={max_iops}",
+                        )
+                    else:
+                        self.parent.log(
+                            logging.WARNING, f"No disk mapping found for VG {vg_name} at {target}"
+                        )
+
+                elif source.startswith("/dev/sd") or source.startswith("/dev/nvme"):
+                    disk_name = source.split("/")[-1] if "/" in source else source
+
+                    for disk_data in azure_disk_data:
+                        if disk_data.get("name", "").endswith(disk_name):
+                            max_mbps = disk_data.get("mbps", 0)
+                            max_iops = disk_data.get("iops", 0)
+                            azure_disk_names = [disk_data.get("name", "")]
+                            disk_count = 1
+                            self.parent.log(
+                                logging.INFO,
+                                f"Correlated direct disk {target}: MBPS={max_mbps}, IOPS={max_iops}",
+                            )
+                            break
+                correlated_info[target] = {
+                    "target": target,
+                    "source": source,
+                    "fstype": fstype,
+                    "vg": vg_name,
+                    "options": fs.get("options", ""),
+                    "size": fs.get("size", ""),
+                    "free": fs.get("free", ""),
+                    "used": fs.get("used", ""),
+                    "used_percent": fs.get("used_percent", ""),
+                    "max_mbps": max_mbps,
+                    "max_iops": max_iops,
+                    "stripe_size": stripe_size,
+                    "stripes": stripes,
+                    "azure_disk_names": azure_disk_names,
+                    "disk_count": disk_count,
+                }
+
+            self.parent.log(
+                logging.INFO,
+                f"Successfully correlated FS info for {len(correlated_info)} mount points with "
+                f"{len(azure_disk_data)} Azure disks and {len(vg_to_disk_names)} VG mappings",
+            )
+
+            return correlated_info
+
+        except Exception as ex:
+            self.parent.log(
+                logging.ERROR, f"Failed to gather correlated filesystem information: {ex}"
+            )
+            self.parent.handle_error(ex)
+            return {}
+
     def collect(self, check, context) -> Any:
         """
         Collect filesystem information exactly like PowerShell CollectFileSystems
@@ -395,17 +571,18 @@ class FileSystemCollector(Collector):
                 vg_to_disk_names=vg_to_disk_names,
             )
 
-            self.parent.log(
-                logging.INFO,
-                f"Collected filesystems: {filesystems}\n"
-                + f"Collected LVM volumes: {lvm_volumes}\n"
-                + f"Collected LVM groups: {lvm_groups}",
+            formatted_filesystem_info = self.gather_all_filesystem_info(
+                context=context,
+                filesystems=filesystems,
+                lvm_volumes=lvm_volumes,
+                vg_to_disk_names=vg_to_disk_names,
             )
 
             return {
                 "filesystems": filesystems,
                 "lvm_volumes": lvm_volumes,
                 "lvm_groups": lvm_groups,
+                "formatted_filesystem_info": formatted_filesystem_info,
             }
 
         except Exception as ex:

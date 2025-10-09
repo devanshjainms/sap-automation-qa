@@ -165,10 +165,10 @@
       ansible.builtin.debug:
         msg:                        "Azure-based configuration checks failed but continuing {{ azure_check_results.msg }}"
 
-- name:                             Debug the logs from configuration check python module
-  when:                             azure_check_results is defined and azure_check_results.log is defined
+- name:                             Debug the formatted filesystem info from configuration check python module
+  when:                             azure_check_results is defined and azure_check_results.formatted_filesystem_info is defined
   ansible.builtin.debug:
-    msg:                            "{{ azure_check_results.log }}"
+    msg:                            "{{ azure_check_results.formatted_filesystem_info }}"
 
 - name:                             Merge check results with error handling
   ansible.builtin.set_fact:
