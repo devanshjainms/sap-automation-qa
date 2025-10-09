@@ -891,6 +891,7 @@ class ConfigurationCheckModule(SapAutomationQA):
 
             result.update(
                 {
+                    "formatted_filesystem_info": self.context.get("formatted_filesystem_info", {}),
                     "execution_metadata": {
                         "start_time": execution_start_time.isoformat(),
                         "end_time": execution_end_time.isoformat(),
@@ -903,7 +904,7 @@ class ConfigurationCheckModule(SapAutomationQA):
                             if self.module_params.get("parallel_execution", False)
                             else "sequential"
                         ),
-                    }
+                    },
                 }
             )
 
