@@ -298,12 +298,6 @@
       loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].db_ha_config_results is defined
 
-    - name:                             "Debug DB HA results collection"
-      ansible.builtin.debug:
-        msg:                            "DB HA results collected: {{ hostvars[item].db_ha_config_results | default([]) | length }} results from {{ item }}"
-      loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
-      when:                             hostvars[item].db_ha_config_results is defined
-
     - name:                             "Collect ASCS/SCS check results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].ascs_scs_results
@@ -357,22 +351,6 @@
                                           groups[sap_sid | upper + '_ERS']|default([]) +
                                           groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].load_balancer_results is defined
-
-    - name:                             "Debug HA results structure"
-      ansible.builtin.debug:
-        msg:                            "HA results: {{ all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | list | length }} HA checks found, Non-skipped: {{ all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | rejectattr('status', 'equalto', 'SKIPPED') | list | length }}"
-      run_once:                         true
-
-    - name:                             "Debug first non-skipped HA result"
-      ansible.builtin.debug:
-        var:                            all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | rejectattr('status', 'equalto', 'SKIPPED') | first
-      run_once:                         true
-      when:                             (all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | rejectattr('status', 'equalto', 'SKIPPED') | list | length) > 0
-
-    - name:                             "Debug all results"
-      ansible.builtin.debug:
-        var:                            all_results
-      run_once:                         true
 
     - name:                             "Debug execution metadata"
       ansible.builtin.debug:
