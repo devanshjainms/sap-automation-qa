@@ -1197,8 +1197,13 @@
               selectattr('check.category', 'defined')|
               selectattr('check.category', 'equalto', check_type)|
               rejectattr('status', 'equalto', 'SKIPPED')|list %}
+              {% set type_regular_checks = type_checks|selectattr('check.report', 'equalto', 'check')|list %}
+              {% set type_table_checks = type_checks|selectattr('check.report', 'equalto', 'table')|list %}
+              
               {% if type_checks|length > 0 %}
               <h3>{{ check_type }}</h3>
+              
+              {% if type_regular_checks|length > 0 %}
               <table class="config-checks-table">
                 <thead>
                   <tr>
@@ -1210,8 +1215,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {% for check in type_checks %}
-                  {% if check.check.report == 'check' %}
+                  {% for check in type_regular_checks %}
                   <tr onclick="toggleDetails('{{ check.hostname }}-{{ check.check.id }}')">
                     <td>{{ check.check.id }}</td>
                     <td>{{ check.check.name }}</td>
@@ -1296,30 +1300,26 @@
                       </div>
                     </td>
                   </tr>
-                  {% endif %}
                   {% endfor %}
                 </tbody>
               </table>
+              {% endif %}
               
-              {% set type_table_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|
-              selectattr('check.category', 'defined')|
-              selectattr('check.category', 'equalto', check_type)|
-              selectattr('check.report', 'equalto', 'table')|
-              rejectattr('status', 'equalto', 'SKIPPED')|list %}
               {% if type_table_checks|length > 0 %}
-              {% for check in type_table_checks %}
-              <div class="config-section table-report-section">
-                <h4 class="table-check-name">{{ check.check.name }} ({{ check.check.id }})</h4>
-                <p class="table-check-description">{{ check.check.description }}</p>
-                {% if check.check.collector_args.command is defined %}
-                <p class="table-check-command">
-                  <strong>Command:</strong> <code>{{ check.check.collector_args.command }}</code>
-                </p>
-                {% endif %}
-                <div class="dynamic-table-container">
-                  {{ render_table(check.actual_value) }}
-                </div>
-              </div>
+              {% for table_check in type_table_checks %}
+              {% if table_check.actual_value and table_check.actual_value|length > 0 %}
+              {% for config_item in table_check.actual_value %}
+              <tr class="check-row {{ 'status-' + (config_item.get('status', 'info')|lower) }}">
+                <td class="check-id">{{ config_item.get('id', table_check.check.id) }}</td>
+                <td class="check-name">{{ config_item.get('name', table_check.check.name) }}</td>
+                <td class="check-output">{{ config_item.get('value', 'N/A') }}</td>
+                <td class="check-expected">{{ config_item.get('expected_value', 'N/A') }}</td>
+                <td class="check-status status-{{ config_item.get('status', 'info')|lower }}">
+                  {{ config_item.get('status', 'INFO')|upper }}
+                </td>
+              </tr>
+              {% endfor %}
+              {% endif %}
               {% endfor %}
               {% endif %}
               
