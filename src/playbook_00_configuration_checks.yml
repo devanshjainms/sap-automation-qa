@@ -360,14 +360,14 @@
 
     - name:                             "Debug HA results structure"
       ansible.builtin.debug:
-        msg:                            "HA results: {{ all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | list | length }} HA checks found"
+        msg:                            "HA results: {{ all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | list | length }} HA checks found, Non-skipped: {{ all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | rejectattr('status', 'equalto', 'SKIPPED') | list | length }}"
       run_once:                         true
 
-    - name:                             "Debug first HA result"
+    - name:                             "Debug first non-skipped HA result"
       ansible.builtin.debug:
-        var:                            all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | first
+        var:                            all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | rejectattr('status', 'equalto', 'SKIPPED') | first
       run_once:                         true
-      when:                             (all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | list | length) > 0
+      when:                             (all_results | selectattr('check.id', 'search', 'HA-.*-CONFIG') | rejectattr('status', 'equalto', 'SKIPPED') | list | length) > 0
 
     - name:                             "Debug all results"
       ansible.builtin.debug:
