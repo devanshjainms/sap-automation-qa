@@ -1301,26 +1301,25 @@
                     </td>
                   </tr>
                   {% endfor %}
+                  
+                  {# Add table check data as rows in the same table #}
+                  {% for table_check in type_table_checks %}
+                  {% if table_check.actual_value and table_check.actual_value|length > 0 %}
+                  {% for config_item in table_check.actual_value %}
+                  <tr class="check-row status-{{ config_item.get('status', 'info')|lower }}">
+                    <td class="check-id">{{ config_item.get('id', table_check.check.id) }}</td>
+                    <td class="check-name">{{ config_item.get('name', table_check.check.name) }}</td>
+                    <td class="check-output">{{ config_item.get('value', 'N/A') }}</td>
+                    <td class="check-expected">{{ config_item.get('expected_value', 'N/A') }}</td>
+                    <td class="check-status status-{{ config_item.get('status', 'info')|lower }}">
+                      {{ config_item.get('status', 'INFO')|upper }}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                  {% endif %}
+                  {% endfor %}
                 </tbody>
               </table>
-              {% endif %}
-              
-              {% if type_table_checks|length > 0 %}
-              {% for table_check in type_table_checks %}
-              {% if table_check.actual_value and table_check.actual_value|length > 0 %}
-              {% for config_item in table_check.actual_value %}
-              <tr class="check-row {{ 'status-' + (config_item.get('status', 'info')|lower) }}">
-                <td class="check-id">{{ config_item.get('id', table_check.check.id) }}</td>
-                <td class="check-name">{{ config_item.get('name', table_check.check.name) }}</td>
-                <td class="check-output">{{ config_item.get('value', 'N/A') }}</td>
-                <td class="check-expected">{{ config_item.get('expected_value', 'N/A') }}</td>
-                <td class="check-status status-{{ config_item.get('status', 'info')|lower }}">
-                  {{ config_item.get('status', 'INFO')|upper }}
-                </td>
-              </tr>
-              {% endfor %}
-              {% endif %}
-              {% endfor %}
               {% endif %}
               
               {% endif %}
