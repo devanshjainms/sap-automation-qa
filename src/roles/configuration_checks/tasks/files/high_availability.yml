@@ -42,7 +42,7 @@ checks:
     name:                             "Database HA Cluster Configuration"
     description:                      "Validates Pacemaker cluster configuration parameters for SAP HANA database high availability"
     category:                         *ha_check
-    severity:                         *critical
+    severity:                         *info
     applicability:
       os_type:                        *os_type
       role:                           [*db_role]
@@ -58,7 +58,7 @@ checks:
     name:                             "SCS/ERS HA Cluster Configuration"
     description:                      "Validates Pacemaker cluster configuration parameters for SAP ASCS/ERS high availability"
     category:                         *ha_check
-    severity:                         *critical
+    severity:                         *info
     applicability:
       os_type:                        *os_type
       role:                           [*ascs_role, *ers_role]
