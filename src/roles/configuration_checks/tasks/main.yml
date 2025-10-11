@@ -119,13 +119,15 @@
   ansible.builtin.set_fact:
     command_checks:                 "{{ parsed_checks.checks | selectattr('collector_type', 'equalto', 'command') | list }}"
     azure_checks:                   "{{ parsed_checks.checks | selectattr('collector_type', 'equalto', 'azure') | list }}"
+    module_checks:                  "{{ parsed_checks.checks | selectattr('collector_type', 'equalto', 'module') | list }}"
 
 - name:                             Convert filtered checks back to YAML
   no_log:                           true
   ansible.builtin.set_fact:
     command_checks_yaml:            "{{ {'checks': command_checks} | to_yaml }}"
     azure_checks_yaml:              "{{ {'checks': azure_checks} | to_yaml }}"
-  when:                             command_checks is defined or azure_checks is defined
+    module_checks_yaml:             "{{ {'checks': module_checks} | to_yaml }}"
+  when:                             command_checks is defined or azure_checks is defined or module_checks is defined
 
 - name:                             Execute command-based configuration checks
   when:                             command_checks is defined and command_checks | length > 0
@@ -184,17 +186,49 @@
   ansible.builtin.debug:
     msg:                            "{{ azure_check_results.formatted_filesystem_info }}"
 
+- name:                             Execute module-based configuration checks
+  when:                             module_checks is defined and module_checks | length > 0
+  block:
+    - name:                         Run module-based configuration checks
+      become:                       true
+      configuration_check_module:
+        check_file_content:         "{{ module_checks_yaml }}"
+        context:                    "{{ system_context }}"
+        filter_tags:                "{{ tags_filter | default(omit) }}"
+        filter_categories:          "{{ categories_filter | default(omit) }}"
+        workspace_directory:        "{{ _workspace_directory }}"
+        test_group_invocation_id:   "{{ test_group_invocation_id }}"
+        test_group_name:            "ConfigurationChecks"
+        hostname:                   "{{ ansible_hostname }}"
+        parallel_execution:         true
+        max_workers:                20
+        enable_retry:               true
+      register:                     module_check_results
+  rescue:
+    - name:                         Log module check failure
+      ansible.builtin.debug:
+        msg:                        "Module-based configuration checks failed but continuing {{ module_check_results.msg }}"
+
+- name:                             Debug the module check results
+  when:                             module_check_results is defined and module_check_results.check_results is defined
+  ansible.builtin.debug:
+    msg:                            "Module checks: {{ module_check_results.check_results | length }} results"
+
 - name:                             Merge check results with error handling
   ansible.builtin.set_fact:
     combined_results:               "{{ (command_check_results.check_results | default([])) +
-                                        (azure_check_results.check_results | default([])) }}"
+                                        (azure_check_results.check_results | default([])) +
+                                        (module_check_results.check_results | default([])) }}"
     execution_summary:
       total_command_checks:         "{{ command_checks | default([]) | length }}"
       total_azure_checks:           "{{ azure_checks | default([]) | length }}"
+      total_module_checks:          "{{ module_checks | default([]) | length }}"
       command_checks_executed:      "{{ command_check_results.check_results | default([]) | length }}"
       azure_checks_executed:        "{{ azure_check_results.check_results | default([]) | length }}"
+      module_checks_executed:       "{{ module_check_results.check_results | default([]) | length }}"
       command_check_failed:         "{{ command_check_results.failed | default(false) }}"
       azure_check_failed:           "{{ azure_check_results.failed | default(false) }}"
+      module_check_failed:          "{{ module_check_results.failed | default(false) }}"
       imds_available:               "{{ imds_available | default(true) }}"
       execution_warnings:           "{{ execution_warnings | default([]) }}"
       execution_errors:             "{{ execution_errors | default([]) }}"

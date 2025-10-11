@@ -368,12 +368,9 @@ class ModuleCollector(Collector):
                 }
                 context_key = module_context_map.get(module_name, module_name)
 
-            if context_key in context:
-                data = context[context_key]
-                self.parent.log(logging.DEBUG, f"Found module result for '{context_key}'")
-                return data
-            else:
-                return f"ERROR: Module result '{context_key}' not found in context"
+            return context.get(
+                context_key, f"ERROR: Module result '{context_key}' not found in context"
+            )
 
         except Exception as ex:
             self.parent.handle_error(ex)
