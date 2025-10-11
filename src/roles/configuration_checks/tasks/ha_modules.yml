@@ -35,9 +35,11 @@
   become:                           true
   get_pcmk_properties_scs:
     sid:                            "{{ sap_sid | upper }}"
-    instance_number:                "{{ instance_number }}"
+    ascs_instance_number:           "{{ scs_instance_number }}"
+    ers_instance_number:            "{{ ers_instance_number }}"
     virtual_machine_name:           "{{ compute_metadata.json.compute.name }}"
     fencing_mechanism:              "{{ scs_cluster_type }}"
+    nfs_provider:                   "{{ NFS_provider }}"
     pcmk_constants:                 "{{ lookup('file', 'roles/ha_scs/tasks/files/constants.yaml') | from_yaml }}"
   register:                         ha_scs_module_result
 
