@@ -392,6 +392,8 @@
           warning_count:                "{{ all_results | selectattr('status', 'equalto', 'WARNING') | list | length }}"
           info_count:                   "{{ all_results | selectattr('status', 'equalto', 'INFO') | list | length }}"
           config_check_types:           "{{ all_results | map(attribute='check.category') | unique | list }}"
+          ha_db_configurations:         "{{ ha_db_configurations | default({}) }}"
+          ha_scs_configurations:        "{{ ha_scs_configurations | default({}) }}"
 
     - name:                            "Render HTML report for configuration checks"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"

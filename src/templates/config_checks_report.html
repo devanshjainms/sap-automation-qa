@@ -1320,12 +1320,12 @@
               {% endfor %}
               {% endif %}
 
-              {% if ha_db_configurations or ha_scs_configurations %}
+              {% if system_info.ha_db_configurations or system_info.ha_scs_configurations %}
               <div class="config-checks-container fade-in-on-scroll">
                 <h2>🔄 High Availability Configuration</h2>
-                
-                {% if ha_db_configurations %}
-                  {% for hostname, config in ha_db_configurations.items() %}
+
+                {% if system_info.ha_db_configurations %}
+                  {% for hostname, config in system_info.ha_db_configurations.items() %}
                   <div class="table-report-section">
                     <div class="table-header-info">
                       <div class="table-check-name">Database HA Cluster Configuration</div>
@@ -1347,9 +1347,9 @@
                   </div>
                   {% endfor %}
                 {% endif %}
-                
-                {% if ha_scs_configurations %}
-                  {% for hostname, config in ha_scs_configurations.items() %}
+
+                {% if system_info.ha_scs_configurations %}
+                  {% for hostname, config in system_info.ha_scs_configurations.items() %}
                   <div class="table-report-section">
                     <div class="table-header-info">
                       <div class="table-check-name">SCS/ERS HA Cluster Configuration</div>
