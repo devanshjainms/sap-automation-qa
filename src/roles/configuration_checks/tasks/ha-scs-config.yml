@@ -1,0 +1,32 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------8
+# |                          HA SCS Configuration Checks                        |
+# +------------------------------------4--------------------------------------*/
+
+- name:                             "Retrieve Virtual Machine name"
+  ansible.builtin.uri:
+    url:                            http://169.254.169.254/metadata/instance?api-version=2021-02-01
+    use_proxy:                      false
+    headers:
+      Metadata:                     true
+  register:                         azure_instance_metadata
+
+- name:                             "HA Configuration check for the SCS nodes"
+  become:                           true
+  get_pcmk_properties_scs:
+    sid:                            "{{ sap_sid | upper }}"
+    ascs_instance_number:           "{{ scs_instance_number }}"
+    ers_instance_number:            "{{ ers_instance_number }}"
+    virtual_machine_name:           "{{ azure_instance_metadata.json.compute.name }}"
+    pcmk_constants:                 "{{ lookup('file', 'roles/ha_scs/tasks/files/constants.yaml') | from_yaml }}"
+    fencing_mechanism:              "{{ scs_cluster_type }}"
+    nfs_provider:                   "{{ NFS_provider | default('') }}"
+  register:                         ha_scs_raw_result
+
+- name:                             "Store HA SCS configuration data"
+  ansible.builtin.set_fact:
+    ha_scs_config_data:             "{{ ha_scs_raw_result.details.parameters }}"
+    ha_scs_config_status:           "{{ ha_scs_raw_result.status }}"
+    ha_scs_config_message:          "{{ ha_scs_raw_result.message }}"

@@ -1,0 +1,35 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------8
+# |                          HA DB Configuration Checks                        |
+# +------------------------------------4--------------------------------------*/
+
+- name:                             "Get the SAPHanaSR provider"
+  when:                             (ansible_os_family | upper) == "SUSE"
+  ansible.builtin.include_tasks:    "roles/misc/tasks/get-saphanasr-provider.yml"
+
+- name:                             "Retrieve Virtual Machine name"
+  ansible.builtin.uri:
+    url:                            http://169.254.169.254/metadata/instance?api-version=2021-02-01
+    use_proxy:                      false
+    headers:
+      Metadata:                     true
+  register:                         azure_instance_metadata
+
+- name:                             "HA Configuration check for the DB nodes"
+  become:                           true
+  get_pcmk_properties_db:
+    sid:                            "{{ db_sid | upper }}"
+    instance_number:                "{{ db_instance_number }}"
+    virtual_machine_name:           "{{ azure_instance_metadata.json.compute.name }}"
+    fencing_mechanism:              "{{ database_cluster_type }}"
+    pcmk_constants:                 "{{ lookup('file', 'roles/ha_db_hana/tasks/files/constants.yaml') | from_yaml }}"
+    saphanasr_provider:             "{{ saphanasr_provider | default('SAPHanaSR') }}"
+  register:                         ha_db_raw_result
+
+- name:                             "Store HA DB configuration data"
+  ansible.builtin.set_fact:
+    ha_db_config_data:              "{{ ha_db_raw_result.details.parameters }}"
+    ha_db_config_status:            "{{ ha_db_raw_result.status }}"
+    ha_db_config_message:           "{{ ha_db_raw_result.message }}"

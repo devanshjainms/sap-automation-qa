@@ -183,6 +183,25 @@
                                          ((role == 'DB' and database_high_availability | default(false) | bool) or
                                           (role in ['SCS', 'ERS'] and scs_high_availability | default(false) | bool)))
 
+
+    - name:                             "Run HA DB Configuration validation"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/ha-db-config.yml"
+      when:                             >-
+                                        role == 'DB' and
+                                        database_high_availability | default(false) | bool and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'Database')
+
+    - name:                             "Run HA SCS Configuration validation"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/ha-scs-config.yml"
+      when:                             >-
+                                        role in ['SCS', 'ERS'] and
+                                        scs_high_availability | default(false) | bool and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'CentralServiceInstances')
+
 - hosts:                                localhost
   name:                                 "Generate Configuration Checks Report"
   gather_facts:                         false
@@ -296,6 +315,31 @@
                                           groups[sap_sid | upper + '_ERS']|default([]) +
                                           groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].load_balancer_results is defined
+
+    - name:                             "Collect HA DB configuration data"
+      ansible.builtin.set_fact:
+        ha_db_configurations:           "{{ ha_db_configurations | default({}) | combine({
+                                          item: {
+                                            'parameters': hostvars[item].ha_db_config_data | default([]),
+                                            'status': hostvars[item].ha_db_config_status | default('N/A'),
+                                            'message': hostvars[item].ha_db_config_message | default('')
+                                          }
+                                        }) }}"
+      loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
+      when:                             hostvars[item].ha_db_config_data is defined
+
+    - name:                             "Collect HA SCS configuration data"
+      ansible.builtin.set_fact:
+        ha_scs_configurations:          "{{ ha_scs_configurations | default({}) | combine({
+                                          item: {
+                                            'parameters': hostvars[item].ha_scs_config_data | default([]),
+                                            'status': hostvars[item].ha_scs_config_status | default('N/A'),
+                                            'message': hostvars[item].ha_scs_config_message | default('')
+                                          }
+                                        }) }}"
+      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                          groups[sap_sid | upper + '_ERS']|default([]) }}"
+      when:                             hostvars[item].ha_scs_config_data is defined
 
     - name:                             "Debug all results"
       ansible.builtin.debug:
