@@ -47,7 +47,7 @@ checks:
       os_type:                        *os_type
       role:                           [*db_role]
       high_availability:              true
-      cluster_type:                   *cluster_type
+      high_availability_agent:        *cluster_type
     collector_type:                   *module
     collector_args:
       module_name:                    "get_pcmk_properties_db"
@@ -63,7 +63,7 @@ checks:
       os_type:                        *os_type
       role:                           [*ascs_role, *ers_role]
       high_availability:              true
-      cluster_type:                   *cluster_type
+      high_availability_agent:        *cluster_type
     collector_type:                   *module
     collector_args:
       module_name:                    "get_pcmk_properties_scs"
