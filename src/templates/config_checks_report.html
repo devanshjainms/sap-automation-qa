@@ -68,18 +68,22 @@
               {% if item is mapping %}
                 <tr>
                   {% for key in all_keys %}
-                    <td>
-                      {% set value = item.get(key, '') %}
-                      {% if value is mapping %}
-                        {{ render_table(value, is_nested=true) }}
-                      {% elif value is iterable and value is not string %}
-                        {% for list_item in value %}
-                          {{ list_item }}<br>
-                        {% endfor %}
-                      {% else %}
-                        {{ value }}
-                      {% endif %}
-                    </td>
+                    {% set value = item.get(key, '') %}
+                    {% if key|lower == 'status' %}
+                      <td class="status-{{ value|lower }}">{{ value }}</td>
+                    {% else %}
+                      <td>
+                        {% if value is mapping %}
+                          {{ render_table(value, is_nested=true) }}
+                        {% elif value is iterable and value is not string %}
+                          {% for list_item in value %}
+                            {{ list_item }}<br>
+                          {% endfor %}
+                        {% else %}
+                          {{ value }}
+                        {% endif %}
+                      </td>
+                    {% endif %}
                   {% endfor %}
                 </tr>
               {% endif %}
@@ -1296,17 +1300,16 @@
                   {% endfor %}
                 </tbody>
               </table>
-              {% endif %}
-              {% endfor %}
-
-              {% set host_tables = test_case_results|selectattr('hostname', 'equalto',
-              hostname)|selectattr('check.report', 'equalto', 'table')|rejectattr('status', 'equalto', 'SKIPPED')|list
-              %}
-              {% if host_tables|length > 0 %}
-              <h3>Tabular Data Reports</h3>
-              {% for check in host_tables %}
+              
+              {% set type_table_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|
+              selectattr('check.category', 'defined')|
+              selectattr('check.category', 'equalto', check_type)|
+              selectattr('check.report', 'equalto', 'table')|
+              rejectattr('status', 'equalto', 'SKIPPED')|list %}
+              {% if type_table_checks|length > 0 %}
+              {% for check in type_table_checks %}
               <div class="config-section table-report-section">
-                <h4 class="table-check-name">{{ check.check.name }} {{ check.check.id }}</h4>
+                <h4 class="table-check-name">{{ check.check.name }} ({{ check.check.id }})</h4>
                 <p class="table-check-description">{{ check.check.description }}</p>
                 {% if check.check.collector_args.command is defined %}
                 <p class="table-check-command">
@@ -1319,6 +1322,9 @@
               </div>
               {% endfor %}
               {% endif %}
+              
+              {% endif %}
+              {% endfor %}
 
               {% set host_sections = test_case_results|selectattr('hostname', 'equalto',
               hostname)|selectattr('check.report', 'equalto', 'section')|rejectattr('status', 'equalto', 'SKIPPED')|list
