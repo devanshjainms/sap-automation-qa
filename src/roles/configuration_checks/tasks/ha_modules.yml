@@ -1,0 +1,49 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------8
+# |                  HA Module Execution for Configuration Checks              |
+# +------------------------------------4--------------------------------------*/
+
+- name:                             "Get the SAPHanaSR provider (SUSE only)"
+  when:                             >-
+                                    (ansible_os_family | upper) == "SUSE" and
+                                    role == 'DB'
+  ansible.builtin.include_tasks:    "roles/misc/tasks/get-saphanasr-provider.yml"
+
+- name:                             "Execute HA DB Configuration Module"
+  when:                             role == 'DB'
+  become:                           true
+  get_pcmk_properties_db:
+    sid:                            "{{ db_sid | upper }}"
+    instance_number:                "{{ db_instance_number }}"
+    virtual_machine_name:           "{{ compute_metadata.json.compute.name }}"
+    fencing_mechanism:              "{{ database_cluster_type }}"
+    pcmk_constants:                 "{{ lookup('file', 'roles/ha_db_hana/tasks/files/constants.yaml') | from_yaml }}"
+    saphanasr_provider:             "{{ saphanasr_provider | default('SAPHanaSR') }}"
+  register:                         ha_db_module_result
+
+- name:                             "Store HA DB configuration result"
+  when:                             >-
+                                    role == 'DB' and
+                                    ha_db_module_result is defined
+  ansible.builtin.set_fact:
+    ha_db_config:                   "{{ ha_db_module_result.details.parameters }}"
+
+- name:                             "Execute HA SCS Configuration Module"
+  when:                             role in ['SCS', 'ERS']
+  become:                           true
+  get_pcmk_properties_scs:
+    sid:                            "{{ sap_sid | upper }}"
+    instance_number:                "{{ instance_number }}"
+    virtual_machine_name:           "{{ compute_metadata.json.compute.name }}"
+    fencing_mechanism:              "{{ scs_cluster_type }}"
+    pcmk_constants:                 "{{ lookup('file', 'roles/ha_scs/tasks/files/constants.yaml') | from_yaml }}"
+  register:                         ha_scs_module_result
+
+- name:                             "Store HA SCS configuration result"
+  when:                             >-
+                                    role in ['SCS', 'ERS'] and
+                                    ha_scs_module_result is defined
+  ansible.builtin.set_fact:
+    ha_scs_config:                  "{{ ha_scs_module_result.details.parameters }}"

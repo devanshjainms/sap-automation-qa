@@ -123,6 +123,21 @@
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'Database')
 
+    - name:                             "Run HA configuration checks for DB hosts"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      vars:
+        check_type:
+          name:                         "Database HA Configuration"
+          file_name:                    "high_availability"
+          checks_var:                   "db_ha_config_checks"
+          results_var:                  "db_ha_config_results"
+      when:                             >-
+                                        role == 'DB' and
+                                        database_high_availability | default(false) | bool and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'Database')
+
     - name:                             "Run role-specific checks for ASCS/SCS hosts"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
@@ -142,6 +157,21 @@
         msg:                            "Executing ASCS/SCS checks on host {{ inventory_hostname }}"
       when:                             >-
                                         role in ['SCS', 'ERS'] and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'CentralServiceInstances')
+
+    - name:                             "Run HA configuration checks for SCS/ERS hosts"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      vars:
+        check_type:
+          name:                         "SCS/ERS HA Configuration"
+          file_name:                    "high_availability"
+          checks_var:                   "scs_ha_config_checks"
+          results_var:                  "scs_ha_config_results"
+      when:                             >-
+                                        role in ['SCS', 'ERS'] and
+                                        scs_high_availability | default(false) | bool and
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'CentralServiceInstances')
 
@@ -184,23 +214,7 @@
                                           (role in ['SCS', 'ERS'] and scs_high_availability | default(false) | bool)))
 
 
-    - name:                             "Run HA DB Configuration validation"
-      ansible.builtin.include_tasks:
-        file:                           "./roles/configuration_checks/tasks/ha-db-config.yml"
-      when:                             >-
-                                        role == 'DB' and
-                                        database_high_availability | default(false) | bool and
-                                        (configuration_test_type == 'all' or
-                                         configuration_test_type == 'Database')
 
-    - name:                             "Run HA SCS Configuration validation"
-      ansible.builtin.include_tasks:
-        file:                           "./roles/configuration_checks/tasks/ha-scs-config.yml"
-      when:                             >-
-                                        role in ['SCS', 'ERS'] and
-                                        scs_high_availability | default(false) | bool and
-                                        (configuration_test_type == 'all' or
-                                         configuration_test_type == 'CentralServiceInstances')
 
 - hosts:                                localhost
   name:                                 "Generate Configuration Checks Report"
@@ -316,31 +330,6 @@
                                           groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].load_balancer_results is defined
 
-    - name:                             "Collect HA DB configuration data"
-      ansible.builtin.set_fact:
-        ha_db_configurations:           "{{ ha_db_configurations | default({}) | combine({
-                                          item: {
-                                            'parameters': hostvars[item].ha_db_config_data.details.parameters | default([]),
-                                            'status': hostvars[item].ha_db_config_status | default('N/A'),
-                                            'message': hostvars[item].ha_db_config_message | default('')
-                                          }
-                                        }) }}"
-      loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
-      when:                             hostvars[item].ha_db_config_data is defined
-
-    - name:                             "Collect HA SCS configuration data"
-      ansible.builtin.set_fact:
-        ha_scs_configurations:          "{{ ha_scs_configurations | default({}) | combine({
-                                          item: {
-                                            'parameters': hostvars[item].ha_scs_config_data.details.parameters | default([]),
-                                            'status': hostvars[item].ha_scs_config_status | default('N/A'),
-                                            'message': hostvars[item].ha_scs_config_message | default('')
-                                          }
-                                        }) }}"
-      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
-                                          groups[sap_sid | upper + '_ERS']|default([]) }}"
-      when:                             hostvars[item].ha_scs_config_data is defined
-
     - name:                             "Debug all results"
       ansible.builtin.debug:
         var:                            all_results
@@ -392,8 +381,6 @@
           warning_count:                "{{ all_results | selectattr('status', 'equalto', 'WARNING') | list | length }}"
           info_count:                   "{{ all_results | selectattr('status', 'equalto', 'INFO') | list | length }}"
           config_check_types:           "{{ all_results | map(attribute='check.category') | unique | list }}"
-          ha_db_configurations:         "{{ ha_db_configurations | default({}) }}"
-          ha_scs_configurations:        "{{ ha_scs_configurations | default({}) }}"
 
     - name:                            "Render HTML report for configuration checks"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"

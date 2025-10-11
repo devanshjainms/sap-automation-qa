@@ -333,3 +333,48 @@ class AzureDataParser(Collector):
         except Exception as ex:
             self.parent.handle_error(ex)
             return f"ERROR: Azure data collection failed: {str(ex)}"
+
+
+class ModuleCollector(Collector):
+    """
+    Collects data from Ansible module results stored in context
+    """
+
+    def collect(self, check, context) -> Any:
+        """
+        Retrieve module result data from context.
+
+        The module should have been executed by the playbook before calling
+        the configuration check, and its result stored in the context.
+
+        :param check: Check object with module information
+        :type check: Check
+        :param context: Context variables containing module results
+        :type context: Dict[str, Any]
+        :return: The data from the module result
+        :rtype: Any
+        """
+        try:
+            module_name = check.collector_args.get("module_name", "")
+            context_key = check.collector_args.get("context_key", "")
+
+            if not module_name:
+                return "ERROR: No module_name specified"
+
+            if not context_key:
+                module_context_map = {
+                    "get_pcmk_properties_db": "ha_db_config",
+                    "get_pcmk_properties_scs": "ha_scs_config",
+                }
+                context_key = module_context_map.get(module_name, module_name)
+
+            if context_key in context:
+                data = context[context_key]
+                self.parent.log(logging.DEBUG, f"Found module result for '{context_key}'")
+                return data
+            else:
+                return f"ERROR: Module result '{context_key}' not found in context"
+
+        except Exception as ex:
+            self.parent.handle_error(ex)
+            return f"ERROR: Module data retrieval failed: {str(ex)}"

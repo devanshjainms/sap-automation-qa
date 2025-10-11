@@ -1320,60 +1320,6 @@
               {% endfor %}
               {% endif %}
 
-              {% if system_info.ha_db_configurations or system_info.ha_scs_configurations %}
-              <div class="config-checks-container fade-in-on-scroll">
-                <h2>🔄 High Availability Configuration</h2>
-
-                {% if system_info.ha_db_configurations %}
-                  {% for hostname, config in system_info.ha_db_configurations.items() %}
-                  <div class="table-report-section">
-                    <div class="table-header-info">
-                      <div class="table-check-name">Database HA Cluster Configuration</div>
-                      <div class="table-check-id">Host: {{ hostname }}</div>
-                      <div class="table-check-description">
-                        Pacemaker cluster configuration for SAP HANA database
-                      </div>
-                      <div class="table-check-status">
-                        <span class="status-badge status-{{ config.status | lower }}">{{ config.status }}</span>
-                        <span class="table-check-message">{{ config.message }}</span>
-                      </div>
-                    </div>
-                    
-                    {% if config.parameters %}
-                      {{ render_table(config.parameters) }}
-                    {% else %}
-                      <div class="table-empty-state">No HA configuration data available</div>
-                    {% endif %}
-                  </div>
-                  {% endfor %}
-                {% endif %}
-
-                {% if system_info.ha_scs_configurations %}
-                  {% for hostname, config in system_info.ha_scs_configurations.items() %}
-                  <div class="table-report-section">
-                    <div class="table-header-info">
-                      <div class="table-check-name">SCS/ERS HA Cluster Configuration</div>
-                      <div class="table-check-id">Host: {{ hostname }}</div>
-                      <div class="table-check-description">
-                        Pacemaker cluster configuration for SAP ASCS/ERS
-                      </div>
-                      <div class="table-check-status">
-                        <span class="status-badge status-{{ config.status | lower }}">{{ config.status }}</span>
-                        <span class="table-check-message">{{ config.message }}</span>
-                      </div>
-                    </div>
-                    
-                    {% if config.parameters %}
-                      {{ render_table(config.parameters) }}
-                    {% else %}
-                      <div class="table-empty-state">No HA configuration data available</div>
-                    {% endif %}
-                  </div>
-                  {% endfor %}
-                {% endif %}
-              </div>
-              {% endif %}
-
               {% set host_sections = test_case_results|selectattr('hostname', 'equalto',
               hostname)|selectattr('check.report', 'equalto', 'section')|rejectattr('status', 'equalto', 'SKIPPED')|list
               %}

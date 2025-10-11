@@ -45,6 +45,18 @@
   ansible.builtin.include_tasks:    disks.yml
   when:                             check_type.file_name == "hana"
 
+- name:                             Execute HA DB module when high_availability checks to be run
+  ansible.builtin.include_tasks:    ha_modules.yml
+  when:                             >-
+                                    check_type.file_name == "high_availability" and
+                                    role == 'DB'
+
+- name:                             Execute HA SCS module when high_availability checks to be run
+  ansible.builtin.include_tasks:    ha_modules.yml
+  when:                             >-
+                                    check_type.file_name == "high_availability" and
+                                    role in ['SCS', 'ERS']
+
 - name:                             Prepare system context information for {{check_type.name}}
   ansible.builtin.set_fact:
     system_context:
@@ -85,6 +97,8 @@
       mount_info:                   "{{ mount_info.stdout | default([]) }}"
       df_info:                      "{{ df_info.stdout | default([]) }}"
       lvm_fullreport:               "{{ lvm_fullreport.stdout | default('{}') | from_json }}"
+      ha_db_config:                 "{{ ha_db_config | default([]) }}"
+      ha_scs_config:                "{{ ha_scs_config | default([]) }}"
 
 - name:                             Debug system context prepared
   ansible.builtin.debug:

@@ -26,6 +26,7 @@ try:
         Collector,
         CommandCollector,
         AzureDataParser,
+        ModuleCollector,
     )
     from ansible.module_utils.filesystem_collector import FileSystemCollector
 except ImportError:
@@ -41,6 +42,7 @@ except ImportError:
         Collector,
         CommandCollector,
         AzureDataParser,
+        ModuleCollector,
     )
     from src.module_utils.filesystem_collector import FileSystemCollector
 
@@ -77,6 +79,7 @@ class ConfigurationCheckModule(SapAutomationQA):
         return {
             "command": CommandCollector,
             "azure": AzureDataParser,
+            "module": ModuleCollector,
         }
 
     def _init_validator_registry(self) -> Dict[str, Any]:

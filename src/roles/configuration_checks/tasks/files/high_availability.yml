@@ -1,0 +1,71 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------8
+# |                    High Availability Configuration Checks                  |
+# +------------------------------------4--------------------------------------*/
+
+enums:
+  severity:
+    - info:                           &info "INFO"
+    - high:                           &high "HIGH"
+    - low:                            &low "LOW"
+    - warning:                        &warning "WARNING"
+    - critical:                       &critical "CRITICAL"
+
+  os_type:
+    - suse:                           &suse "SUSE"
+    - redhat:                         &redhat "REDHAT"
+    - all_os:                         &os_type [*suse, *redhat]
+
+  collector_type:
+    - module:                         &module "module"
+
+  category:
+    - ha:                             &ha_check "High Availability"
+
+  report:
+    - table:                          &table "table"
+
+  role:
+    - db:                             &db_role "DB"
+    - ascs:                           &ascs_role "SCS"
+    - ers:                            &ers_role "ERS"
+
+  cluster_type:
+    - sbd:                            &sbd "ISCSI"
+    - fencing_agent:                  &fencing_agent "AFA"
+    - all_fencing_agent:              &cluster_type [*sbd, *fencing_agent]
+
+checks:
+  - id:                               "HA-DB-CONFIG-001"
+    name:                             "Database HA Cluster Configuration"
+    description:                      "Validates Pacemaker cluster configuration parameters for SAP HANA database high availability"
+    category:                         *ha_check
+    severity:                         *critical
+    applicability:
+      os_type:                        *os_type
+      role:                           [*db_role]
+      high_availability:              true
+      cluster_type:                   *cluster_type
+    collector_type:                   *module
+    collector_args:
+      module_name:                    "get_pcmk_properties_db"
+      module_args:                    {}
+    report:                           *table
+
+  - id:                               "HA-SCS-CONFIG-001"
+    name:                             "SCS/ERS HA Cluster Configuration"
+    description:                      "Validates Pacemaker cluster configuration parameters for SAP ASCS/ERS high availability"
+    category:                         *ha_check
+    severity:                         *critical
+    applicability:
+      os_type:                        *os_type
+      role:                           [*ascs_role, *ers_role]
+      high_availability:              true
+      cluster_type:                   *cluster_type
+    collector_type:                   *module
+    collector_args:
+      module_name:                    "get_pcmk_properties_scs"
+      module_args:                    {}
+    report:                           *table
