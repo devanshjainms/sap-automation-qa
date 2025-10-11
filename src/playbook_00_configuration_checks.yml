@@ -213,9 +213,6 @@
                                          ((role == 'DB' and database_high_availability | default(false) | bool) or
                                           (role in ['SCS', 'ERS'] and scs_high_availability | default(false) | bool)))
 
-
-
-
 - hosts:                                localhost
   name:                                 "Generate Configuration Checks Report"
   gather_facts:                         false
@@ -289,6 +286,18 @@
       loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].db_hana_results is defined
 
+    - name:                             "Collect DB HA configuration check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].db_ha_config_results
+                                            | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'db_ha_config',
+                                          'metadata': hostvars[item].db_ha_config_results_metadata
+                                          | default({})}] }}"
+      loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
+      when:                             hostvars[item].db_ha_config_results is defined
+
     - name:                             "Collect ASCS/SCS check results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].ascs_scs_results
@@ -301,6 +310,19 @@
       loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
                                           groups[sap_sid | upper + '_ERS']|default([]) }}"
       when:                             hostvars[item].ascs_scs_results is defined
+
+    - name:                             "Collect SCS/ERS HA configuration check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].scs_ha_config_results
+                                            | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'scs_ha_config',
+                                          'metadata': hostvars[item].scs_ha_config_results_metadata
+                                          | default({})}] }}"
+      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                          groups[sap_sid | upper + '_ERS']|default([]) }}"
+      when:                             hostvars[item].scs_ha_config_results is defined
 
     - name:                             "Collect Application Server check results"
       ansible.builtin.set_fact:
