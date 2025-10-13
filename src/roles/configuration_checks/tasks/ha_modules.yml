@@ -73,6 +73,7 @@
 - name:                             "Store HA Load Balancer configuration result"
   when:                             >-
                                     role in ['SCS', 'ERS', 'DB'] and
-                                    ha_loadbalancer_module_result is defined
+                                    ha_loadbalancer_module_result is defined and
+                                    ha_loadbalancer_module_result.details is defined
   ansible.builtin.set_fact:
     ha_loadbalancer_config:        "{{ ha_loadbalancer_module_result.details.parameters }}"

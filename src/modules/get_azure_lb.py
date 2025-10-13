@@ -317,6 +317,12 @@ class AzureLoadBalancer(SapAutomationQA):
                 )
                 self.result["message"] += "Successfully validated load balancer parameters"
             else:
+                self.result.update(
+                    {
+                        "details": {"parameters": []},
+                        "status": TestStatus.ERROR.value,
+                    }
+                )
                 self.result["message"] += (
                     "Load Balancer details not fetched."
                     " Ensure that the Managed Identity (MSI) has sufficient permissions "
