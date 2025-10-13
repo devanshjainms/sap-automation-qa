@@ -29,6 +29,7 @@ enums:
   storage_type:
     premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","ANF","PremiumV2_LRS","AFS"]
     anf:                              &anf ["ANF"]
+    all_storage:                      &all_storage ["Premium_LRS","UltraSSD_LRS","StandardSSD_LRS","Standard_LRS","ANF","PremiumV2_LRS","AFS"]
 
   workload:
     - sap:                            &sap "SAP"

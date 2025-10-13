@@ -204,6 +204,10 @@
   gather_facts:                         false
   vars_files:                           "./vars/input-api.yaml"
   tasks:
+    - name:                             "Set workspace directory if not defined"
+      ansible.builtin.set_fact:
+        _workspace_directory:           "{{ _workspace_directory | default('/tmp/sap_automation_qa') }}"
+
     - name:                             "Collect all configuration check results"
       ansible.builtin.set_fact:
         all_results:                    []

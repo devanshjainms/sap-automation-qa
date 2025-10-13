@@ -4,20 +4,20 @@
 #
 #    pip-compile requirements.in
 #
-ansible-compat==25.8.1
+ansible-compat==25.8.2
     # via ansible-lint
-ansible-core==2.16.14
+ansible-core==2.17.14
     # via
     #   -r requirements.in
     #   ansible-compat
     #   ansible-lint
-ansible-lint==25.9.1
+ansible-lint==25.9.2
     # via -r requirements.in
 ansible-runner==2.4.1
     # via -r requirements.in
-astroid==3.3.11
+astroid==4.0.1
     # via pylint
-attrs==25.3.0
+attrs==25.4.0
     # via
     #   jsonschema
     #   referencing
@@ -31,7 +31,7 @@ azure-core==1.35.1
     #   azure-storage-blob
     #   azure-storage-queue
     #   msrest
-azure-identity==1.25.0
+azure-identity==1.25.1
     # via
     #   -r requirements.in
     #   azure-kusto-data
@@ -41,7 +41,7 @@ azure-kusto-data==5.0.5
     #   azure-kusto-ingest
 azure-kusto-ingest==5.0.5
     # via -r requirements.in
-azure-mgmt-compute==37.0.0
+azure-mgmt-compute==37.0.1
     # via -r requirements.in
 azure-mgmt-core==1.6.0
     # via
@@ -63,7 +63,7 @@ black==25.9.0
     #   ansible-lint
 bracex==2.6
     # via wcmatch
-certifi==2025.8.3
+certifi==2025.10.5
     # via
     #   msrest
     #   requests
@@ -96,11 +96,11 @@ distro==1.9.0
     # via ansible-lint
 exceptiongroup==1.3.0
     # via pytest
-filelock==3.19.1
+filelock==3.20.0
     # via ansible-lint
-idna==3.10
+idna==3.11
     # via requests
-ijson==3.4.0
+ijson==3.4.0.post0
     # via azure-kusto-data
 importlib-metadata==8.7.0
     # via ansible-lint
@@ -112,7 +112,7 @@ isodate==0.7.2
     #   azure-storage-blob
     #   azure-storage-queue
     #   msrest
-isort==6.1.0
+isort==7.0.0
     # via pylint
 jinja2==3.1.6
     # via
@@ -170,7 +170,7 @@ pathspec==0.12.1
     #   yamllint
 pexpect==4.9.0
     # via ansible-runner
-platformdirs==4.4.0
+platformdirs==4.5.0
     # via
     #   black
     #   pylint
@@ -190,7 +190,7 @@ pyjwt[crypto]==2.10.1
     # via
     #   msal
     #   pyjwt
-pylint==3.3.8
+pylint==4.0.0
     # via -r requirements.in
 pytest==8.4.2
     # via
@@ -219,7 +219,7 @@ pyyaml==6.0.3
     #   ansible-lint
     #   ansible-runner
     #   yamllint
-referencing==0.36.2
+referencing==0.37.0
     # via
     #   ansible-lint
     #   jsonschema
@@ -236,7 +236,7 @@ requests-oauthlib==2.0.0
     # via msrest
 resolvelib==1.0.1
     # via ansible-core
-rich==14.1.0
+rich==14.2.0
     # via -r requirements.in
 rpds-py==0.27.1
     # via
@@ -258,7 +258,7 @@ subprocess-tee==0.4.2
     #   ansible-lint
 tenacity==9.1.2
     # via azure-kusto-ingest
-tomli==2.2.1
+tomli==2.3.0
     # via
     #   black
     #   coverage

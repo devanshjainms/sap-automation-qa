@@ -28,6 +28,7 @@ enums:
   storage_type:
     premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","ANF","PremiumV2_LRS","AFS"]
     anf:                              &anf ["ANF"]
+    all_storage:                      &all_storage ["Premium_LRS","UltraSSD_LRS","StandardSSD_LRS","Standard_LRS","ANF","PremiumV2_LRS","AFS"]
 
   workload:
     - sap:                            &sap "SAP"
@@ -94,7 +95,7 @@ checks:
       - os_type:                        [*suse, *redhat]
       - os_version:                     *all_versions
       - hardware_type:                  *vm
-      - storage_type:                   *premium_storage
+      - storage_type:                   *all_storage
       - role:                           [*ascs_role, *db_role]
       - database_type:                  *db
       - high_availability:              true

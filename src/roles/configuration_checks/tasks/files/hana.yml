@@ -100,7 +100,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
       high_availability:                true
@@ -124,7 +124,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
       high_availability:                true
@@ -148,7 +148,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
       high_availability:                true
@@ -172,7 +172,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
       high_availability:                false
@@ -196,7 +196,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
       high_availability:                true
@@ -220,7 +220,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -245,7 +245,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -270,7 +270,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -295,7 +295,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -320,7 +320,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -345,7 +345,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -370,7 +370,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -395,7 +395,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -420,7 +420,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -445,7 +445,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -470,7 +470,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -495,7 +495,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -520,7 +520,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -545,7 +545,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -570,7 +570,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -595,7 +595,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *all_hardware
-      storage_type:                     *anf
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *command
@@ -764,7 +764,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*db_role]
       database_type:                    [*hana]
       high_availability:                true

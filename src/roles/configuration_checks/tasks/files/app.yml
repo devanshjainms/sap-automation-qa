@@ -18,8 +18,9 @@ enums:
     - all_hardware:                   &all_hardware [*vm, *hli]
 
   storage_type:
-    premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","ANF","PremiumV2_LRS","AFS"]
+    premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","StandardSSD_LRS","Standard_LRS","PremiumV2_LRS","AFS"]
     anf:                              &anf ["ANF"]
+    all_storage:                      &all_storage ["Premium_LRS","UltraSSD_LRS","StandardSSD_LRS","Standard_LRS","ANF","PremiumV2_LRS","AFS"]
 
   workload:
     - sap:                            &sap "SAP"
@@ -92,7 +93,7 @@ checks:
       os_type:                          [*suse, *redhat, *oraclelinux]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*pas, *app_role]
       database_type:                    [*hana, *mssql, *oracle, *db2]
       high_availability:                true
@@ -118,7 +119,7 @@ checks:
       os_type:                          [*suse, *redhat, *oraclelinux]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*pas, *app_role]
       database_type:                    [*hana, *mssql, *oracle, *db2]
       high_availability:                true
@@ -145,7 +146,7 @@ checks:
       os_type:                          [*suse, *redhat, *oraclelinux]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*pas, *app_role]
       database_type:                    [*hana, *mssql, *oracle, *db2]
     collector_type:                     *command
@@ -169,7 +170,7 @@ checks:
       os_type:                          [*suse, *redhat, *oraclelinux]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*pas, *app_role]
       database_type:                    [*hana, *mssql, *oracle, *db2]
     collector_type:                     *command
@@ -193,7 +194,7 @@ checks:
       os_type:                          [*suse]
       os_version:                       [*suse_12_3]
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*pas, *app_role]
       database_type:                    [*hana, *mssql, *oracle, *db2]
       high_availability:                true
@@ -219,7 +220,7 @@ checks:
       os_type:                          [*suse, *redhat, *oraclelinux]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*app_role, *pas]
       database_type:                    [*hana, *mssql, *oracle, *db2]
       high_availability:                true
@@ -245,7 +246,7 @@ checks:
       os_type:                          [*suse, *redhat, *oraclelinux]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *premium_storage
+      storage_type:                     *all_storage
       role:                             [*pas, *app_role]
       database_type:                    [*hana, *mssql, *oracle, *db2]
       high_availability:                true
