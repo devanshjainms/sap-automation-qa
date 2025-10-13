@@ -748,6 +748,16 @@ class FileSystemCollector(Collector):
                         nfs_address = source.split(":")[0]
                         mounted_anf_ips.add(nfs_address)
 
+            self.parent.log(
+                logging.INFO,
+                f"Found {len(mounted_anf_ips)} unique mounted ANF IP addresses: {mounted_anf_ips}",
+            )
+            self.parent.log(
+                logging.INFO,
+                f"Total ANF volumes available in metadata: {len(anf_storage_data)} entries"
+                + f"First 500 chars: {str(anf_storage_data)[:500]}",
+            )
+
             for anf_volume in anf_storage_data:
                 anf_ip = anf_volume.get("ip", "")
 
