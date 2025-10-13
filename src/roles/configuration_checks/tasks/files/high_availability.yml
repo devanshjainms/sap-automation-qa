@@ -26,6 +26,7 @@ enums:
 
   report:
     - table:                          &table "table"
+    - check:                          &check "check"
 
   role:
     - db:                             &db_role "DB"

@@ -77,4 +77,4 @@
                                     ha_loadbalancer_module_result.details is defined and
                                     ha_loadbalancer_module_result.details.parameters is defined
   ansible.builtin.set_fact:
-    ha_loadbalancer_config:        "{{ ha_loadbalancer_module_result.details.parameters }}"
+    ha_loadbalancer_config:        "{{ ha_loadbalancer_module_result.details.parameters | default([]) }}"
