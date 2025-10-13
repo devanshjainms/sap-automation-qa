@@ -70,6 +70,13 @@
     msi_client_id:                  "{{ user_assigned_identity_client_id | default('') }}"
   register:                         ha_loadbalancer_module_result
 
+- name:                             "Debug HA Load Balancer configuration result"
+  when:                             >-
+                                    role in ['SCS', 'ERS', 'DB'] and
+                                    ha_loadbalancer_module_result is defined
+  ansible.builtin.debug:
+    var:                            ha_loadbalancer_module_result
+
 - name:                             "Store HA Load Balancer configuration result"
   when:                             >-
                                     role in ['SCS', 'ERS', 'DB'] and
