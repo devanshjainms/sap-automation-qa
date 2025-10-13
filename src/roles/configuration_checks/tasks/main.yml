@@ -8,7 +8,7 @@
 ---
 # Get vm name using imds, resource group name and location and set them in system_context
 
-- name:                             Get virtual machine properties from IMDS
+- name:                             "{{ check_type.name }} - Get virtual machine properties from IMDS"
   ansible.builtin.uri:
     url:                            http://169.254.169.254/metadata/instance?api-version=2021-02-01
     use_proxy:                      false
@@ -21,7 +21,7 @@
   until:                           compute_metadata is not failed
   ignore_errors:                   true
 
-- name:                             Handle IMDS failure gracefully
+- name:                             "{{ check_type.name }} - Handle IMDS failure gracefully"
   ansible.builtin.set_fact:
     compute_metadata:
       json:
@@ -35,23 +35,23 @@
     execution_warnings:             "{{ execution_warnings | default([]) + ['IMDS endpoint unavailable - using fallback values'] }}"
   when:                             compute_metadata is failed
 
-- name:                             Set IMDS success flag
+- name:                             "{{ check_type.name }} - Set IMDS success flag"
   ansible.builtin.set_fact:
     imds_available:                 true
     execution_warnings:             "{{ execution_warnings | default([]) }}"
   when:                             compute_metadata is not failed
 
-- name:                             Include disks task when HANA checks to be run
+- name:                             "{{ check_type.name }} - Include disks task when HANA checks to be run"
   ansible.builtin.include_tasks:    disks.yml
   when:                             check_type.file_name == "hana"
 
-- name:                             Execute HA and Load Balancer module when high_availability checks to be run
+- name:                             "{{ check_type.name }} - Execute HA and Load Balancer module when high_availability checks to be run"
   ansible.builtin.include_tasks:    ha_modules.yml
   when:                             >-
                                     check_type.file_name == "high_availability" and
                                     role in ['SCS', 'ERS', 'DB']
 
-- name:                             Prepare system context information for {{check_type.name}}
+- name:                             "{{ check_type.name }} - Prepare system context information"
   ansible.builtin.set_fact:
     system_context:
       check_type:                   "{{ check_type }}"
@@ -94,17 +94,17 @@
       ha_db_config:                 "{{ ha_db_config | default([]) }}"
       ha_scs_config:                "{{ ha_scs_config | default([]) }}"
 
-- name:                             Debug system context prepared
+- name:                             "{{ check_type.name }} - Debug system context prepared"
   ansible.builtin.debug:
     var:                            system_context | default({})
     verbosity:                      2
 
-- name:                             Load checks file for {{check_type.name}} from {{ check_type.file_name }}.yml
+- name:                             Load checks file for {{ check_type.name }} from {{ check_type.file_name }}.yml
   no_log:                           true
   ansible.builtin.set_fact:
     check_file_content:             "{{ lookup('file', check_type.file_name + '.yml') }}"
 
-- name:                             Parse check file to identify collector {{ check_type.file_name}}
+- name:                             "{{ check_type.name }} - Parse check file to identify collector {{ check_type.file_name }}"
   no_log:                           true
   ansible.builtin.set_fact:
     parsed_checks:                  "{{ check_file_content | from_yaml }}"
@@ -116,7 +116,7 @@
     azure_checks:                   "{{ parsed_checks.checks | selectattr('collector_type', 'equalto', 'azure') | list }}"
     module_checks:                  "{{ parsed_checks.checks | selectattr('collector_type', 'equalto', 'module') | list }}"
 
-- name:                             Convert filtered checks back to YAML
+- name:                             "{{ check_type.name }} - Convert filtered checks back to YAML"
   no_log:                           true
   ansible.builtin.set_fact:
     command_checks_yaml:            "{{ {'checks': command_checks} | to_yaml }}"
@@ -124,10 +124,10 @@
     module_checks_yaml:             "{{ {'checks': module_checks} | to_yaml }}"
   when:                             command_checks is defined or azure_checks is defined or module_checks is defined
 
-- name:                             Execute command-based configuration checks
+- name:                             "{{ check_type.name }} - Execute command-based configuration checks"
   when:                             command_checks is defined and command_checks | length > 0
   block:
-    - name:                         Run command-based configuration checks
+    - name:                         "{{ check_type.name }} - Run command-based configuration checks"
       become:                       true
       configuration_check_module:
         check_file_content:         "{{ command_checks_yaml }}"
@@ -147,12 +147,12 @@
       ansible.builtin.debug:
         msg:                        "Command-based configuration checks failed {{ command_check_results.msg }}"
 
-- name:                             Debug the logs from configuration check python module
+- name:                             "{{ check_type.name }} - Debug the logs from configuration check python module"
   when:                             command_check_results is defined and command_check_results.log is defined
   ansible.builtin.debug:
     msg:                            "{{ command_check_results.log }}"
 
-- name:                             Execute Azure-based configuration checks
+- name:                             "{{ check_type.name }} - Execute Azure-based configuration checks"
   when:                             azure_checks is defined and azure_checks | length > 0
   block:
     - name:                         Run Azure-based configuration checks
@@ -176,12 +176,12 @@
       ansible.builtin.debug:
         msg:                        "Azure-based configuration checks failed but continuing {{ azure_check_results.msg }}"
 
-- name:                             Debug the formatted filesystem info from configuration check python module
+- name:                             "{{ check_type.name }} - Debug the formatted filesystem info from configuration check python module"
   when:                             azure_check_results is defined and azure_check_results.formatted_filesystem_info is defined
   ansible.builtin.debug:
     msg:                            "{{ azure_check_results.formatted_filesystem_info }}"
 
-- name:                             Execute module-based configuration checks
+- name:                             "{{ check_type.name }} - Execute module-based configuration checks"
   when:                             module_checks is defined and module_checks | length > 0
   block:
     - name:                         Run module-based configuration checks
@@ -204,12 +204,12 @@
       ansible.builtin.debug:
         msg:                        "Module-based configuration checks failed but continuing {{ module_check_results.msg }}"
 
-- name:                             Debug the module check results
+- name:                             "{{ check_type.name }} - Debug the module check results"
   when:                             module_check_results is defined and module_check_results.check_results is defined
   ansible.builtin.debug:
     msg:                            "Module checks: {{ module_check_results.check_results | length }} results"
 
-- name:                             Merge check results with error handling
+- name:                             "{{ check_type.name }} - Merge check results with error handling"
   ansible.builtin.set_fact:
     combined_results:               "{{ (command_check_results.check_results | default([])) +
                                         (azure_check_results.check_results | default([])) +
@@ -228,7 +228,7 @@
       execution_warnings:           "{{ execution_warnings | default([]) }}"
       execution_errors:             "{{ execution_errors | default([]) }}"
 
-- name:                             Set dynamic result variable with metadata
+- name:                             "{{ check_type.name }} - Set dynamic result variable with metadata"
   ansible.builtin.set_fact:
     "{{ check_type.results_var }}": "{{ combined_results }}"
     "{{ check_type.results_var }}_metadata": "{{ execution_summary }}"
