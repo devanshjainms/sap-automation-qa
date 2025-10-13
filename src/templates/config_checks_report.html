@@ -1199,6 +1199,9 @@
               rejectattr('status', 'equalto', 'SKIPPED')|list %}
               {% if type_checks|length > 0 %}
               <h3>{{ check_type }}</h3>
+              
+              {% set type_regular_checks = type_checks|selectattr('check.report', 'equalto', 'check')|list %}
+              {% if type_regular_checks|length > 0 %}
               <table class="config-checks-table">
                 <thead>
                   <tr>
@@ -1210,8 +1213,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {% for check in type_checks %}
-                  {% if check.check.report == 'check' %}
+                  {% for check in type_regular_checks %}
                   <tr onclick="toggleDetails('{{ check.hostname }}-{{ check.check.id }}')">
                     <td>{{ check.check.id }}</td>
                     <td>{{ check.check.name }}</td>
@@ -1296,16 +1298,12 @@
                       </div>
                     </td>
                   </tr>
-                  {% endif %}
                   {% endfor %}
                 </tbody>
               </table>
+              {% endif %}
               
-              {% set type_table_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|
-              selectattr('check.category', 'defined')|
-              selectattr('check.category', 'equalto', check_type)|
-              selectattr('check.report', 'equalto', 'table')|
-              rejectattr('status', 'equalto', 'SKIPPED')|list %}
+              {% set type_table_checks = type_checks|selectattr('check.report', 'equalto', 'table')|list %}
               {% if type_table_checks|length > 0 %}
               {% for check in type_table_checks %}
               <div class="config-section table-report-section">
@@ -1423,7 +1421,6 @@
       const firstButton = document.querySelector('.tab-button')
       if (firstButton) firstButton.classList.add('active')
 
-      // Scroll-triggered animations with Intersection Observer
       const observerOptions = {
         threshold: 0.1,
         rootMargin: '0px 0px -50px 0px'
@@ -1443,7 +1440,6 @@
         observer.observe(el)
       })
 
-      // Number counter animation
       const counters = document.querySelectorAll('.status-count h3')
       counters.forEach(counter => {
         const target = parseInt(counter.innerText)
@@ -1463,7 +1459,6 @@
           }
         }
 
-        // Start counting after a small delay
         setTimeout(() => {
           counter.innerText = '0'
           updateCounter()
@@ -1471,14 +1466,11 @@
       })
     })
 
-    // Filter checks by status
     let activeFilter = null
 
     function filterByStatus(status) {
       const statusBoxes = document.querySelectorAll('.status-count')
       const allRows = document.querySelectorAll('.config-checks-table tbody tr:not(.expanded-content)')
-
-      // Toggle filter - if clicking the same status, clear filter
       if (activeFilter === status) {
         activeFilter = null
         statusBoxes.forEach(box => box.classList.remove('active'))
@@ -1487,11 +1479,8 @@
         })
         return
       }
-
-      // Set new filter
       activeFilter = status
 
-      // Update active state on status boxes
       statusBoxes.forEach(box => {
         if (box.dataset.status === status) {
           box.classList.add('active')
@@ -1502,7 +1491,6 @@
 
       // Filter table rows
       allRows.forEach(row => {
-        // The status is in the 5th column (td)
         const statusCell = row.querySelector('td:nth-child(5)')
         if (!statusCell) {
           row.style.display = 'none'
@@ -1510,8 +1498,6 @@
         }
 
         const rowStatus = statusCell.textContent.toLowerCase().trim()
-
-        // Map statuses: "failed" -> "error", "ok"/"passed" -> "passed"
         let mappedStatus = rowStatus
         if (rowStatus === 'failed') {
           mappedStatus = 'error'
@@ -1523,7 +1509,6 @@
           row.style.display = ''
         } else {
           row.style.display = 'none'
-          // Also hide any expanded details
           const detailsId = row.getAttribute('onclick')?.match(/toggleDetails\('([^']+)'\)/)?.[1]
           if (detailsId) {
             const detailsRow = document.getElementById('details-' + detailsId)

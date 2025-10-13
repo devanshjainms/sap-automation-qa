@@ -45,17 +45,11 @@
   ansible.builtin.include_tasks:    disks.yml
   when:                             check_type.file_name == "hana"
 
-- name:                             Execute HA DB module when high_availability checks to be run
+- name:                             Execute HA and Load Balancer module when high_availability checks to be run
   ansible.builtin.include_tasks:    ha_modules.yml
   when:                             >-
                                     check_type.file_name == "high_availability" and
-                                    role == 'DB'
-
-- name:                             Execute HA SCS module when high_availability checks to be run
-  ansible.builtin.include_tasks:    ha_modules.yml
-  when:                             >-
-                                    check_type.file_name == "high_availability" and
-                                    role in ['SCS', 'ERS']
+                                    role in ['SCS', 'ERS', 'DB']
 
 - name:                             Prepare system context information for {{check_type.name}}
   ansible.builtin.set_fact:

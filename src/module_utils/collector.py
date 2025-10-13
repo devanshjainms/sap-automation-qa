@@ -365,6 +365,7 @@ class ModuleCollector(Collector):
                 module_context_map = {
                     "get_pcmk_properties_db": "ha_db_config",
                     "get_pcmk_properties_scs": "ha_scs_config",
+                    "get_azure_lb": "ha_loadbalancer_config",
                 }
                 context_key = module_context_map.get(module_name, module_name)
 

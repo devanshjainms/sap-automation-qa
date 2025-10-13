@@ -49,3 +49,29 @@
                                     ha_scs_module_result is defined
   ansible.builtin.set_fact:
     ha_scs_config:                  "{{ ha_scs_module_result.details.parameters }}"
+
+- name:                             "Get the Azure Load Balancer IP"
+  ansible.builtin.uri:
+    url:                            http://169.254.169.254:80/metadata/loadbalancer?api-version=2020-10-01
+    use_proxy:                      false
+    headers:
+      Metadata:                     true
+  register:                         azure_loadbalancer_metadata
+
+- name:                             "Execute Azure Load Balancer Configuration Module"
+  when:                             role in ['SCS', 'ERS', 'DB']
+  become:                           true
+  get_azure_lb:
+    subscription_id:                "{{ compute_metadata.json.compute.subscriptionId }}"
+    region:                         "{{ compute_metadata.json.compute.location }}"
+    inbound_rules:                  "{{ azure_loadbalancer_metadata.json.loadbalancer.inboundRules }}"
+    constants:                      "{{ lookup('file', 'roles/ha_scs/tasks/files/constants.yaml') | from_yaml }}"
+    msi_client_id:                  "{{ user_assigned_identity_client_id | default('') }}"
+  register:                         ha_loadbalancer_module_result
+
+- name:                             "Store HA Load Balancer configuration result"
+  when:                             >-
+                                    role in ['SCS', 'ERS', 'DB'] and
+                                    ha_loadbalancer_module_result is defined
+  ansible.builtin.set_fact:
+    ha_loadbalancer_config:        "{{ ha_loadbalancer_module_result.details.parameters }}"
