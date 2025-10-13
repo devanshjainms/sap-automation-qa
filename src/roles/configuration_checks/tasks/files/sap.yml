@@ -374,7 +374,7 @@ checks:
       role:                             [*db_role, *ascs_role]
       database_type:                    [*hana]
       high_availability:                true
-      high_availability_agent:          [*sbd]
+      high_availability_agent:          [*fencing_agent]
     collector_type:                     *command
     collector_args:
       command:                          /usr/sbin/crm_attribute --name concurrent-fencing --query --quiet

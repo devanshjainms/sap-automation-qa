@@ -107,7 +107,7 @@ checks:
       high_availability_agent:          *cluster_type
     collector_type:                     *command
     collector_args:
-      command:                          cibadmin --query --xpath "//nvpair[@name='PREFER_SITE_TAKEOVER']" | grep -o 'value=\"[^\"]*\"' | cut -d'"' -f2
+      command:                          cibadmin --query --xpath "//nvpair[@name='PREFER_SITE_TAKEOVER']" | grep -o 'value="[^\"]*"' | cut -d'"' -f2
       user:                             *root
     validator_type:                     *string
     validator_args:
@@ -131,7 +131,7 @@ checks:
       high_availability_agent:          *cluster_type
     collector_type:                     *command
     collector_args:
-      command:                          cibadmin --query --xpath "//nvpair[@name='AUTOMATED_REGISTER']" | grep -o 'value=\"[^\"]*\"' | tail -n 1 | cut -d'"' -f2
+      command:                          cibadmin --query --xpath "//nvpair[@name='AUTOMATED_REGISTER']" | grep -o 'value="[^\"]*"' | tail -n 1 | cut -d'"' -f2
       user:                             *root
     validator_type:                     *string
     validator_args:
@@ -155,7 +155,7 @@ checks:
       high_availability_agent:          *cluster_type
     collector_type:                     *command
     collector_args:
-      command:                          cibadmin --query --xpath "//nvpair[@name='stonith-action']" | grep -o 'value=\"[^\"]*\"' | cut -d'"' -f2
+      command:                          cibadmin --query --xpath "//nvpair[@name='stonith-action']" | grep -o 'value="[^\"]*"' | cut -d'"' -f2
       user:                             *root
     validator_type:                     *string
     validator_args:
@@ -288,7 +288,7 @@ checks:
   - id:                                 "DB-HANA-0011"
     name:                               "sysctl net.ipv4.tcp_wmem"
     description:                        "SAP HANA sysctl net.ipv4.tcp_wmem"
-    category:                           *sap_check
+    category:                           *os_check
     severity:                           *high
     workload:                           *sap
     applicability:

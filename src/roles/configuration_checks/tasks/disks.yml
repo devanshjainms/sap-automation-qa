@@ -98,8 +98,6 @@
       register:                         anf_storage_metadata_results
       delegate_to:                      localhost
       ansible.builtin.shell: |
-                                        echo "["
-                                        first=true
                                         for pool in $(az netappfiles pool list \
                                           --resource-group "{{ ANF_account_rg | default(compute_metadata.json.compute.resourceGroupName) }}" \
                                           --account-name "{{ ANF_account_name }}" \
@@ -114,8 +112,6 @@
                                               --account-name "{{ ANF_account_name }}" \
                                               --pool-name "$pool" \
                                               --query '[].name' -o tsv | awk -F/ '{print $NF}'); do
-                                                if [ "$first" = false ]; then echo ","; fi
-                                                first=false
                                                 az netappfiles volume show \
                                                   --resource-group "{{ ANF_account_rg | default(compute_metadata.json.compute.resourceGroupName) }}" \
                                                   --account-name "{{ ANF_account_name }}" \
@@ -125,7 +121,6 @@
                                                   -o json
                                             done
                                         done
-                                        echo "]"
 
     - name:                             Debug ANF storage data collected
       when:                             anf_storage_metadata_results is defined
