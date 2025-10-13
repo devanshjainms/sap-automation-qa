@@ -302,19 +302,36 @@ class FileSystemCollector(Collector):
         parsed_data = []
 
         if not raw_data:
+            self.parent.log(
+                logging.INFO,
+                f"No {data_type} data provided (empty or None)",
+            )
             return parsed_data
+
+        self.parent.log(
+            logging.INFO,
+            f"Parsing {data_type}: type={type(raw_data)}, "
+            f"length={len(raw_data) if hasattr(raw_data, '__len__') else 'N/A'}",
+        )
 
         if isinstance(raw_data, list):
             for item in raw_data:
                 if isinstance(item, dict):
                     parsed_data.append(item)
                 elif isinstance(item, str):
+                    item_stripped = item.strip()
+                    if not item_stripped:
+                        continue
                     try:
-                        parsed_data.append(json.loads(item))
+                        parsed_item = json.loads(item_stripped)
+                        if isinstance(parsed_item, dict):
+                            parsed_data.append(parsed_item)
+                        elif isinstance(parsed_item, list):
+                            parsed_data.extend(parsed_item)
                     except json.JSONDecodeError:
                         self.parent.log(
                             logging.WARNING,
-                            f"Failed to parse {data_type} item: {item}",
+                            f"Failed to parse {data_type} item as JSON: {item_stripped[:100]}",
                         )
         elif isinstance(raw_data, dict):
             parsed_data = [raw_data]
@@ -331,10 +348,26 @@ class FileSystemCollector(Collector):
                         except json.JSONDecodeError:
                             self.parent.log(
                                 logging.WARNING,
-                                f"Failed to parse {data_type} line: {line.strip()}",
+                                f"Failed to parse {data_type} line: {line.strip()[:100]}",
                             )
 
-        return parsed_data
+        validated_data = []
+        for item in parsed_data:
+            if isinstance(item, dict):
+                validated_data.append(item)
+            else:
+                self.parent.log(
+                    logging.WARNING,
+                    f"Skipping non-dict item in {data_type}: {type(item)} - {str(item)[:100]}",
+                )
+
+        self.parent.log(
+            logging.INFO,
+            f"Successfully parsed {len(validated_data)} {data_type} items, "
+            f"skipped {len(parsed_data) - len(validated_data)} non-dict items",
+        )
+
+        return validated_data
 
     def gather_all_filesystem_info(
         self, context, filesystems, lvm_volumes, vg_to_disk_names
@@ -719,15 +752,21 @@ class FileSystemCollector(Collector):
             findmnt_output = context.get("mount_info", "")
             df_output = context.get("df_info", "")
 
+            raw_anf_data = context.get("anf_storage_metadata", "")
+            self.parent.log(
+                logging.INFO,
+                f"Raw ANF data type: {type(raw_anf_data)}, "
+                f"Length: {len(raw_anf_data) if hasattr(raw_anf_data, '__len__') else 'N/A'}, "
+                f"First 500 chars: {str(raw_anf_data)[:500]}",
+            )
+
             azure_disk_data = self._parse_metadata(
                 context.get("azure_disks_metadata", []), "Azure disk"
             )
             afs_storage_data = self._parse_metadata(
                 context.get("afs_storage_metadata", ""), "AFS storage"
             )
-            anf_storage_data = self._parse_metadata(
-                context.get("anf_storage_metadata", ""), "ANF storage"
-            )
+            anf_storage_data = self._parse_metadata(raw_anf_data, "ANF storage")
             imds_metadata = self._parse_metadata(
                 context.get("imds_disks_metadata", []), "IMDS disk"
             )
