@@ -863,7 +863,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *all_storage
+      storage_type:                     *premium_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *azure
@@ -913,7 +913,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *all_storage
+      storage_type:                     *premium_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *azure
@@ -1035,7 +1035,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *all_storage
+      storage_type:                     *premium_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *azure
@@ -1061,7 +1061,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *all_storage
+      storage_type:                     *premium_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *azure
@@ -1087,7 +1087,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *all_storage
+      storage_type:                     *premium_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *azure
@@ -1113,7 +1113,7 @@ checks:
       os_type:                          [*suse, *redhat]
       os_version:                       *all_versions
       hardware_type:                    *vm
-      storage_type:                     *all_storage
+      storage_type:                     *premium_storage
       role:                             [*db_role]
       database_type:                    [*hana]
     collector_type:                     *azure
@@ -1230,6 +1230,58 @@ checks:
     collector_args:
       resource_type:                    "anf_volumes"
     report:                             *table
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 DB-HANA-0050
+    name:                               "Disk performance for /hana/data (MBPS)"
+    description:                        "The disk performance for /hana/data should be >= 400 MByte/s"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "anf_volume"
+      property:                         "throughputMibps"
+      mount_point:                      "/hana/data"
+    validator_type:                     *range
+    validator_args:
+      min:                              "400"
+    report:                             *check
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 DB-HANA-0051
+    name:                               "Disk performance for /hana/data (MBPS)"
+    description:                        "The disk performance for /hana/data should be >= 400 MByte/s"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "anf_volumes"
+      property:                         "throughputMibps"
+      mount_point:                      "/hana/log"
+    validator_type:                     *range
+    validator_args:
+      min:                              "400"
+    report:                             *check
     references:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"

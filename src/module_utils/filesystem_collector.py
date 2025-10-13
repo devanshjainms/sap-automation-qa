@@ -102,7 +102,7 @@ class FileSystemCollector(Collector):
                         anf_ip = anf_volume.get("ip", "")
                         if anf_ip and anf_ip == nfs_address:
                             filesystem_entry["max_mbps"] = anf_volume.get("throughputMibps", 0)
-                            filesystem_entry["max_iops"] = 0  # ANF doesn't expose IOPS directly
+                            filesystem_entry["max_iops"] = "-"
                             filesystem_entry["nfs_type"] = "ANF"
                             filesystem_entry["service_level"] = anf_volume.get("serviceLevel", "")
                             matched = True
@@ -904,7 +904,6 @@ class FileSystemCollector(Collector):
                 vg_to_disk_names=vg_to_disk_names,
             )
 
-            # Gather additional correlated information structures
             azure_disks_info = self.gather_azure_disks_info(
                 context=context,
                 lvm_fullreport=lvm_fullreport,

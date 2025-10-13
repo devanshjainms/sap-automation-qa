@@ -159,6 +159,93 @@ class AzureDataParser(Collector):
         """
         return context.get("azure_disks_info", "N/A")
 
+    def parse_anf_vars(self, check, context) -> str:
+        """
+        Parse required property for Azure NetApp Files (ANF) from from filesystem data.
+
+        :param check: Check object with collector arguments
+        :type check: Check
+        :param context: Context object containing all required data
+        :type context: Dict[str, Any]
+        :return: Parsed ANF properties variables
+        :rtype: str
+        """
+        filesystem_data = context.get("filesystems", [])
+        anf_storage_data = context.get("anf_storage_metadata", [])
+        mount_point = check.collector_args.get("mount_point", "")
+        property_name = check.collector_args.get("property", "")
+        value = "N/A"
+
+        try:
+            parsed_anf_volumes = []
+            if isinstance(anf_storage_data, str):
+                try:
+                    parsed_anf_volumes = json.loads(anf_storage_data)
+                except json.JSONDecodeError:
+                    self.parent.log(
+                        logging.WARNING,
+                        f"Failed to parse ANF storage metadata JSON: {anf_storage_data[:100]}",
+                    )
+            elif isinstance(anf_storage_data, list):
+                parsed_anf_volumes = anf_storage_data
+            else:
+                self.parent.log(
+                    logging.WARNING, f"Unexpected ANF storage data type: {type(anf_storage_data)}"
+                )
+                return value
+
+            fs_entry = None
+            for fs in filesystem_data:
+                if fs.get("target") == mount_point:
+                    fs_entry = fs
+                    break
+
+            if not fs_entry:
+                self.parent.log(
+                    logging.WARNING, f"Mount point {mount_point} not found in filesystem data"
+                )
+                return value
+
+            if fs_entry.get("nfs_type") != "ANF":
+                self.parent.log(
+                    logging.WARNING,
+                    f"Mount point {mount_point} is not an ANF volume (type: {fs_entry.get('nfs_type')})",
+                )
+                return value
+            source = fs_entry.get("source", "")
+            if ":" not in source:
+                self.parent.log(
+                    logging.WARNING, f"Invalid NFS source format for {mount_point}: {source}"
+                )
+                return value
+
+            nfs_ip = source.split(":")[0]
+            for anf_volume in parsed_anf_volumes:
+                if anf_volume.get("ip") == nfs_ip:
+                    if property_name in anf_volume:
+                        value = str(anf_volume.get(property_name, "N/A"))
+                        self.parent.log(
+                            logging.INFO,
+                            f"Found {property_name}={value} for ANF volume at {mount_point} (IP: {nfs_ip})",
+                        )
+                    else:
+                        self.parent.log(
+                            logging.WARNING,
+                            f"Property '{property_name}' not found in ANF volume for {mount_point}",
+                        )
+                    break
+            else:
+                self.parent.log(
+                    logging.WARNING,
+                    f"No ANF volume found with IP {nfs_ip} for mount point {mount_point}",
+                )
+
+        except Exception as ex:
+            self.parent.handle_error(ex)
+            value = f"ERROR: ANF property parsing failed: {str(ex)}"
+
+        return value
+
     def parse_anf_volumes_vars(self, check, context) -> str:
         """
         Parse Azure NetApp Files (ANF) volumes variables from the given data.
