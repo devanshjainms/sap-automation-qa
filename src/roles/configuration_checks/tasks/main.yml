@@ -6,8 +6,6 @@
 # +------------------------------------4--------------------------------------*/
 
 ---
-# Get vm name using imds, resource group name and location and set them in system_context
-
 - name:                             "{{ check_type.name }} - Get virtual machine properties from IMDS"
   ansible.builtin.uri:
     url:                            http://169.254.169.254/metadata/instance?api-version=2021-02-01
@@ -98,7 +96,6 @@
 - name:                             "{{ check_type.name }} - Debug system context prepared"
   ansible.builtin.debug:
     var:                            system_context | default({})
-    verbosity:                      2
 
 - name:                             Load checks file for {{ check_type.name }} from {{ check_type.file_name }}.yml
   no_log:                           true
