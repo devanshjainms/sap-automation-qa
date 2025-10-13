@@ -61,6 +61,7 @@
 - name:                             "Execute Azure Load Balancer Configuration Module"
   when:                             role in ['SCS', 'ERS', 'DB']
   become:                           true
+  delegate_to:                      localhost
   get_azure_lb:
     subscription_id:                "{{ compute_metadata.json.compute.subscriptionId }}"
     region:                         "{{ compute_metadata.json.compute.location }}"

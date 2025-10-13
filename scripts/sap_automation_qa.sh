@@ -204,6 +204,9 @@ get_playbook_name() {
                 echo "playbook_00_ha_scs_functional_tests"
             fi
             ;;
+        "ConfigurationChecks")
+            echo "playbook_00_ha_configuration_checks"
+            ;;
         *)
             log "ERROR" "Unknown sap_functional_test_type: $test_type"
             exit 1
