@@ -73,6 +73,7 @@
       when:                             ha_loadbalancer_module_result is defined
       ansible.builtin.debug:
         var:                            ha_loadbalancer_module_result
+        verbosity:                      1
 
     - name:                             "Store HA Load Balancer configuration result"
       when:                             >-

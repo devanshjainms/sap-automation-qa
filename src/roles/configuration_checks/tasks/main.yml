@@ -96,6 +96,7 @@
 - name:                             "{{ check_type.name }} - Debug system context prepared"
   ansible.builtin.debug:
     var:                            system_context | default({})
+    verbosity:                      1
 
 - name:                             Load checks file for {{ check_type.name }} from {{ check_type.file_name }}.yml
   no_log:                           true
@@ -149,6 +150,7 @@
   when:                             command_check_results is defined and command_check_results.log is defined
   ansible.builtin.debug:
     msg:                            "{{ command_check_results.log }}"
+    verbosity:                      1
 
 - name:                             "{{ check_type.name }} - Execute Azure-based configuration checks"
   when:                             azure_checks is defined and azure_checks | length > 0
@@ -178,6 +180,7 @@
   when:                             azure_check_results is defined and azure_check_results.formatted_filesystem_info is defined
   ansible.builtin.debug:
     msg:                            "{{ azure_check_results.formatted_filesystem_info }}"
+    verbosity:                      1
 
 - name:                             "{{ check_type.name }} - Execute module-based configuration checks"
   when:                             module_checks is defined and module_checks | length > 0
@@ -206,6 +209,7 @@
   when:                             module_check_results is defined and module_check_results.check_results is defined
   ansible.builtin.debug:
     msg:                            "Module checks: {{ module_check_results.check_results | length }} results"
+    verbosity:                      1
 
 - name:                             "{{ check_type.name }} - Merge check results with error handling"
   ansible.builtin.set_fact:

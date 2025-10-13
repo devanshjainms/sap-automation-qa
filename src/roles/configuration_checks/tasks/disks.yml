@@ -71,6 +71,7 @@
     - name:                             Debug device-to-lun mapping
       ansible.builtin.debug:
         var:                            device_lun_map
+        verbosity:                      1
 
     - name:                             Extract disk names
       when:                             disks_metadata is not failed and disks_metadata.json is defined
@@ -92,6 +93,7 @@
       when:                             azure_disks_metadata_results is defined
       ansible.builtin.debug:
         var:                            azure_disks_metadata_results
+        verbosity:                      1
 
     - name:                             Collect ANF storage data if NFS is used
       when:                             NFS_provider is defined and 'ANF' in NFS_provider and ANF_account_rg is defined and ANF_account_name is defined
@@ -126,6 +128,7 @@
       when:                             anf_storage_metadata_results is defined
       ansible.builtin.debug:
         var:                            anf_storage_metadata_results
+        verbosity:                      1
 
     - name:                             Collect AFS storage data if NFS is used
       when:                             NFS_provider is defined and 'AFS' in NFS_provider
@@ -151,4 +154,5 @@
     - name:                             Debug AFS storage data collected
       when:                             afs_storage_metadata_results is defined
       ansible.builtin.debug:
+        verbosity:                      1
         var:                            afs_storage_metadata_results
