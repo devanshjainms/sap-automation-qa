@@ -159,6 +159,19 @@ class AzureDataParser(Collector):
         """
         return context.get("azure_disks_info", "N/A")
 
+    def parse_anf_volumes_vars(self, check, context) -> str:
+        """
+        Parse Azure NetApp Files (ANF) volumes variables from the given data.
+
+        :param check: Check object with collector arguments
+        :type check: Check
+        :param context: Context object containing all required data
+        :type context: Dict[str, Any]
+        :return: Parsed ANF volumes variables
+        :rtype: str
+        """
+        return context.get("anf_volumes_info", "N/A")
+
     def parse_lvm_groups_vars(self, check, context) -> str:
         """
         Parse LVM group info from the given data.
