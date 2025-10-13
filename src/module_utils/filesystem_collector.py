@@ -458,7 +458,7 @@ class FileSystemCollector(Collector):
                             anf_ip = anf_volume.get("ip", "")
                             if anf_ip and anf_ip == nfs_address:
                                 max_mbps = anf_volume.get("throughputMibps", 0)
-                                max_iops = 0
+                                max_iops = "-"
                                 self.parent.log(
                                     logging.INFO,
                                     f"Correlated NFS {target} with "
@@ -727,6 +727,88 @@ class FileSystemCollector(Collector):
 
         return lvm_volumes_info
 
+    def gather_anf_volumes_info(self, filesystems, anf_storage_data):
+        """
+        Gather ANF volume information for volumes that are actually mounted on the system.
+        Extracts pool name and volume name from the ANF resource ID.
+
+        :param filesystems: List of filesystem dictionaries from _parse_filesystem_data
+        :param anf_storage_data: Parsed ANF storage metadata
+        :return: List of ANF volume information dictionaries
+        :rtype: List[Dict[str, Any]]
+        """
+        anf_volumes_info = []
+
+        try:
+            mounted_anf_ips = set()
+            for fs in filesystems:
+                if fs.get("fstype") in ["nfs", "nfs4"] and fs.get("nfs_type") == "ANF":
+                    source = fs.get("source", "")
+                    if ":" in source:
+                        nfs_address = source.split(":")[0]
+                        mounted_anf_ips.add(nfs_address)
+
+            for anf_volume in anf_storage_data:
+                anf_ip = anf_volume.get("ip", "")
+
+                if anf_ip and anf_ip in mounted_anf_ips:
+                    resource_id = anf_volume.get("id", "")
+                    pool_name = ""
+                    vol_name = ""
+
+                    if resource_id:
+                        parts = resource_id.split("/")
+                        try:
+                            if "capacityPools" in parts:
+                                pool_idx = parts.index("capacityPools")
+                                if pool_idx + 1 < len(parts):
+                                    pool_name = parts[pool_idx + 1]
+                            if "volumes" in parts:
+                                vol_idx = parts.index("volumes")
+                                if vol_idx + 1 < len(parts):
+                                    vol_name = parts[vol_idx + 1]
+                        except (ValueError, IndexError):
+                            self.parent.log(
+                                logging.WARNING,
+                                f"Failed to parse ANF resource ID: {resource_id}",
+                            )
+
+                    if not vol_name:
+                        name_field = anf_volume.get("name", "")
+                        if "/" in name_field:
+                            name_parts = name_field.split("/")
+                            if len(name_parts) >= 2:
+                                pool_name = name_parts[-2] if not pool_name else pool_name
+                                vol_name = name_parts[-1]
+
+                    protocol_types = anf_volume.get("protocolTypes", [])
+                    if isinstance(protocol_types, list):
+                        protocol_str = ", ".join(protocol_types)
+                    else:
+                        protocol_str = str(protocol_types)
+
+                    anf_volumes_info.append(
+                        {
+                            "VolumeName": vol_name,
+                            "PoolName": pool_name,
+                            "ServiceLevel": anf_volume.get("serviceLevel", ""),
+                            "ThroughputMibps": anf_volume.get("throughputMibps", 0),
+                            "ProtocolTypes": protocol_str,
+                            "NFSAddress": anf_ip,
+                        }
+                    )
+
+            self.parent.log(
+                logging.INFO,
+                f"Successfully gathered ANF volume info for {len(anf_volumes_info)} mounted volumes "
+                f"(filtered from {len(anf_storage_data)} total ANF volumes)",
+            )
+
+        except Exception as ex:
+            self.parent.log(logging.ERROR, f"Failed to gather ANF volume information: {ex}")
+
+        return anf_volumes_info
+
     def collect(self, check, context) -> Any:
         """
         Collect filesystem information
@@ -829,6 +911,11 @@ class FileSystemCollector(Collector):
                 lvm_volumes=lvm_volumes,
             )
 
+            anf_volumes_info = self.gather_anf_volumes_info(
+                filesystems=filesystems,
+                anf_storage_data=anf_storage_data,
+            )
+
             return {
                 "filesystems": filesystems,
                 "lvm_volumes": lvm_volumes,
@@ -837,6 +924,7 @@ class FileSystemCollector(Collector):
                 "azure_disks_info": azure_disks_info,
                 "lvm_groups_info": lvm_groups_info,
                 "lvm_volumes_info": lvm_volumes_info,
+                "anf_volumes_info": anf_volumes_info,
             }
 
         except Exception as ex:
