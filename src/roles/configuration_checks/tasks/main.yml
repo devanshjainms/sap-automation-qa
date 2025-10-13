@@ -140,7 +140,7 @@
         test_group_name:            "ConfigurationChecks"
         hostname:                   "{{ ansible_hostname }}"
         parallel_execution:         true
-        max_workers:                20
+        max_workers:                1
         enable_retry:               true
       register:                     command_check_results
   rescue:
@@ -169,7 +169,7 @@
         test_group_name:            "ConfigurationChecks"
         hostname:                   "{{ ansible_hostname }}"
         parallel_execution:         true
-        max_workers:                20
+        max_workers:                1
         enable_retry:               true
       register:                     azure_check_results
   rescue:
@@ -197,7 +197,7 @@
         test_group_name:            "ConfigurationChecks"
         hostname:                   "{{ ansible_hostname }}"
         parallel_execution:         true
-        max_workers:                20
+        max_workers:                1
         enable_retry:               true
       register:                     module_check_results
   rescue:

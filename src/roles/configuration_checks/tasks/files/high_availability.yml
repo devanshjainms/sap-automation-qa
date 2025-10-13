@@ -90,8 +90,8 @@ checks:
     report:                           *table
 
   - id:                               "HA-LB-001"
-    name:                             "Load Balancers Name"
-    description:                      "Name of the load balancers"
+    name:                             "Load Balancer Name"
+    description:                      "Name of the load balancer"
     category:                         *ha_check
     severity:                         *info
     applicability:

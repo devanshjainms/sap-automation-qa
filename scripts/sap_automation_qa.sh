@@ -92,11 +92,17 @@ Options:
   -h, --help                Show this help message
 
 Examples:
+  # High Availability Tests
   $0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash]
   $0 --test_groups=HA_SCS
   $0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash] -vv
   $0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash] --extra-vars='{"key":"value"}'
   $0 --test_groups=HA_DB_HANA --test_cases=[ha-config] --offline
+
+  # Configuration Checks (requires SAP_FUNCTIONAL_TEST_TYPE: ConfigurationChecks in vars.yaml)
+  $0 --extra-vars='{"configuration_test_type":"all"}'
+  $0 --extra-vars='{"configuration_test_type":"high_availability"}'
+  $0 --extra-vars='{"configuration_test_type":"Database"}' -vv
 
 Available Test Cases for groups:
 	$0 --test_groups=HA_DB_HANA
@@ -126,6 +132,13 @@ Available Test Cases for groups:
 				manual-restart => Manual Restart
 				ha-failover-to-node => HA Failover to Secondary Node
 
+Configuration Checks (set SAP_FUNCTIONAL_TEST_TYPE: ConfigurationChecks in vars.yaml):
+	configuration_test_type options (use with --extra-vars):
+				all => Run all configuration checks
+				Database => Database (HANA) configuration checks only
+				CentralServiceInstances => ASCS/ERS configuration checks only
+				ApplicationInstances => Application server configuration checks only
+
 Configuration is read from vars.yaml file.
 EOF
 }
@@ -141,7 +154,7 @@ VARS_FILE="${cmd_dir}/../vars.yaml"
 # :return: None. Exits with a non-zero status if validation fails.
 validate_params() {
     local missing_params=()
-    local params=("TEST_TYPE" "SYSTEM_CONFIG_NAME" "sap_functional_test_type" "AUTHENTICATION_TYPE")
+    local params=("TEST_TYPE" "SYSTEM_CONFIG_NAME" "SAP_FUNCTIONAL_TEST_TYPE" "AUTHENTICATION_TYPE")
 
     # Check if vars.yaml exists
     if [ ! -f "$VARS_FILE" ]; then
@@ -181,7 +194,7 @@ extract_error_message() {
     echo "$extracted_message"
 }
 
-# Determine the playbook name based on the sap_functional_test_type.
+# Determine the playbook name based on the SAP_FUNCTIONAL_TEST_TYPE.
 # :param test_type: The type of SAP functional test.
 # :param offline_mode: Whether to use offline mode (optional).
 # :return: The name of the playbook.
@@ -205,10 +218,10 @@ get_playbook_name() {
             fi
             ;;
         "ConfigurationChecks")
-            echo "playbook_00_ha_configuration_checks"
+            echo "playbook_00_configuration_checks"
             ;;
         *)
-            log "ERROR" "Unknown sap_functional_test_type: $test_type"
+            log "ERROR" "Unknown SAP_FUNCTIONAL_TEST_TYPE: $test_type"
             exit 1
             ;;
     esac
@@ -514,7 +527,7 @@ main() {
         log "INFO" "Found $cib_files CIB file(s) for offline analysis"
     fi
 
-    playbook_name=$(get_playbook_name "$sap_functional_test_type" "$OFFLINE_MODE")
+    playbook_name=$(get_playbook_name "$SAP_FUNCTIONAL_TEST_TYPE" "$OFFLINE_MODE")
     log "INFO" "Using playbook: $playbook_name."
 
     run_ansible_playbook "$playbook_name" "$SYSTEM_HOSTS" "$SYSTEM_PARAMS" "$AUTHENTICATION_TYPE" "$SYSTEM_CONFIG_FOLDER"

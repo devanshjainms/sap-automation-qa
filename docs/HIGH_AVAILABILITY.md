@@ -150,7 +150,7 @@ TEST_TYPE: "SAPFunctionalTests"
 # The type of SAP functional test to be executed. Supported values are:
 # - DatabaseHighAvailability
 # - CentralServicesHighAvailability
-sap_functional_test_type: "DatabaseHighAvailability"  # or "CentralServicesHighAvailability"
+SAP_FUNCTIONAL_TEST_TYPE: "DatabaseHighAvailability"  # or "CentralServicesHighAvailability"
 
 # The name of the SAP system configuration for which you want to execute the test cases.
 # It would be the name of the folder under 'WORKSPACE/SYSTEM/' where it could find hosts.yaml, sap-parameters.yaml files of the SAP system configuration
