@@ -97,7 +97,7 @@
 - name:                             Debug system context prepared
   ansible.builtin.debug:
     var:                            system_context | default({})
-  verbosity:                        2
+    verbosity:                      2
 
 - name:                             Load checks file for {{check_type.name}} from {{ check_type.file_name }}.yml
   no_log:                           true
