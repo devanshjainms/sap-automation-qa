@@ -68,7 +68,7 @@ class SapAutomationQA(ABC):
         :param stderr: Standard error output from the command
         :type stderr: str
         """
-        error_message = f"Error executing command: {exception}."
+        error_message = f"Error: {exception}."
         if stderr:
             error_message += f" More errors: {stderr}"
         error_message.replace("'", "")

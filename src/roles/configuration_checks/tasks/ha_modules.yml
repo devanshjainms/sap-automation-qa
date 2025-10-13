@@ -13,7 +13,6 @@
 
 - name:                             "Execute HA DB Configuration Module"
   when:                             role == 'DB'
-  become:                           true
   get_pcmk_properties_db:
     sid:                            "{{ db_sid | upper }}"
     instance_number:                "{{ db_instance_number }}"
@@ -32,7 +31,6 @@
 
 - name:                             "Execute HA SCS Configuration Module"
   when:                             role in ['SCS', 'ERS']
-  become:                           true
   get_pcmk_properties_scs:
     sid:                            "{{ sap_sid | upper }}"
     ascs_instance_number:           "{{ scs_instance_number }}"
@@ -59,8 +57,6 @@
   register:                         azure_loadbalancer_metadata
 
 - name:                             "Execute Azure Load Balancer Configuration Module"
-  when:                             role in ['SCS', 'ERS', 'DB']
-  become:                           true
   delegate_to:                      localhost
   get_azure_lb:
     subscription_id:                "{{ compute_metadata.json.compute.subscriptionId }}"
@@ -71,15 +67,12 @@
   register:                         ha_loadbalancer_module_result
 
 - name:                             "Debug HA Load Balancer configuration result"
-  when:                             >-
-                                    role in ['SCS', 'ERS', 'DB'] and
-                                    ha_loadbalancer_module_result is defined
+  when:                             ha_loadbalancer_module_result is defined
   ansible.builtin.debug:
     var:                            ha_loadbalancer_module_result
 
 - name:                             "Store HA Load Balancer configuration result"
   when:                             >-
-                                    role in ['SCS', 'ERS', 'DB'] and
                                     ha_loadbalancer_module_result is defined and
                                     ha_loadbalancer_module_result.details is defined and
                                     ha_loadbalancer_module_result.details.parameters is defined

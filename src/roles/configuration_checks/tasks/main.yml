@@ -42,10 +42,12 @@
   when:                             compute_metadata is not failed
 
 - name:                             "{{ check_type.name }} - Include disks task when HANA checks to be run"
+  become:                           true
   ansible.builtin.include_tasks:    disks.yml
   when:                             check_type.file_name == "hana"
 
 - name:                             "{{ check_type.name }} - Execute HA and Load Balancer module when high_availability checks to be run"
+  become:                           true
   ansible.builtin.include_tasks:    ha_modules.yml
   when:                             >-
                                     check_type.file_name == "high_availability" and
