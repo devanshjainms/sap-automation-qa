@@ -19,6 +19,8 @@ enums:
     - all_os:                         &os_type [*suse, *redhat]
 
   collector_type:
+    - command:                        &command "command"
+    - azure:                          &azure "azure"
     - module:                         &module "module"
 
   category:
