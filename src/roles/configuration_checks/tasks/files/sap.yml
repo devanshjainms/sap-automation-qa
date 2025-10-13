@@ -9,7 +9,7 @@ enums:
     - all_severity:                   &severity [*info, *high, *low, *warning, *critical]
 
   os_type:
-    - suse:                           &suse "SUSE"
+    - suse:                           &suse "SLES"
     - redhat:                         &redhat "REDHAT"
     - oraclelinux:                    &oraclelinux "OracleLinux"
     - windows:                        &windows "Windows"
