@@ -199,20 +199,6 @@
                                          configuration_test_type == 'ApplicationInstances' or
                                          configuration_test_type == 'WebDispatcherInstances')
 
-    - name:                             "Run Load Balancer checks for HA environments"
-      ansible.builtin.include_tasks:
-        file:                           "./roles/configuration_checks/tasks/main.yml"
-      vars:
-        check_type:
-          name:                         "Load Balancer Checks"
-          file_name:                    "load_balancers"
-          checks_var:                   "load_balancer_checks"
-          results_var:                  "load_balancer_results"
-      when:                             >-
-                                        (role in ['DB', 'SCS', 'ERS'] and
-                                         ((role == 'DB' and database_high_availability | default(false) | bool) or
-                                          (role in ['SCS', 'ERS'] and scs_high_availability | default(false) | bool)))
-
 - hosts:                                localhost
   name:                                 "Generate Configuration Checks Report"
   gather_facts:                         false
@@ -337,20 +323,6 @@
                                           groups[sap_sid | upper + '_PAS']|default([]) +
                                           groups[sap_sid | upper + '_WEB']|default([]) }}"
       when:                             hostvars[item].app_server_results is defined
-
-    - name:                             "Collect Load Balancer check results"
-      ansible.builtin.set_fact:
-        all_results:                    "{{ all_results + hostvars[item].load_balancer_results
-                                            | default([]) }}"
-        execution_metadata:             "{{ execution_metadata + [
-                                          {'host': item,
-                                          'check_type': 'load_balancer',
-                                          'metadata': hostvars[item].load_balancer_results_metadata
-                                          | default({})}] }}"
-      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
-                                          groups[sap_sid | upper + '_ERS']|default([]) +
-                                          groups[sap_sid | upper + '_DB']|default([]) }}"
-      when:                             hostvars[item].load_balancer_results is defined
 
     - name:                             "Debug execution metadata"
       ansible.builtin.debug:
