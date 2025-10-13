@@ -750,12 +750,8 @@ class FileSystemCollector(Collector):
 
             self.parent.log(
                 logging.INFO,
-                f"Found {len(mounted_anf_ips)} unique mounted ANF IP addresses: {mounted_anf_ips}",
-            )
-            self.parent.log(
-                logging.INFO,
-                f"Total ANF volumes available in metadata: {len(anf_storage_data)} entries"
-                + f"First 500 chars: {str(anf_storage_data)[:500]}",
+                f"Found {len(mounted_anf_ips)} mounted ANF IPs: {mounted_anf_ips}. "
+                f"Total ANF volumes in metadata: {len(anf_storage_data)}",
             )
 
             for anf_volume in anf_storage_data:
@@ -807,6 +803,17 @@ class FileSystemCollector(Collector):
                             "NFSAddress": anf_ip,
                         }
                     )
+                else:
+                    if anf_ip:
+                        self.parent.log(
+                            logging.DEBUG,
+                            f"Skipping ANF volume {anf_volume.get('name')} with IP {anf_ip} - not mounted on this system",
+                        )
+                    else:
+                        self.parent.log(
+                            logging.DEBUG,
+                            f"Skipping ANF volume {anf_volume.get('name')} - no IP address found",
+                        )
 
             self.parent.log(
                 logging.INFO,
