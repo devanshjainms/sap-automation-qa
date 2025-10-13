@@ -93,6 +93,7 @@
       lvm_fullreport:               "{{ lvm_fullreport.stdout | default('{}') | from_json }}"
       ha_db_config:                 "{{ ha_db_config | default([]) }}"
       ha_scs_config:                "{{ ha_scs_config | default([]) }}"
+      ha_loadbalancer_config:       "{{ ha_loadbalancer_config | default({}) }}"
 
 - name:                             "{{ check_type.name }} - Debug system context prepared"
   ansible.builtin.debug:
