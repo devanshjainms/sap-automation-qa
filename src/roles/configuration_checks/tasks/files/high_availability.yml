@@ -14,7 +14,7 @@ enums:
     - critical:                       &critical "CRITICAL"
 
   os_type:
-    - suse:                           &suse "SLES"
+    - suse:                           &suse "SLES_SAP"
     - redhat:                         &redhat "REDHAT"
     - all_os:                         &os_type [*suse, *redhat]
 
