@@ -344,7 +344,6 @@
           sap_sid:                      "{{ sap_sid | upper }}"
           db_sid:                       "{{ db_sid | upper }}"
           db_type:                      "{{ platform | upper }}"
-          os_version:                   "{{ ansible_distribution_version }}"
           storage_type:                 "{{ NFS_provider | default(['Premium_LRS']) }}"
           high_availability:            >-
                                         "{{ (database_high_availability | default(false) | bool) or

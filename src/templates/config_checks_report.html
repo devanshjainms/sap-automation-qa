@@ -1130,19 +1130,13 @@
               <p>
                 <strong>DB SID:</strong> {{ system_info.db_sid }}
               </p>
-              <p>
-                <strong>DB Type:</strong> {{ system_info.db_type }}
-              </p>
             </div>
             <div class="system-info-column">
               <p>
-                <strong>OS Version:</strong> {{ system_info.os_version }}
+                <strong>DB Type:</strong> {{ system_info.db_type }}
               </p>
               <p>
                 <strong>Storage Type:</strong> {{ system_info.storage_type }}
-              </p>
-              <p>
-                <strong>Hostnames:</strong> {{ system_info.hostnames|join(', ') }}
               </p>
             </div>
             <div class="system-info-column">
@@ -1151,6 +1145,9 @@
                 'SKIPPED')|list|length }}
               </p>
             </div>
+            <p>
+              <strong>Hostnames:</strong> {{ system_info.hostnames|join(', ') }}
+            </p>
           </div>
         </div>
         <div class="system-info-container">

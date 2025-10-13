@@ -97,12 +97,25 @@ class FileSystemCollector(Collector):
                 if ":" in nfs_source:
                     nfs_address = nfs_source.split(":")[0]
 
-                    for nfs_share in afs_storage_data:
-                        share_address = nfs_share.get("NFSAddress", "")
-                        if ":" in share_address and share_address.split(":")[0] == nfs_address:
-                            filesystem_entry["max_mbps"] = nfs_share.get("ThroughputMibps", 0)
-                            filesystem_entry["max_iops"] = nfs_share.get("IOPS", 0)
+                    matched = False
+                    for anf_volume in anf_storage_data:
+                        anf_ip = anf_volume.get("ip", "")
+                        if anf_ip and anf_ip == nfs_address:
+                            filesystem_entry["max_mbps"] = anf_volume.get("throughputMibps", 0)
+                            filesystem_entry["max_iops"] = 0  # ANF doesn't expose IOPS directly
+                            filesystem_entry["nfs_type"] = "ANF"
+                            filesystem_entry["service_level"] = anf_volume.get("serviceLevel", "")
+                            matched = True
                             break
+
+                    if not matched:
+                        for nfs_share in afs_storage_data:
+                            share_address = nfs_share.get("NFSAddress", "")
+                            if ":" in share_address and share_address.split(":")[0] == nfs_address:
+                                filesystem_entry["max_mbps"] = nfs_share.get("ThroughputMibps", 0)
+                                filesystem_entry["max_iops"] = nfs_share.get("IOPS", 0)
+                                filesystem_entry["nfs_type"] = "AFS"
+                                break
             else:
                 if filesystem_path.startswith("/dev/sd") or filesystem_path.startswith("/dev/nvme"):
                     disk_name = (
@@ -407,17 +420,34 @@ class FileSystemCollector(Collector):
                 if fstype in ["nfs", "nfs4"]:
                     if ":" in source:
                         nfs_address = source.split(":")[0]
-                        for nfs_share in afs_storage_data:
-                            share_address = nfs_share.get("NFSAddress", "")
-                            if ":" in share_address and share_address.split(":")[0] == nfs_address:
-                                max_mbps = nfs_share.get("ThroughputMibps", 0)
-                                max_iops = nfs_share.get("IOPS", 0)
+                        matched = False
+                        for anf_volume in anf_storage_data:
+                            anf_ip = anf_volume.get("ip", "")
+                            if anf_ip and anf_ip == nfs_address:
+                                max_mbps = anf_volume.get("throughputMibps", 0)
+                                max_iops = 0
                                 self.parent.log(
                                     logging.INFO,
                                     f"Correlated NFS {target} with "
-                                    + f"AFS: MBPS={max_mbps}, IOPS={max_iops}",
+                                    + f"ANF: MBPS={max_mbps}, ServiceLevel={anf_volume.get('serviceLevel', '')}",
                                 )
+                                matched = True
                                 break
+                        if not matched:
+                            for nfs_share in afs_storage_data:
+                                share_address = nfs_share.get("NFSAddress", "")
+                                if (
+                                    ":" in share_address
+                                    and share_address.split(":")[0] == nfs_address
+                                ):
+                                    max_mbps = nfs_share.get("ThroughputMibps", 0)
+                                    max_iops = nfs_share.get("IOPS", 0)
+                                    self.parent.log(
+                                        logging.INFO,
+                                        f"Correlated NFS {target} with "
+                                        + f"AFS: MBPS={max_mbps}, IOPS={max_iops}",
+                                    )
+                                    break
 
                 elif source.startswith("/dev/mapper/") and vg_name:
                     disk_names = vg_to_disk_names.get(vg_name, [])
