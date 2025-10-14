@@ -1249,7 +1249,7 @@ checks:
       database_type:                    [*hana]
     collector_type:                     *azure
     collector_args:
-      resource_type:                    "anf_volume"
+      resource_type:                    "anf"
       property:                         "throughputMibps"
       mount_point:                      "/hana/data"
     validator_type:                     *range
@@ -1275,7 +1275,7 @@ checks:
       database_type:                    [*hana]
     collector_type:                     *azure
     collector_args:
-      resource_type:                    "anf_volumes"
+      resource_type:                    "anf"
       property:                         "throughputMibps"
       mount_point:                      "/hana/log"
     validator_type:                     *range
