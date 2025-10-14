@@ -1254,7 +1254,7 @@ checks:
       mount_point:                      "/hana/data"
     validator_type:                     *range
     validator_args:
-      min:                              "400"
+      min:                              "64"
     report:                             *check
     references:
       sap:                              "2972496"
@@ -1280,7 +1280,7 @@ checks:
       mount_point:                      "/hana/log"
     validator_type:                     *range
     validator_args:
-      min:                              "400"
+      min:                              "64"
     report:                             *check
     references:
       sap:                              "2972496"
