@@ -155,11 +155,11 @@ checks:
       high_availability_agent:          *cluster_type
     collector_type:                     *command
     collector_args:
-      command:                          cibadmin --query --xpath "//nvpair[@name='stonith-action']" | grep -o 'value="[^\"]*"' | cut -d'"' -f2
+      command:                          "crm configure get_property stonith-action 2>/dev/null || pcs property config stonith-action 2>/dev/null | tail -1"
       user:                             *root
-    validator_type:                     *string
+    validator_type:                     *list
     validator_args:
-      expected_output:                  "reboot"
+      expected_output:                  ["reboot", "stonith-action=reboot"]
     report:                             *check
 
   - id:                                 "DB-HANA-0006"
