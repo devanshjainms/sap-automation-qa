@@ -445,9 +445,10 @@ class TestBaseHAClusterValidator:
         )
         validator._check_required_resources()
         assert (
-            "Required resource 'required_missing_resource' not found in cluster configuration"
-            in validator.result["message"]
+            "Required resource required_missing_resource" in validator.result["message"]
+            and "not found in pacemaker cluster configuration" in validator.result["message"]
         )
+        assert validator.result["status"] == TestStatus.WARNING.value
 
     def test_check_required_resources_present(self, validator):
         """

@@ -190,6 +190,22 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                 expected_config = (expected_value, False)
 
         status = self._determine_parameter_status(value, expected_config)
+        if status == TestStatus.WARNING.value and (not value or value == ""):
+            is_required = False
+            if isinstance(expected_config, tuple) and len(expected_config) == 2:
+                is_required = expected_config[1]
+            elif isinstance(expected_config, dict):
+                is_required = expected_config.get("required", False)
+            
+            if is_required:
+                param_display_name = f"{op_name}_{name}" if op_name else name
+                category_display = f"{category}_{subcategory}" if subcategory else category
+                warning_msg = (
+                    f"Required parameter '{param_display_name}' in category '{category_display}' "
+                    + "has no value configured.\n"
+                )
+                self.result["message"] += warning_msg
+                self.log(logging.WARNING, warning_msg)
 
         display_expected_value = None
         if expected_config is None:
@@ -512,6 +528,8 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
             overall_status = TestStatus.ERROR.value
         elif warning_parameters:
             overall_status = TestStatus.WARNING.value
+        elif self.result.get("status") == TestStatus.WARNING.value:
+            overall_status = TestStatus.WARNING.value
         else:
             overall_status = TestStatus.SUCCESS.value
 
@@ -653,10 +671,12 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
 
                         if not elements:
                             warning_msg = (
-                                f"Required resource '{resource_type}' not"
-                                + " found in cluster configuration. "
+                                f"Required resource {resource_type} of xpath "
+                                + f"'{self.RESOURCE_CATEGORIES[resource_type]}' not"
+                                + " found in pacemaker cluster configuration.\n"
                             )
                             self.result["message"] += warning_msg
+                            self.result["status"] = TestStatus.WARNING.value
                             self.log(logging.WARNING, warning_msg)
 
         except Exception as ex:

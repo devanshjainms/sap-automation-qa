@@ -230,7 +230,6 @@ class HAClusterValidator(BaseHAClusterValidator):
         :rtype: list
         """
         parameters = []
-        self._check_required_resources()
 
         try:
             if self.cib_output:
@@ -242,6 +241,7 @@ class HAClusterValidator(BaseHAClusterValidator):
 
             if resource_scope is not None:
                 parameters.extend(self._parse_resources_section(resource_scope))
+            self._check_required_resources()
 
         except Exception as ex:
             self.result["message"] += f"Error validating resource constants: {str(ex)} "
