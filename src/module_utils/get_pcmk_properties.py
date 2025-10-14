@@ -735,7 +735,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                     )
 
         if recommendations:
-            recommendation_header = "\n\nRecommendation:\n"
+            recommendation_header = "\n\nRecommendation for warnings:\n"
             recommendation_body = "\n".join(recommendations)
             return recommendation_header + recommendation_body
 
