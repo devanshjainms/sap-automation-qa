@@ -67,6 +67,11 @@ RSC_CLEAR = {
 
 CIB_ADMIN = lambda scope: ["cibadmin", "--query", "--scope", scope]
 
+DANGEROUS_COMMANDS = [
+    r"sudo\s+rm",
+    r"rm\s+-rf",
+]
+
 RECOMMENDATION_MESSAGES = {
     "priority-fencing-delay": (
         "The 'priority-fencing-delay' setting is not configured. "

@@ -1,0 +1,438 @@
+# Enumeration definitions
+enums:
+  severity:
+    - info:                           &info "INFO"
+    - high:                           &high "HIGH"
+    - low:                            &low "LOW"
+    - warning:                        &warning "WARNING"
+    - critical:                       &critical "CRITICAL"
+    - all_severity:                   &severity [*info, *high, *low, *warning, *critical]
+
+  os_type:
+    - suse:                           &suse "SLES_SAP"
+    - redhat:                         &redhat "REDHAT"
+    - oraclelinux:                    &oraclelinux "OracleLinux"
+    - windows:                        &windows "Windows"
+    - all_os:                         &os_type [*suse, *redhat, *oraclelinux, *windows]
+
+  os_version:
+    - suse_12_3:                      &suse_12_3 "SUSE 12 SP3"
+    - suse_12_4:                      &suse_12_4 "SUSE 12 SP4"
+    - suse_12_5:                      &suse_12_5 "SUSE 12 SP5"
+    - all_versions:                   &all_versions "all"
+
+  hardware_type:
+    - vm:                             &vm "VM"
+    - hli:                            &hli "HLI"
+    - all_hardware:                   &all_hardware [*vm, *hli]
+
+  storage_type:
+    premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","ANF","PremiumV2_LRS","AFS"]
+    anf:                              &anf ["ANF"]
+    all_storage:                      &all_storage ["Premium_LRS","UltraSSD_LRS","StandardSSD_LRS","Standard_LRS","ANF","PremiumV2_LRS","AFS"]
+
+  workload:
+    - sap:                            &sap "SAP"
+    - all_workload:                   &workload [*sap]
+
+  db:
+    - hana:                           &hana "HANA"
+    - mssql:                          &mssql "MSSQL"
+    - oracle:                         &oracle "Oracle"
+    - db2:                            &db2 "Db2"
+    - ase:                            &ase "ASE"
+    - db:                         &db [*hana, *mssql, *oracle, *db2, *ase]
+
+  role:
+    - db:                             &db_role "DB"
+    - ascs:                           &ascs_role "SCS"
+    - ers:                            &ers_role "ERS"
+    - app:                            &app_role "APP"
+    - webdispatcher:                  &web_dispatch "WEB"
+    - pas:                            &pas "PAS"
+    - role:                       &role [*db_role, *ascs_role, *ers_role, *app_role, *web_dispatch, *pas]
+
+  cluster_type:
+    - sbd:                            &sbd "ISCSI"
+    - fencing_agent:                  &fencing_agent "AFA"
+    - all_fencing_agent:              &cluster_type [*sbd, *fencing_agent]
+
+  collector_type:
+    - command:                        &command "command"
+    - azure:                          &azure "azure"
+    - all_collector_type:             &collector_type [*command, *azure]
+
+  category:
+    - package:                        &package_check "Package"
+    - vm:                             &vm_check "Virtual Machine"
+    - sap:                            &sap_check "SAP"
+    - os:                             &os_check "Operating System"
+    - all_check_types:                &category [*package_check, *vm_check, *sap_check, *os_check]
+
+  user:
+    - root:                           &root "root"
+    - sidadm:                         &sidadm "sidadm"
+    - all_users:                      &user [*root, *sidadm]
+
+  validator_type:
+    - string:                         &string "string"
+    - range:                          &range "range"
+    - list:                           &list "list"
+    - all:                            &validator_type [*string, *range, *list]
+
+  report:
+    - check:                          &check "check"
+    - section:                        &section "section"
+    - report:                         &report [*check, *section]
+
+# Check definitions
+checks:
+  - id:                               "FC-0001"
+    name:                             "EndpointProtection-DefenderLinux"
+    description:                      "Checks if Microsoft Defender for Linux is installed"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /usr/bin/mdatp ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation:                    "Install Microsoft Defender using: sudo apt-get install mdatp"
+    report:                           *check
+
+  - id:                               "FC-0002"
+    name:                             "EndpointProtection-CrowdstrikeFalcon"
+    description:                      "Checks if Crowdstrike Falcon is installed"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /opt/CrowdStrike/falconctl ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install Crowdstrike Falcon using the installation package
+                                      provided by your security team"
+    report:                           *check
+
+  - id:                               "FC-0003"
+    name:                             "EndpointProtection-SentinelOne"
+    description:                      "Checks if SentinelOne agent is installed"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /opt/sentinelone/bin/sentinelctl ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install SentinelOne agent using the installation package provided
+                                      by your security team"
+    report:                           *check
+
+  - id:                               "FC-0004"
+    name:                             "EndpointProtection-Trendmicro"
+    description:                      "Checks if Trendmicro Deep Security agent is installed"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /opt/ds_agent/dsa_control ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install Trendmicro Deep Security agent using the instructions
+                                      provided by your security team"
+    report:                           *check
+
+  - id:                               "FC-0005"
+    name:                             "EndpointProtection-Sophos"
+    description:                      "Checks if Sophos Server Protection is installed"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /opt/sophos-spl/plugins/av/bin/avscanner ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install Sophos Server Protection using the installation package
+                                      provided by your security team
+    report:                           *check
+
+  - id:                               "FC-0006"
+    name:                             "EndpointProtection-Trellix"
+    description:                      "Checks if Trellix Endpoint Security (formerly McAfee) is installed"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /usr/local/bin/uvscan ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install Trellix Endpoint Security using the installation package
+                                      provided by your security team
+    report:                           *check
+
+  - id:                               "FC-0007"
+    name:                             "EndpointProtection-ClamAV"
+    description:                      "Checks if ClamAV antivirus is installed"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *all_hardware
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "[ -f /usr/bin/clamscan ] && echo 'Installed' || echo 'Not installed'"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Installed"
+    references:
+      remediation: |
+                                      Install ClamAV using the package manager: sudo apt-get install
+                                      clamav or sudo zypper install clamav or sudo yum install clamav
+    report:                           *check
+
+  - id:                               "FC-0008"
+    name:                             "Microsoft Defender Health"
+    description:                      "Checks if Microsoft Defender for Linux is healthy"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep healthy | tr -d ' ' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "true"
+    references:
+      microsoft:
+        url:                          "https://learn.microsoft.com/en-us/defender-endpoint/mde-linux-deployment-on-sap"
+    report:                           *check
+
+  - id:                               "FC-0009"
+    name:                             "Microsoft Defender Release Ring"
+    description:                      "Checks if Microsoft Defender for Linux is using the production release ring"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep release_ring | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "Production"
+    references:
+      microsoft:
+        url:                          "https://learn.microsoft.com/en-us/defender-endpoint/mde-linux-deployment-on-sap"
+    report:                           *check
+
+  - id:                               "FC-0010"
+    name:                             "Microsoft Defender Realtime Protection"
+    description:                      "Checks if Microsoft Defender for Linux has realtime protection disabled"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep real_time_protection_enabled | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "false"
+    references:
+      microsoft:
+        url:                          "https://learn.microsoft.com/en-us/defender-endpoint/mde-linux-deployment-on-sap"
+    report:                           *check
+
+  - id:                               "FC-0011"
+    name:                             "Microsoft Defender Automatic Definition Update"
+    description:                      "Checks if Microsoft Defender for Linux has automatic definition updates enabled"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep automatic_definition_update_enabled | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "true"
+    references:
+      microsoft:
+        url:                          "https://learn.microsoft.com/en-us/defender-endpoint/mde-linux-deployment-on-sap"
+    report:                           *check
+
+  - id:                               "FC-0012"
+    name:                             "Microsoft Defender Definition Status"
+    description:                      "Checks if Microsoft Defender for Linux definitions are up to date"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep definitions_status | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "up_to_date"
+    references:
+      microsoft:
+        url:                          "https://learn.microsoft.com/en-us/defender-endpoint/mde-linux-deployment-on-sap"
+    report:                           *check
+
+  - id:                               "FC-0013"
+    name:                             "Microsoft Defender EDR Early Preview"
+    description:                      "Checks if Microsoft Defender for Linux has EDR early preview disabled"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep edr_early_preview_enabled | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "disabled"
+    references:
+      microsoft:
+        url:                          "https://learn.microsoft.com/en-us/defender-endpoint/mde-linux-deployment-on-sap"
+    report:                           *check
+
+  - id:                               "FC-0014"
+    name:                             "Microsoft Defender Conflicting Applications"
+    description:                      "Checks if Microsoft Defender for Linux has no conflicting applications"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep conflicting_applications | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "[]"
+    references:
+      microsoft:
+        url:                          "https://learn.microsoft.com/en-us/defender-endpoint/mde-linux-deployment-on-sap"
+    report:                           *check
+
+  - id:                               "FC-0015"
+    name:                             "Microsoft Defender Supplementary Events Subsystem"
+    description:                      "Checks if Microsoft Defender for Linux is using the eBPF subsystem"
+    category:                         *package_check
+    severity:                         *low
+    workload:                         *sap
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health | grep supplementary_events_subsystem | tr -d ' ' | tr -d '\"' | cut -d':' -f2; else echo 'mdatp_not_installed'; fi"
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "ebpf"
+    references:
+      microsoft:
+        url:                          "https://learn.microsoft.com/en-us/defender-endpoint/mde-linux-deployment-on-sap"
+    report:                           *check

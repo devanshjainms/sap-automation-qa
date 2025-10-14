@@ -113,6 +113,8 @@ class HTMLReportRenderer(SapAutomationQA):
         test_group_name: str,
         report_template: str,
         workspace_directory: str,
+        test_case_results: List[Dict[str, Any]] = [],
+        system_info: Dict[str, Any] = {},
     ):
         super().__init__()
         self.test_group_invocation_id = test_group_invocation_id
@@ -124,6 +126,8 @@ class HTMLReportRenderer(SapAutomationQA):
                 "status": None,
             }
         )
+        self.test_case_results = test_case_results or []
+        self.system_info = system_info or {}
 
     def read_log_file(self) -> List[Dict[str, Any]]:
         """
@@ -137,7 +141,17 @@ class HTMLReportRenderer(SapAutomationQA):
         )
         try:
             with open(log_file_path, "r", encoding="utf-8") as log_file:
-                return [json.loads(line) for line in log_file.readlines()]
+                results = []
+                for line_num, line in enumerate(log_file.readlines(), 1):
+                    try:
+                        results.append(json.loads(line))
+                    except json.JSONDecodeError as json_ex:
+                        self.log(
+                            logging.WARNING,
+                            f"Invalid JSON on line {line_num} in {log_file_path}: {json_ex}",
+                        )
+                        continue
+                return results
         except FileNotFoundError as ex:
             self.log(
                 logging.ERROR,
@@ -169,6 +183,7 @@ class HTMLReportRenderer(SapAutomationQA):
                             "report_generation_time": datetime.now().strftime(
                                 "%m/%d/%Y, %I:%M:%S %p"
                             ),
+                            "system_info": self.system_info,
                         }
                     )
                 )
@@ -188,6 +203,8 @@ def run_module() -> None:
         test_group_name=dict(type="str", required=True),
         report_template=dict(type="str", required=True),
         workspace_directory=dict(type="str", required=True),
+        test_case_results=dict(type="list", required=False),
+        system_info=dict(type="dict", required=False),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
@@ -197,9 +214,13 @@ def run_module() -> None:
         test_group_name=module.params["test_group_name"],
         report_template=module.params["report_template"],
         workspace_directory=module.params["workspace_directory"],
+        test_case_results=module.params.get("test_case_results", []),
+        system_info=module.params.get("system_info", {}),
     )
 
-    test_case_results = renderer.read_log_file()
+    test_case_results = (
+        renderer.read_log_file() if not renderer.test_case_results else renderer.test_case_results
+    )
     renderer.render_report(test_case_results)
 
     module.exit_json(**renderer.get_result())
