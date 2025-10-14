@@ -99,7 +99,7 @@ Examples:
   $0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash] --extra-vars='{"key":"value"}'
   $0 --test_groups=HA_DB_HANA --test_cases=[ha-config] --offline
 
-  # Configuration Checks (requires SAP_FUNCTIONAL_TEST_TYPE: ConfigurationChecks in vars.yaml)
+  # Configuration Checks (requires TEST_TYPE: ConfigurationChecks in vars.yaml)
   $0 --extra-vars='{"configuration_test_type":"all"}'
   $0 --extra-vars='{"configuration_test_type":"high_availability"}'
   $0 --extra-vars='{"configuration_test_type":"Database"}' -vv
@@ -132,7 +132,7 @@ Available Test Cases for groups:
 				manual-restart => Manual Restart
 				ha-failover-to-node => HA Failover to Secondary Node
 
-Configuration Checks (set SAP_FUNCTIONAL_TEST_TYPE: ConfigurationChecks in vars.yaml):
+Configuration Checks (set TEST_TYPE: ConfigurationChecks in vars.yaml):
 	configuration_test_type options (use with --extra-vars):
 				all => Run all configuration checks
 				Database => Database (HANA) configuration checks only
