@@ -465,9 +465,22 @@ RESOURCE_DEFAULTS:
           interval:
             value:                  ["10", "10s"]
             required:               false
+          timeout:
+            value:                  ["240", "240s"]
+            required:               false
         start:
           interval:
             value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["10", "10s"]
+            required:               false
+        stop:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["10", "10s"]
             required:               false
 
   REDHAT:
@@ -740,9 +753,22 @@ RESOURCE_DEFAULTS:
           interval:
             value:                  ["10", "10s"]
             required:               false
+          timeout:
+            value:                  ["240", "240s"]
+            required:               false
         start:
           interval:
             value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["10", "10s"]
+            required:               false
+        stop:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["10", "10s"]
             required:               false
 
 # === OS Parameters ===
