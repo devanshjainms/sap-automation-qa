@@ -41,6 +41,7 @@
 
     - name:                             Collect device-to-lun mapping from Azure symlinks
       ansible.builtin.shell:
+        executable:                     /bin/bash
         cmd: |
                                         set -o pipefail
                                         for lun_link in /dev/disk/azure/scsi1/lun*; do
@@ -100,7 +101,9 @@
       when:                             NFS_provider is defined and 'ANF' in NFS_provider and ANF_account_rg is defined and ANF_account_name is defined
       register:                         anf_storage_metadata_results
       delegate_to:                      localhost
-      ansible.builtin.shell: |
+      ansible.builtin.shell:
+        executable:                     /bin/bash
+        cmd: |
                                         set -o pipefail
                                         printf "["
                                         first=true
@@ -144,7 +147,9 @@
       when:                             NFS_provider is defined and 'AFS' in NFS_provider
       register:                         afs_storage_metadata_results
       delegate_to:                      localhost
-      ansible.builtin.shell: |
+      ansible.builtin.shell:
+        executable:                     /bin/bash
+        cmd: |
                                         set -o pipefail
                                         for sa in $(az storage account list \
                                           --query "[?kind=='FileStorage'].{rg:resourceGroup,name:name,id:id}" \

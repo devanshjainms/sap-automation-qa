@@ -92,14 +92,14 @@ checks:
     severity:                           *high
     workload:                           *sap
     applicability:
-      - os_type:                        [*suse, *redhat]
-      - os_version:                     *all_versions
-      - hardware_type:                  *vm
-      - storage_type:                   *all_storage
-      - role:                           [*ascs_role, *db_role]
-      - database_type:                  *db
-      - high_availability:              true
-      - high_availability_agent:        *cluster_type
+      os_type:                        [*suse, *redhat]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      storage_type:                   *all_storage
+      role:                           [*ascs_role, *db_role]
+      database_type:                  *db
+      high_availability:              true
+      high_availability_agent:        *cluster_type
     collector_type:                     *command
     collector_args:
       command:                          "/sbin/sysctl net.ipv4.tcp_timestamps -n"

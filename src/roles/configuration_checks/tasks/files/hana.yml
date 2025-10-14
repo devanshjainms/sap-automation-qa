@@ -829,7 +829,7 @@ checks:
     references:
       sap:                              "1999997"
 
-  - id:                                 DB-HANA-0033
+  - id:                                 "DB-HANA-0033"
     name:                               "Filesystem type for /hana/data"
     description:                        "The filesystem type for /hana/data should be xfs or nfs or nfs4"
     category:                           *sap_check
@@ -853,7 +853,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 DB-HANA-0034
+  - id:                                 "DB-HANA-0034"
     name:                               "Stripe size for /hana/data"
     description:                        "The stripe size for /hana/data should be 256k (256.00k or 262144 bytes)"
     category:                           *sap_check
@@ -879,7 +879,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0035
+  - id:                                 "DB-HANA-0035"
     name:                               "Filesystem type for /hana/log"
     description:                        "The filesystem type for /hana/log should be xfs or nfs or nfs4"
     category:                           *sap_check
@@ -903,7 +903,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 DB-HANA-0036
+  - id:                                 "DB-HANA-0036"
     name:                               "Stripe size for /hana/log"
     description:                        "The stripe size for /hana/log should be 256k (256.00k or 262144 bytes)"
     category:                           *sap_check
@@ -929,7 +929,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0037
+  - id:                                 "DB-HANA-0037"
     name:                               "Filesystem type for /hana/shared"
     description:                        "The filesystem type for /hana/shared should be xfs or nfs or nfs4"
     category:                           *sap_check
@@ -953,7 +953,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 DB-HANA-0038
+  - id:                                 "DB-HANA-0038"
     name:                               "Filesystem type for /usr/sap"
     description:                        "The filesystem type for /usr/sap should be xfs or nfs or nfs4"
     category:                           *sap_check
@@ -977,7 +977,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 DB-HANA-0039
+  - id:                                 "DB-HANA-0039"
     name:                               "Sector size for /hana/data Premium SSD V2"
     description:                        "The logical block size for /hana/data on Premium SSD V2 should be 4096 bytes"
     category:                           *sap_check
@@ -1001,7 +1001,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 DB-HANA-0040
+  - id:                                 "DB-HANA-0040"
     name:                               "Sector size for /hana/log Premium SSD V2"
     description:                        "The logical block size for /hana/log on Premium SSD V2 should be 4096 bytes"
     category:                           *sap_check
@@ -1025,7 +1025,7 @@ checks:
     references:
       sap:                              "2972496"
 
-  - id:                                 DB-HANA-0041
+  - id:                                 "DB-HANA-0041"
     name:                               "Disk performance for /hana/data (MBPS)"
     description:                        "The disk performance for /hana/data should be >= 400 MByte/s"
     category:                           *sap_check
@@ -1051,7 +1051,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0042
+  - id:                                 "DB-HANA-0042"
     name:                               "Disk performance for /hana/data (IOPS)"
     description:                        "The disk performance for /hana/data should be >= 7000 IOPS"
     category:                           *sap_check
@@ -1077,7 +1077,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0043
+  - id:                                 "DB-HANA-0043"
     name:                               "Disk performance for /hana/log (MBPS)"
     description:                        "The disk performance for /hana/log should be >= 250 MByte/s"
     category:                           *sap_check
@@ -1103,7 +1103,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0044
+  - id:                                 "DB-HANA-0044"
     name:                               "Disk performance for /hana/log (IOPS)"
     description:                        "The disk performance for /hana/log should be >= 7000 IOPS"
     category:                           *sap_check
@@ -1129,7 +1129,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0045
+  - id:                                 "DB-HANA-0045"
     name:                               "Filesystem Mount Points"
     description:                        "Lists all mounted filesystems and their types to ensure SAP HANA directories are configured with supported filesystems."
     category:                           *sap_check
@@ -1150,7 +1150,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0046
+  - id:                                 "DB-HANA-0046"
     name:                               "Azure Disks"
     description:                        "Lists all attached Azure disks to ensure SAP HANA directories are configured with supported disks."
     category:                           *sap_check
@@ -1171,7 +1171,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0047
+  - id:                                 "DB-HANA-0047"
     name:                               "LVM Groups"
     description:                        "Lists all LVM groups to ensure SAP HANA directories are configured with supported LVM configurations."
     category:                           *sap_check
@@ -1192,7 +1192,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0048
+  - id:                                 "DB-HANA-0048"
     name:                               "LVM Volumes"
     description:                        "Lists all LVM volumes to ensure SAP HANA directories are configured with supported LVM configurations."
     category:                           *sap_check
@@ -1213,7 +1213,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0049
+  - id:                                 "DB-HANA-0049"
     name:                               "ANF Volumes"
     description:                        "Lists all ANF volumes to ensure SAP HANA directories are configured with supported ANF configurations."
     category:                           *sap_check
@@ -1234,7 +1234,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0050
+  - id:                                 "DB-HANA-0050"
     name:                               "Disk performance for /hana/data (MBPS)"
     description:                        "The disk performance for /hana/data should be >= 400 MByte/s"
     category:                           *sap_check
@@ -1260,7 +1260,7 @@ checks:
       sap:                              "2972496"
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
 
-  - id:                                 DB-HANA-0051
+  - id:                                 "DB-HANA-0051"
     name:                               "Disk performance for /hana/data (MBPS)"
     description:                        "The disk performance for /hana/data should be >= 400 MByte/s"
     category:                           *sap_check

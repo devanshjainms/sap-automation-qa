@@ -194,37 +194,49 @@ extract_error_message() {
     echo "$extracted_message"
 }
 
-# Determine the playbook name based on the SAP_FUNCTIONAL_TEST_TYPE.
-# :param test_type: The type of SAP functional test.
+# Determine the playbook name based on TEST_TYPE and SAP_FUNCTIONAL_TEST_TYPE.
+# :param test_type: The overall test type (e.g., "SAPFunctionalTests", "ConfigurationChecks").
+# :param sap_functional_test_type: The specific SAP functional test type (e.g., "DatabaseHighAvailability", "CentralServicesHighAvailability").
 # :param offline_mode: Whether to use offline mode (optional).
 # :return: The name of the playbook.
 get_playbook_name() {
     local test_type=$1
-    local offline_mode=${2:-""}
+    local sap_functional_test_type=$2
+    local offline_mode=${3:-""}
 
-    case "$test_type" in
-        "DatabaseHighAvailability")
-            if [[ "$offline_mode" == "true" ]]; then
-                echo "playbook_01_ha_offline_tests"
-            else
-                echo "playbook_00_ha_db_functional_tests"
-            fi
-            ;;
-        "CentralServicesHighAvailability")
-            if [[ "$offline_mode" == "true" ]]; then
-                echo "playbook_01_ha_offline_tests"
-            else
-                echo "playbook_00_ha_scs_functional_tests"
-            fi
-            ;;
-        "ConfigurationChecks")
-            echo "playbook_00_configuration_checks"
-            ;;
-        *)
-            log "ERROR" "Unknown SAP_FUNCTIONAL_TEST_TYPE: $test_type"
-            exit 1
-            ;;
-    esac
+    if [[ "$test_type" == "ConfigurationChecks" ]]; then
+        echo "playbook_00_configuration_checks"
+        return
+    fi
+
+    if [[ "$test_type" == "SAPFunctionalTests" ]]; then
+        case "$sap_functional_test_type" in
+            "DatabaseHighAvailability")
+                if [[ "$offline_mode" == "true" ]]; then
+                    echo "playbook_01_ha_offline_tests"
+                else
+                    echo "playbook_00_ha_db_functional_tests"
+                fi
+                ;;
+            "CentralServicesHighAvailability")
+                if [[ "$offline_mode" == "true" ]]; then
+                    echo "playbook_01_ha_offline_tests"
+                else
+                    echo "playbook_00_ha_scs_functional_tests"
+                fi
+                ;;
+            "ConfigurationChecks")
+                echo "playbook_00_configuration_checks"
+                ;;
+            *)
+                log "ERROR" "Unknown SAP_FUNCTIONAL_TEST_TYPE: $sap_functional_test_type"
+                exit 1
+                ;;
+        esac
+        return
+    fi
+    log "ERROR" "Unknown TEST_TYPE: $test_type. Expected 'SAPFunctionalTests' or 'ConfigurationCheck'"
+    exit 1
 }
 
 # Generate filtered test configuration as JSON for Ansible extra vars
@@ -527,7 +539,7 @@ main() {
         log "INFO" "Found $cib_files CIB file(s) for offline analysis"
     fi
 
-    playbook_name=$(get_playbook_name "$SAP_FUNCTIONAL_TEST_TYPE" "$OFFLINE_MODE")
+    playbook_name=$(get_playbook_name "$TEST_TYPE" "$SAP_FUNCTIONAL_TEST_TYPE" "$OFFLINE_MODE")
     log "INFO" "Using playbook: $playbook_name."
 
     run_ansible_playbook "$playbook_name" "$SYSTEM_HOSTS" "$SYSTEM_PARAMS" "$AUTHENTICATION_TYPE" "$SYSTEM_CONFIG_FOLDER"

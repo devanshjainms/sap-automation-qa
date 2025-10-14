@@ -884,7 +884,7 @@ checks:
     report:                           *check
 
 
-  - id:                               "IC-0039"
+  - id:                               "IC-0040"
     name:                             "Cluster Configuration"
     description:                      "Checks the cluster configuration of the system"
     category:                         *sap_check
