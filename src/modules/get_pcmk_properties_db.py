@@ -171,6 +171,7 @@ class HAClusterValidator(BaseHAClusterValidator):
         "azurelb": ".//primitive[@type='azure-lb']",
         "angi_filesystem": ".//primitive[@type='SAPHanaFilesystem']",
         "angi_hana": ".//primitive[@type='SAPHanaController']",
+        "azureevents": ".//primitive[@type='azure-events-az']",
     }
 
     def __init__(
@@ -227,11 +228,13 @@ class HAClusterValidator(BaseHAClusterValidator):
         """
         Resource validation with HANA-specific logic and offline validation support.
         Validates resource constants by iterating through expected parameters.
+        Also checks for required resources.
 
         :return: A list of parameter dictionaries
         :rtype: list
         """
         parameters = []
+        self._check_required_resources()
 
         try:
             if self.cib_output:

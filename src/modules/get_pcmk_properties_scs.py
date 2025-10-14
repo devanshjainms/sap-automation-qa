@@ -224,11 +224,13 @@ class HAClusterValidator(BaseHAClusterValidator):
         """
         Resource validation with SCS-specific logic and offline validation support.
         Validates resource constants by iterating through expected parameters.
+        Also checks for required resources.
 
         :return: A list of parameter dictionaries
         :rtype: list
         """
         parameters = []
+        self._check_required_resources()
 
         try:
             if self.cib_output:

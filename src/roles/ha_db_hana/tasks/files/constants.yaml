@@ -451,6 +451,25 @@ RESOURCE_DEFAULTS:
           timeout:
             value:                  ["20", "20s"]
             required:               false
+
+    azureevents:
+      meta_attributes:
+        allow-unhealthy-nodes:
+          value:                    "true"
+          required:                 false
+        failure-timeout:
+          value:                    "120s"
+          required:                 false
+      operations:
+        monitor:
+          interval:
+            value:                  ["10", "10s"]
+            required:               false
+        start:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+
   REDHAT:
     fence_agent:
       required:                     false
@@ -706,6 +725,24 @@ RESOURCE_DEFAULTS:
             required:               false
           timeout:
             value:                  ["20", "20s"]
+            required:               false
+
+    azureevents:
+      meta_attributes:
+        allow-unhealthy-nodes:
+          value:                    "true"
+          required:                 false
+        failure-timeout:
+          value:                    "120s"
+          required:                 false
+      operations:
+        monitor:
+          interval:
+            value:                  ["10", "10s"]
+            required:               false
+        start:
+          interval:
+            value:                  ["0", "0s"]
             required:               false
 
 # === OS Parameters ===

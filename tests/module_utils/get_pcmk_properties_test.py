@@ -223,10 +223,12 @@ class TestBaseHAClusterValidator:
             Mock function to replace execute_command_subprocess.
             """
             command = args[0] if args else kwargs.get("command", [])
+            if not command or not isinstance(command, (list, str)):
+                return ""
             command_str = " ".join(command) if isinstance(command, list) else str(command)
             if "sysctl" in command_str:
                 return DUMMY_OS_COMMAND
-            if len(command) >= 2 and command[-1] in mock_xml_outputs:
+            if isinstance(command, list) and len(command) >= 2 and command[-1] in mock_xml_outputs:
                 return mock_xml_outputs[command[-1]]
             return ""
 
@@ -429,3 +431,57 @@ class TestBaseHAClusterValidator:
         """
         scope_element = validator_with_cib._get_scope_from_cib("invalid_scope")
         assert scope_element is None
+
+    def test_check_required_resources_missing(self, validator):
+        """
+        Test _check_required_resources method when required resource is missing.
+        """
+        validator.constants["RESOURCE_DEFAULTS"]["REDHAT"]["required_missing_resource"] = {
+            "required": True,
+            "meta_attributes": {},
+        }
+        validator.RESOURCE_CATEGORIES["required_missing_resource"] = (
+            ".//primitive[@type='NonExistent']"
+        )
+        validator._check_required_resources()
+        assert (
+            "Required resource 'required_missing_resource' not found in cluster configuration"
+            in validator.result["message"]
+        )
+
+    def test_check_required_resources_present(self, validator):
+        """
+        Test _check_required_resources method when required resource is present.
+        Uses CIB output to avoid command execution for more reliable testing.
+        """
+        constants = DUMMY_CONSTANTS.copy()
+        constants["RESOURCE_DEFAULTS"] = {
+            "REDHAT": {"sbd_stonith": {"required": True, "meta_attributes": {}}}
+        }
+
+        validator_with_cib = TestableBaseHAClusterValidator(
+            os_type=OperatingSystemFamily.REDHAT,
+            sid="HDB",
+            virtual_machine_name="vmname",
+            constants=constants,
+            fencing_mechanism="sbd",
+            cib_output=DUMMY_XML_FULL_CIB,
+        )
+        validator_with_cib._check_required_resources()
+        assert (
+            "Required resource 'sbd_stonith' not found" not in validator_with_cib.result["message"]
+        )
+
+    def test_check_required_resources_optional(self, validator):
+        """
+        Test _check_required_resources method with optional resource missing.
+        """
+        validator.constants["RESOURCE_DEFAULTS"]["REDHAT"]["optional_resource"] = {
+            "required": False,
+            "meta_attributes": {},
+        }
+        validator.RESOURCE_CATEGORIES["optional_resource"] = ".//primitive[@type='NonExistent']"
+
+        initial_message = validator.result["message"]
+        validator._check_required_resources()
+        assert "Required resource 'optional_resource'" not in validator.result["message"]

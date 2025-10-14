@@ -11,6 +11,7 @@ Classes:
     BaseHAClusterValidator: Base validator class for cluster configurations.
 """
 
+import logging
 from abc import ABC
 
 try:
@@ -617,6 +618,49 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         :rtype: list
         """
         return []
+
+    def _check_required_resources(self):
+        """
+        Check if required resources are present in the cluster.
+        Adds warnings to result message for missing required resources.
+        """
+        if "RESOURCE_DEFAULTS" not in self.constants:
+            return
+
+        try:
+            if self.cib_output:
+                resource_scope = self._get_scope_from_cib("resources")
+            else:
+                resource_scope = self.parse_xml_output(
+                    self.execute_command_subprocess(CIB_ADMIN(scope="resources"))
+                )
+
+            if resource_scope is None:
+                return
+
+            os_resources = self.constants["RESOURCE_DEFAULTS"].get(self.os_type, {})
+
+            for resource_type, resource_config in os_resources.items():
+                if not isinstance(resource_config, dict):
+                    continue
+
+                is_required = resource_config.get("required", False)
+
+                if is_required:
+                    if resource_type in self.RESOURCE_CATEGORIES:
+                        xpath = self.RESOURCE_CATEGORIES[resource_type]
+                        elements = resource_scope.findall(xpath)
+
+                        if not elements:
+                            warning_msg = (
+                                f"Required resource '{resource_type}' not"
+                                + " found in cluster configuration. "
+                            )
+                            self.result["message"] += warning_msg
+                            self.log(logging.WARNING, warning_msg)
+
+        except Exception as ex:
+            self.result["message"] += f"Error checking required resources: {str(ex)} "
 
     def _validate_constraint_constants(self):
         """
