@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SAP Configuration Checks Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  {% macro render_table(data, is_nested=false) %}
+    {% if not data %}
+      <div class="table-empty-state">No data available</div>
+    {% elif data is mapping %}
+      {% set has_nested = namespace(value=false) %}
+      {% for value in data.values() %}
+        {% if value is mapping or value is iterable and value is not string %}
+          {% set has_nested.value = true %}
+        {% endif %}
+      {% endfor %}
+      
+      {% if has_nested.value %}
+        {% for key, value in data.items() %}
+          {% if value is mapping or (value is iterable and value is not string) %}
+            <div class="nested-section">
+              <div class="nested-section-title">{{ key }}</div>
+              {{ render_table(value, is_nested=true) }}
+            </div>
+          {% else %}
+            <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
+              <tbody>
+                <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+              </tbody>
+            </table>
+          {% endif %}
+        {% endfor %}
+      {% else %}
+        <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
+          <tbody>
+            {% for key, value in data.items() %}
+              <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    {% elif data is iterable and data is not string %}
+      {% if data|length > 0 and data[0] is mapping %}
+        {% set first_item = data[0] %}
+        {% set all_keys = first_item.keys()|list %}
+        
+        {% for item in data[1:] %}
+          {% if item is mapping %}
+            {% for key in item.keys() %}
+              {% if key not in all_keys %}
+                {% set _ = all_keys.append(key) %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        {% endfor %}
+        <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
+          <thead>
+            <tr>
+              {% for key in all_keys %}
+                <th>{{ key }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in data %}
+              {% if item is mapping %}
+                <tr>
+                  {% for key in all_keys %}
+                    {% set value = item.get(key, '') %}
+                    {% if key|lower == 'status' %}
+                      <td class="status-{{ value|lower }}">{{ value }}</td>
+                    {% else %}
+                      <td>
+                        {% if value is mapping %}
+                          {{ render_table(value, is_nested=true) }}
+                        {% elif value is iterable and value is not string %}
+                          {% for list_item in value %}
+                            {{ list_item }}<br>
+                          {% endfor %}
+                        {% else %}
+                          {{ value }}
+                        {% endif %}
+                      </td>
+                    {% endif %}
+                  {% endfor %}
+                </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        {% if is_nested %}
+          {% for item in data %}
+            {{ item }}<br>
+          {% endfor %}
+        {% else %}
+          <table class="dynamic-table">
+            <thead><tr><th>Value</th></tr></thead>
+            <tbody>
+              {% for item in data %}
+                <tr>
+                  <td>
+                    {% if item is mapping or (item is iterable and item is not string) %}
+                      {{ render_table(item, is_nested=true) }}
+                    {% else %}
+                      {{ item }}
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      {% endif %}
+    {% else %}
+      <div>{{ data }}</div>
+    {% endif %}
+  {% endmacro %}
+
+  <style>
+    :root {
+      --primary-color: #0078d7;
+      --primary-gradient: linear-gradient(135deg, #0078d7 0%, #005a9e 100%);
+      --success-color: #107c10;
+      --success-gradient: linear-gradient(135deg, #107c10 0%, #0e6b0e 100%);
+      --error-color: #d13438;
+      --error-gradient: linear-gradient(135deg, #d13438 0%, #a72b2e 100%);
+      --warning-color: #ff8c00;
+      --warning-gradient: linear-gradient(135deg, #ff8c00 0%, #e67e00 100%);
+      --info-color: #0078d7;
+      --info-gradient: linear-gradient(135deg, #0078d7 0%, #005a9e 100%);
+      --bg-light: #f3f2f1;
+      --bg-pattern: radial-gradient(circle at 20% 50%, rgba(0, 120, 215, 0.05) 0%, transparent 50%),
+                     radial-gradient(circle at 80% 80%, rgba(0, 90, 158, 0.05) 0%, transparent 50%),
+                     repeating-linear-gradient(0deg, rgba(0, 120, 215, 0.03) 0px, transparent 1px, transparent 40px, rgba(0, 120, 215, 0.03) 41px),
+                     repeating-linear-gradient(90deg, rgba(0, 120, 215, 0.03) 0px, transparent 1px, transparent 40px, rgba(0, 120, 215, 0.03) 41px);
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+      --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      --radius-sm: 8px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+    /* Base Styles */
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background: var(--bg-light);
+      background-image: var(--bg-pattern);
+      background-attachment: fixed;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes shimmer {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 100%;
+      }
+    }
+
+    @keyframes countUp {
+      from {
+        opacity: 0;
+        transform: scale(0.5);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes ripple {
+      0% {
+        transform: scale(0);
+        opacity: 0.6;
+      }
+      100% {
+        transform: scale(2.5);
+        opacity: 0;
+      }
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        max-height: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        max-height: 1000px;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes gradientShift {
+      0%, 100% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+    }
+
+    @keyframes scaleIn {
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes skeletonLoading {
+      0% {
+        background-position: -200% 0;
+      }
+      100% {
+        background-position: 200% 0;
+      }
+    }
+
+    @keyframes rotate {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(180deg);
+      }
+    }
+
+    @keyframes fadeInFromTop {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Layout Components */
+    .navbar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+      background: var(--primary-gradient);
+      color: #ffffff;
+      transition: var(--transition);
+      font-size: 28px;
+      font-weight: 700;
+      width: 100%;
+      box-shadow: var(--shadow-lg);
+      letter-spacing: -0.5px;
+      position: relative;
+      overflow: hidden;
+      animation: fadeInDown 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .navbar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      animation: shimmer 30s infinite;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 32px 20px;
+    }
+
+    .navbar .system-id {
+      font-weight: bold;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(auto, 1400px) minmax(0, 1fr);
+      gap: 20px;
+    }
+
+    .left-bar {
+      grid-column: 2;
+      padding: 20px;
+    }
+
+    /* System Info Styles */
+    .system-info-container {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: 32px;
+      margin-bottom: 24px;
+      position: relative;
+      transition: var(--transition);
+      border: 1px solid rgba(0, 120, 215, 0.1);
+      animation: fadeInUp 0.6s ease-out;
+    }
+
+    .system-info-container:hover {
+      box-shadow: 0 20px 40px -10px rgba(0, 120, 215, 0.2), 0 0 0 1px rgba(0, 120, 215, 0.1);
+      transform: translateY(-4px);
+      border-color: rgba(0, 120, 215, 0.3);
+    }
+
+    .system-info-heading {
+      width: 100%;
+      text-align: left;
+      margin-bottom: 20px;
+    }
+
+    .system-info-columns {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .system-info-column {
+      width: 30%;
+      position: relative;
+      flex-direction: column;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .system-info-container h2 {
+      color: #64748b;
+      margin-bottom: 24px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .system-info-container p {
+      color: #475569;
+      margin-bottom: 12px;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .system-info p strong {
+      color: #1e293b;
+      font-weight: 600;
+    }
+
+    /* Configuration Checks Styles */
+    .config-checks-container {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: 32px;
+      margin-bottom: 24px;
+      transition: var(--transition);
+      border: 1px solid rgba(0, 120, 215, 0.1);
+      animation: fadeInUp 0.8s ease-out;
+    }
+
+    .config-checks-container:hover {
+      box-shadow: 0 20px 40px -10px rgba(0, 120, 215, 0.2), 0 0 0 1px rgba(0, 120, 215, 0.1);
+    }
+
+    .config-checks-container h2 {
+      color: #64748b;
+      margin-bottom: 24px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .config-checks-container h3 {
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 800;
+      margin: 32px 0 20px 0;
+      padding-bottom: 12px;
+      border-bottom: 3px solid;
+      border-image: var(--primary-gradient) 1;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .config-checks-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .config-checks-table th,
+    .config-checks-table td {
+      padding: 16px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 14px;
+    }
+
+    .config-checks-table th {
+      background: var(--primary-gradient);
+      background-size: 200% 200%;
+      position: sticky;
+      top: 0;
+      font-weight: 700;
+      color: white;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      padding: 18px 16px;
+      animation: gradientShift 6s ease infinite;
+    }
+
+    .config-checks-table tbody tr {
+      cursor: pointer;
+      transition: var(--transition);
+      background: white;
+      animation: fadeInFromTop 0.1s ease-out backwards;
+    }
+
+    .config-checks-table tbody tr:nth-child(1) { animation-delay: 0.02s; }
+    .config-checks-table tbody tr:nth-child(2) { animation-delay: 0.04s; }
+    .config-checks-table tbody tr:nth-child(3) { animation-delay: 0.06s; }
+    .config-checks-table tbody tr:nth-child(4) { animation-delay: 0.08s; }
+    .config-checks-table tbody tr:nth-child(5) { animation-delay: 0.1s; }
+    .config-checks-table tbody tr:nth-child(n+6) { animation-delay: 0.12s; }
+
+    .config-checks-table tbody tr:hover {
+      background: linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 100%);
+      transform: scale(1.005);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .config-section {
+      margin-top: 20px;
+      padding: 20px;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      border: 1px solid #e2e8f0;
+      transition: var(--transition);
+    }
+
+    .config-section:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateX(4px);
+    }
+
+    .config-section h4 {
+      margin-top: 0;
+      color: #1e293b;
+      font-weight: 700;
+    }
+
+    .status-passed {
+      color: var(--success-color);
+      font-weight: 700;
+    }
+
+    .status-failed {
+      color: var(--error-color);
+      font-weight: 700;
+    }
+
+    .status-warning {
+      color: var(--warning-color);
+      font-weight: 700;
+    }
+
+    .status-info {
+      color: var(--info-color);
+      font-weight: 700;
+    }
+
+    .summary-box {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    .status-count {
+      padding: 10px 10px;
+      border-radius: var(--radius-md);
+      text-align: center;
+      transition: var(--transition-bounce);
+      border: 2px solid;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      background: white;
+      animation: scaleIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) backwards;
+    }
+
+    .status-count::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: currentColor;
+      opacity: 0;
+      transition: var(--transition);
+    }
+
+    .status-count::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0;
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s, opacity 0.6s;
+    }
+
+    .status-count:hover::after {
+      width: 300px;
+      height: 300px;
+      opacity: 0.1;
+    }
+
+    .status-count:hover::before {
+      opacity: 0.05;
+    }
+
+    .status-count:hover {
+      transform: translateY(-8px) scale(1.05);
+      box-shadow: 0 12px 24px -8px currentColor;
+      opacity: 0.9;
+      border-width: 3px;
+    }
+
+    .status-count.active {
+      background: currentColor;
+      color: white;
+      transform: scale(1.08);
+      box-shadow: 0 16px 32px -12px currentColor;
+      border-width: 3px;
+    }
+
+    .status-count.active::before {
+      opacity: 0.2;
+    }
+
+    .status-count.active h3,
+    .status-count.active p {
+      color: white;
+      opacity: 1;
+    }
+
+    .status-count h3 {
+      margin: 0 0 8px 0;
+      font-size: 42px;
+      font-weight: 800;
+      animation: countUp 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) backwards;
+    }
+
+    .status-count p {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.8;
+    }
+
+    .status-count.passed {
+      border-color: var(--success-color);
+      color: var(--success-color);
+    }
+
+    .status-count.failed,
+    .status-count.error {
+      border-color: var(--error-color);
+      color: var(--error-color);
+    }
+
+    .status-count.warning {
+      border-color: var(--warning-color);
+      color: var(--warning-color);
+    }
+
+    .status-count.info {
+      border-color: var(--info-color);
+      color: var(--info-color);
+    }
+
+    .detail-row {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      transition: var(--transition);
+    }
+
+    .detail-row:hover {
+      background: rgba(0, 120, 215, 0.03);
+    }
+
+    .detail-label {
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+
+    .expanded-content {
+      display: none;
+      padding: 0;
+      background-color: #f9f9f9;
+      border-top: none;
+    }
+
+    .expanded-content.show {
+      display: table-row;
+      animation: slideDown 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .expanded-content td {
+      padding: 0;
+    }
+
+    .expanded-content-inner {
+      padding: 24px;
+      border-left: 4px solid;
+      border-image: var(--primary-gradient) 1;
+      background: linear-gradient(to right, rgba(0, 120, 215, 0.05) 0%, transparent 100%);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      animation: fadeInUp 0.3s ease-out;
+    }
+
+    .references-section {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #ddd;
+    }
+
+    .references-section h4 {
+      margin-top: 0;
+      color: #0078d7;
+    }
+
+    pre {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      color: #e2e8f0;
+      padding: 16px;
+      border-radius: var(--radius-sm);
+      overflow-x: auto;
+      margin: 8px 0;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      box-shadow: var(--shadow-md);
+    }
+
+    /* Dynamic Table Styles */
+    .dynamic-table-container {
+      margin-top: 16px;
+      overflow-x: auto;
+    }
+
+    .table-report-section {
+      background: white;
+      border: 1px solid #e2e8f0;
+    }
+
+    .dynamic-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      background: white;
+    }
+
+    .dynamic-table th {
+      background: linear-gradient(135deg, #334155 0%, #475569 100%);
+      color: white;
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid #1e293b;
+    }
+
+    .dynamic-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 14px;
+      color: #475569;
+      vertical-align: top;
+    }
+
+    .dynamic-table tbody tr {
+      transition: var(--transition);
+      background: white;
+    }
+
+    .dynamic-table tbody tr:hover {
+      background: linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
+      transform: scale(1.002);
+    }
+
+    .dynamic-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Nested section styles for grouped data */
+    .nested-section {
+      margin: 16px 0;
+      padding: 16px;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-radius: var(--radius-sm);
+      border-left: 4px solid var(--primary-color);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .nested-section-title {
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 12px;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nested-section-title::before {
+      content: '▸';
+      color: var(--primary-color);
+      font-weight: bold;
+    }
+
+    .nested-table {
+      margin-left: 0;
+    }
+
+    /* Alternating row colors for better readability */
+    .dynamic-table tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    .dynamic-table tbody tr:nth-child(even):hover {
+      background: linear-gradient(90deg, #e0f2fe 0%, #dbeafe 50%, #e0f2fe 100%);
+    }
+
+    /* Empty state */
+    .table-empty-state {
+      padding: 32px;
+      text-align: center;
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    /* Table header info styles */
+    .table-header-info {
+      padding: 20px;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+      border-left: 4px solid var(--primary-color);
+    }
+
+    .table-check-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0 0 8px 0;
+    }
+
+    .table-check-id {
+      font-size: 12px;
+      color: #64748b;
+      margin: 0 0 12px 0;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .table-check-description {
+      font-size: 14px;
+      color: #475569;
+      margin: 0 0 12px 0;
+      line-height: 1.6;
+    }
+
+    .table-check-command {
+      font-size: 13px;
+      color: #475569;
+      margin: 0;
+    }
+
+    .table-check-command code {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: 12px;
+    }
+
+    .table-report-section {
+      margin-bottom: 32px;
+    }
+
+    /* Collapsible Section Styles */
+    .section-header {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      margin: 0;
+      padding: 10px 0;
+    }
+
+    .toggle-icon {
+      display: inline-block;
+      margin-right: 10px;
+      transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+
+    .section-header.active .toggle-icon {
+      transform: rotate(90deg);
+    }
+
+    .section-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .section-content.collapsed {
+      display: none;
+    }
+
+    .section-header:hover {
+      color: #0078d7;
+    }
+
+    /* Tab Styles */
+    .tabs-container {
+      margin-bottom: 20px;
+    }
+
+    .tab-navigation {
+      display: flex;
+      overflow-x: auto;
+      border-bottom: 1px solid #ccc;
+      margin-bottom: 20px;
+    }
+
+    .tab-button {
+      padding: 14px 28px;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      margin-right: 4px;
+      font-weight: 600;
+      transition: var(--transition);
+      color: #64748b;
+      font-size: 14px;
+      position: relative;
+    }
+
+    .tab-button::after {
+      content: '';
+      position: absolute;
+      bottom: -3px;
+      left: 50%;
+      transform: translateX(-50%) scaleX(0);
+      width: 100%;
+      height: 3px;
+      background: var(--primary-gradient);
+      transition: var(--transition);
+      border-radius: 2px 2px 0 0;
+    }
+
+    .tab-button:hover {
+      background: rgba(0, 120, 215, 0.08);
+      color: #0078d7;
+    }
+
+    .tab-button.active {
+      background: transparent;
+      color: #0078d7;
+      font-weight: 700;
+    }
+
+    .tab-button.active::after {
+      transform: translateX(-50%) scaleX(1);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Badge Styles */
+    .hostname-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      background: #f1f5f9;
+      border-radius: 50%;
+      font-size: 11px;
+      margin-left: 8px;
+      font-weight: 800;
+      transition: var(--transition);
+      border: 2px solid transparent;
+      color: #64748b;
+    }
+
+    .hostname-badge.failed {
+      background: var(--error-gradient);
+      color: white;
+      animation: pulse 2s infinite;
+      transform: scale(1.1);
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.8;
+      }
+    }
+
+    .table-check-status {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-badge.status-success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status-badge.status-error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status-badge.status-warning {
+      background-color: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+
+    .status-badge.status-info,
+    .status-badge.status-n\/a {
+      background-color: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+
+    .table-check-message {
+      color: #666;
+      font-size: 0.875rem;
+      font-style: italic;
+      flex: 1;
+    }
+
+    /* Skeleton Loading Styles */
+    .skeleton {
+      background: linear-gradient(90deg,
+        #f0f0f0 0%,
+        #e0e0e0 20%,
+        #f0f0f0 40%,
+        #f0f0f0 100%);
+      background-size: 200% 100%;
+      animation: skeletonLoading 1.5s ease-in-out infinite;
+      border-radius: var(--radius-sm);
+    }
+
+    .skeleton-text {
+      height: 16px;
+      margin-bottom: 8px;
+    }
+
+    .skeleton-title {
+      height: 24px;
+      width: 60%;
+      margin-bottom: 16px;
+    }
+
+    /* Scroll-triggered animations */
+    .fade-in-on-scroll {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+    }
+
+    .fade-in-on-scroll.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Stagger delays for status count boxes */
+    .status-count:nth-child(1) { animation-delay: 0s; }
+    .status-count:nth-child(2) { animation-delay: 0.1s; }
+    .status-count:nth-child(3) { animation-delay: 0.2s; }
+    .status-count:nth-child(4) { animation-delay: 0.3s; }
+
+    /* Footer Styles */
+    .footer {
+      bottom: 0;
+      width: 100%;
+      padding: 20px;
+      text-align: center;
+      background: var(--primary-gradient);
+      color: #ffffff;
+      box-shadow: var(--shadow-lg);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+
+    /* Media Queries */
+    @media only screen and (max-width: 600px) {
+      .container {
+        max-width: 100%;
+        padding: 0 15px;
+      }
+
+      .navbar,
+      .footer {
+        flex-direction: column;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="navbar">
+    <div class="system-id">SAP Configuration Checks Report</div>
+  </div>
+  <div class="main-content">
+    <div class="container">
+      <div class="left-bar">
+        <div class="system-info-container">
+          <h2 class="system-info-heading">System Information</h2>
+          <div class="system-info-columns">
+            <div class="system-info-column">
+              <p>
+                <strong>SAP SID:</strong> {{ system_info.sap_sid }}
+              </p>
+              <p>
+                <strong>DB SID:</strong> {{ system_info.db_sid }}
+              </p>
+            </div>
+            <div class="system-info-column">
+              <p>
+                <strong>DB Type:</strong> {{ system_info.db_type }}
+              </p>
+              <p>
+                <strong>Storage Type:</strong> {{ system_info.storage_type }}
+              </p>
+            </div>
+            <div class="system-info-column">
+              <p>
+                <strong>Total Checks:</strong> {{ test_case_results|rejectattr('status', 'equalto',
+                'SKIPPED')|list|length }}
+              </p>
+            </div>
+          </div>
+          <p>
+            <strong>Hostnames:</strong> {{ system_info.hostnames|join(', ') }}
+          </p>
+        </div>
+        <div class="system-info-container">
+          <h2 class="system-info-heading">Configuration Checks Summary</h2>
+          <div class="summary-box">
+            <div class="status-count passed" onclick="filterByStatus('passed')" data-status="passed">
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'PASSED')|list|length }}</h3>
+              <p>Passed</p>
+            </div>
+            <div class="status-count error" onclick="filterByStatus('error')" data-status="error">
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'FAILED')|list|length }}</h3>
+              <p>Error</p>
+            </div>
+            <div class="status-count warning" onclick="filterByStatus('warning')" data-status="warning">
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'WARNING')|list|length }}</h3>
+              <p>Warning</p>
+            </div>
+            <div class="status-count info" onclick="filterByStatus('info')" data-status="info">
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'INFO')|list|length }}</h3>
+              <p>Info</p>
+            </div>
+          </div>
+        </div>
+        <div class="config-checks-container">
+
+          <div class="tab-navigation">
+            {% for hostname in system_info.hostnames %}
+            {% set host_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|rejectattr('status',
+            'equalto', 'SKIPPED')|list %}
+            {% set error_count = host_checks|selectattr('status', 'equalto', 'FAILED')|list|length %}
+            {% set no_error_count = host_checks|rejectattr('status', 'equalto', 'FAILED')|list|length %}
+            <button class="tab-button {% if loop.first %}active{% endif %}" onclick="openTab('host-{{ hostname }}')">
+              {{ hostname }}
+              <span class="hostname-badge {% if error_count > 0 %}failed{% endif %}">{{ error_count }}</span>
+            </button>
+            {% endfor %}
+          </div>
+
+          <div class="tabs-container">
+            {% for hostname in system_info.hostnames %}
+            <div id="host-{{ hostname }}" class="tab-content {% if loop.first %}active{% endif %}">
+              {% for check_type in system_info.config_check_types|default([]) %}
+              {% set type_checks = test_case_results|selectattr('hostname', 'equalto', hostname)|
+              selectattr('check.category', 'defined')|
+              selectattr('check.category', 'equalto', check_type)|
+              rejectattr('status', 'equalto', 'SKIPPED')|list %}
+              {% if type_checks|length > 0 %}
+              <h3>{{ check_type }}</h3>
+              
+              {% set type_regular_checks = type_checks|selectattr('check.report', 'equalto', 'check')|list %}
+              {% if type_regular_checks|length > 0 %}
+              <table class="config-checks-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Output</th>
+                    <th>Expected</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for check in type_regular_checks %}
+                  <tr onclick="toggleDetails('{{ check.hostname }}-{{ check.check.id }}')">
+                    <td>{{ check.check.id }}</td>
+                    <td>{{ check.check.name }}</td>
+                    <td>{{ check.actual_value|truncate(40) }}</td>
+                    <td>{{ check.expected_value }}</td>
+                    <td class="status-{{ check.status|lower }}">{{ check.status }}</td>
+                  </tr>
+                  <tr id="details-{{ check.hostname }}-{{ check.check.id }}" class="expanded-content">
+                    <td colspan="6">
+                      <div class="expanded-content-inner">
+                        <div class="detail-row">
+                          <div class="detail-label">Description:</div>
+                          <div>{{ check.check.description }}</div>
+                        </div>
+                        <div class="detail-row">
+                          <div class="detail-label">Collector Type:</div>
+                          <div>
+                            {{ check.check.collector_type|default('') }}</code>
+                          </div>
+                        </div>
+                        {% if check.check.collector_args.command is defined %}
+                        <div class="detail-row">
+                          <div class="detail-label">Command:</div>
+                          <div>
+                            {{ check.check.collector_args.command|default('') }}</code>
+                          </div>
+                        </div>
+                        {% endif %}
+                        {% if check.expected_value is defined %}
+                        <div class="detail-row">
+                          <div class="detail-label">Expected Output:</div>
+                          <div>{{ check.expected_value|default('') }}</div>
+                        </div>
+                        {% endif %}
+                        <div class="detail-row">
+                          <div class="detail-label">Actual Value:</div>
+                          {{ check.actual_value|default('') }}</code>
+                        </div>
+                        <div class="detail-row">
+                          <div class="detail-label">Execution Time:</div>
+                          <div>{{ check.execution_time|default('') }}</div>
+                        </div>
+
+                        {% if check.check.references is defined and check.check.references.microsoft|default('') or
+                        check.check.references.sap|default('') or check.check.references.remediation|default('') or
+                        check.check.references.other|default('') %}
+                        <div class="references-section">
+                          <h4>References</h4>
+                          {% if check.check.references.microsoft|default('') %}
+                          <div class="detail-row">
+                            <div class="detail-label">Microsoft:</div>
+                            <div><a href="{{ check.check.references.microsoft|default('') }}" target="_blank">Microsoft
+                                Docs</a></div>
+                          </div>
+                          {% endif %}
+
+                          {% if check.check.references.sap|default('') %}
+                          <div class="detail-row">
+                            <div class="detail-label">SAP:</div>
+                            <div><a href="https://me.sap.com/notes/{{ check.check.references.sap|default('') }}"
+                                target="_blank">Note</a>
+                            </div>
+                          </div>
+                          {% endif %}
+
+                          {% if check.check.references.remediation|default('') %}
+                          <div class="detail-row">
+                            <div class="detail-label">Remediation:</div>
+                            <div>{{ check.check.references.remediation|default('') }}</div>
+                          </div>
+                          {% endif %}
+
+                          {% if check.check.references.other|default('') %}
+                          <div class="detail-row">
+                            <div class="detail-label">Other:</div>
+                            <div><a href="{{ check.check.references.other|default('') }}" target="_blank">Other
+                                Reference</a></div>
+                          </div>
+                          {% endif %}
+                        </div>
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+              {% endif %}
+              
+              {% set type_table_checks = type_checks|selectattr('check.report', 'equalto', 'table')|list %}
+              {% if type_table_checks|length > 0 %}
+              {% for check in type_table_checks %}
+              <div class="config-section table-report-section">
+                <h4 class="table-check-name">{{ check.check.name }} ({{ check.check.id }})</h4>
+                <p class="table-check-description">{{ check.check.description }}</p>
+                {% if check.check.collector_args.command is defined %}
+                <p class="table-check-command">
+                  <strong>Command:</strong> <code>{{ check.check.collector_args.command }}</code>
+                </p>
+                {% endif %}
+                <div class="dynamic-table-container">
+                  {{ render_table(check.actual_value) }}
+                </div>
+              </div>
+              {% endfor %}
+              {% endif %}
+              
+              {% endif %}
+              {% endfor %}
+
+              {% set host_sections = test_case_results|selectattr('hostname', 'equalto',
+              hostname)|selectattr('check.report', 'equalto', 'section')|rejectattr('status', 'equalto', 'SKIPPED')|list
+              %}
+              {% if host_sections|length > 0 %}
+              <h3>Detailed Output Reports</h3>
+              {% for check in host_sections %}
+              <div class="config-section">
+                <h4 class="section-header" onclick="toggleSection('section-{{ check.hostname }}-{{ check.check.id }}')">
+                  <span class="toggle-icon">+</span> {{ check.check.name }} ({{ check.check.id }})</h4>
+                <div id="section-{{ check.hostname }}-{{ check.check.id }}" class="section-content collapsed">
+                  <p>
+                    <strong>Description:</strong> {{ check.check.description }}
+                  </p>
+                  <p>
+                    <strong>Command:</strong> <code>{{ check.check.collector_args.command|default('') }}</code>
+                  </p>
+                  <p>
+                    <strong>Output:</strong>
+                  </p>
+                  <pre>{{ check.actual_value }}</pre>
+                </div>
+              </div>
+              {% endfor %}
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">Report generated on: {{ report_generation_time }}</div>
+  <script>
+    function toggleDetails(checkId) {
+      const detailsRow = document.getElementById('details-' + checkId)
+      if (detailsRow.style.display === 'table-row') {
+        detailsRow.classList.remove('show')
+        setTimeout(() => {
+          detailsRow.style.display = 'none'
+        }, 300)
+      } else {
+        const expandedRows = document.querySelectorAll('.expanded-content')
+        expandedRows.forEach((row) => {
+          row.classList.remove('show')
+          row.style.display = 'none'
+        })
+        detailsRow.style.display = 'table-row'
+        setTimeout(() => {
+          detailsRow.classList.add('show')
+        }, 10)
+      }
+    }
+
+    function toggleSection(sectionId) {
+      const sectionContent = document.getElementById(sectionId)
+      if (!sectionContent) return
+
+      const sectionHeader = sectionContent.previousElementSibling
+      const toggleIcon = sectionHeader.querySelector('.toggle-icon')
+
+      if (sectionContent.classList.contains('collapsed')) {
+        sectionContent.classList.remove('collapsed')
+        sectionHeader.classList.add('active')
+        toggleIcon.textContent = '-'
+      } else {
+        sectionContent.classList.add('collapsed')
+        sectionHeader.classList.remove('active')
+        toggleIcon.textContent = '+'
+      }
+    }
+
+    function openTab(tabId) {
+      const tabContents = document.querySelectorAll('.tab-content')
+      tabContents.forEach((tab) => tab.classList.remove('active'))
+
+      const tabButtons = document.querySelectorAll('.tab-button')
+      tabButtons.forEach((button) => button.classList.remove('active'))
+
+      document.getElementById(tabId).classList.add('active')
+      event.currentTarget.classList.add('active')
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const expandedRows = document.querySelectorAll('.expanded-content')
+      expandedRows.forEach((row) => (row.style.display = 'none'))
+
+      const sectionContents = document.querySelectorAll('.section-content')
+      sectionContents.forEach((section) => {
+        section.classList.add('collapsed')
+      })
+
+      const firstTab = document.querySelector('.tab-content')
+      if (firstTab) firstTab.classList.add('active')
+
+      const firstButton = document.querySelector('.tab-button')
+      if (firstButton) firstButton.classList.add('active')
+
+      const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+      }
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      }, observerOptions)
+
+      // Observe elements that should fade in on scroll
+      document.querySelectorAll('.fade-in-on-scroll').forEach(el => {
+        observer.observe(el)
+      })
+
+      const counters = document.querySelectorAll('.status-count h3')
+      counters.forEach(counter => {
+        const target = parseInt(counter.innerText)
+        if (isNaN(target)) return
+
+        const duration = 1000
+        const increment = target / (duration / 16)
+        let current = 0
+
+        const updateCounter = () => {
+          current += increment
+          if (current < target) {
+            counter.innerText = Math.ceil(current)
+            requestAnimationFrame(updateCounter)
+          } else {
+            counter.innerText = target
+          }
+        }
+
+        setTimeout(() => {
+          counter.innerText = '0'
+          updateCounter()
+        }, 300)
+      })
+    })
+
+    let activeFilter = null
+
+    function filterByStatus(status) {
+      const statusBoxes = document.querySelectorAll('.status-count')
+      const allRows = document.querySelectorAll('.config-checks-table tbody tr:not(.expanded-content)')
+      if (activeFilter === status) {
+        activeFilter = null
+        statusBoxes.forEach(box => box.classList.remove('active'))
+        allRows.forEach(row => {
+          row.style.display = ''
+        })
+        return
+      }
+      activeFilter = status
+
+      statusBoxes.forEach(box => {
+        if (box.dataset.status === status) {
+          box.classList.add('active')
+        } else {
+          box.classList.remove('active')
+        }
+      })
+
+      // Filter table rows
+      allRows.forEach(row => {
+        const statusCell = row.querySelector('td:nth-child(5)')
+        if (!statusCell) {
+          row.style.display = 'none'
+          return
+        }
+
+        const rowStatus = statusCell.textContent.toLowerCase().trim()
+        let mappedStatus = rowStatus
+        if (rowStatus === 'failed') {
+          mappedStatus = 'error'
+        } else if (rowStatus === 'ok' || rowStatus === 'passed') {
+          mappedStatus = 'passed'
+        }
+
+        if (mappedStatus === status) {
+          row.style.display = ''
+        } else {
+          row.style.display = 'none'
+          const detailsId = row.getAttribute('onclick')?.match(/toggleDetails\('([^']+)'\)/)?.[1]
+          if (detailsId) {
+            const detailsRow = document.getElementById('details-' + detailsId)
+            if (detailsRow) {
+              detailsRow.style.display = 'none'
+              detailsRow.classList.remove('show')
+            }
+          }
+        }
+      })
+    }
+  </script>
+</body>
+
+</html>

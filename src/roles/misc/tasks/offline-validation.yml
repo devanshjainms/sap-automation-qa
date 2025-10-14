@@ -21,7 +21,7 @@
 - name:                                 "HA Configuration check for {{ current_hostname }}"
   block:
     - name:                             "Offline HA Configuration validation for DB"
-      when:                             sap_functional_test_type == "DatabaseHighAvailability"
+      when:                             SAP_FUNCTIONAL_TEST_TYPE == "DatabaseHighAvailability"
       block:
         - name:                         "Get Pacemaker properties for DB"
           get_pcmk_properties_db:
@@ -44,7 +44,7 @@
             test_case_hostname:         "{{ current_hostname }}"
 
     - name:                             "Offline HA Configuration validation for SCS"
-      when:                             sap_functional_test_type == "CentralServicesHighAvailability"
+      when:                             SAP_FUNCTIONAL_TEST_TYPE == "CentralServicesHighAvailability"
       block:
         - name:                         "Get Pacemaker properties for SCS"
           get_pcmk_properties_scs:

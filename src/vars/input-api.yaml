@@ -11,6 +11,21 @@ sap_functional_test_type_map:
   - name:                           "CentralServicesHighAvailability"
     value:                          HA_SCS
 
+configuration_test_type_map:
+  - name:                           "CentralServiceInstances"
+    value:                          ascs
+  - name:                           "Database"
+    value:                          database
+  - name:                           "ApplicationInstances"
+    value:                          application
+  - name:                           "WebDispatcherInstances"
+    value:                          webdispatcher
+  - name:                           "ObserverInstances"
+    value:                          observer
+  - name:                           "all"
+    value:                          all
+
+
 test_groups:
   - name:                           HA_DB_HANA
     test_cases:

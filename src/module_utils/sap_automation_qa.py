@@ -1,3 +1,6 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
 """
 This module is used to setup the context for the test cases
 and setup base variables for the test case running in the sap-automation-qa
@@ -7,8 +10,10 @@ from abc import ABC
 import sys
 import logging
 import subprocess
-from typing import Dict, Any
+import traceback
+from typing import Optional, Dict, Any
 import xml.etree.ElementTree as ET
+import yaml
 
 try:
     from ansible.module_utils.enums import Result, TestStatus
@@ -63,7 +68,7 @@ class SapAutomationQA(ABC):
         :param stderr: Standard error output from the command
         :type stderr: str
         """
-        error_message = f"Error executing command: {exception}."
+        error_message = f"Error: {exception}."
         if stderr:
             error_message += f" More errors: {stderr}"
         error_message.replace("'", "")
@@ -71,6 +76,7 @@ class SapAutomationQA(ABC):
         self.result["status"] = TestStatus.ERROR.value
         self.result["message"] = error_message
         self.result["logs"].append(error_message)
+        self.result["logs"].append(f"Traceback:\n{traceback.format_exc()}")
 
     def execute_command_subprocess(self, command: Any, shell_command: bool = False) -> str:
         """
@@ -91,7 +97,7 @@ class SapAutomationQA(ABC):
         try:
             command_output = subprocess.run(
                 command,
-                timeout=30,
+                timeout=100,
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -99,14 +105,26 @@ class SapAutomationQA(ABC):
             )
             stdout = command_output.stdout.decode("utf-8")
             stderr = command_output.stderr.decode("utf-8")
-            return stdout if not stderr else stderr
+
+            if stdout and stderr:
+                return f"{stdout}\nERROR: {stderr}"
+            elif stderr:
+                return stderr
+            else:
+                return stdout
         except subprocess.TimeoutExpired as ex:
             self.handle_error(ex, "Command timed out")
+            return f"ERROR: Command timed out after 100 seconds"
         except subprocess.CalledProcessError as ex:
-            self.handle_error(ex, ex.stderr.decode("utf-8").strip())
+            stderr_msg = ex.stderr.decode("utf-8").strip() if ex.stderr else ""
+            error_msg = f"ERROR: Command failed with exit code {ex.returncode}"
+            if stderr_msg:
+                error_msg += f": {stderr_msg}"
+            self.handle_error(ex, stderr_msg)
+            return error_msg
         except Exception as ex:
             self.handle_error(ex, "")
-        return ""
+            return f"ERROR: Unexpected error during command execution: {str(ex)}"
 
     def parse_xml_output(self, xml_output: str) -> ET.Element:
         """
@@ -129,3 +147,18 @@ class SapAutomationQA(ABC):
         :rtype: Dict[str, Any]
         """
         return self.result
+
+    def parse_yaml_from_content(self, yaml_content: str) -> Optional[Dict[str, Any]]:
+        """
+        Parses a YAML file and returns its content as a dictionary.
+
+        :param yaml_content: Content of the YAML file
+        :type yaml_content: str
+        :return: Content of the YAML file as a dictionary
+        :rtype: Optional[Dict[str, Any]]
+        """
+        try:
+            return yaml.load(yaml_content, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))
+        except yaml.YAMLError as ex:
+            self.log(logging.ERROR, f"Error parsing YAML content: {ex}")
+            return None

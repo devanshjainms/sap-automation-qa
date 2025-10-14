@@ -1,0 +1,592 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+os_type:
+  - suse:                        &suse "SUSE"
+  - redhat:                      &redhat "REDHAT"
+  - oraclelinux:                 &oraclelinux "ORACLELINUX"
+  - windows:                     &windows "WINDOWS"
+
+SupportedOSDBCombinations:
+  HANA:
+    DB:                          [*redhat, *suse]
+    SCS:                         [*windows, *redhat, *suse]
+    ERS:                         [*windows, *redhat, *suse]
+    APP:                         [*windows, *redhat, *suse]
+    PAS:                         [*windows, *redhat, *suse]
+  MSSQL:
+    DB:                          [*windows]
+    SCS:                         [*windows, *redhat, *suse]
+    ERS:                         [*windows, *redhat, *suse]
+    APP:                         [*windows, *redhat, *suse]
+    PAS:                         [*windows, *redhat, *suse]
+  Oracle:
+    DB:                          [*windows, *oraclelinux]
+    SCS:                         [*suse, *redhat, *oraclelinux, *windows]
+    ERS:                         [*suse, *redhat, *oraclelinux, *windows]
+    APP:                         [*windows, *oraclelinux]
+    PAS:                         [*windows, *oraclelinux]
+  Db2:
+    DB:                          [*windows, *redhat, *suse]
+    SCS:                         [*windows, *redhat, *suse]
+    ERS:                         [*windows, *redhat, *suse]
+    APP:                         [*windows, *redhat, *suse]
+    PAS:                         [*windows, *redhat, *suse]
+  ASE:
+    DB:                          [*windows, *redhat, *suse]
+    SCS:                         [*windows, *redhat, *suse]
+    ERS:                         [*windows, *redhat, *suse]
+    APP:                         [*windows, *redhat, *suse]
+    PAS:                         [*windows, *redhat, *suse]
+
+
+# Database configurations
+db_types:
+  non_hana_dbs:                &db_type_non_hana ["MSSQL", "Oracle", "Db2", "ASE"]
+  non_hana_dbs_ase:            &db_type_non_hana_ase ["MSSQL", "Oracle", "Db2"]
+  all_dbs:                     &db_type_all ["MSSQL", "Oracle", "Db2", "HANA", "ASE"]
+
+# Storage configurations
+storage_types:
+  premium:                     &storage_premium ["Premium_LRS", "UltraSSD_LRS", "ANF", "PremiumV2_LRS"]
+  ultra:                       &storage_ultra ["UltraSSD_LRS", "ANF", "PremiumV2_LRS"]
+
+# HANA scenarios
+hana_scenarios:
+  oltp:                        &hana_scenario_oltp ["OLTP"]
+  olap:                        &hana_scenario_olap ["OLAP"]
+  olap_scale_out:              &hana_scenario_olap_scale_out ["OLAP-ScaleOut"]
+  oltp_scale_out:              &hana_scenario_oltp_scale_out ["OLTP-ScaleOut"]
+  basic:                       &hana_scenario_basic [*hana_scenario_oltp, *hana_scenario_olap]
+  scale_out:                   &hana_scenario_scale_out [*hana_scenario_olap_scale_out, *hana_scenario_oltp_scale_out]
+
+# HANA Storage Requirements
+hana_storage_requirements:
+  HANADataMBPS:                400
+  HANALogMBPS:                 250
+  HANADataIOPS:                7000
+  HANALogIOPS:                 2000
+  HANADataStripeSize:          "256.00k"
+  HANALOGStripeSize:           "64.00k"
+
+# DB2 Storage Requirements
+db2_storage_requirements:
+  DB2DataStripeSize:           "256.00k"
+  DB2LOGStripeSize:            "64.00k"
+
+# VM deployment patterns
+vm_patterns:
+  app_only:                    &vm_pattern_app_only
+    DB:
+      SupportedDB:             []
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+  non_hana_db:                 &vm_pattern_non_hana_db
+    DB:
+      SupportedDB:             *db_type_non_hana
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+  non_hana_db_ase:             &vm_pattern_non_hana_db_ase
+    DB:
+      SupportedDB:             *db_type_non_hana_ase
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+  hana_db_ultra_log:           &vm_pattern_hana_ultra_log
+    DB:
+      SupportedDB:             *db_type_all
+      HANAStorageTypeData:     *storage_premium
+      HANAStorageTypeLog:      *storage_ultra
+      HANAScenario:            [*hana_scenario_oltp, *hana_scenario_olap]
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+  hana_db_ultra_log_oltp:      &vm_pattern_hana_ultra_log_oltp
+    DB:
+      SupportedDB:             *db_type_all
+      HANAStorageTypeData:     *storage_premium
+      HANAStorageTypeLog:      *storage_ultra
+      HANAScenario:            *hana_scenario_oltp
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+  hana_db_premium_log_oltp:    &vm_pattern_hana_premium_log_oltp
+    DB:
+      SupportedDB:             *db_type_all
+      HANAStorageTypeData:     *storage_premium
+      HANAStorageTypeLog:      *storage_premium
+      HANAScenario:            *hana_scenario_oltp
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+  hana_db_premium_log_olap:    &vm_pattern_hana_premium_log_olap
+    DB:
+      SupportedDB:             *db_type_all
+      HANAStorageTypeData:     *storage_premium
+      HANAStorageTypeLog:      *storage_premium
+      HANAScenario:            *hana_scenario_olap
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+  hana_db_premium_log:         &vm_pattern_hana_premium_log
+    DB:
+      SupportedDB:             *db_type_all
+      HANAStorageTypeData:     *storage_premium
+      HANAStorageTypeLog:      *storage_premium
+      HANAScenario:            *hana_scenario_basic
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+  hana_db_so_premium_log:      &vm_pattern_hana_so_premium_log
+    DB:
+      SupportedDB:             *db_type_all
+      HANAStorageTypeData:     *storage_premium
+      HANAStorageTypeLog:      *storage_premium
+      HANAScenario:            [*hana_scenario_basic, *hana_scenario_scale_out]
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+  hana_db_olap_scale_out:      &vm_pattern_hana_olap_scale_out
+    DB:
+      SupportedDB:             *db_type_all
+      HANAStorageTypeData:     *storage_premium
+      HANAStorageTypeLog:      *storage_premium
+      HANAScenario:            [*hana_scenario_basic, *hana_scenario_olap_scale_out]
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+  hana_db_oltp_scale_out:      &vm_pattern_hana_oltp_scale_out
+    DB:
+      SupportedDB:             *db_type_all
+      HANAStorageTypeData:     *storage_premium
+      HANAStorageTypeLog:      *storage_premium
+      HANAScenario:            [*hana_scenario_basic, *hana_scenario_oltp_scale_out]
+    APP:
+      SupportedDB:             *db_type_all
+    PAS:
+      SupportedDB:             *db_type_all
+    SCS:
+      SupportedDB:             *db_type_all
+    ERS:
+      SupportedDB:             *db_type_all
+
+# Supported VM types
+SupportedVMs:
+  # D-series VMs
+  Standard_D11:                *vm_pattern_app_only
+  Standard_DS11:               *vm_pattern_non_hana_db
+  Standard_DS11_v2:            *vm_pattern_non_hana_db
+
+  Standard_D12:                *vm_pattern_app_only
+  Standard_DS12:               *vm_pattern_non_hana_db
+  Standard_DS12_v2:            *vm_pattern_non_hana_db
+
+  Standard_D13:                *vm_pattern_app_only
+  Standard_DS13:               *vm_pattern_non_hana_db
+  Standard_DS13_v2:            *vm_pattern_non_hana_db
+
+  Standard_D14:                *vm_pattern_app_only
+  Standard_DS14:               *vm_pattern_non_hana_db
+  Standard_DS14_v2:            *vm_pattern_non_hana_db
+
+  Standard_DS15_v2:            *vm_pattern_non_hana_db
+
+  Standard_D2s_v3:             *vm_pattern_non_hana_db
+  Standard_D2as_v4:            *vm_pattern_non_hana_db
+  Standard_D2ds_v4:            *vm_pattern_non_hana_db
+  Standard_D2s_v5:             *vm_pattern_non_hana_db
+  Standard_D2ds_v5:            *vm_pattern_non_hana_db
+  Standard_D2as_v5:            *vm_pattern_non_hana_db
+  Standard_D2ads_v5:           *vm_pattern_non_hana_db
+  Standard_D2s_v6:             *vm_pattern_non_hana_db
+  Standard_D2ds_v6:            *vm_pattern_non_hana_db
+  Standard_D2as_v6:            *vm_pattern_non_hana_db
+  Standard_D2ads_v6:           *vm_pattern_non_hana_db
+
+  Standard_D4s_v3:             *vm_pattern_non_hana_db
+  Standard_D4as_v4:            *vm_pattern_non_hana_db
+  Standard_D4ds_v4:            *vm_pattern_non_hana_db
+  Standard_D4s_v5:             *vm_pattern_non_hana_db
+  Standard_D4ds_v5:            *vm_pattern_non_hana_db
+  Standard_D4as_v5:            *vm_pattern_non_hana_db
+  Standard_D4ads_v5:           *vm_pattern_non_hana_db
+  Standard_D4s_v6:             *vm_pattern_non_hana_db
+  Standard_D4ds_v6:            *vm_pattern_non_hana_db
+  Standard_D4as_v6:            *vm_pattern_non_hana_db
+  Standard_D4ads_v6:           *vm_pattern_non_hana_db
+
+  Standard_D8s_v3:             *vm_pattern_non_hana_db
+  Standard_D8as_v4:            *vm_pattern_non_hana_db
+  Standard_D8ds_v4:            *vm_pattern_non_hana_db
+  Standard_D8s_v5:             *vm_pattern_non_hana_db
+  Standard_D8ds_v5:            *vm_pattern_non_hana_db
+  Standard_D8as_v5:            *vm_pattern_non_hana_db
+  Standard_D8ads_v5:           *vm_pattern_non_hana_db
+  Standard_D8s_v6:             *vm_pattern_non_hana_db
+  Standard_D8ds_v6:            *vm_pattern_non_hana_db
+  Standard_D8as_v6:            *vm_pattern_non_hana_db
+  Standard_D8ads_v6:           *vm_pattern_non_hana_db
+
+  Standard_D16s_v3:            *vm_pattern_non_hana_db
+  Standard_D16as_v4:           *vm_pattern_non_hana_db
+  Standard_D16ds_v4:           *vm_pattern_non_hana_db
+  Standard_D16s_v5:            *vm_pattern_non_hana_db
+  Standard_D16ds_v5:           *vm_pattern_non_hana_db
+  Standard_D16as_v5:           *vm_pattern_non_hana_db
+  Standard_D16ads_v5:          *vm_pattern_non_hana_db
+  Standard_D16s_v6:            *vm_pattern_non_hana_db
+  Standard_D16ds_v6:           *vm_pattern_non_hana_db
+  Standard_D16as_v6:           *vm_pattern_non_hana_db
+  Standard_D16ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_D32s_v3:            *vm_pattern_non_hana_db
+  Standard_D32as_v4:           *vm_pattern_non_hana_db
+  Standard_D32ds_v4:           *vm_pattern_non_hana_db
+  Standard_D32s_v5:            *vm_pattern_non_hana_db
+  Standard_D32ds_v5:           *vm_pattern_non_hana_db
+  Standard_D32as_v5:           *vm_pattern_non_hana_db
+  Standard_D32ads_v5:          *vm_pattern_non_hana_db
+  Standard_D32s_v6:            *vm_pattern_non_hana_db
+  Standard_D32ds_v6:           *vm_pattern_non_hana_db
+  Standard_D32as_v6:           *vm_pattern_non_hana_db
+  Standard_D32ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_D48s_v3:            *vm_pattern_non_hana_db
+  Standard_D48as_v4:           *vm_pattern_non_hana_db
+  Standard_D48ds_v4:           *vm_pattern_non_hana_db
+  Standard_D48s_v5:            *vm_pattern_non_hana_db
+  Standard_D48ds_v5:           *vm_pattern_non_hana_db
+  Standard_D48as_v5:           *vm_pattern_non_hana_db
+  Standard_D48ads_v5:          *vm_pattern_non_hana_db
+  Standard_D48s_v6:            *vm_pattern_non_hana_db
+  Standard_D48ds_v6:           *vm_pattern_non_hana_db
+  Standard_D48as_v6:           *vm_pattern_non_hana_db
+  Standard_D48ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_D64s_v3:            *vm_pattern_non_hana_db
+  Standard_D64as_v4:           *vm_pattern_non_hana_db
+  Standard_D64ds_v4:           *vm_pattern_non_hana_db
+  Standard_D64s_v5:            *vm_pattern_non_hana_db
+  Standard_D64ds_v5:           *vm_pattern_non_hana_db
+  Standard_D64as_v5:           *vm_pattern_non_hana_db
+  Standard_D64ads_v5:          *vm_pattern_non_hana_db
+  Standard_D64s_v6:            *vm_pattern_non_hana_db
+  Standard_D64ds_v6:           *vm_pattern_non_hana_db
+  Standard_D64as_v6:           *vm_pattern_non_hana_db
+  Standard_D64ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_D96as_v4:           *vm_pattern_non_hana_db
+  Standard_D96s_v5:            *vm_pattern_non_hana_db
+  Standard_D96ds_v5:           *vm_pattern_non_hana_db
+  Standard_D96as_v5:           *vm_pattern_non_hana_db
+  Standard_D96ads_v5:          *vm_pattern_non_hana_db
+  Standard_D96s_v6:            *vm_pattern_non_hana_db
+  Standard_D96ds_v6:           *vm_pattern_non_hana_db
+  Standard_D96as_v6:           *vm_pattern_non_hana_db
+  Standard_D96ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_D128s_v6:           *vm_pattern_non_hana_db
+  Standard_D128ds_v6:          *vm_pattern_non_hana_db
+
+  # F-series VMs
+  Standard_F2as_v6:            *vm_pattern_non_hana_db
+  Standard_F2ams_v6:           *vm_pattern_non_hana_db
+
+  Standard_F4as_v6:            *vm_pattern_non_hana_db
+  Standard_F4ams_v6:           *vm_pattern_non_hana_db
+
+  Standard_F8as_v6:            *vm_pattern_non_hana_db
+  Standard_F8ams_v6:           *vm_pattern_non_hana_db
+
+  Standard_F16as_v6:           *vm_pattern_non_hana_db
+  Standard_F16ams_v6:          *vm_pattern_non_hana_db
+
+  Standard_F32as_v6:           *vm_pattern_non_hana_db
+  Standard_F32ams_v6:          *vm_pattern_non_hana_db
+
+  Standard_F48as_v6:           *vm_pattern_non_hana_db
+  Standard_F48ams_v6:          *vm_pattern_non_hana_db
+
+  Standard_F64as_v6:           *vm_pattern_non_hana_db
+  Standard_F64ams_v6:          *vm_pattern_non_hana_db
+
+  # G-series VMs
+  Standard_GS1:                *vm_pattern_non_hana_db
+  Standard_GS2:                *vm_pattern_non_hana_db
+  Standard_GS3:                *vm_pattern_non_hana_db
+  Standard_GS4:                *vm_pattern_non_hana_db
+  Standard_GS5:                *vm_pattern_non_hana_db
+
+  # E-series VMs
+  Standard_E2s_v3:             *vm_pattern_non_hana_db
+  Standard_E2as_v4:            *vm_pattern_non_hana_db
+  Standard_E2ds_v4:            *vm_pattern_non_hana_db
+  Standard_E2s_v5:             *vm_pattern_non_hana_db_ase
+  Standard_E2ds_v5:            *vm_pattern_non_hana_db
+  Standard_E2as_v5:            *vm_pattern_non_hana_db
+  Standard_E2ads_v5:           *vm_pattern_non_hana_db
+  Standard_E2s_v6:             *vm_pattern_non_hana_db
+  Standard_E2ds_v6:            *vm_pattern_non_hana_db
+  Standard_E2as_v6:            *vm_pattern_non_hana_db
+  Standard_E2ads_v6:           *vm_pattern_non_hana_db
+
+  Standard_E4s_v3:             *vm_pattern_non_hana_db
+  Standard_E4as_v4:            *vm_pattern_non_hana_db
+  Standard_E4ds_v4:            *vm_pattern_non_hana_db
+  Standard_E4s_v5:             *vm_pattern_non_hana_db
+  Standard_E4ds_v5:            *vm_pattern_non_hana_db
+  Standard_E4as_v5:            *vm_pattern_non_hana_db
+  Standard_E4ads_v5:           *vm_pattern_non_hana_db
+  Standard_E4s_v6:             *vm_pattern_non_hana_db
+  Standard_E4ds_v6:            *vm_pattern_non_hana_db
+  Standard_E4as_v6:            *vm_pattern_non_hana_db
+  Standard_E4ads_v6:           *vm_pattern_non_hana_db
+
+  Standard_E8s_v3:             *vm_pattern_non_hana_db
+  Standard_E8as_v4:            *vm_pattern_non_hana_db
+  Standard_E8ds_v4:            *vm_pattern_non_hana_db
+  Standard_E8s_v5:             *vm_pattern_non_hana_db
+  Standard_E8ds_v5:            *vm_pattern_non_hana_db
+  Standard_E8as_v5:            *vm_pattern_non_hana_db
+  Standard_E8ads_v5:           *vm_pattern_non_hana_db
+  Standard_E8s_v6:             *vm_pattern_non_hana_db
+  Standard_E8ds_v6:            *vm_pattern_non_hana_db
+  Standard_E8as_v6:            *vm_pattern_non_hana_db
+  Standard_E8ads_v6:           *vm_pattern_non_hana_db
+
+  Standard_E16s_v3:            *vm_pattern_non_hana_db
+  Standard_E16as_v4:           *vm_pattern_non_hana_db
+  Standard_E16s_v5:            *vm_pattern_non_hana_db
+  Standard_E16ds_v4:           *vm_pattern_non_hana_db
+  Standard_E16ds_v5:           *vm_pattern_non_hana_db
+  Standard_E16as_v5:           *vm_pattern_non_hana_db
+  Standard_E16ads_v5:          *vm_pattern_non_hana_db
+  Standard_E16s_v6:            *vm_pattern_non_hana_db
+  Standard_E16ds_v6:           *vm_pattern_non_hana_db
+  Standard_E16as_v6:           *vm_pattern_non_hana_db
+  Standard_E16ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_E20s_v3:            *vm_pattern_non_hana_db
+  Standard_E20as_v4:           *vm_pattern_non_hana_db
+  Standard_E20ds_v4:           *vm_pattern_hana_ultra_log
+  Standard_E20s_v5:            *vm_pattern_hana_ultra_log_oltp
+  Standard_E20ds_v5:           *vm_pattern_hana_ultra_log_oltp
+  Standard_E20as_v5:           *vm_pattern_non_hana_db
+  Standard_E20ads_v5:          *vm_pattern_non_hana_db
+  Standard_E20s_v6:            *vm_pattern_non_hana_db
+  Standard_E20ds_v6:           *vm_pattern_non_hana_db
+  Standard_E20as_v6:           *vm_pattern_non_hana_db
+  Standard_E20ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_E32s_v3:            *vm_pattern_non_hana_db
+  Standard_E32ds_v4:           *vm_pattern_hana_ultra_log
+  Standard_E32as_v4:           *vm_pattern_non_hana_db
+  Standard_E32s_v5:            *vm_pattern_hana_ultra_log_oltp
+  Standard_E32ds_v5:           *vm_pattern_hana_ultra_log_oltp
+  Standard_E32as_v5:           *vm_pattern_non_hana_db
+  Standard_E32ads_v5:          *vm_pattern_non_hana_db
+  Standard_E32s_v6:            *vm_pattern_non_hana_db
+  Standard_E32ds_v6:           *vm_pattern_non_hana_db
+  Standard_E32as_v6:           *vm_pattern_non_hana_db
+  Standard_E32ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_E48s_v3:            *vm_pattern_non_hana_db
+  Standard_E48ds_v4:           *vm_pattern_hana_ultra_log
+  Standard_E48as_v4:           *vm_pattern_non_hana_db
+  Standard_E48s_v5:            *vm_pattern_hana_ultra_log_oltp
+  Standard_E48ds_v5:           *vm_pattern_hana_ultra_log_oltp
+  Standard_E48as_v5:           *vm_pattern_non_hana_db
+  Standard_E48ads_v5:          *vm_pattern_non_hana_db
+  Standard_E48s_v6:            *vm_pattern_non_hana_db
+  Standard_E48ds_v6:           *vm_pattern_non_hana_db
+  Standard_E48as_v6:           *vm_pattern_non_hana_db
+  Standard_E48ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_E64is_v3:           *vm_pattern_non_hana_db
+  Standard_E64as_v4:           *vm_pattern_non_hana_db
+  Standard_E64s_v3:            *vm_pattern_hana_ultra_log
+  Standard_E64ds_v4:           *vm_pattern_hana_ultra_log
+  Standard_E64s_v5:            *vm_pattern_hana_ultra_log_oltp
+  Standard_E64ds_v5:           *vm_pattern_hana_ultra_log_oltp
+  Standard_E64as_v5:           *vm_pattern_non_hana_db
+  Standard_E64ads_v5:          *vm_pattern_non_hana_db
+  Standard_E64s_v6:            *vm_pattern_non_hana_db
+  Standard_E64ds_v6:           *vm_pattern_non_hana_db
+  Standard_E64as_v6:           *vm_pattern_non_hana_db
+  Standard_E64ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_E96as_v4:           *vm_pattern_non_hana_db
+  Standard_E96s_v5:            *vm_pattern_hana_ultra_log_oltp
+  Standard_E96ds_v5:           *vm_pattern_hana_ultra_log_oltp
+  Standard_E96as_v5:           *vm_pattern_non_hana_db
+  Standard_E96ads_v5:          *vm_pattern_non_hana_db
+  Standard_E96s_v6:            *vm_pattern_non_hana_db
+  Standard_E96ds_v6:           *vm_pattern_non_hana_db
+  Standard_E96as_v6:           *vm_pattern_non_hana_db
+  Standard_E96ads_v6:          *vm_pattern_non_hana_db
+
+  Standard_E128s_v6:           *vm_pattern_non_hana_db
+  Standard_E128ds_v6:          *vm_pattern_non_hana_db
+
+  # M-series VMs
+  Standard_M8ms:               *vm_pattern_non_hana_db
+
+  Standard_M12s_v3:            *vm_pattern_non_hana_db
+  Standard_M12ds_v3:           *vm_pattern_non_hana_db
+
+  Standard_M16ms:              *vm_pattern_non_hana_db
+  Standard_M16bds_v3:          *vm_pattern_non_hana_db
+  Standard_M16bs_v3:           *vm_pattern_non_hana_db
+
+  Standard_M24s_v3:            *vm_pattern_non_hana_db
+  Standard_M24ds_v3:           *vm_pattern_non_hana_db
+
+  Standard_M32ts:              *vm_pattern_hana_premium_log
+  Standard_M32ls:              *vm_pattern_hana_premium_log
+  Standard_M32ms_v2:           *vm_pattern_hana_premium_log
+  Standard_M32dms_v2:          *vm_pattern_hana_premium_log
+  Standard_M32bds_v3:          *vm_pattern_non_hana_db
+  Standard_M32bs_v3:           *vm_pattern_non_hana_db
+
+  Standard_M48s_1_v3:          *vm_pattern_non_hana_db
+  Standard_M48ds_1_v3:         *vm_pattern_hana_premium_log_oltp
+  Standard_M48bds_v3:          *vm_pattern_hana_premium_log
+  Standard_M48bs_v3:           *vm_pattern_non_hana_db
+
+  Standard_M64ls:              *vm_pattern_hana_premium_log
+  Standard_M64s:               *vm_pattern_hana_premium_log
+  Standard_M64ms:              *vm_pattern_hana_premium_log
+  Standard_M64s_v2:            *vm_pattern_hana_premium_log
+  Standard_M64ms_v2:           *vm_pattern_hana_premium_log
+  Standard_M64ds_v2:           *vm_pattern_hana_premium_log
+  Standard_M64dms_v2:          *vm_pattern_hana_premium_log
+  Standard_M64bds_v3:          *vm_pattern_hana_premium_log
+  Standard_M64bs_v3:           *vm_pattern_non_hana_db
+  Standard_M64bds_1_v3:        *vm_pattern_hana_premium_log
+
+  Standard_M96s_1_v3:          *vm_pattern_non_hana_db
+  Standard_M96s_2_v3:          *vm_pattern_non_hana_db
+  Standard_M96ds_1_v3:         *vm_pattern_hana_olap_scale_out
+  Standard_M96ds_2_v3:         *vm_pattern_hana_premium_log_olap
+  Standard_M96ds_4_v3:         *vm_pattern_hana_olap_scale_out
+  Standard_M96bds_v3:          *vm_pattern_hana_premium_log
+  Standard_M96bs_v3:           *vm_pattern_non_hana_db
+  Standard_M96bds_1_v3:        *vm_pattern_hana_premium_log
+
+  Standard_M128s:              *vm_pattern_hana_premium_log
+  Standard_M128ms:             *vm_pattern_hana_premium_log
+  Standard_M128ms_v2:          *vm_pattern_hana_premium_log
+  Standard_M128ds_v2:          *vm_pattern_hana_premium_log
+  Standard_M128dms_v2:         *vm_pattern_hana_premium_log
+  Standard_M128s_v2:           *vm_pattern_hana_olap_scale_out
+  Standard_M128bds_v3:         *vm_pattern_hana_premium_log
+  Standard_M128bs_v3:          *vm_pattern_non_hana_db
+  Standard_M128bds_3_v3:       *vm_pattern_hana_olap_scale_out
+
+  Standard_M176s_3_v3:         *vm_pattern_non_hana_db
+  Standard_M176s_4_v3:         *vm_pattern_non_hana_db
+  Standard_M176ds_3_v3:        *vm_pattern_hana_olap_scale_out
+  Standard_M176ds_4_v3:        *vm_pattern_hana_olap_scale_out
+  Standard_M176bds_3_v3:       *vm_pattern_hana_so_premium_log
+  Standard_M176bs_3_v3:        *vm_pattern_hana_so_premium_log
+  Standard_M176bds_v3:         *vm_pattern_hana_so_premium_log
+  Standard_M176bs_v3:          *vm_pattern_non_hana_db
+  Standard_M176bds_4_v3:       *vm_pattern_hana_olap_scale_out
+
+  Standard_M208s_v2:           *vm_pattern_hana_premium_log
+  Standard_M208ms_v2:          *vm_pattern_hana_premium_log
+
+  Standard_M192is_v2:          *vm_pattern_hana_olap_scale_out
+  Standard_M192ims_v2:         *vm_pattern_hana_olap_scale_out
+  Standard_M192ids_v2:         *vm_pattern_hana_olap_scale_out
+  Standard_M192idms_v2:        *vm_pattern_hana_olap_scale_out
+
+  Standard_M416s_v2:           *vm_pattern_hana_so_premium_log
+  Standard_M416ms_v2:          *vm_pattern_hana_so_premium_log
+  Standard_M416s_8_v2:         *vm_pattern_hana_so_premium_log
+  Standard_M416s_6_v3:         *vm_pattern_hana_olap_scale_out
+  Standard_M416s_8_v3:         *vm_pattern_hana_olap_scale_out
+  Standard_M416ds_6_v3:        *vm_pattern_hana_olap_scale_out
+  Standard_M416ds_8_v3:        *vm_pattern_hana_olap_scale_out
+
+  Standard_M420ixs_v2:         *vm_pattern_hana_oltp_scale_out
+
+  Standard_M624s_12_v3:        *vm_pattern_hana_olap_scale_out
+  Standard_M624ds_12_v3:       *vm_pattern_hana_olap_scale_out
+
+  Standard_M832ixs_v2:         *vm_pattern_hana_oltp_scale_out
+  Standard_M832ixs_8_v2:       *vm_pattern_hana_oltp_scale_out
+  Standard_M832s_12_v3:        *vm_pattern_hana_olap_scale_out
+  Standard_M832s_16_v3:        *vm_pattern_hana_olap_scale_out
+  Standard_M832ds_12_v3:       *vm_pattern_hana_olap_scale_out
+  Standard_M832ds_16_v3:       *vm_pattern_hana_olap_scale_out
+  Standard_M832is_16_v3:       *vm_pattern_hana_premium_log_oltp
+  Standard_M832is_12_v3:       *vm_pattern_hana_premium_log_oltp
+  Standard_M832ids_16_v3:      *vm_pattern_hana_premium_log_oltp
+  Standard_M832ids_12_v3:      *vm_pattern_hana_premium_log_oltp
+
+  Standard_M896ixds_32_v3:     *vm_pattern_hana_premium_log
+
+  Standard_M1792ixds_32_v3:    *vm_pattern_hana_premium_log

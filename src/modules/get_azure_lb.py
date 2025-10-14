@@ -247,17 +247,17 @@ class AzureLoadBalancer(SapAutomationQA):
         parameters = []
 
         def check_parameters(entity, parameters_dict, entity_type):
-            for key, expected_value in parameters_dict.items():
+            for key, value_object in parameters_dict.items():
                 parameters.append(
                     Parameters(
                         category=entity_type,
                         id=entity["name"],
                         name=key,
                         value=str(entity[key]),
-                        expected_value=str(expected_value),
+                        expected_value=str(value_object.get("value", "")),
                         status=(
                             TestStatus.SUCCESS.value
-                            if entity[key] == expected_value
+                            if entity[key] == value_object.get("value", "")
                             else TestStatus.ERROR.value
                         ),
                     ).to_dict()
@@ -317,6 +317,12 @@ class AzureLoadBalancer(SapAutomationQA):
                 )
                 self.result["message"] += "Successfully validated load balancer parameters"
             else:
+                self.result.update(
+                    {
+                        "details": {"parameters": []},
+                        "status": TestStatus.ERROR.value,
+                    }
+                )
                 self.result["message"] += (
                     "Load Balancer details not fetched."
                     " Ensure that the Managed Identity (MSI) has sufficient permissions "
