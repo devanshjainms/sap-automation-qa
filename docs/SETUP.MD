@@ -35,13 +35,14 @@ For the framework to access the properties of the Azure Load Balancer in a high 
 1. Create user-assigned managed identity as described in [manage user-assigned managed identities](https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/how-manage-user-assigned-managed-identities?pivots=identity-mi-methods-azp#create-a-user-assigned-managed-identity)
 1. Assign user-assigned managed identity to management server as described in [configure managed identities on Azure VMs](https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/how-to-configure-managed-identities?pivots=qs-configure-portal-windows-vm#assign-a-user-assigned-managed-identity-to-an-existing-vm)
 
-**Permissiongs required for High Availability tests:**
+**Permissions required for High Availability tests:**
 1. Open the Azure Load Balancer used for the high availability deployment of your SAP system on Azure.
 1. In the Azure Load Balancer panel, go to Access control (IAM).
 1. Assign the required role to the user-assigned managed identity by following the steps in [assign roles using Azure portal](https://learn.microsoft.com/azure/role-based-access-control/role-assignments-portal).
+1. Assign the "Reader" role to the user-assigned managed identity on the resource group containing the SAP VMs and the Azure Load Balancer.
 
 **Permissions required for Configuration Checks:**
-1. "Reader" role to the user-assigned managed identity on the resource group containing the SAP VMs.
+1. "Reader" role to the user-assigned managed identity on the resource group containing the SAP VMs and the Azure Load Balancer.
 1. "Reader" role to the user-assigned managed identity on the resource group containing the Azure NetApp Files account (if using Azure NetApp Files as shared storage).
 1. "Storage Account Reader" role to the user-assigned managed identity on the resource group containing the storage account (if using Azure File Share as shared storage).
 1. "Reader" role to the user-assigned managed identity on the resource group containing the managed disks (if using Azure Managed Disks for SAP HANA data and log volumes).
