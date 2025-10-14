@@ -159,7 +159,7 @@ checks:
       user:                             *root
     validator_type:                     *list
     validator_args:
-      expected_output:                  ["reboot", "stonith-action=reboot"]
+      valid_list:                       ["reboot", "stonith-action=reboot"]
     report:                             *check
 
   - id:                                 "DB-HANA-0006"
