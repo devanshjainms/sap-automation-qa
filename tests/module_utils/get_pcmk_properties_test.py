@@ -31,6 +31,7 @@ DUMMY_XML_CRM = """<crm_config>
     <nvpair name="stonith-enabled" value="true"/>
     <nvpair name="cluster-name" value="hdb_HDB"/>
     <nvpair name="maintenance-mode" value="false"/>
+    <nvpair name="stonith-timeout" value="900"/>
   </cluster_property_set>
 </crm_config>"""
 
@@ -91,8 +92,12 @@ DUMMY_CONSTANTS = {
         "REDHAT": {
             "stonith-enabled": {"value": "true", "required": False},
             "cluster-name": {"value": "hdb_HDB", "required": False},
+            "stonith-timeout": {"value": "900", "required": False},
         },
-        "azure-fence-agent": {"priority": {"value": "10", "required": False}},
+        "azure-fence-agent": {
+            "priority": {"value": "10", "required": False},
+            "stonith-timeout": {"value": "210", "required": False},
+        },
         "sbd": {"pcmk_delay_max": {"value": "30", "required": False}},
     },
     "RSC_DEFAULTS": {
@@ -276,8 +281,8 @@ class TestBaseHAClusterValidator:
         Test _get_expected_value method with fence configuration.
         """
         validator.fencing_mechanism = "azure-fence-agent"
-        expected = validator._get_expected_value("crm_config", "priority")
-        assert expected == ("10", False)
+        expected = validator._get_expected_value("crm_config", "stonith-timeout")
+        assert expected == ("210", False)
 
     def test_get_resource_expected_value_instance_attributes(self, validator):
         """
@@ -444,9 +449,12 @@ class TestBaseHAClusterValidator:
             ".//primitive[@type='NonExistent']"
         )
         validator._check_required_resources()
-        assert (
-            "Required resource required_missing_resource" in validator.result["message"]
-            and "not found in pacemaker cluster configuration" in validator.result["message"]
+
+        # Check that missing resource was tracked
+        assert len(validator.missing_required_items) > 0
+        assert any(
+            item["type"] == "resource" and item["name"] == "required_missing_resource"
+            for item in validator.missing_required_items
         )
         assert validator.result["status"] == TestStatus.WARNING.value
 

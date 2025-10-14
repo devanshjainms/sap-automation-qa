@@ -19,6 +19,9 @@ CRM_CONFIG_DEFAULTS:
   stonith-enabled:
     value:                          "true"
     required:                       false
+  stonith-timeout:
+    value:                          ["210", "210s"]
+    required:                       false
   concurrent-fencing:
     value:                          "true"
     required:                       false
