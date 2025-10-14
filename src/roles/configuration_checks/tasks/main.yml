@@ -45,9 +45,9 @@
 
 - name:                             "{{ check_type.name }} - Execute HA and Load Balancer module when high_availability checks to be run"
   ansible.builtin.include_tasks:    ha_modules.yml
-  when:                             >-
-                                    check_type.file_name == "high_availability" and
-                                    role in ['SCS', 'ERS', 'DB']
+  when:
+                                    - check_type.file_name == "high_availability"
+                                    - role in ['SCS', 'ERS', 'DB']
 
 - name:                             "{{ check_type.name }} - Prepare system context information"
   ansible.builtin.set_fact:

@@ -98,7 +98,11 @@
         verbosity:                      1
 
     - name:                             Collect ANF storage data if NFS is used
-      when:                             NFS_provider is defined and 'ANF' in NFS_provider and ANF_account_rg is defined and ANF_account_name is defined
+      when:
+                                        - NFS_provider is defined
+                                        - "'ANF' in NFS_provider"
+                                        - ANF_account_rg is defined
+                                        - ANF_account_name is defined
       register:                         anf_storage_metadata_results
       delegate_to:                      localhost
       ansible.builtin.shell:
