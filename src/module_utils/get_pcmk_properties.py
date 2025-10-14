@@ -11,16 +11,17 @@ Classes:
     BaseHAClusterValidator: Base validator class for cluster configurations.
 """
 
+import logging
 from abc import ABC
 
 try:
     from ansible.module_utils.sap_automation_qa import SapAutomationQA
     from ansible.module_utils.enums import OperatingSystemFamily, Parameters, TestStatus
-    from ansible.module_utils.commands import CIB_ADMIN
+    from ansible.module_utils.commands import CIB_ADMIN, RECOMMENDATION_MESSAGES
 except ImportError:
     from src.module_utils.sap_automation_qa import SapAutomationQA
     from src.module_utils.enums import OperatingSystemFamily, Parameters, TestStatus
-    from src.module_utils.commands import CIB_ADMIN
+    from src.module_utils.commands import CIB_ADMIN, RECOMMENDATION_MESSAGES
 
 
 class BaseHAClusterValidator(SapAutomationQA, ABC):
@@ -79,6 +80,7 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         self.fencing_mechanism = fencing_mechanism
         self.constants = constants
         self.cib_output = cib_output
+        self.missing_required_items = []
 
     def _get_expected_value(self, category, name):
         """
@@ -190,6 +192,15 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
 
         status = self._determine_parameter_status(value, expected_config)
 
+        if status == TestStatus.WARNING.value and not value:
+            self._handle_missing_required_parameter(
+                expected_config=expected_config,
+                name=name,
+                category=category,
+                subcategory=subcategory,
+                op_name=op_name,
+            )
+
         display_expected_value = None
         if expected_config is None:
             display_expected_value = ""
@@ -288,6 +299,47 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                 if str(value) == str(expected_value)
                 else TestStatus.ERROR.value
             )
+
+    def _handle_missing_required_parameter(
+        self, expected_config, name, category, subcategory=None, op_name=None
+    ):
+        """
+        Handle warnings for missing required parameters.
+        Logs warning message and updates result when a required parameter has no value.
+
+        :param expected_config: The expected configuration (tuple or dict)
+        :type expected_config: tuple or dict
+        :param name: The parameter name
+        :type name: str
+        :param category: The parameter category
+        :type category: str
+        :param subcategory: The parameter subcategory, defaults to None
+        :type subcategory: str, optional
+        :param op_name: The operation name (if applicable), defaults to None
+        :type op_name: str, optional
+        """
+        is_required = False
+        if isinstance(expected_config, tuple) and len(expected_config) == 2:
+            is_required = expected_config[1]
+        elif isinstance(expected_config, dict):
+            is_required = expected_config.get("required", False)
+
+        if is_required:
+            param_display_name = f"{op_name}_{name}" if op_name else name
+            category_display = f"{category}_{subcategory}" if subcategory else category
+            self.missing_required_items.append(
+                {
+                    "type": "parameter",
+                    "name": name,
+                    "display_name": param_display_name,
+                    "category": category_display,
+                }
+            )
+            warning_msg = (
+                f"Required parameter '{param_display_name}' in category '{category_display}' "
+                + "has no value configured."
+            )
+            self.log(logging.WARNING, warning_msg)
 
     def _parse_nvpair_elements(self, elements, category, subcategory=None, op_name=None):
         """
@@ -511,6 +563,8 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
             overall_status = TestStatus.ERROR.value
         elif warning_parameters:
             overall_status = TestStatus.WARNING.value
+        elif self.result.get("status") == TestStatus.WARNING.value:
+            overall_status = TestStatus.WARNING.value
         else:
             overall_status = TestStatus.SUCCESS.value
 
@@ -520,7 +574,10 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                 "status": overall_status,
             }
         )
-        self.result["message"] += "HA Parameter Validation completed successfully. "
+        self.result["message"] += "HA parameter validation completed successfully. "
+        recommendation_message = self._generate_recommendation_message()
+        if recommendation_message:
+            self.result["message"] += recommendation_message
 
     def _validate_basic_constants(self, category):
         """
@@ -617,6 +674,72 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
         :rtype: list
         """
         return []
+
+    def _check_required_resources(self):
+        """
+        Check if required resources are present in the cluster.
+        Adds warnings to result message for missing required resources.
+        """
+        if "RESOURCE_DEFAULTS" not in self.constants:
+            return
+
+        try:
+            if self.cib_output:
+                resource_scope = self._get_scope_from_cib("resources")
+            else:
+                resource_scope = self.parse_xml_output(
+                    self.execute_command_subprocess(CIB_ADMIN(scope="resources"))
+                )
+            if resource_scope is None:
+                return
+
+            for resource_type, resource_config in (
+                self.constants["RESOURCE_DEFAULTS"].get(self.os_type, {}).items()
+            ):
+                if not isinstance(resource_config, dict):
+                    continue
+                if resource_config.get("required", False):
+                    if resource_type in self.RESOURCE_CATEGORIES:
+                        xpath = self.RESOURCE_CATEGORIES[resource_type]
+                        elements = resource_scope.findall(xpath)
+                        if not elements:
+                            self.missing_required_items.append(
+                                {"type": "resource", "name": resource_type, "xpath": xpath}
+                            )
+                            self.result["status"] = TestStatus.WARNING.value
+        except Exception as ex:
+            self.result["message"] += f"Error checking required resources: {str(ex)} "
+
+    def _generate_recommendation_message(self):
+        """
+        Generate recommendation message based on missing required items.
+        Uses centralized RECOMMENDATION_MESSAGES dictionary for consistent messaging.
+
+        :return: Formatted recommendation message
+        :rtype: str
+        """
+        recommendations = []
+
+        for item in self.missing_required_items:
+            if item["name"] in RECOMMENDATION_MESSAGES:
+                recommendations.append(RECOMMENDATION_MESSAGES[item["name"]])
+            else:
+                if item["type"] == "parameter":
+                    recommendations.append(
+                        f"The '{item['display_name']}' parameter in category "
+                        f"'{item['category']}' is not configured."
+                    )
+                elif item["type"] == "resource":
+                    recommendations.append(
+                        f"The required resource '{item['name']}' is not found in cluster config."
+                    )
+
+        if recommendations:
+            recommendation_header = "\n\nRecommendation for warnings:\n"
+            recommendation_body = "\n".join(recommendations)
+            return recommendation_header + recommendation_body
+
+        return ""
 
     def _validate_constraint_constants(self):
         """

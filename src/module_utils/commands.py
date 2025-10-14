@@ -71,3 +71,21 @@ DANGEROUS_COMMANDS = [
     r"sudo\s+rm",
     r"rm\s+-rf",
 ]
+
+RECOMMENDATION_MESSAGES = {
+    "priority-fencing-delay": (
+        "The 'priority-fencing-delay' setting is not configured. "
+        "In a two-node cluster, configure priority-fencing-delay to enhance the "
+        "highest-priority node's survival odds during a fence race condition. "
+        "For more details on the setup, check official cluster pacemaker configuration "
+        "documentation in learn.microsoft.com"
+    ),
+    "azureevents": (
+        "The Azure scheduled events resource is not configured. "
+        "It is advised to setup this agent in your cluster to monitor the Instance Metadata "
+        "Service (IMDS) for platform maintenance events, allowing it to proactively drain "
+        "resources or initiate a clean failover before Azure maintenance impacts the node. "
+        "For more details on the setup, check official cluster pacemaker configuration "
+        "documentation in learn.microsoft.com"
+    ),
+}

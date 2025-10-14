@@ -224,6 +224,7 @@ class HAClusterValidator(BaseHAClusterValidator):
         """
         Resource validation with SCS-specific logic and offline validation support.
         Validates resource constants by iterating through expected parameters.
+        Also checks for required resources.
 
         :return: A list of parameter dictionaries
         :rtype: list
@@ -240,6 +241,7 @@ class HAClusterValidator(BaseHAClusterValidator):
 
             if resource_scope is not None:
                 parameters.extend(self._parse_resources_section(resource_scope))
+            self._check_required_resources()
 
         except Exception as ex:
             self.result["message"] += f"Error validating resource constants: {str(ex)} "
