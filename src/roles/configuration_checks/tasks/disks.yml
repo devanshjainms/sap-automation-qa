@@ -63,7 +63,9 @@
                                           | map('split', ':')
                                           | map('list'))
                                         }}
-      when:                             device_lun_mapping_raw is defined and device_lun_mapping_raw.stdout_lines | length > 0
+      when:
+                                        - device_lun_mapping_raw is defined
+                                        - device_lun_mapping_raw.stdout_lines | length > 0
 
     - name:                             Set empty device_lun_map if no mapping found
       ansible.builtin.set_fact:
@@ -76,12 +78,16 @@
         verbosity:                      1
 
     - name:                             Extract disk names
-      when:                             disks_metadata is not failed and disks_metadata.json is defined
+      when:
+                                        - disks_metadata is not failed
+                                        - disks_metadata.json is defined
       ansible.builtin.set_fact:
         azure_disk_names:               "{{ disks_metadata.json | map(attribute='name') | list }}"
 
     - name:                             Collect detailed azure disks data (loop per disk defined in azure_disk_names)
-      when:                             azure_disk_names is defined and azure_disk_names | length > 0
+      when:
+                                        - azure_disk_names is defined
+                                        - azure_disk_names | length > 0
       register:                         azure_disks_metadata_results
       loop:                             "{{ azure_disk_names }}"
       delegate_to:                      localhost
@@ -148,7 +154,9 @@
         verbosity:                      1
 
     - name:                             Collect AFS storage data if NFS is used
-      when:                             NFS_provider is defined and 'AFS' in NFS_provider
+      when:
+                                        - NFS_provider is defined
+                                        - "'AFS' in NFS_provider"
       register:                         afs_storage_metadata_results
       delegate_to:                      localhost
       ansible.builtin.shell:

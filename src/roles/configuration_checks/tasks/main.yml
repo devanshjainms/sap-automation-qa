@@ -124,7 +124,9 @@
   when:                             command_checks is defined or azure_checks is defined or module_checks is defined
 
 - name:                             "{{ check_type.name }} - Execute command-based configuration checks"
-  when:                             command_checks is defined and command_checks | length > 0
+  when:
+                                    - command_checks is defined
+                                    - command_checks | length > 0
   block:
     - name:                         "{{ check_type.name }} - Run command-based configuration checks"
       become:                       true
@@ -147,13 +149,17 @@
         msg:                        "Command-based configuration checks failed {{ command_check_results.msg }}"
 
 - name:                             "{{ check_type.name }} - Debug the logs from configuration check python module"
-  when:                             command_check_results is defined and command_check_results.log is defined
+  when:
+                                    - command_check_results is defined
+                                    - command_check_results.log is defined
   ansible.builtin.debug:
     msg:                            "{{ command_check_results.log }}"
     verbosity:                      1
 
 - name:                             "{{ check_type.name }} - Execute Azure-based configuration checks"
-  when:                             azure_checks is defined and azure_checks | length > 0
+  when:
+                                    - azure_checks is defined
+                                    - azure_checks | length > 0
   block:
     - name:                         Run Azure-based configuration checks
       become:                       true
@@ -177,13 +183,17 @@
         msg:                        "Azure-based configuration checks failed but continuing {{ azure_check_results.msg }}"
 
 - name:                             "{{ check_type.name }} - Debug the formatted filesystem info from configuration check python module"
-  when:                             azure_check_results is defined and azure_check_results.formatted_filesystem_info is defined
+  when:
+                                    - azure_check_results is defined
+                                    - azure_check_results.formatted_filesystem_info is defined
   ansible.builtin.debug:
     msg:                            "{{ azure_check_results.formatted_filesystem_info }}"
     verbosity:                      1
 
 - name:                             "{{ check_type.name }} - Execute module-based configuration checks"
-  when:                             module_checks is defined and module_checks | length > 0
+  when:
+                                    - module_checks is defined
+                                    - module_checks | length > 0
   block:
     - name:                         Run module-based configuration checks
       become:                       true
@@ -206,7 +216,9 @@
         msg:                        "Module-based configuration checks failed but continuing {{ module_check_results.msg }}"
 
 - name:                             "{{ check_type.name }} - Debug the module check results"
-  when:                             module_check_results is defined and module_check_results.check_results is defined
+  when:
+                                    - module_check_results is defined
+                                    - module_check_results.check_results is defined
   ansible.builtin.debug:
     msg:                            "Module checks: {{ module_check_results.check_results | length }} results"
     verbosity:                      1
