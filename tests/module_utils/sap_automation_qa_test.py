@@ -178,7 +178,7 @@ class TestSapAutomationQA:
                 "src.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
             )
             sap_qa = SapAutomationQA()
-            
+
             command = "echo 'Hello World'"
             result = sap_qa.execute_command_subprocess(command, shell_command=True)
             assert "Hello World" in result
