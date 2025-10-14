@@ -438,7 +438,6 @@
             const fixedJsonString = jsonString
               .replace(/False/g, 'false')
               .replace(/True/g, 'true')
-              .replace(/\\n/g, '')
               .replace(/None/g, 'null')
               .replace(/'([^']+)'(?=\s*:)/g, '"$1"')
               .replace(/:\s*'([^']*)'(?=\s*[,\}])/g, function (match, value) {
