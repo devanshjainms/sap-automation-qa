@@ -190,22 +190,15 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                 expected_config = (expected_value, False)
 
         status = self._determine_parameter_status(value, expected_config)
-        if status == TestStatus.WARNING.value and (not value or value == ""):
-            is_required = False
-            if isinstance(expected_config, tuple) and len(expected_config) == 2:
-                is_required = expected_config[1]
-            elif isinstance(expected_config, dict):
-                is_required = expected_config.get("required", False)
-            
-            if is_required:
-                param_display_name = f"{op_name}_{name}" if op_name else name
-                category_display = f"{category}_{subcategory}" if subcategory else category
-                warning_msg = (
-                    f"Required parameter '{param_display_name}' in category '{category_display}' "
-                    + "has no value configured.\n"
-                )
-                self.result["message"] += warning_msg
-                self.log(logging.WARNING, warning_msg)
+
+        if status == TestStatus.WARNING.value and not value:
+            self._handle_missing_required_parameter(
+                expected_config=expected_config,
+                name=name,
+                category=category,
+                subcategory=subcategory,
+                op_name=op_name,
+            )
 
         display_expected_value = None
         if expected_config is None:
@@ -305,6 +298,40 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                 if str(value) == str(expected_value)
                 else TestStatus.ERROR.value
             )
+
+    def _handle_missing_required_parameter(
+        self, expected_config, name, category, subcategory=None, op_name=None
+    ):
+        """
+        Handle warnings for missing required parameters.
+        Logs warning message and updates result when a required parameter has no value.
+
+        :param expected_config: The expected configuration (tuple or dict)
+        :type expected_config: tuple or dict
+        :param name: The parameter name
+        :type name: str
+        :param category: The parameter category
+        :type category: str
+        :param subcategory: The parameter subcategory, defaults to None
+        :type subcategory: str, optional
+        :param op_name: The operation name (if applicable), defaults to None
+        :type op_name: str, optional
+        """
+        is_required = False
+        if isinstance(expected_config, tuple) and len(expected_config) == 2:
+            is_required = expected_config[1]
+        elif isinstance(expected_config, dict):
+            is_required = expected_config.get("required", False)
+
+        if is_required:
+            param_display_name = f"{op_name}_{name}" if op_name else name
+            category_display = f"{category}_{subcategory}" if subcategory else category
+            warning_msg = (
+                f"Required parameter '{param_display_name}' in category '{category_display}' "
+                + "has no value configured.\n"
+            )
+            self.result["message"] += warning_msg
+            self.log(logging.WARNING, warning_msg)
 
     def _parse_nvpair_elements(self, elements, category, subcategory=None, op_name=None):
         """
