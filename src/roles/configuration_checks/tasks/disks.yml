@@ -42,6 +42,7 @@
     - name:                             Collect device-to-lun mapping from Azure symlinks
       ansible.builtin.shell:
         cmd: |
+                                        set -o pipefail
                                         for lun_link in /dev/disk/azure/scsi1/lun*; do
                                           if [ -L "$lun_link" ]; then
                                             lun=$(basename "$lun_link" | sed 's/lun//')
@@ -100,6 +101,7 @@
       register:                         anf_storage_metadata_results
       delegate_to:                      localhost
       ansible.builtin.shell: |
+                                        set -o pipefail
                                         printf "["
                                         first=true
                                         for pool in $(az netappfiles pool list \
@@ -143,6 +145,7 @@
       register:                         afs_storage_metadata_results
       delegate_to:                      localhost
       ansible.builtin.shell: |
+                                        set -o pipefail
                                         for sa in $(az storage account list \
                                           --query "[?kind=='FileStorage'].{rg:resourceGroup,name:name,id:id}" \
                                           -o tsv | awk '{print $1":"$2":"$3}'); do rg=$(echo $sa | cut -d: -f1); \
