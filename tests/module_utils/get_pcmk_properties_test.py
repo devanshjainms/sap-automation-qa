@@ -31,6 +31,7 @@ DUMMY_XML_CRM = """<crm_config>
     <nvpair name="stonith-enabled" value="true"/>
     <nvpair name="cluster-name" value="hdb_HDB"/>
     <nvpair name="maintenance-mode" value="false"/>
+    <nvpair name="stonith-timeout" value="900"/>
   </cluster_property_set>
 </crm_config>"""
 
@@ -91,8 +92,12 @@ DUMMY_CONSTANTS = {
         "REDHAT": {
             "stonith-enabled": {"value": "true", "required": False},
             "cluster-name": {"value": "hdb_HDB", "required": False},
+            "stonith-timeout": {"value": "900", "required": False},
         },
-        "azure-fence-agent": {"priority": {"value": "10", "required": False}},
+        "azure-fence-agent": {
+            "priority": {"value": "10", "required": False},
+            "stonith-timeout": {"value": "210", "required": False},
+        },
         "sbd": {"pcmk_delay_max": {"value": "30", "required": False}},
     },
     "RSC_DEFAULTS": {
@@ -223,10 +228,12 @@ class TestBaseHAClusterValidator:
             Mock function to replace execute_command_subprocess.
             """
             command = args[0] if args else kwargs.get("command", [])
+            if not command or not isinstance(command, (list, str)):
+                return ""
             command_str = " ".join(command) if isinstance(command, list) else str(command)
             if "sysctl" in command_str:
                 return DUMMY_OS_COMMAND
-            if len(command) >= 2 and command[-1] in mock_xml_outputs:
+            if isinstance(command, list) and len(command) >= 2 and command[-1] in mock_xml_outputs:
                 return mock_xml_outputs[command[-1]]
             return ""
 
@@ -274,8 +281,8 @@ class TestBaseHAClusterValidator:
         Test _get_expected_value method with fence configuration.
         """
         validator.fencing_mechanism = "azure-fence-agent"
-        expected = validator._get_expected_value("crm_config", "priority")
-        assert expected == ("10", False)
+        expected = validator._get_expected_value("crm_config", "stonith-timeout")
+        assert expected == ("210", False)
 
     def test_get_resource_expected_value_instance_attributes(self, validator):
         """
@@ -429,3 +436,61 @@ class TestBaseHAClusterValidator:
         """
         scope_element = validator_with_cib._get_scope_from_cib("invalid_scope")
         assert scope_element is None
+
+    def test_check_required_resources_missing(self, validator):
+        """
+        Test _check_required_resources method when required resource is missing.
+        """
+        validator.constants["RESOURCE_DEFAULTS"]["REDHAT"]["required_missing_resource"] = {
+            "required": True,
+            "meta_attributes": {},
+        }
+        validator.RESOURCE_CATEGORIES["required_missing_resource"] = (
+            ".//primitive[@type='NonExistent']"
+        )
+        validator._check_required_resources()
+
+        # Check that missing resource was tracked
+        assert len(validator.missing_required_items) > 0
+        assert any(
+            item["type"] == "resource" and item["name"] == "required_missing_resource"
+            for item in validator.missing_required_items
+        )
+        assert validator.result["status"] == TestStatus.WARNING.value
+
+    def test_check_required_resources_present(self, validator):
+        """
+        Test _check_required_resources method when required resource is present.
+        Uses CIB output to avoid command execution for more reliable testing.
+        """
+        constants = DUMMY_CONSTANTS.copy()
+        constants["RESOURCE_DEFAULTS"] = {
+            "REDHAT": {"sbd_stonith": {"required": True, "meta_attributes": {}}}
+        }
+
+        validator_with_cib = TestableBaseHAClusterValidator(
+            os_type=OperatingSystemFamily.REDHAT,
+            sid="HDB",
+            virtual_machine_name="vmname",
+            constants=constants,
+            fencing_mechanism="sbd",
+            cib_output=DUMMY_XML_FULL_CIB,
+        )
+        validator_with_cib._check_required_resources()
+        assert (
+            "Required resource 'sbd_stonith' not found" not in validator_with_cib.result["message"]
+        )
+
+    def test_check_required_resources_optional(self, validator):
+        """
+        Test _check_required_resources method with optional resource missing.
+        """
+        validator.constants["RESOURCE_DEFAULTS"]["REDHAT"]["optional_resource"] = {
+            "required": False,
+            "meta_attributes": {},
+        }
+        validator.RESOURCE_CATEGORIES["optional_resource"] = ".//primitive[@type='NonExistent']"
+
+        initial_message = validator.result["message"]
+        validator._check_required_resources()
+        assert "Required resource 'optional_resource'" not in validator.result["message"]
