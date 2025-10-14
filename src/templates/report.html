@@ -228,6 +228,11 @@
         background-color: #ddd;
       }
 
+      .test-message {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+
       /* Legend Styles */
       .legend {
         position: absolute;
@@ -397,7 +402,7 @@
                 {% endif %}
                 <tr>
                   <th>Message</th>
-                  <td>{{ test_case_result.TestCaseMessage }}</td>
+                  <td class="test-message">{{ test_case_result.TestCaseMessage }}</td>
                 </tr>
                 {% if test_case_result.PackageVersions %}
                 <tr>
@@ -510,9 +515,24 @@
         const messages = document.getElementsByClassName('newlinemessages')
         for (let message of messages) {
           try {
-            message.innerHTML = JSON.parse(message.textContent.trim().replace(/\\n/g, '').replace(/'/g, '"')).join('<br>')
+            message.innerHTML = JSON.parse(message.textContent.trim().replace(/'/g, '"')).join('<br>')
           } catch (error) {
             console.error('Error formatting messages:', error)
+          }
+        }
+      }
+
+      // Function to format test case messages (preserve newlines)
+      function formatTestMessages() {
+        const messages = document.getElementsByClassName('test-message')
+        for (let message of messages) {
+          try {
+            let text = message.textContent
+            text = text.replace(/\\n/g, '\n')
+            text = text.replace(/^["']|["']$/g, '')
+            message.textContent = text
+          } catch (error) {
+            console.error('Error formatting test message:', error)
           }
         }
       }
@@ -729,6 +749,7 @@
       }
       formatJsonObjects()
       formatNewLineMessages()
+      formatTestMessages()
       formatPackageList()
       parseClusterData()
       document.addEventListener('DOMContentLoaded', () => {
