@@ -106,34 +106,41 @@
     - name:                             Check if any NFS filesystem is mounted
       ansible.builtin.set_fact:
         has_nfs_mounts:                 "{{ mount_info.stdout_lines | select('search', '\\snfs[34]?\\s') | list | length > 0 }}"
- 
-    - name:                             Check for AFS usage in mount_info, looking for file.core.windows.net
-      when:                             has_nfs_mounts | bool
-      ansible.builtin.set_fact:
-        afs_storage_accounts:           "{{ mount_info.stdout_lines
-                                          | select('search', 'file\\.core\\.windows\\.net') 
-                                          | map('regex_search', '([a-z0-9]+)\\.file\\.core\\.windows\\.net') 
-                                          | select('string') 
-                                          | list 
-                                          | unique }}"
-    - name:                             Debug AFS storage accounts found
-      when:                             afs_storage_accounts is defined
-      ansible.builtin.debug:
-        var:                            afs_storage_accounts
 
     - name:                             Check for ANF usage in mount_info, looking for IP addresses
       when:                             has_nfs_mounts | bool
       ansible.builtin.set_fact:
-        anf_storage_accounts:           "{{ mount_info.stdout_lines
-                                          | select('search', '^(\\d{1,3}\\.){3}\\d{1,3}:') 
-                                          | map('regex_search', '^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):') 
-                                          | select('string') 
+        anf_ip_addresses:               "{{ mount_info.stdout_lines
+                                          | map('split', ' ')
+                                          | map('list')
+                                          | selectattr('1', 'defined')
+                                          | map(attribute='1')
+                                          | select('match', '^(\\d{1,3}\\.){3}\\d{1,3}:')
+                                          | map('regex_replace', '^((\\d{1,3}\\.){3}\\d{1,3}):.*', '\\1')
                                           | list 
                                           | unique }}"
-    - name:                             Debug ANF storage accounts found
-      when:                             anf_storage_accounts is defined
+    - name:                             Debug ANF IP addresses found
+      when:                             anf_ip_addresses is defined
       ansible.builtin.debug:
-        var:                            anf_storage_accounts
+        var:                            anf_ip_addresses
+
+    - name:                             Check for AFS usage in mount_info, looking for storage account names
+      when:                             has_nfs_mounts | bool
+      ansible.builtin.set_fact:
+        afs_storage_accounts:           "{{ mount_info.stdout_lines
+                                          | map('split', ' ')
+                                          | map('list')
+                                          | selectattr('1', 'defined')
+                                          | map(attribute='1')
+                                          | select('match', '^[^.]+\\.file\\.core\\.windows\\.net:')
+                                          | map('regex_replace', '^([^.]+)\\.file\\.core\\.windows\\.net:.*', '\\1')
+                                          | list 
+                                          | unique }}"
+
+    - name:                             Debug AFS storage account names found
+      when:                             afs_storage_accounts is defined
+      ansible.builtin.debug:
+        var:                            afs_storage_accounts
 
     - name:                             Collect ANF storage data if NFS is used
       when:
