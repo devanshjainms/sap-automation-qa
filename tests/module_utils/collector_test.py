@@ -146,9 +146,11 @@ class TestCommandCollector:
         """
         parent = MockParent()
         collector = CommandCollector(parent)
-        monkeypatch.setattr(
-            parent, "execute_command_subprocess", Mock(side_effect=Exception("Command failed"))
-        )
+
+        def mock_execute_failing(command: str, shell_command: bool = True) -> str:
+            raise Exception("Command failed")
+
+        monkeypatch.setattr(parent, "execute_command_subprocess", mock_execute_failing)
         result = collector.collect(MockCheck({"command": "failing_command", "shell": True}), {})
         assert "ERROR: Command execution failed" in result
         assert len(parent.errors) == 1
@@ -478,6 +480,7 @@ class TestModuleCollector:
             {"test_data": {"result": "success"}},
         )
         assert result == {"result": "success"}
+
         # Test collecting module data using default context key mapping
         result = ModuleCollector(MockParent()).collect(
             MockCheck({"module_name": "get_pcmk_properties_db"}),
