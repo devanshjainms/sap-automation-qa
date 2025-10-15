@@ -95,7 +95,7 @@
                                         az disk show --name {{ item }} \
                                         --subscription {{ compute_metadata.json.compute.subscriptionId }} \
                                         --resource-group {{ compute_metadata.json.compute.resourceGroupName }} \
-                                        --query "{name:name, sku:sku.name, size:sizeGb, encryption:encryption.type, iops:diskIOPSReadWrite, mbps:diskMBpsReadWrite, size:diskSizeGB}" --output json
+                                        --query "{name:name, sku:sku.name, size:sizeGb, encryption:encryption.type, iops:diskIOPSReadWrite, mbps:diskMBpsReadWrite, size:diskSizeGB, tier:tier}" --output json
 
     - name:                             Debug azure disks data collected
       when:                             azure_disks_metadata_results is defined

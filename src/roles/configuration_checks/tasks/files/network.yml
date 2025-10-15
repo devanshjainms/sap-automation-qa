@@ -130,7 +130,7 @@ checks:
                                         --vm-name {{ CONTEXT.vm_name }} \
                                         --subscription {{ CONTEXT.subscription_id }} \
                                         --query "[].id" -o tsv | xargs -I {} basename {}
-    report:                           *table
+    report:                           *check
 
   - id:                               "NET-0003"
     name:                             "Subnet"
@@ -151,7 +151,7 @@ checks:
                                           az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
                                           --query "ipConfigurations[].subnet.id" -o tsv | xargs -I {} basename {}; \
                                         done
-    report:                           *table
+    report:                           *check
 
   - id:                               "NET-0004"
     name:                             "Accelerated Networking"
@@ -173,7 +173,7 @@ checks:
                                           --query "enableAcceleratedNetworking" -o tsv); \
                                           echo "$status"; \
                                         done
-    report:                           *table
+    report:                           *check
 
   - id:                               "NET-0005"
     name:                             "No of IP configurations"
@@ -195,7 +195,7 @@ checks:
                                           --query "ipConfigurations | length(@)" -o tsv); \
                                           echo "$nic: $count"; \
                                         done
-    report:                           *table
+    report:                           *check
 
   - id:                               "NET-0006"
     name:                             "IP Details"
@@ -216,4 +216,4 @@ checks:
                                           az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
                                           --query "ipConfigurations[].privateIPAddress" -o table; \
                                         done
-    report:                           *table
+    report:                           *check
