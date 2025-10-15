@@ -55,6 +55,7 @@
       check_type:                   "{{ check_type }}"
       vm_name:                      "{{ compute_metadata.json.compute.name }}"
       resource_group_name:          "{{ compute_metadata.json.compute.resourceGroupName }}"
+      subscription_id:              "{{ compute_metadata.json.compute.subscriptionId | default('unknown') }}"
       supported_configurations:     "{{ vm_support }}"
       hostname:                     "{{ inventory_hostname }}"
       os_type:                      "{{ ansible_distribution | upper }}"

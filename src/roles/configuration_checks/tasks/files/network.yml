@@ -105,17 +105,13 @@ checks:
     severity:                         *info
     workload:                         *workload
     applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
-      os_version:                     *all_versions
       hardware_type:                  *vm
-      role:                           *role
-      database_type:                  *db
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                        az vm nic list --resource-group {{ resource_group }} \
-                                        --vm-name {{ compute_metadata.json.compute.name }} \
-                                        --subscription {{ compute_metadata.json.compute.subscriptionId }} \
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
                                         --query "[].{Name:id}" -o tsv | wc -l
     report:                           *check
 
@@ -126,17 +122,13 @@ checks:
     severity:                         *info
     workload:                         *workload
     applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
-      os_version:                     *all_versions
       hardware_type:                  *vm
-      role:                           *role
-      database_type:                  *db
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                        az vm nic list --resource-group {{ compute_metadata.json.compute.resourceGroup }} \
-                                        --vm-name {{ compute_metadata.json.compute.name }} \
-                                        --subscription {{ compute_metadata.json.compute.subscriptionId }} \
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
                                         --query "[].id" -o tsv | xargs -I {} basename {}
     report:                           *table
 
@@ -147,20 +139,16 @@ checks:
     severity:                         *info
     workload:                         *workload
     applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
-      os_version:                     *all_versions
       hardware_type:                  *vm
-      role:                           *role
-      database_type:                  *db
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                        az vm nic list --resource-group {{ compute_metadata.json.compute.resourceGroup }} \
-                                        --vm-name {{ compute_metadata.json.compute.name }} \
-                                        --subscription {{ compute_metadata.json.compute.subscriptionId }} \
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
                                         --query "[].id" -o tsv | while read nic_id; do \
                                           nic=$(basename "$nic_id"); \
-                                          az network nic show --resource-group {{ compute_metadata.json.compute.resourceGroup }} --name "$nic" \
+                                          az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
                                           --query "ipConfigurations[].subnet.id" -o tsv | xargs -I {} basename {}; \
                                         done
     report:                           *table
@@ -172,20 +160,16 @@ checks:
     severity:                         *warning
     workload:                         *workload
     applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
-      os_version:                     *all_versions
       hardware_type:                  *vm
-      role:                           *role
-      database_type:                  *db
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                        az vm nic list --resource-group {{ compute_metadata.json.compute.resourceGroup }} \
-                                        --vm-name {{ compute_metadata.json.compute.name }} \
-                                        --subscription {{ compute_metadata.json.compute.subscriptionId }} \
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
                                         --query "[].id" -o tsv | while read nic_id; do \
                                           nic=$(basename "$nic_id"); \
-                                          status=$(az network nic show --resource-group {{ compute_metadata.json.compute.resourceGroup }} --name "$nic" \
+                                          status=$(az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
                                           --query "enableAcceleratedNetworking" -o tsv); \
                                           echo "$status"; \
                                         done
@@ -198,20 +182,16 @@ checks:
     severity:                         *info
     workload:                         *workload
     applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
-      os_version:                     *all_versions
       hardware_type:                  *vm
-      role:                           *role
-      database_type:                  *db
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                        az vm nic list --resource-group {{ compute_metadata.json.compute.resourceGroup }} \
-                                        --vm-name {{ compute_metadata.json.compute.name }} \
-                                        --subscription {{ compute_metadata.json.compute.subscriptionId }} \
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
                                         --query "[].id" -o tsv | while read nic_id; do \
                                           nic=$(basename "$nic_id"); \
-                                          count=$(az network nic show --resource-group {{ compute_metadata.json.compute.resourceGroup }} --name "$nic" \
+                                          count=$(az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
                                           --query "ipConfigurations | length(@)" -o tsv); \
                                           echo "$nic: $count"; \
                                         done
@@ -224,20 +204,16 @@ checks:
     severity:                         *info
     workload:                         *workload
     applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux, *windows]
-      os_version:                     *all_versions
       hardware_type:                  *vm
-      role:                           *role
-      database_type:                  *db
     collector_type:                   *azure
     collector_args:
       command:                        |-
-                                        az vm nic list --resource-group {{ compute_metadata.json.compute.resourceGroup }} \
-                                        --vm-name {{ compute_metadata.json.compute.name }} \
-                                        --subscription {{ compute_metadata.json.compute.subscriptionId }} \
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
                                         --query "[].id" -o tsv | while read nic_id; do \
                                           nic=$(basename "$nic_id"); \
-                                          az network nic show --resource-group {{ compute_metadata.json.compute.resourceGroup }} --name "$nic" \
+                                          az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
                                           --query "ipConfigurations[].privateIPAddress" -o table; \
                                         done
     report:                           *table
