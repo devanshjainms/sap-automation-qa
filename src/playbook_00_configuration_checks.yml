@@ -31,7 +31,6 @@
                                         | map(attribute='value')
                                         | first }}"
 
-
 - hosts: "{{ sap_sid | upper }}_SCS:
           {{ sap_sid | upper }}_ERS:
           {{ sap_sid | upper }}_DB:

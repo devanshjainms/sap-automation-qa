@@ -68,7 +68,8 @@ enums:
     - vm:                             &vm_check "Virtual Machine"
     - sap:                            &sap_check "SAP"
     - os:                             &os_check "Operating System"
-    - all_check_types:                &category [*package_check, *vm_check, *sap_check, *os_check]
+    - network:                        &network_check "Networking"
+    - all_check_types:                &category [*package_check, *vm_check, *sap_check, *os_check, *network_check]
 
   user:
     - root:                           &root "root"
@@ -100,7 +101,7 @@ checks:
   - id:                               "NET-0001"
     name:                             "No of network interface"
     description:                      "Checks the number of network interfaces on the VM"
-    category:                         *vm_check
+    category:                         *network_check
     severity:                         *info
     workload:                         *workload
     applicability:
@@ -121,7 +122,7 @@ checks:
   - id:                               "NET-0002"
     name:                             "Network Interface Name"
     description:                      "Retrieves the name of the network interface(s) attached to the VM"
-    category:                         *vm_check
+    category:                         *network_check
     severity:                         *info
     workload:                         *workload
     applicability:
@@ -142,7 +143,7 @@ checks:
   - id:                               "NET-0003"
     name:                             "Subnet"
     description:                      "Retrieves the subnet(s) associated with the VM's network interface(s)"
-    category:                         *vm_check
+    category:                         *network_check
     severity:                         *info
     workload:                         *workload
     applicability:
@@ -167,7 +168,7 @@ checks:
   - id:                               "NET-0004"
     name:                             "Accelerated Networking"
     description:                      "Checks if Accelerated Networking is enabled on the VM's network interface(s)"
-    category:                         *vm_check
+    category:                         *network_check
     severity:                         *warning
     workload:                         *workload
     applicability:
@@ -193,7 +194,7 @@ checks:
   - id:                               "NET-0005"
     name:                             "No of IP configurations"
     description:                      "Checks the number of IP configurations on each network interface"
-    category:                         *vm_check
+    category:                         *network_check
     severity:                         *info
     workload:                         *workload
     applicability:
@@ -219,7 +220,7 @@ checks:
   - id:                               "NET-0006"
     name:                             "IP Details"
     description:                      "Retrieves all IP addresses configured on the VM's network interface(s)"
-    category:                         *vm_check
+    category:                         *network_check
     severity:                         *info
     workload:                         *workload
     applicability:
