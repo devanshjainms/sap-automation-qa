@@ -157,7 +157,7 @@ checks:
     name:                             "Accelerated Networking"
     description:                      "Checks if Accelerated Networking is enabled on the VM's network interface(s)"
     category:                         *network_check
-    severity:                         *warning
+    severity:                         *high
     workload:                         *workload
     applicability:
       hardware_type:                  *vm
@@ -173,6 +173,9 @@ checks:
                                           --query "enableAcceleratedNetworking" -o tsv); \
                                           echo "$status"; \
                                         done
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "true"
     report:                           *check
 
   - id:                               "NET-0005"
@@ -214,6 +217,6 @@ checks:
                                         --query "[].id" -o tsv | while read nic_id; do \
                                           nic=$(basename "$nic_id"); \
                                           az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
-                                          --query "ipConfigurations[].privateIPAddress" -o table; \
+                                          --query "ipConfigurations[].privateIPAddress" -o tsv; \
                                         done
     report:                           *check

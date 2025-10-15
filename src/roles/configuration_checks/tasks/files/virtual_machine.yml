@@ -661,7 +661,7 @@ checks:
                                           if [ -z "$ppg_id" ] || [ "$ppg_id" = "null" ]; then
                                             echo "No PPG defined";
                                           else
-                                            az ppg show --ids "$ppg_id" --query 'virtualMachines[].name' -o tsv 2>/dev/null || echo "Error: Failed to retrieve PPG VMs";
+                                            az ppg show --ids "$ppg_id" --query 'virtualMachines[].id' -o tsv 2>/dev/null | while read vm_id; do basename "$vm_id"; done || echo "Error: Failed to retrieve PPG VMs";
                                           fi
                                         else
                                           echo "Error: Failed to retrieve VM PPG";
