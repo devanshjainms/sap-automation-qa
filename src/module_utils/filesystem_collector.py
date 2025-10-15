@@ -671,12 +671,18 @@ class FileSystemCollector(Collector):
                     total_iops += perf_data.get("iops", 0)
                     total_mbps += perf_data.get("mbps", 0)
 
+                totalsize = vg_data.get("total_size", "")
+
                 lvm_groups_info.append(
                     {
                         "Name": vg_name,
                         "Disks": vg_data.get("disks", 0),
                         "LogicalVolumes": vg_data.get("logical_volumes", 0),
-                        "TotalSize": vg_data.get("total_size", ""),
+                        "TotalSize": (
+                            totalsize.replace("g", "GiB").replace("t", "TiB")
+                            if totalsize and isinstance(totalsize, str)
+                            else totalsize
+                        ),
                         "TotalIOPS": total_iops,
                         "TotalMBPS": total_mbps,
                     }

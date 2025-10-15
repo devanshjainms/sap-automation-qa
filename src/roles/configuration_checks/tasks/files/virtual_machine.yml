@@ -259,6 +259,24 @@ checks:
     report:                           *check
 
   - id:                               "IC-0012"
+    name:                             "Linux Major and Minor Release"
+    description:                      "Checks the Linux major and minor release"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/cat /etc/os-release | grep VARIANT_ID | cut -d '=' -f2 | tr -d '\"'"
+      user:                           *root
+    report:                           *check
+
+  - id:                               "IC-0012"
     name:                             "OS Timezone"
     description:                      "Checks the OS timezone"
     category:                         *vm_check
@@ -273,24 +291,6 @@ checks:
     collector_type:                   *command
     collector_args:
       command:                        "/bin/date +%Z"
-      user:                           *root
-    report:                           *check
-
-  - id:                               "IC-0013"
-    name:                             "OS KDUMP Configuration"
-    description:                      "Checks the KDUMP configuration of the system"
-    category:                         *vm_check
-    severity:                         *info
-    workload:                         *workload
-    applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux]
-      os_version:                     *all_versions
-      hardware_type:                  *vm
-      role:                           *role
-      database_type:                  *db
-    collector_type:                   *command
-    collector_args:
-      command:                        "/bin/systemctl status kdump.service | grep -o 'Active:.*'"
       user:                           *root
     report:                           *check
 
@@ -661,7 +661,7 @@ checks:
                                           if [ -z "$ppg_id" ] || [ "$ppg_id" = "null" ]; then
                                             echo "No PPG defined";
                                           else
-                                            az ppg show --ids "$ppg_id" --query 'virtualMachines[].id' -o tsv 2>/dev/null || echo "Error: Failed to retrieve PPG VMs";
+                                            az ppg show --ids "$ppg_id" --query 'virtualMachines[].name' -o tsv 2>/dev/null || echo "Error: Failed to retrieve PPG VMs";
                                           fi
                                         else
                                           echo "Error: Failed to retrieve VM PPG";
@@ -883,7 +883,6 @@ checks:
                                       fi
     report:                           *check
 
-
   - id:                               "IC-0040"
     name:                             "Cluster Configuration"
     description:                      "Checks the cluster configuration of the system"
@@ -903,3 +902,21 @@ checks:
       command:                        "crm config show"
       user:                           *root
     report:                           *section
+
+  - id:                               "IC-0041"
+    name:                             "OS KDUMP Configuration"
+    description:                      "Checks the KDUMP configuration of the system"
+    category:                         *vm_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_version:                     *all_versions
+      hardware_type:                  *vm
+      role:                           *role
+      database_type:                  *db
+    collector_type:                   *command
+    collector_args:
+      command:                        "/bin/systemctl status kdump.service | grep -o 'Active:.*'"
+      user:                           *root
+    report:                           *check

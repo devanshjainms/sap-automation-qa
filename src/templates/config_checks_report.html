@@ -7,9 +7,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   {% macro render_table(data, is_nested=false) %}
-    {% if not data %}
-      <div class="table-empty-state">No data available</div>
+    {% if not data or (data is iterable and data is not string and data is not mapping and data|length == 0) %}
+      {# Don't render anything for empty data #}
     {% elif data is mapping %}
+      {% if data|length == 0 %}
+        {# Don't render anything for empty dict #}
+      {% else %}
       {% set has_nested = namespace(value=false) %}
       {% for value in data.values() %}
         {% if value is mapping or value is iterable and value is not string %}
@@ -40,6 +43,7 @@
             {% endfor %}
           </tbody>
         </table>
+      {% endif %}
       {% endif %}
     {% elif data is iterable and data is not string %}
       {% if data|length > 0 and data[0] is mapping %}
@@ -1199,6 +1203,16 @@
               
               {% set type_regular_checks = type_checks|selectattr('check.report', 'equalto', 'check')|list %}
               {% if type_regular_checks|length > 0 %}
+              {# Sort checks by numeric part after last dash in ID #}
+              {% set checks_with_sort_key = [] %}
+              {% for check in type_regular_checks %}
+                {% set id_str = check.check.id|string %}
+                {% set id_parts = id_str.split('-') %}
+                {% set last_part = id_parts[-1] if id_parts|length > 0 else id_str %}
+                {% set sort_key = last_part|int(default=99999) %}
+                {% set _ = checks_with_sort_key.append({'check': check, 'sort_key': sort_key, 'id': id_str}) %}
+              {% endfor %}
+              {% set final_sorted = checks_with_sort_key|sort(attribute='sort_key') %}
               <table class="config-checks-table">
                 <thead>
                   <tr>
@@ -1210,7 +1224,8 @@
                   </tr>
                 </thead>
                 <tbody>
-                  {% for check in type_regular_checks %}
+                  {% for item in final_sorted %}
+                  {% set check = item.check %}
                   <tr onclick="toggleDetails('{{ check.hostname }}-{{ check.check.id }}')">
                     <td>{{ check.check.id }}</td>
                     <td>{{ check.check.name }}</td>
@@ -1303,6 +1318,8 @@
               {% set type_table_checks = type_checks|selectattr('check.report', 'equalto', 'table')|list %}
               {% if type_table_checks|length > 0 %}
               {% for check in type_table_checks %}
+              {% set has_data = check.actual_value and ((check.actual_value is mapping and check.actual_value|length > 0) or (check.actual_value is iterable and check.actual_value is not string and check.actual_value|length > 0) or (check.actual_value is not mapping and check.actual_value is not iterable)) %}
+              {% if has_data %}
               <div class="config-section table-report-section">
                 <h4 class="table-check-name">{{ check.check.name }} ({{ check.check.id }})</h4>
                 <p class="table-check-description">{{ check.check.description }}</p>
@@ -1315,6 +1332,7 @@
                   {{ render_table(check.actual_value) }}
                 </div>
               </div>
+              {% endif %}
               {% endfor %}
               {% endif %}
               
