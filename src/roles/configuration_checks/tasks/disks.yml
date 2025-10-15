@@ -103,8 +103,13 @@
         var:                            azure_disks_metadata_results
         verbosity:                      1
 
+    - name:                             Check if any NFS filesystem is mounted
+      ansible.builtin.set_fact:
+        has_nfs_mounts:                 "{{ mount_info.stdout_lines | select('search', '\\snfs[34]?\\s') | list | length > 0 }}"
+
     - name:                             Collect ANF storage data if NFS is used
       when:
+                                        - has_nfs_mounts | bool
                                         - NFS_provider is defined
                                         - "'ANF' in NFS_provider"
                                         - ANF_account_rg is defined
@@ -155,6 +160,7 @@
 
     - name:                             Collect AFS storage data if NFS is used
       when:
+                                        - has_nfs_mounts | bool
                                         - NFS_provider is defined
                                         - "'AFS' in NFS_provider"
       register:                         afs_storage_metadata_results
