@@ -210,7 +210,8 @@ checks:
                                           az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
                                           --query "ipConfigurations[].{IP:privateIPAddress, Primary:primary}" -o tsv | \
                                           while IFS=$'\t' read -r ip is_primary; do \
-                                            if [ "${is_primary,,}" = "true" ]; then \
+                                            is_primary_lower=$(echo "$is_primary" | tr '[:upper:]' '[:lower:]'); \
+                                            if [ "$is_primary_lower" = "true" ]; then \
                                               echo "$nic: $ip Primary"; \
                                             else \
                                               echo "$nic: $ip Secondary"; \
