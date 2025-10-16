@@ -211,9 +211,8 @@ checks:
                                             --query "ipConfigurations[].{IP:privateIPAddress, Primary:primary}" -o tsv |
                                           while IFS=$'\t' read -r ip is_primary; do
                                             # normalize: trim spaces/CR and lowercase
-                                            norm="${is_primary//[$'\r\t ']/}"
-                                            norm="${norm,,}"
-                                            if [[ "$norm" =~ ^true$ ]]; then
+                                            norm=$(echo "$is_primary" | tr -d '\r\t ' | tr '[:upper:]' '[:lower:]')
+                                            if [ "$norm" = "true" ]; then
                                               echo "$nic: $ip Primary"
                                             else
                                               echo "$nic: $ip Secondary"
