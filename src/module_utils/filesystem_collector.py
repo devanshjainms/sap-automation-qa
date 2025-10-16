@@ -671,12 +671,18 @@ class FileSystemCollector(Collector):
                     total_iops += perf_data.get("iops", 0)
                     total_mbps += perf_data.get("mbps", 0)
 
+                totalsize = vg_data.get("total_size", "")
+
                 lvm_groups_info.append(
                     {
                         "Name": vg_name,
                         "Disks": vg_data.get("disks", 0),
                         "LogicalVolumes": vg_data.get("logical_volumes", 0),
-                        "TotalSize": vg_data.get("total_size", ""),
+                        "TotalSize": (
+                            totalsize.replace("g", "GiB").replace("t", "TiB")
+                            if totalsize and isinstance(totalsize, str)
+                            else totalsize
+                        ),
                         "TotalIOPS": total_iops,
                         "TotalMBPS": total_mbps,
                     }
@@ -704,6 +710,8 @@ class FileSystemCollector(Collector):
 
         try:
             for lv_name, lv_data in lvm_volumes.items():
+                size = lv_data.get("size", "")
+
                 lvm_volumes_info.append(
                     {
                         "Name": lv_name,
@@ -711,7 +719,11 @@ class FileSystemCollector(Collector):
                         "LVPath": lv_data.get("path", ""),
                         "DMPath": lv_data.get("dm_path", ""),
                         "Layout": lv_data.get("layout", ""),
-                        "Size": lv_data.get("size", ""),
+                        "Size": (
+                            size.replace("g", "GiB").replace("t", "TiB")
+                            if size and isinstance(size, str)
+                            else size
+                        ),
                         "StripeSize": lv_data.get("stripe_size", ""),
                         "Stripes": lv_data.get("stripes", ""),
                     }

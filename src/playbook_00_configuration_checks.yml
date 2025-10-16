@@ -31,7 +31,6 @@
                                         | map(attribute='value')
                                         | first }}"
 
-
 - hosts: "{{ sap_sid | upper }}_SCS:
           {{ sap_sid | upper }}_ERS:
           {{ sap_sid | upper }}_DB:
@@ -97,6 +96,12 @@
                                         file_name: "sap",
                                         checks_var: "common_sap_checks",
                                         results_var: "common_sap_results"
+          }
+        - {
+                                        name: "Networking",
+                                        file_name: "network",
+                                        checks_var: "networking_checks",
+                                        results_var: "networking_results"
           }
       loop_control:
         loop_var:                       check_type
@@ -263,6 +268,23 @@
                                           groups[sap_sid | upper + '_WEB']|default([]) +
                                           groups[sap_sid | upper + '_PAS']|default([]) }}"
       when:                             hostvars[item].common_sap_results is defined
+
+    - name:                             "Collect networking check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].networking_results
+                                            | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'networking',
+                                          'metadata': hostvars[item].networking_results_metadata
+                                          | default({})}] }}"
+      loop:                             "{{ groups[sap_sid | upper + '_SCS']|default([]) +
+                                          groups[sap_sid | upper + '_ERS']|default([]) +
+                                          groups[sap_sid | upper + '_DB']|default([]) +
+                                          groups[sap_sid | upper + '_APP']|default([]) +
+                                          groups[sap_sid | upper + '_WEB']|default([]) +
+                                          groups[sap_sid | upper + '_PAS']|default([]) }}"
+      when:                             hostvars[item].networking_results is defined
 
     - name:                             "Collect DB (HANA) check results"
       ansible.builtin.set_fact:
