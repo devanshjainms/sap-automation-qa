@@ -413,7 +413,7 @@ checks:
       database_type:                  [*hana, *ase, *db2, *oracle]
     collector_type:                   *command
     collector_args:
-      command:                        "/bin/mdatp health"
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp health; else echo 'Microsoft Defender not installed'; fi"
       user:                           *root
     report:                           *section
 
@@ -581,7 +581,7 @@ checks:
       database_type:                  [*hana, *ase, *db2, *oracle]
     collector_type:                   *command
     collector_args:
-      command:                        "/bin/mdatp exclusion list"
+      command:                        "if command -v mdatp >/dev/null 2>&1; then mdatp exclusion list; else echo 'Microsoft Defender not installed'; fi"
       user:                           *root
     report:                           *section
 
