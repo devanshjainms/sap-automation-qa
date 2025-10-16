@@ -59,7 +59,8 @@
             {% endfor %}
           {% endif %}
         {% endfor %}
-        <table class="dynamic-table{% if is_nested %} nested-table{% endif %}">
+        {% set has_status_column = 'status' in all_keys or 'Status' in all_keys %}
+        <table class="dynamic-table{% if is_nested %} nested-table{% endif %}" data-has-status="{{ 'true' if has_status_column else 'false' }}">
           <thead>
             <tr>
               {% for key in all_keys %}
@@ -74,7 +75,13 @@
                   {% for key in all_keys %}
                     {% set value = item.get(key, '') %}
                     {% if key|lower == 'status' %}
-                      <td class="status-{{ value|lower }}">{{ value }}</td>
+                      {% set status_class = value|lower %}
+                      {% if status_class == 'success' or status_class == 'ok' %}
+                        {% set status_class = 'passed' %}
+                      {% elif status_class == 'failed' or status_class == 'error' %}
+                        {% set status_class = 'failed' %}
+                      {% endif %}
+                      <td class="status-{{ status_class }}" data-status="{{ status_class }}">{{ value }}</td>
                     {% else %}
                       <td>
                         {% if value is mapping %}
@@ -509,24 +516,47 @@
       font-weight: 700;
     }
 
-    .status-passed {
+    .status-passed,
+    .status-success,
+    .status-ok {
       color: var(--success-color);
       font-weight: 700;
+      background-color: rgba(16, 124, 16, 0.1);
+      padding: 4px 8px;
+      border-radius: 4px;
     }
 
-    .status-failed {
+    .status-failed,
+    .status-error {
       color: var(--error-color);
       font-weight: 700;
+      background-color: rgba(209, 52, 56, 0.1);
+      padding: 4px 8px;
+      border-radius: 4px;
     }
 
     .status-warning {
       color: var(--warning-color);
       font-weight: 700;
+      background-color: rgba(255, 140, 0, 0.1);
+      padding: 4px 8px;
+      border-radius: 4px;
     }
 
     .status-info {
       color: var(--info-color);
       font-weight: 700;
+      background-color: rgba(0, 120, 215, 0.1);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .status-skipped {
+      color: #6c757d;
+      font-weight: 700;
+      background-color: rgba(108, 117, 125, 0.1);
+      padding: 4px 8px;
+      border-radius: 4px;
     }
 
     .summary-box {
@@ -1476,12 +1506,18 @@
 
     function filterByStatus(status) {
       const statusBoxes = document.querySelectorAll('.status-count')
-      const allRows = document.querySelectorAll('.config-checks-table tbody tr:not(.expanded-content)')
+      const mainTableRows = document.querySelectorAll('.config-checks-table tbody tr:not(.expanded-content)')
+      const dynamicTables = document.querySelectorAll('.dynamic-table')
       if (activeFilter === status) {
         activeFilter = null
         statusBoxes.forEach(box => box.classList.remove('active'))
-        allRows.forEach(row => {
+        mainTableRows.forEach(row => {
           row.style.display = ''
+        })
+        dynamicTables.forEach(table => {
+          table.style.display = ''
+          const rows = table.querySelectorAll('tbody tr')
+          rows.forEach(row => row.style.display = '')
         })
         return
       }
@@ -1495,8 +1531,8 @@
         }
       })
 
-      // Filter table rows
-      allRows.forEach(row => {
+      // Filter main config-checks-table rows
+      mainTableRows.forEach(row => {
         const statusCell = row.querySelector('td:nth-child(5)')
         if (!statusCell) {
           row.style.display = 'none'
@@ -1505,9 +1541,9 @@
 
         const rowStatus = statusCell.textContent.toLowerCase().trim()
         let mappedStatus = rowStatus
-        if (rowStatus === 'failed') {
+        if (rowStatus === 'failed' || rowStatus === 'error') {
           mappedStatus = 'error'
-        } else if (rowStatus === 'ok' || rowStatus === 'passed') {
+        } else if (rowStatus === 'ok' || rowStatus === 'passed' || rowStatus === 'success') {
           mappedStatus = 'passed'
         }
 
@@ -1522,6 +1558,41 @@
               detailsRow.style.display = 'none'
               detailsRow.classList.remove('show')
             }
+          }
+        }
+      })
+
+      dynamicTables.forEach(table => {
+        const hasStatusColumn = table.getAttribute('data-has-status') === 'true'
+        
+        if (!hasStatusColumn) {
+          table.style.display = 'none'
+        } else {
+          table.style.display = ''
+          const rows = table.querySelectorAll('tbody tr')
+          let hasVisibleRows = false
+          rows.forEach(row => {
+            const statusCell = row.querySelector('td[data-status]')
+            if (!statusCell) {
+              row.style.display = 'none'
+              return
+            }
+            const rowStatus = statusCell.getAttribute('data-status')
+            let mappedStatus = rowStatus
+            if (rowStatus === 'failed' || rowStatus === 'error') {
+              mappedStatus = 'error'
+            } else if (rowStatus === 'ok' || rowStatus === 'passed' || rowStatus === 'success') {
+              mappedStatus = 'passed'
+            }
+            if (mappedStatus === status) {
+              row.style.display = ''
+              hasVisibleRows = true
+            } else {
+              row.style.display = 'none'
+            }
+          })
+          if (!hasVisibleRows) {
+            table.style.display = 'none'
           }
         }
       })
