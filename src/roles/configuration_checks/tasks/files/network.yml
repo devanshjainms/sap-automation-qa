@@ -204,18 +204,21 @@ checks:
       command:                        |-
                                         az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
                                         --vm-name {{ CONTEXT.vm_name }} \
-                                        --subscription {{ CONTEXT.subscription_id }} \
-                                        --query "[].id" -o tsv | while read nic_id; do \
-                                          nic=$(basename "$nic_id"); \
+                                        --subscription {{ CONTEXT.subscription_id }} --query "[].id" -o tsv |
+                                        while read -r nic_id; do
+                                          nic=$(basename "$nic_id")
                                           az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
-                                          --query "ipConfigurations[].{IP:privateIPAddress, Primary:primary}" -o tsv | \
-                                          while IFS=$'\t' read -r ip is_primary; do \
-                                            is_primary_lower=$(echo "$is_primary" | tr '[:upper:]' '[:lower:]'); \
-                                            if [ "$is_primary_lower" = "true" ]; then \
-                                              echo "$nic: $ip Primary"; \
-                                            else \
-                                              echo "$nic: $ip Secondary"; \
-                                            fi; \
-                                          done; \
+                                            --query "ipConfigurations[].{IP:privateIPAddress, Primary:primary}" -o tsv |
+                                          while IFS=$'\t' read -r ip is_primary; do
+                                            # normalize: trim spaces/CR and lowercase
+                                            norm="${is_primary//[$'\r\t ']/}"
+                                            norm="${norm,,}"
+                                            if [[ "$norm" =~ ^true$ ]]; then
+                                              echo "$nic: $ip Primary"
+                                            else
+                                              echo "$nic: $ip Secondary"
+                                            fi
+                                          done
                                         done
+
     report:                           *check
