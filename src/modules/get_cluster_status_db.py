@@ -221,7 +221,7 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
             HanaSRProvider.ANGI: {
                 "clone_attr": f"hana_{self.database_sid}_clone_state",
                 "sync_attr": (
-                    f"master-{self.hana_clone_resource_name}"
+                    f"master-{self.hana_primitive_resource_name}"
                     if self.hana_clone_resource_name
                     else f"master-rsc_SAPHanaCon_{self.database_sid.upper()}"
                     + f"_HDB{self.db_instance_number}"
