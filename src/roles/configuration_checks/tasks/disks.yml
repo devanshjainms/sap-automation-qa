@@ -129,10 +129,8 @@
       ansible.builtin.set_fact:
         afs_storage_accounts:           "{{ mount_info.stdout_lines
                                           | map('split', ' ')
-                                          | map('list')
-                                          | selectattr('1', 'defined')
                                           | map(attribute='1')
-                                          | select('match', '\\.(privatelink\\.)?file\\.core\\.windows\\.net:/')
+                                          | select('search', '\\.file\\.core\\.windows\\.net:/')
                                           | map('regex_replace', '^.*:/([^/]+)/.*', '\\1')
                                           | list 
                                           | unique }}"
