@@ -265,18 +265,15 @@ checks:
     severity:                         *info
     workload:                         *workload
     applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux]
-      os_version:                     *all_versions
+      os_type:                        [*suse]
       hardware_type:                  *vm
-      role:                           *role
-      database_type:                  *db
     collector_type:                   *command
     collector_args:
       command:                        "/bin/cat /etc/os-release | grep VARIANT_ID | cut -d '=' -f2 | tr -d '\"'"
       user:                           *root
     report:                           *check
 
-  - id:                               "IC-0012"
+  - id:                               "IC-0013"
     name:                             "OS Timezone"
     description:                      "Checks the OS timezone"
     category:                         *vm_check

@@ -88,15 +88,6 @@ enums:
     - table:                          &table "table"
     - report:                         &report [*check, *section, *table]
 
-# Following Checks for networking
-# No of network interface	1
-# Network Interface	DJWP2-SECE-SAP01-RH7_rh7scs_z1_00l986-nic
-# Subnet	DJWP2-SECE-SAP01_app-subnet
-# Accelerated Networking	Enabled
-# No of IP configurations	2
-# IP Details #1	172.235.2.12
-# IP Details #2	172.235.2.13
-
 checks:
   - id:                               "NET-0001"
     name:                             "No of network interface"
