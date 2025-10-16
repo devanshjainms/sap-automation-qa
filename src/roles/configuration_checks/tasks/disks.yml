@@ -132,8 +132,8 @@
                                           | map('list')
                                           | selectattr('1', 'defined')
                                           | map(attribute='1')
-                                          | select('match', '^[^.]+\\.file\\.core\\.windows\\.net:')
-                                          | map('regex_replace', '^([^.]+)\\.file\\.core\\.windows\\.net:.*', '\\1')
+                                          | select('match', '\\.(privatelink\\.)?file\\.core\\.windows\\.net:/')
+                                          | map('regex_replace', '^.*:/([^/]+)/.*', '\\1')
                                           | list 
                                           | unique }}"
 
