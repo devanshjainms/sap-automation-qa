@@ -194,6 +194,7 @@ checks:
                                         --subscription {{ CONTEXT.subscription_id }} \
                                         --query "[].id" -o tsv | while read nic_id; do \
                                           nic=$(basename "$nic_id"); \
+                                          echo -n "$nic: "; \
                                           count=$(az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
                                           --query "ipConfigurations | length(@)" -o tsv); \
                                           echo "$nic: $count"; \
@@ -216,7 +217,8 @@ checks:
                                         --subscription {{ CONTEXT.subscription_id }} \
                                         --query "[].id" -o tsv | while read nic_id; do \
                                           nic=$(basename "$nic_id"); \
+                                          echo "$nic: "; \
                                           az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
-                                          --query "ipConfigurations[].privateIPAddress" -o tsv; \
+                                          --query "ipConfigurations[].{IP:privateIPAddress, Primary:primary}" -o tsv; \
                                         done
     report:                           *check

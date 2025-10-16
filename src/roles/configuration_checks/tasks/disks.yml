@@ -198,27 +198,34 @@
                                         - has_nfs_mounts | bool
                                         - NFS_provider is defined
                                         - "'AFS' in NFS_provider"
+                                        - afs_storage_accounts is defined
+                                        - afs_storage_accounts | length > 0
       register:                         afs_storage_metadata_results
       delegate_to:                      localhost
       ansible.builtin.shell:
         executable:                     /bin/bash
         cmd: |
                                         set -o pipefail
-                                        for sa in $(az storage account list \
-                                          --query "[?kind=='FileStorage'].{rg:resourceGroup,name:name,id:id}" \
-                                          -o tsv | awk '{print $1":"$2":"$3}'); do rg=$(echo $sa | cut -d: -f1); \
-                                          acc=$(echo $sa | cut -d: -f2); sid=$(echo $sa | cut -d: -f3); \
-                                          dns="$acc.file.core.windows.net"; for sh in $(az storage share-rm list --resource-group $rg --storage-account $acc \
-                                          --query "[?enabledProtocols=='NFS'].[name,accessTier,quotaGiB]" -o tsv); \
-                                          do name=$(echo $sh | awk '{print $1}'); tier=$(echo $sh | awk '{print $2}'); \
-                                          quota=$(echo $sh | awk '{print $3}'); \
-                                          peip=$(az network private-endpoint list \
-                                          --query "[?privateLinkServiceConnections[?privateLinkServiceId=='$sid']].customDnsConfigs[].ipAddresses[]" -o tsv); \
-                                          for ip in $peip; do thr=$((100 + ( (quota*4+99)/100 ) + ( (quota*6+99)/100 ) )); \
-                                          iops=$((quota+3000)); \
-                                          if [ $iops -gt 100000 ]; then iops=100000; fi; \
-                                          echo "{\"Type\":\"AFS\",\"Name\":\"$name\",\"Pool\":\"$acc\",\"ServiceLevel\":\"$tier\",\"ThroughputMibps\":$thr,\"ProtocolTypes\":\"NFS4.1\",\"NFSAddressDNS\":\"$dns:/$acc/$name\",\"NFSAddress\":\"$ip:/$acc/$name\",\"QoSType\":\"Manual\",\"IOPS\":$iops,\"Id\":\"$sid\"}"; \
-                                          done; done; done
+                                        for acc in {{ afs_storage_accounts | join(' ') }}; do
+                                          sa_info=$(az storage account show --name "$acc" --query "{rg:resourceGroup,name:name,id:id}" -o tsv)
+                                          rg=$(echo "$sa_info" | awk '{print $1}')
+                                          sid=$(echo "$sa_info" | awk '{print $3}')
+                                          dns="$acc.file.core.windows.net"
+                                          for sh in $(az storage share-rm list --resource-group "$rg" --storage-account "$acc" \
+                                            --query "[?enabledProtocols=='NFS'].[name,accessTier,quotaGiB]" -o tsv); do
+                                            name=$(echo "$sh" | awk '{print $1}')
+                                            tier=$(echo "$sh" | awk '{print $2}')
+                                            quota=$(echo "$sh" | awk '{print $3}')
+                                            peip=$(az network private-endpoint list \
+                                              --query "[?privateLinkServiceConnections[?privateLinkServiceId=='$sid']].customDnsConfigs[].ipAddresses[]" -o tsv)
+                                            for ip in $peip; do
+                                              thr=$((100 + ( (quota*4+99)/100 ) + ( (quota*6+99)/100 ) ))
+                                              iops=$((quota+3000))
+                                              if [ $iops -gt 100000 ]; then iops=100000; fi
+                                              echo "{\"Type\":\"AFS\",\"Name\":\"$name\",\"Pool\":\"$acc\",\"ServiceLevel\":\"$tier\",\"ThroughputMibps\":$thr,\"ProtocolTypes\":\"NFS4.1\",\"NFSAddressDNS\":\"$dns:/$acc/$name\",\"NFSAddress\":\"$ip:/$acc/$name\",\"QoSType\":\"Manual\",\"IOPS\":$iops,\"Id\":\"$sid\"}"
+                                            done
+                                          done
+                                        done
 
     - name:                             Debug AFS storage data collected
       when:                             afs_storage_metadata_results is defined
