@@ -42,6 +42,15 @@
   gather_facts:                         true
   vars_files:                           "./vars/input-api.yaml"
   tasks:
+    - name:                             "Install required Python packages on target hosts"
+      become:                           true
+      ansible.builtin.pip:
+        name:
+          - dataclasses
+        state:                          present
+      ignore_errors:                    true
+      when:                             ansible_python_version is version('3.7', '<')
+
     - name:                             "Enable profile_tasks callback plugin"
       ansible.builtin.set_fact:
         ansible_callbacks:
