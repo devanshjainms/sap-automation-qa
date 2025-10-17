@@ -108,7 +108,11 @@ class TestDbHDBOperations(RolesTestingBaseDB):
                 "SUSE": "cibadmin --query --scope resources",
             },
             {
-                "name": "get_hana_resource_id_saphanasr_angi",
+                "name": "get_hana_clone_resource_id_saphanasr_angi",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+            {
+                "name": "get_hana_primitive_resource_id_saphanasr_angi",
                 "SUSE": "cibadmin --query --scope resources",
             },
         ]
