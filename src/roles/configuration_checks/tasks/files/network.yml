@@ -204,17 +204,20 @@ checks:
       command:                        |-
                                         az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
                                         --vm-name {{ CONTEXT.vm_name }} \
-                                        --subscription {{ CONTEXT.subscription_id }} \
-                                        --query "[].id" -o tsv | while read nic_id; do \
-                                          nic=$(basename "$nic_id"); \
+                                        --subscription {{ CONTEXT.subscription_id }} --query "[].id" -o tsv |
+                                        while read -r nic_id; do
+                                          nic=$(basename "$nic_id")
                                           az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
-                                          --query "ipConfigurations[].{IP:privateIPAddress, Primary:primary}" -o tsv | \
-                                          while IFS=$'\t' read -r ip is_primary; do \
-                                            if [ "${is_primary,,}" = "true" ]; then \
-                                              echo "$nic: $ip Primary"; \
-                                            else \
-                                              echo "$nic: $ip Secondary"; \
-                                            fi; \
-                                          done; \
+                                            --query "ipConfigurations[].{IP:privateIPAddress, Primary:primary}" -o tsv |
+                                          while read -r line; do
+                                            ip=$(echo "$line" | awk '{print $1}')
+                                            is_primary=$(echo "$line" | awk '{print $2}' | tr -d '\r\t ' | tr '[:upper:]' '[:lower:]')
+                                            if [ "$is_primary" = "true" ]; then
+                                              echo "$nic: $ip Primary"
+                                            else
+                                              echo "$nic: $ip Secondary"
+                                            fi
+                                          done
                                         done
+
     report:                           *check

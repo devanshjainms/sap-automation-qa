@@ -8,6 +8,7 @@ Ansible Python module to check the configuration of the workload system running 
 import logging
 import time
 import json
+import re
 from typing import Optional, Dict, Any, List, Type
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -437,6 +438,8 @@ class ConfigurationCheckModule(SapAutomationQA):
 
         if check.validator_args.get("strip_whitespace", True):
             expected = str(expected).strip()
+            expected = re.sub(r'\s+', ' ', expected)
+            collected = re.sub(r'\s+', ' ', collected)
 
         if check.validator_args.get("case_insensitive", False):
             expected = expected.lower()

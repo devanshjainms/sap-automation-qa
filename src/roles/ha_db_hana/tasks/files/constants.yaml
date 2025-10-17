@@ -112,7 +112,7 @@ RESOURCE_DEFAULTS:
       required:                     false
       instance_attributes:
         pcmk_delay_max:
-          value:                    "15"
+          value:                    ["15", "15s"]
           required:                 false
         pcmk_monitor_retries:
           value:                    "4"
@@ -142,7 +142,7 @@ RESOURCE_DEFAULTS:
       required:                     false
       instance_attributes:
         pcmk_delay_max:
-          value:                    "15"
+          value:                    ["15", "15s"]
           required:                 false
         pcmk_monitor_retries:
           value:                    "4"
@@ -492,7 +492,7 @@ RESOURCE_DEFAULTS:
       required:                     false
       instance_attributes:
         pcmk_delay_max:
-          value:                    "15"
+          value:                    ["15", "15s"]
           required:                 false
         pcmk_monitor_retries:
           value:                    "4"
@@ -815,7 +815,7 @@ GLOBAL_INI:
         value:                      "susHanaSR"
         required:                   true
       path:
-        value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
+        value:                      ["/usr/share/SAPHanaSR-angi", "/hana/shared/myHooks"]
         required:                   true
       execution_order:
         value:                      "1"
