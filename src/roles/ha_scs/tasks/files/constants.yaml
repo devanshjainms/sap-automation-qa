@@ -129,7 +129,7 @@ RESOURCE_DEFAULTS:
       required:                     false
       instance_attributes:
         pcmk_delay_max:
-          value:                    "15"
+          value:                    ["15", "15s"]
           required:                 false
         pcmk_monitor_retries:
           value:                    "4"
@@ -169,7 +169,7 @@ RESOURCE_DEFAULTS:
     sbd_stonith:
       instance_attributes:
         pcmk_delay_max:
-          value:                    "15"
+          value:                    ["15", "15s"]
           required:                 false
         pcmk_monitor_retries:
           value:                    "4"
@@ -388,7 +388,7 @@ RESOURCE_DEFAULTS:
     fence_agent:
       instance_attributes:
         pcmk_delay_max:
-          value:                    "15"
+          value:                    ["15", "15s"]
           required:                 false
         pcmk_monitor_retries:
           value:                    "4"
@@ -428,7 +428,7 @@ RESOURCE_DEFAULTS:
     sbd_stonith:
       instance_attributes:
         pcmk_delay_max:
-          value:                    "15"
+          value:                    ["15", "15s"]
           required:                 false
         pcmk_monitor_retries:
           value:                    "4"
