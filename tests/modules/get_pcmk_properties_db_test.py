@@ -133,15 +133,34 @@ dummy1 = dummy2
 provider = SAPHanaSR
 path = /usr/share/SAPHanaSR
 execution_order = 1
+
+[ha_dr_provider_suschksrv]
+provider = susChkSrv
+path = /usr/share/SAPHanaSR
+execution_order = 3
+action_on_host = fence
+
+[trace]
+ha_dr_sushanasr = info
 """
 
 DUMMY_GLOBAL_INI_ANGI = """[DEFAULT]
 dummy1 = dummy2
 
 [ha_dr_provider_sushanasr]
-provider = SAPHanaSR-angi
+provider = susHanaSR
 path = /usr/share/SAPHanaSR-angi
 execution_order = 1
+
+[ha_dr_provider_suschksrv]
+provider = susChkSrv
+path = /usr/share/SAPHanaSR-angi
+execution_order = 3
+action_on_host = fence
+
+[trace]
+ha_dr_sushanasr = info
+ha_dr_suschksrv = info
 """
 
 DUMMY_CONSTANTS = {
@@ -213,15 +232,51 @@ DUMMY_CONSTANTS = {
     "GLOBAL_INI": {
         "REDHAT": {
             "SAPHanaSR": {
-                "provider": {"value": "SAPHanaSR", "required": False},
-                "path": {"value": "/usr/share/SAPHanaSR", "required": False},
-                "execution_order": {"value": ["1", "2"], "required": False},
+                "ha_dr_provider_SAPHanaSR": {
+                    "provider": {"value": "SAPHanaSR", "required": True},
+                    "path": {
+                        "value": ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"],
+                        "required": True,
+                    },
+                    "execution_order": {"value": "1", "required": True},
+                },
+                "ha_dr_provider_suschksrv": {
+                    "provider": {"value": "susChkSrv", "required": True},
+                    "path": {
+                        "value": ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"],
+                        "required": True,
+                    },
+                    "execution_order": {"value": "3", "required": True},
+                    "action_on_host": {"value": "fence", "required": True},
+                },
+                "trace": {
+                    "ha_dr_sushanasr": {"required": False},
+                },
             }
         },
         "SUSE": {
             "SAPHanaSR-angi": {
-                "provider": {"value": "SAPHanaSR-angi", "required": False},
-                "path": {"value": "/usr/share/SAPHanaSR-angi", "required": False},
+                "ha_dr_provider_sushanasr": {
+                    "provider": {"value": "susHanaSR", "required": True},
+                    "path": {
+                        "value": ["/usr/share/SAPHanaSR-angi", "/hana/shared/myHooks"],
+                        "required": True,
+                    },
+                    "execution_order": {"value": "1", "required": True},
+                },
+                "ha_dr_provider_suschksrv": {
+                    "provider": {"value": "susChkSrv", "required": True},
+                    "path": {
+                        "value": ["/usr/share/SAPHanaSR-angi", "/hana/shared/myHooks"],
+                        "required": True,
+                    },
+                    "execution_order": {"value": "3", "required": True},
+                    "action_on_host": {"value": "fence", "required": True},
+                },
+                "trace": {
+                    "ha_dr_sushanasr": {"required": False},
+                    "ha_dr_suschksrv": {"required": False},
+                },
             }
         },
     },
@@ -257,6 +312,7 @@ class MockOpen:
 
     def __init__(self, file_content):
         self.file_content = file_content
+        self.call_count = 0
 
     def __call__(self, *args, **kwargs):
         return io.StringIO(self.file_content)
@@ -400,8 +456,10 @@ class TestHAClusterValidator:
         params = validator._parse_global_ini_parameters()
         assert len(params) > 0
         provider_params = [p for p in params if p["name"] == "provider"]
-        assert len(provider_params) == 1
-        assert provider_params[0]["value"] == "SAPHanaSR"
+        assert len(provider_params) == 2
+        provider_values = [p["value"] for p in provider_params]
+        assert "SAPHanaSR" in provider_values
+        assert "susChkSrv" in provider_values
 
     def test_parse_global_ini_parameters_angi(self, validator_angi):
         """
@@ -410,8 +468,10 @@ class TestHAClusterValidator:
         params = validator_angi._parse_global_ini_parameters()
         assert len(params) > 0
         provider_params = [p for p in params if p["name"] == "provider"]
-        assert len(provider_params) == 1
-        assert provider_params[0]["value"] == "SAPHanaSR-angi"
+        assert len(provider_params) == 2
+        provider_values = [p["value"] for p in provider_params]
+        assert "susHanaSR" in provider_values
+        assert "susChkSrv" in provider_values
 
     def test_parse_global_ini_parameters_with_list_expected_value(self, validator):
         """
@@ -419,8 +479,9 @@ class TestHAClusterValidator:
         """
         params = validator._parse_global_ini_parameters()
         execution_params = [p for p in params if p["name"] == "execution_order"]
-        if execution_params:
-            assert execution_params[0]["status"] in [
+        assert len(execution_params) == 2
+        for param in execution_params:
+            assert param["status"] in [
                 TestStatus.SUCCESS.value,
                 TestStatus.INFO.value,
             ]
@@ -588,6 +649,32 @@ class TestHAClusterValidator:
         """
         params = validator_angi._parse_global_ini_parameters()
         assert isinstance(params, list)
+
+    def test_parse_global_ini_multiple_sections(self, validator):
+        """
+        Test that multiple sections are parsed correctly from global.ini.
+        """
+        params = validator._parse_global_ini_parameters()
+        assert len(params) == 8
+        param_names = [p["name"] for p in params]
+        assert param_names.count("provider") == 2
+        assert param_names.count("path") == 2
+        assert param_names.count("execution_order") == 2
+        assert param_names.count("action_on_host") == 1
+
+    def test_parse_global_ini_angi_multiple_sections(self, validator_angi):
+        """
+        Test that multiple sections are parsed correctly for ANGI provider.
+        """
+        params = validator_angi._parse_global_ini_parameters()
+        assert len(params) == 9
+        param_names = [p["name"] for p in params]
+        assert param_names.count("provider") == 2
+        assert param_names.count("path") == 2
+        assert param_names.count("execution_order") == 2
+        assert param_names.count("action_on_host") == 1
+        assert param_names.count("ha_dr_sushanasr") == 1
+        assert param_names.count("ha_dr_suschksrv") == 1
 
     def test_get_expected_value_methods(self, validator):
         """

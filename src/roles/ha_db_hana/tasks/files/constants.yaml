@@ -801,36 +801,89 @@ OS_PARAMETERS:
 GLOBAL_INI:
   SUSE:
     SAPHanaSR:
-      provider:
-        value:                      "SAPHanaSR"
-        required:                   true
-      path:
-        value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
-        required:                   true
-      execution_order:
-        value:                      "1"
-        required:                   true
+      ha_dr_provider_SAPHanaSR:
+        provider:
+          value:                      "SAPHanaSR"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "1"
+          required:                   true
+      ha_dr_provider_suschksrv:
+        provider:
+          value:                      "susChkSrv"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "3"
+          required:                   true
+        action_on_host:
+          value:                      "fence"
+          required:                   true
+      trace:
+        ha_dr_sushanasr:
+          required:                   false
     SAPHanaSR-angi:
-      provider:
-        value:                      "susHanaSR"
-        required:                   true
-      path:
-        value:                      ["/usr/share/SAPHanaSR-angi", "/hana/shared/myHooks"]
-        required:                   true
-      execution_order:
-        value:                      "1"
-        required:                   true
+      ha_dr_provider_sushanasr:
+        provider:
+          value:                      "susHanaSR"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR-angi", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "1"
+          required:                   true
+      ha_dr_provider_suschksrv:
+        provider:
+          value:                      "susChkSrv"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR-angi", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "3"
+          required:                   true
+        action_on_host:
+          value:                      "fence"
+          required:                   true
+      trace:
+        ha_dr_sushanasr:
+          required:                   false
+        ha_dr_suschksrv:
+          required:                   false
   REDHAT:
     SAPHanaSR:
-      provider:
-        value:                      "SAPHanaSR"
-        required:                   true
-      path:
-        value:                      ["/usr/share/SAPHanaSR/srHook", "/hana/shared/myHooks"]
-        required:                   true
-      execution_order:
-        value:                      "1"
-        required:                   true
+      ha_dr_provider_SAPHanaSR:
+        provider:
+          value:                      "SAPHanaSR"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR/srHook", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "1"
+          required:                   true
+      ha_dr_provider_suschksrv:
+        provider:
+          value:                      "susChkSrv"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "3"
+          required:                   true
+        action_on_host:
+          value:                      "fence"
+          required:                   true
+      trace:
+        ha_dr_sushanasr:
+          required:                   false
 
 # === Azure Load Balancer ===
 # Azure Load Balancer configuration
