@@ -882,7 +882,9 @@ GLOBAL_INI:
           value:                      "fence"
           required:                   true
       trace:
-        ha_dr_sushanasr:
+        ha_dr_saphanasr:
+          required:                   false
+        ha_dr_chksrv:
           required:                   false
 
 # === Azure Load Balancer ===

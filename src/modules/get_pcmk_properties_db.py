@@ -298,12 +298,12 @@ class HAClusterValidator(BaseHAClusterValidator):
                         self.log(
                             logging.INFO,
                             f"param_name: {param_name}, value: {value}, "
-                            + f"Fexpected_value: {expected_value}",
+                            + f"expected_value: {expected_value}",
                         )
                         parameters.append(
                             self._create_parameter(
                                 category="global_ini",
-                                subcategory=section_name,
+                                id=section_name,
                                 name=param_name,
                                 value=value,
                                 expected_value=expected_value,
