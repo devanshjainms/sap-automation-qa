@@ -547,6 +547,9 @@ class ConfigurationCheckModule(SapAutomationQA):
             }
         except Exception as ex:
             self.log(logging.ERROR, f"Error while validating min list {ex}")
+            return {
+                "status": TestStatus.ERROR.value,
+            }
 
     def validate_vm_support(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """

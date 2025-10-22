@@ -58,8 +58,16 @@ Follow the steps (2.1 - 2.2) in [Setup Guide for SAP Testing Automation Framewor
 
 > **Note**: High Availability (HA) configuration checks and functional tests are currently supported only for SAP HANA databases. For IBM DB2 databases, only non-HA configuration checks are available.
 
+### 3. Required Access and Permissions
 
-### 3. Test Execution
+Ensure that the managed identity or service principal used by the controller virtual machine has the necessary permissions to access Azure resources and SAP systems for configuration validation.
+1. "Reader" role to the user-assigned managed identity on the resource group containing the SAP VMs and the Azure Load Balancer.
+1. "Reader" role to the user-assigned managed identity on the resource group containing the Azure NetApp Files account (if using Azure NetApp Files as shared storage).
+1. "Reader" role to the user-assigned managed identity on the resource group containing the storage account (if using Azure File Share as shared storage).
+1. "Reader" role to the user-assigned managed identity on the resource group containing the managed disks (if using Azure Managed Disks for SAP HANA data and log volumes).
+1. "Reader" role to the user-assigned managed identity on the resource group containing the shared disks (if using Azure Shared Disks for SBD devices).
+
+### 4. Test Execution
 
 To execute the script, run following command:
 
@@ -83,7 +91,7 @@ To execute the script, run following command:
 ./scripts/sap_automation_qa.sh --extra-vars='{"configuration_test_type":"ApplicationInstances"}'
 ```
 
-### 4. Viewing Test Results
+### 5. Viewing Test Results
 
 After the test execution completes, a detailed HTML report is generated that summarizes the PASS/FAIL status of each test case and includes detailed execution logs for every step of the automation run.
 
@@ -101,12 +109,11 @@ After the test execution completes, a detailed HTML report is generated that sum
    The report file is named using the following format:
 
    ```
-   HA_{SAP_TIER}_{DATABASE_TYPE}_{OS_DISTRO_NAME}_{INVOCATION_ID}.html
+   CONFIG_{SAP_SID}_{DATABASE_TYPE}_{INVOCATION_ID}.html
    ```
 
-   - `SAP_TIER`: The SAP tier tested (e.g., DB, SCS)
+   - `SAP_SID`: The SAP system ID (e.g., HN1, NWP)
    - `DATABASE_TYPE`: The database type (e.g., HANA)
-   - `OS_DISTRO_NAME`: The operating system distribution (e.g., SLES15SP4)
    - `INVOCATION_ID`: A unique identifier (Group invocation ID) for the test run which is logged at the end of test execution. Find example screenshot below:
 
       ![Test Execution Completion Screenshot](./images/execution_screenshot.png)
