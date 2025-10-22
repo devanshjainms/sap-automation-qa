@@ -513,35 +513,40 @@ class ConfigurationCheckModule(SapAutomationQA):
         """
         min_values = check.validator_args.get("min_values", [])
         separator = check.validator_args.get("separator", " ")
+        try:
 
-        if not isinstance(min_values, list):
-            return {
-                "status": TestStatus.ERROR.value,
-            }
+            if not isinstance(min_values, list):
+                return {
+                    "status": TestStatus.ERROR.value,
+                }
 
-        collected_values = str(collected_data).strip().split(separator) if collected_data else []
-        collected_values = [val.strip() for val in collected_values if val.strip()]
-        if len(collected_values) != len(min_values):
-            return {
-                "status": self._create_validation_result(check.severity, False),
-            }
-        all_valid = True
-        for actual, minimum in zip(collected_values, min_values):
-            try:
-                actual_int = int(actual)
-                minimum_int = int(minimum)
-                if actual_int > sys.maxsize or minimum_int > sys.maxsize:
-                    continue
-                if actual_int < minimum_int:
+            collected_values = (
+                str(collected_data).strip().split(separator) if collected_data else []
+            )
+            collected_values = [val.strip() for val in collected_values if val.strip()]
+            if len(collected_values) != len(min_values):
+                return {
+                    "status": self._create_validation_result(check.severity, False),
+                }
+            all_valid = True
+            for actual, minimum in zip(collected_values, min_values):
+                try:
+                    actual_int = int(actual)
+                    minimum_int = int(minimum)
+                    if actual_int > sys.maxsize or minimum_int > sys.maxsize:
+                        continue
+                    if actual_int < minimum_int:
+                        all_valid = False
+                        break
+                except (ValueError, OverflowError):
                     all_valid = False
                     break
-            except (ValueError, OverflowError):
-                all_valid = False
-                break
 
-        return {
-            "status": self._create_validation_result(check.severity, all_valid),
-        }
+            return {
+                "status": self._create_validation_result(check.severity, all_valid),
+            }
+        except Exception as ex:
+            self.log(logging.ERROR, f"Error while validating min list {ex}")
 
     def validate_vm_support(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """
