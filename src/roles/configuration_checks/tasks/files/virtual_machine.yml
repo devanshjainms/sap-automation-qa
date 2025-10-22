@@ -72,7 +72,8 @@ enums:
   user:
     - root:                           &root "root"
     - sidadm:                         &sidadm "sidadm"
-    - all_users:                      &user [*root, *sidadm]
+    - db2sid:                         &db2sid "db2sid"
+    - all_users:                      &user [*root, *sidadm, *db2sid]
 
   validator_type:
     - string:                         &string "string"
@@ -564,7 +565,7 @@ checks:
     collector_type:                   *command
     collector_args:
       command:                        "db2pd -alldbs -hadr"
-      user:                           *sidadm
+      user:                           *db2sid
     report:                           *section
 
   - id:                               "IC-0029"

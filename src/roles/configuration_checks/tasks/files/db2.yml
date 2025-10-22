@@ -536,3 +536,106 @@ checks:
     report:                             *check
     references:
       sap:                              "2751102"
+
+  - id:                                 "DB-Db2-0020"
+    name:                               "Filesystem Mount Points"
+    description:                        "Displays all filesystem mount points on the Db2 system"
+    category:                           *sap_check
+    severity:                           *info
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*db2]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "filesystem"
+    report:                             *table
+    references:
+      microsoft:                        "https://learn.microsoft.com/azure/virtual-machines/workloads/sap/dbms-guide-ibm"
+
+  - id:                                 "DB-Db2-0021"
+    name:                               "Azure Disks"
+    description:                        "Displays Azure disk configuration for the Db2 system"
+    category:                           *sap_check
+    severity:                           *info
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*db2]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "disk"
+    report:                             *table
+    references:
+      microsoft:                        "https://learn.microsoft.com/azure/virtual-machines/workloads/sap/dbms-guide-ibm"
+
+  - id:                                 "DB-Db2-0022"
+    name:                               "LVM Groups"
+    description:                        "Lists all LVM groups to ensure SAP HANA directories are configured with supported LVM configurations."
+    category:                           *sap_check
+    severity:                           *info
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "lvm_groups"
+    report:                             *table
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 "DB-Db2-0023"
+    name:                               "LVM Volumes"
+    description:                        "Lists all LVM volumes to ensure SAP HANA directories are configured with supported LVM configurations."
+    category:                           *sap_check
+    severity:                           *info
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "lvm_volumes"
+    report:                             *table
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 "DB-Db2-0024"
+    name:                               "ANF Volumes"
+    description:                        "Lists all ANF volumes to ensure SAP HANA directories are configured with supported ANF configurations."
+    category:                           *sap_check
+    severity:                           *info
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "anf_volumes"
+    report:                             *table
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"

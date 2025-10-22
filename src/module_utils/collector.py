@@ -130,7 +130,7 @@ class CommandCollector(Collector):
                     return f"ERROR: Invalid user parameter: {user}"
 
                 if user == "db2sid":
-                    user = f"db2{context.get('database_sid', '')}"
+                    user = f"db2{context.get('database_sid', '').lower()}"
 
                 command = f"sudo -u {shlex.quote(user)} {command}"
 
