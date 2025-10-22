@@ -137,11 +137,10 @@
           file_name:                    "high_availability"
           checks_var:                   "db_ha_config_checks"
           results_var:                  "db_ha_config_results"
-      when:                             >-
-                                        role == 'DB' and
-                                        database_high_availability | default(false) | bool and
-                                        (configuration_test_type == 'all' or
-                                         configuration_test_type == 'Database')
+      when:
+                                        - role == 'DB' and
+                                        - database_high_availability | default(false) | bool
+                                        - configuration_test_type == 'all' or configuration_test_type == 'Database')
 
     - name:                             "Run role-specific checks for ASCS/SCS hosts"
       ansible.builtin.include_tasks:

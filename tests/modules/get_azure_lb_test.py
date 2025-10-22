@@ -84,11 +84,13 @@ class TestAzureLoadBalancer:
                 ),
                 "constants": {
                     "AZURE_LOADBALANCER": {
-                        "RULES": {"idle_timeout_in_minutes": 4, "enable_floating_ip": False},
+                        "RULES": {
+                            "idle_timeout_in_minutes": {"value": 4, "required": True},
+                            "enable_floating_ip": {"value": False, "required": True},
+                        },
                         "PROBES": {
-                            "interval_in_seconds": 5,
-                            "number_of_probes": 3,
-                            "timeout_in_seconds": 4,
+                            "interval_in_seconds": {"value": 5, "required": True},
+                            "number_of_probes": {"value": 3, "required": True},
                         },
                     }
                 },
@@ -113,6 +115,8 @@ class TestAzureLoadBalancer:
         :type azure_lb: AzureLoadBalancer
         """
         azure_lb.get_load_balancers_details()
+        print(f"\n\nResult: {azure_lb.result}")
+        print(f"Parameters: {azure_lb.result['details']['parameters']}")
         assert azure_lb.result["status"] == "PASSED"
         assert azure_lb.result["details"]["parameters"] is not None
 
