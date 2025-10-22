@@ -141,7 +141,7 @@
           results_var:                  "db_db2_results"
       when:                             >-
                                         role == 'DB' and
-                                        (platform | default('HANA') | upper == 'Db2') and
+                                        (platform | default('HANA') | upper == 'DB2') and
                                         (configuration_test_type == 'all' or
                                           configuration_test_type == 'Database')
 

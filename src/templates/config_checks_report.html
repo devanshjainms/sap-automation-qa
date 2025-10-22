@@ -1250,8 +1250,8 @@
                   <tr onclick="toggleDetails('{{ check.hostname }}-{{ check.check.id }}')">
                     <td>{{ check.check.id }}</td>
                     <td>{{ check.check.name }}</td>
-                    <td>{{ check.actual_value|truncate(40) }}</td>
-                    <td>{{ check.expected_value }}</td>
+                    <td>{{ (check.actual_value|default('N/A', true)|string)|truncate(40) }}</td>
+                    <td>{{ check.expected_value|default('N/A', true) }}</td>
                     <td class="status-{{ check.status|lower }}">{{ check.status }}</td>
                   </tr>
                   <tr id="details-{{ check.hostname }}-{{ check.check.id }}" class="expanded-content">
