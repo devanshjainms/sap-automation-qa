@@ -29,17 +29,17 @@ Configuration validation serves as a critical quality gate in the SAP deployment
 - Storage account redundancy settings
 - Disk caching policies
 
-**SAP HANA Configuration**
-- Memory allocation
-- System replication parameters
+**SAP Database Configuration**
+- SAP HANA: Memory allocation, system replication parameters
+- IBM DB2: Hardware requirements, system language, OS tuning parameters
 
-**Pacemaker Cluster**
+**Pacemaker Cluster (HANA only)**
 - Resource agent versions and parameters
 - Fencing (STONITH) configuration
 - Resource constraints and colocation rules
 - Cluster communication settings
 
-**SAP HA Resources**
+**SAP HA Resources (HANA only)**
 - Virtual hostname configuration
 - File system mount options
 - Service startup ordering
@@ -56,6 +56,8 @@ Update the `TEST_TYPE` parameter in [`vars.yaml`](./../vars.yaml) file to `Confi
 
 Follow the steps (2.1 - 2.2) in [Setup Guide for SAP Testing Automation Framework](./SETUP.MD#2-system-configuration) to configure your system details.
 
+> **Note**: High Availability (HA) configuration checks and functional tests are currently supported only for SAP HANA databases. For IBM DB2 databases, only non-HA configuration checks are available.
+
 
 ### 3. Test Execution
 
@@ -71,7 +73,7 @@ To execute the script, run following command:
 # Run checks with verbose logging
 ./scripts/sap_automation_qa.sh -vv
 
-# Run only Database (HANA) configuration checks
+# Run only Database configuration checks (supports both HANA and DB2)
 ./scripts/sap_automation_qa.sh --extra-vars='{"configuration_test_type":"Database"}'
 
 # Run only ASCS/ERS configuration checks
