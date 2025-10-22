@@ -91,6 +91,7 @@ class ConfigurationCheckModule(SapAutomationQA):
             "string": self.validate_string,
             "range": self.validate_numeric_range,
             "list": self.validate_list,
+            "min_list": self.validate_min_list,
             "check_support": self.validate_vm_support,
             "properties": self.validate_properties,
         }
@@ -497,6 +498,39 @@ class ConfigurationCheckModule(SapAutomationQA):
             ),
         }
 
+    def validate_min_list(self, check: Check, collected_data: str) -> Dict[str, Any]:
+        """
+        Validate that each value in a space-separated list meets or exceeds minimum values.
+        Used for kernel parameters like kernel.sem where actual values must be >= minimum required.
+
+        :param check: Check definition containing min_values and separator in validator_args
+        :type check: Check
+        :param collected_data: Space-separated string of values from system
+        :type collected_data: str
+        :return: Validation result dictionary
+        :rtype: Dict[str, Any]
+        """
+        min_values = check.validator_args.get("min_values", [])
+        separator = check.validator_args.get("separator", " ")
+
+        if not isinstance(min_values, list):
+            return {
+                "status": TestStatus.ERROR.value,
+            }
+
+        collected_values = str(collected_data).strip().split(separator) if collected_data else []
+        collected_values = [val.strip() for val in collected_values if val.strip()]
+        if len(collected_values) != len(min_values):
+            return {
+                "status": self._create_validation_result(check.severity, False),
+            }
+        all_valid = all(
+            int(actual) >= int(minimum) for actual, minimum in zip(collected_values, min_values)
+        )
+        return {
+            "status": self._create_validation_result(check.severity, all_valid),
+        }
+
     def validate_vm_support(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """
         Validates if a VM SKU is supported for the given role and database type
@@ -609,6 +643,11 @@ class ConfigurationCheckModule(SapAutomationQA):
                 valid_list = check.validator_args.get("valid_list", [])
                 if isinstance(valid_list, list) and valid_list:
                     expected_value = ", ".join(str(v) for v in valid_list)
+            elif check.validator_type == "min_list":
+                min_values = check.validator_args.get("min_values", [])
+                separator = check.validator_args.get("separator", " ")
+                if isinstance(min_values, list) and min_values:
+                    expected_value = f"Min: {separator.join(str(v) for v in min_values)}"
             elif check.validator_type == "properties":
                 props = check.validator_args.get("properties", [])
                 if isinstance(props, list) and props:

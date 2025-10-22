@@ -290,6 +290,30 @@ class TestValidators:
         result = config_module.validate_list(sample_check, "item3, item4")
         assert result["status"] == TestStatus.WARNING.value
 
+    def test_validate_min_list_all_equal(self, config_module, sample_check):
+        """Test min_list validation with all values equal to minimum"""
+        sample_check.validator_args = {
+            "min_values": ["32000", "1024000000", "500", "32000"],
+            "separator": " ",
+        }
+        result = config_module.validate_min_list(sample_check, "32000 1024000000 500 32000")
+        assert result["status"] == TestStatus.SUCCESS.value
+        sample_check.validator_args = {
+            "min_values": ["32000", "1024000000", "500", "32000"],
+            "separator": " ",
+        }
+        result = config_module.validate_min_list(sample_check, "32000 1024000000 500 32768")
+        assert result["status"] == TestStatus.SUCCESS.value
+
+    def test_validate_min_list_tab_separator(self, config_module, sample_check):
+        """Test min_list validation with tab separator"""
+        sample_check.validator_args = {
+            "min_values": ["10", "20", "30"],
+            "separator": "\t",
+        }
+        result = config_module.validate_min_list(sample_check, "10\t20\t30")
+        assert result["status"] == TestStatus.SUCCESS.value
+
     def test_validate_properties_success(self, config_module, sample_check):
         """Test properties validation with matching properties"""
         sample_check.validator_args = {
@@ -423,6 +447,70 @@ class TestExecuteCheck:
             result = config_module.execute_check(sample_check)
             assert result.status == TestStatus.ERROR.value
             assert "Error" in result.details
+
+    def test_execute_check_min_list_validator_success(self, config_module):
+        """Test check execution with min_list validator - values meet minimum"""
+        config_module.set_context({"hostname": "testhost"})
+        check = Check(
+            id="kernel_sem_check",
+            name="kernel.sem",
+            description="Kernel semaphore parameters",
+            category="OS",
+            workload="SAP",
+            severity=TestSeverity.HIGH,
+            collector_type="command",
+            collector_args={"command": "/sbin/sysctl kernel.sem -n"},
+            validator_type="min_list",
+            validator_args={
+                "min_values": ["32000", "1024000000", "500", "32000"],
+                "separator": " ",
+            },
+            tags=["kernel"],
+            applicability=[],
+            references={},
+            report="check",
+        )
+
+        def mock_collect(check_obj, context):
+            return "32000 1024000000 500 32768"
+
+        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
+            result = config_module.execute_check(check)
+            assert result.status == TestStatus.SUCCESS.value
+            assert result.expected_value == "Min: 32000 1024000000 500 32000"
+            assert result.actual_value == "32000 1024000000 500 32768"
+
+    def test_execute_check_min_list_validator_failure(self, config_module):
+        """Test check execution with min_list validator - values below minimum"""
+        config_module.set_context({"hostname": "testhost"})
+        check = Check(
+            id="kernel_sem_check",
+            name="kernel.sem",
+            description="Kernel semaphore parameters",
+            category="OS",
+            workload="SAP",
+            severity=TestSeverity.HIGH,
+            collector_type="command",
+            collector_args={"command": "/sbin/sysctl kernel.sem -n"},
+            validator_type="min_list",
+            validator_args={
+                "min_values": ["32000", "1024000000", "500", "32000"],
+                "separator": " ",
+            },
+            tags=["kernel"],
+            applicability=[],
+            references={},
+            report="check",
+        )
+
+        def mock_collect(check_obj, context):
+            return "32000 1024000000 500 31999"
+
+        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
+            result = config_module.execute_check(check)
+            assert result.status == TestStatus.ERROR.value
+            assert result.expected_value == "Min: 32000 1024000000 500 32000"
+            assert result.actual_value == "32000 1024000000 500 31999"
 
 
 class TestExecuteCheckWithRetry:

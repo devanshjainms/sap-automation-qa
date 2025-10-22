@@ -194,12 +194,14 @@ checks:
       database_type:                    [*db2]
     collector_type:                     *command
     collector_args:
-      command:                          "/sbin/sysctl kernel.sem -n"
+      command:                          "/sbin/sysctl vm.swappiness -n"
       user:                             *root
     validator_type:                     *string
     validator_args:
-      expected_output:                  "32000 1024000000 500 32000"
+      expected_output:                  "5"
     report:                             *check
+    references:
+      sap:                              "2936683"
 
   - id:                                 "DB-Db2-0006"
     name:                               "VM Overcommit recovery setting"
@@ -271,7 +273,7 @@ checks:
 
   - id:                                 "DB-Db2-0009"
     name:                               "kernel.sem"
-    description:                        "kernel.sem"
+    description:                        "kernel.sem - SAP minimum required values (actual values can be equal or higher)"
     category:                           *sap_check
     severity:                           *high
     workload:                           *sap
@@ -286,9 +288,10 @@ checks:
     collector_args:
       command:                          "/sbin/sysctl kernel.sem -n"
       user:                             *root
-    validator_type:                     *string
+    validator_type:                     "min_list"
     validator_args:
-      expected_output:                  "32000 1024000000 500 32000"
+      min_values:                       ["32000", "1024000000", "500", "32000"]
+      separator:                        " "
     report:                             *check
     references:
       sap:                              "2936683"
