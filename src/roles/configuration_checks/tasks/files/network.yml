@@ -40,7 +40,7 @@ enums:
     - hana:                           &hana "HANA"
     - mssql:                          &mssql "MSSQL"
     - oracle:                         &oracle "Oracle"
-    - db2:                            &db2 "Db2"
+    - db2:                            &db2 "DB2"
     - ase:                            &ase "ASE"
     - all_db:                         &db [*hana, *mssql, *oracle, *db2, *ase]
 

@@ -19,7 +19,7 @@ enums:
     - suse_12_4:                      &suse_12_4 "SUSE 12 SP4"
     - suse_12_5:                      &suse_12_5 "SUSE 12 SP5"
     - suse_15_0:                      &suse_15_0 "SUSE 15 SP0"
-    - suse_15_0:                      &suse_15_1 "SUSE 15 SP1"
+    - suse_15_1:                      &suse_15_1 "SUSE 15 SP1"
     - all_versions:                   &all_versions "all"
 
   hardware_type:
@@ -40,7 +40,7 @@ enums:
     - hana:                           &hana "HANA"
     - mssql:                          &mssql "MSSQL"
     - oracle:                         &oracle "Oracle"
-    - db2:                            &db2 "Db2"
+    - db2:                            &db2 "DB2"
     - ase:                            &ase "ASE"
     - all_db:                         &db [*hana, *mssql, *oracle, *db2, *ase]
 
@@ -51,7 +51,7 @@ enums:
     - app:                            &app_role "APP"
     - webdispatcher:                  &web_dispatch "WEB"
     - pas:                            &pas "PAS"
-    - all_role:                       &role [*db_role, *ascs_role, *ers_role, *app_role, *web_dispatch, *pas]
+    - all_role:                       &all_role [*db_role, *ascs_role, *ers_role, *app_role, *web_dispatch, *pas]
 
   cluster_type:
     - sbd:                            &sbd "ISCSI"
