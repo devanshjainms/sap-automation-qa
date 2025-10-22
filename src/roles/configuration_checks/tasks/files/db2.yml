@@ -73,8 +73,8 @@ enums:
   user:
     - root:                           &root "root"
     - sidadm:                         &sidadm "sidadm"
-    - db2adm:                         &db2sid "db2sid"
-    - all_users:                      &user [*root, *sidadm]
+    - db2sid:                         &db2sid "db2sid"
+    - all_users:                      &user [*root, *sidadm, *db2sid]
 
   validator_type:
     - string:                         &string "string"
@@ -384,7 +384,7 @@ checks:
       database_type:                    [*db2]
     collector_type:                     *command
     collector_args:
-      command:                          "db2pd -alldbs -hadr | grep -i 'HADR_TIMEOUT' | awk '{print $NF}'"
+      command:                          ". ~/sqllib/db2profile && db2pd -alldbs -hadr | grep -i 'HADR_TIMEOUT' | awk '{print $NF}'"
       user:                             *db2sid
     validator_type:                     *string
     validator_args:
@@ -432,7 +432,7 @@ checks:
       database_type:                    [*db2]
     collector_type:                     *command
     collector_args:
-      command:                          "db2pd -alldbs -hadr | grep -i 'PEER_WINDOW(seconds)' | awk '{print $NF}'"
+      command:                          ". ~/sqllib/db2profile && db2pd -alldbs -hadr | grep -i 'PEER_WINDOW(seconds)' | awk '{print $NF}'"
       user:                             *db2sid
     validator_type:                     *string
     validator_args:
@@ -457,7 +457,7 @@ checks:
       high_availability_agent:          *sbd
     collector_type:                     *command
     collector_args:
-      command:                          "db2pd -alldbs -hadr | grep -i 'PEER_WINDOW(seconds)' | awk '{print $NF}'"
+      command:                          ". ~/sqllib/db2profile && db2pd -alldbs -hadr | grep -i 'PEER_WINDOW(seconds)' | awk '{print $NF}'"
       user:                             *db2sid
     validator_type:                     *string
     validator_args:
@@ -482,7 +482,7 @@ checks:
       high_availability_agent:          *fencing_agent
     collector_type:                     *command
     collector_args:
-      command:                          "db2pd -alldbs -hadr | grep -i 'PEER_WINDOW(seconds)' | awk '{print $NF}'"
+      command:                          ". ~/sqllib/db2profile && db2pd -alldbs -hadr | grep -i 'PEER_WINDOW(seconds)' | awk '{print $NF}'"
       user:                             *db2sid
     validator_type:                     *string
     validator_args:
@@ -531,7 +531,7 @@ checks:
       database_type:                    [*db2]
     collector_type:                     *command
     collector_args:
-      command:                          "output=$(db2pd -dbmcfg | grep INSTANCE_MEMORY | awk '{print $NF}'); [[ $output -le 100 ]] && echo $output || echo $(awk -v output=$output 'BEGIN {print output * 4096 / 1024 / 1024 / 1024}')"
+      command:                          ". ~/sqllib/db2profile && output=$(db2pd -dbmcfg | grep INSTANCE_MEMORY | awk '{print $NF}'); [[ $output -le 100 ]] && echo $output || echo $(awk -v output=$output 'BEGIN {print output * 4096 / 1024 / 1024 / 1024}')"
       user:                             *db2sid
     validator_type:                     *range
     validator_args:
@@ -592,7 +592,7 @@ checks:
       hardware_type:                    *vm
       storage_type:                     *all_storage
       role:                             [*db_role]
-      database_type:                    [*hana]
+      database_type:                    [*db2]
     collector_type:                     *azure
     collector_args:
       resource_type:                    "lvm_groups"
@@ -613,7 +613,7 @@ checks:
       hardware_type:                    *vm
       storage_type:                     *all_storage
       role:                             [*db_role]
-      database_type:                    [*hana]
+      database_type:                    [*db2]
     collector_type:                     *azure
     collector_args:
       resource_type:                    "lvm_volumes"
@@ -634,7 +634,7 @@ checks:
       hardware_type:                    *vm
       storage_type:                     *all_storage
       role:                             [*db_role]
-      database_type:                    [*hana]
+      database_type:                    [*db2]
     collector_type:                     *azure
     collector_args:
       resource_type:                    "anf_volumes"
