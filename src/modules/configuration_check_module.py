@@ -9,6 +9,7 @@ import logging
 import time
 import json
 import re
+import sys
 from typing import Optional, Dict, Any, List, Type
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -524,9 +525,20 @@ class ConfigurationCheckModule(SapAutomationQA):
             return {
                 "status": self._create_validation_result(check.severity, False),
             }
-        all_valid = all(
-            int(actual) >= int(minimum) for actual, minimum in zip(collected_values, min_values)
-        )
+        all_valid = True
+        for actual, minimum in zip(collected_values, min_values):
+            try:
+                actual_int = int(actual)
+                minimum_int = int(minimum)
+                if actual_int > sys.maxsize or minimum_int > sys.maxsize:
+                    continue
+                if actual_int < minimum_int:
+                    all_valid = False
+                    break
+            except (ValueError, OverflowError):
+                all_valid = False
+                break
+
         return {
             "status": self._create_validation_result(check.severity, all_valid),
         }
