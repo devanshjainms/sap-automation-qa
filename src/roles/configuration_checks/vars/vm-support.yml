@@ -26,7 +26,7 @@ SupportedOSDBCombinations:
     ERS:                         [*suse, *redhat, *oraclelinux, *windows]
     APP:                         [*windows, *oraclelinux]
     PAS:                         [*windows, *oraclelinux]
-  DB2:
+  Db2:
     DB:                          [*windows, *redhat, *suse]
     SCS:                         [*windows, *redhat, *suse]
     ERS:                         [*windows, *redhat, *suse]
@@ -42,9 +42,9 @@ SupportedOSDBCombinations:
 
 # Database configurations
 db_types:
-  non_hana_dbs:                &db_type_non_hana ["MSSQL", "Oracle", "DB2", "ASE"]
-  non_hana_dbs_ase:            &db_type_non_hana_ase ["MSSQL", "Oracle", "DB2"]
-  all_dbs:                     &db_type_all ["MSSQL", "Oracle", "DB2", "HANA", "ASE"]
+  non_hana_dbs:                &db_type_non_hana ["MSSQL", "Oracle", "Db2", "ASE"]
+  non_hana_dbs_ase:            &db_type_non_hana_ase ["MSSQL", "Oracle", "Db2"]
+  all_dbs:                     &db_type_all ["MSSQL", "Oracle", "Db2", "HANA", "ASE"]
 
 # Storage configurations
 storage_types:
@@ -69,10 +69,10 @@ hana_storage_requirements:
   HANADataStripeSize:          "256.00k"
   HANALOGStripeSize:           "64.00k"
 
-# DB2 Storage Requirements
+# Db2 Storage Requirements
 db2_storage_requirements:
-  DB2DataStripeSize:           "256.00k"
-  DB2LOGStripeSize:            "64.00k"
+  Db2DataStripeSize:           "256.00k"
+  Db2LOGStripeSize:            "64.00k"
 
 # VM deployment patterns
 vm_patterns:

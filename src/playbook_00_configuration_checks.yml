@@ -130,24 +130,24 @@
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'Database')
 
-    - name:                             "Run role-specific checks for DB2 DB hosts"
+    - name:                             "Run role-specific checks for Db2 DB hosts"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
       vars:
         check_type:
-          name:                         "Database (DB2) Checks"
+          name:                         "Database (Db2) Checks"
           file_name:                    "db2"
           checks_var:                   "db_db2_checks"
           results_var:                  "db_db2_results"
       when:                             >-
                                         role == 'DB' and
-                                        (platform | default('HANA') | upper == 'DB2') and
+                                        (platform | default('HANA') | upper == 'Db2') and
                                         (configuration_test_type == 'all' or
                                           configuration_test_type == 'Database')
 
-    - name:                             "Debug DB2 checks execution"
+    - name:                             "Debug Db2 checks execution"
       ansible.builtin.debug:
-        msg:                            "Executing Database (DB2) checks on host {{ inventory_hostname }}"
+        msg:                            "Executing Database (Db2) checks on host {{ inventory_hostname }}"
       when:                             >-
                                         role == 'DB' and
                                         (platform | default('HANA') | upper == 'DB2') and
@@ -324,7 +324,7 @@
       loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].db_hana_results is defined
 
-    - name:                             "Collect DB (DB2) check results"
+    - name:                             "Collect DB (Db2) check results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].db_db2_results
                                             | default([]) }}"

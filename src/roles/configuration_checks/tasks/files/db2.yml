@@ -40,7 +40,7 @@ enums:
     - hana:                           &hana "HANA"
     - mssql:                          &mssql "MSSQL"
     - oracle:                         &oracle "Oracle"
-    - db2:                            &db2 "DB2"
+    - db2:                            &db2 "Db2"
     - ase:                            &ase "ASE"
     - all_db:                         &db [*hana, *mssql, *oracle, *db2, *ase]
 
@@ -90,9 +90,9 @@ enums:
 # Checks for DB roles for database_type == hana
 
 checks:
-  - id:                                 "DB-DB2-0001"
-    name:                               "DB2 Hardware Check"
-    description:                        "Check if the hardware type is supported for DB2"
+  - id:                                 "DB-Db2-0001"
+    name:                               "Db2 Hardware Check"
+    description:                        "Check if the hardware type is supported for Db2"
     category:                           *sap_check
     severity:                           *high
     workload:                           *sap
@@ -112,9 +112,9 @@ checks:
       valid_list:                       ["x86_64", "x64"]
     report:                             *check
 
-  - id:                                 "DB-DB2-0002"
+  - id:                                 "DB-Db2-0002"
     name:                               "Linux installation & system language"
-    description:                        "Check if the Linux installation and system language are supported for DB2"
+    description:                        "Check if the Linux installation and system language are supported for Db2"
     category:                           *sap_check
     severity:                           *high
     workload:                           *sap
@@ -134,7 +134,7 @@ checks:
       expected_output:                  "en_US.UTF-8"
     report:                             *check
 
-  - id:                                 "DB-DB2-0003"
+  - id:                                 "DB-Db2-0003"
     name:                               "SELinux settings"
     description:                        "SAP recommended SELinux in permissive mode or disabled"
     category:                           *sap_check
@@ -156,7 +156,7 @@ checks:
       expected_output:                  "en_US.UTF-8"
     report:                             *check
 
-  - id:                                 "DB-DB2-0004"
+  - id:                                 "DB-Db2-0004"
     name:                               "vm.max_map_count setting"
     description:                        "vm.max_map_count setting"
     category:                           *sap_check
@@ -178,7 +178,7 @@ checks:
       expected_output:                  "OK"
     report:                             *check
 
-  - id:                                 "DB-DB2-0005"
+  - id:                                 "DB-Db2-0005"
     name:                               "VM Swappiness setting"
     description:                        "vm.swappiness setting"
     category:                           *sap_check
@@ -200,7 +200,7 @@ checks:
       expected_output:                  "32000 1024000000 500 32000"
     report:                             *check
 
-  - id:                                 "DB-DB2-0006"
+  - id:                                 "DB-Db2-0006"
     name:                               "VM Overcommit recovery setting"
     description:                        "vm.overcommit_memory setting"
     category:                           *sap_check
@@ -222,7 +222,7 @@ checks:
       expected_output:                  "0"
     report:                             *check
 
-  - id:                                 "DB-DB2-0007"
+  - id:                                 "DB-Db2-0007"
     name:                               "Randomize VA Space setting"
     description:                        "Randomize VA Space"
     category:                           *sap_check
@@ -244,7 +244,7 @@ checks:
       expected_output:                  "5"
     report:                             *check
 
-  - id:                                 "DB-DB2-0008"
+  - id:                                 "DB-Db2-0008"
     name:                               "Max Async I/O"
     description:                        "Max Async I/O setting"
     category:                           *sap_check
@@ -268,7 +268,7 @@ checks:
     references:
       sap:                              "2936683"
 
-  - id:                                 "DB-DB2-0009"
+  - id:                                 "DB-Db2-0009"
     name:                               "kernel.sem"
     description:                        "kernel.sem"
     category:                           *sap_check
@@ -292,7 +292,7 @@ checks:
     references:
       sap:                              "2936683"
 
-  - id:                                 "DB-DB2-0010"
+  - id:                                 "DB-Db2-0010"
     name:                               "Kernel out of process"
     description:                        "Parameter that controls the system's behavior in response to a kernel out of process [OOPS]."
     category:                           *sap_check
@@ -316,7 +316,7 @@ checks:
     references:
       microsoft:                        "https://www.ibm.com/docs/en/db2/11.1?topic=unix-kernel-parameter-requirements-linux"
 
-  - id:                                 "DB-DB2-0011"
+  - id:                                 "DB-Db2-0011"
     name:                               "Max File Handles"
     description:                        "Parameter sets the maximum number of file handles (file descriptors) that the kernel will allocate."
     category:                           *sap_check
@@ -340,7 +340,7 @@ checks:
     references:
       microsoft:                        "https://www.ibm.com/docs/en/db2/11.1?topic=unix-kernel-parameter-requirements-linux"
 
-  - id:                                 "DB-DB2-0012"
+  - id:                                 "DB-Db2-0012"
     name:                               "Transparent Huge Pages"
     description:                        "Transparent Huge Pages (THP) is a Linux kernel feature related to memory management."
     category:                           *sap_check
@@ -365,7 +365,7 @@ checks:
       sap:                              "2391706"
       microsoft:                        "https://www.ibm.com/docs/en/db2/11.1?topic=unix-kernel-parameter-requirements-linux"
 
-  - id:                                 "DB-DB2-0013"
+  - id:                                 "DB-Db2-0013"
     name:                               "HADR TIMEOUT"
     description:                        "HADR TIMEOUT"
     category:                           *sap_check
@@ -389,7 +389,7 @@ checks:
     references:
       microsoft:                        "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-rhel-ibm-db2-luw?tabs=lb-portal#ibm-db2-hadr-settings-for-azure"
 
-  - id:                                 "DB-DB2-0014"
+  - id:                                 "DB-Db2-0014"
     name:                               "HADR TIMEOUT"
     description:                        "HADR TIMEOUT"
     category:                           *sap_check
@@ -413,7 +413,7 @@ checks:
     references:
       microsoft:                        "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-rhel-ibm-db2-luw?tabs=lb-portal#ibm-db2-hadr-settings-for-azure"
 
-  - id:                                 "DB-DB2-0015"
+  - id:                                 "DB-Db2-0015"
     name:                               "PEER WINDOW (seconds)"
     description:                        "PEER WINDOW (seconds) RedHat"
     category:                           *sap_check
@@ -437,7 +437,7 @@ checks:
     references:
       microsoft:                        "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-rhel-ibm-db2-luw?tabs=lb-portal#ibm-db2-hadr-settings-for-azure"
 
-  - id:                                 "DB-DB2-0016"
+  - id:                                 "DB-Db2-0016"
     name:                               "PEER WINDOW (seconds)"
     description:                        "PEER WINDOW (seconds) SUSE SBD"
     category:                           *sap_check
@@ -462,7 +462,7 @@ checks:
     references:
       microsoft:                        "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-rhel-ibm-db2-luw?tabs=lb-portal#ibm-db2-hadr-settings-for-azure"
 
-  - id:                                 "DB-DB2-0017"
+  - id:                                 "DB-Db2-0017"
     name:                               "PEER WINDOW (seconds)"
     description:                        "PEER WINDOW (seconds) SUSE Fencing Agent"
     category:                           *sap_check
@@ -487,7 +487,7 @@ checks:
     references:
       microsoft:                        "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-rhel-ibm-db2-luw?tabs=lb-portal#ibm-db2-hadr-settings-for-azure"
 
-  - id:                                 "DB-DB2-0018"
+  - id:                                 "DB-Db2-0018"
     name:                               "Maximum shared memory segments"
     description:                        "Maximum shared memory segments"
     category:                           *sap_check
@@ -512,7 +512,7 @@ checks:
       microsoft:                        "https://www.ibm.com/docs/en/db2/11.1?topic=unix-kernel-parameter-requirements-linux"
       sap:                              "2751102"
 
-  - id:                                 "DB-DB2-0019"
+  - id:                                 "DB-Db2-0019"
     name:                               "Instance Memory size"
     description:                        "Instance Memory size"
     category:                           *sap_check
