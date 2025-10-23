@@ -246,8 +246,6 @@ class AzureLoadBalancer(SapAutomationQA):
             private_ip = (
                 config.get("private_ip_address")
                 or config.get("privateIpAddress")
-                or config.get("properties", {}).get("private_ip_address")
-                or config.get("properties", {}).get("privateIpAddress")
             )
             return private_ip
 
