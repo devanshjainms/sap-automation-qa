@@ -128,6 +128,10 @@ class CommandCollector(Collector):
                 if not re.match(r"^[a-zA-Z0-9_-]+$", user):
                     self.parent.log(logging.ERROR, f"Invalid user parameter: {user}")
                     return f"ERROR: Invalid user parameter: {user}"
+
+                if user == "db2sid":
+                    user = f"db2{context.get('database_sid', '').lower()}"
+
                 command = f"sudo -u {shlex.quote(user)} {command}"
 
             return self.parent.execute_command_subprocess(

@@ -90,8 +90,8 @@ enums:
 
 checks:
   - id:                               "NET-0001"
-    name:                             "No of network interface"
-    description:                      "Checks the number of network interfaces on the VM"
+    name:                             "Virtual Network"
+    description:                      "Retrieves the virtual network(s) associated with the VM's network interface(s)"
     category:                         *network_check
     severity:                         *info
     workload:                         *workload
@@ -103,27 +103,14 @@ checks:
                                         az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
                                         --vm-name {{ CONTEXT.vm_name }} \
                                         --subscription {{ CONTEXT.subscription_id }} \
-                                        --query "[].{Name:id}" -o tsv | wc -l
+                                        --query "[].id" -o tsv | while read nic_id; do \
+                                          nic=$(basename "$nic_id"); \
+                                          az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
+                                          --query "ipConfigurations[].subnet.id" -o tsv | awk -F'/' '{print $(NF-2)}'; \
+                                        done
     report:                           *check
 
   - id:                               "NET-0002"
-    name:                             "Network Interface Name"
-    description:                      "Retrieves the name of the network interface(s) attached to the VM"
-    category:                         *network_check
-    severity:                         *info
-    workload:                         *workload
-    applicability:
-      hardware_type:                  *vm
-    collector_type:                   *azure
-    collector_args:
-      command:                        |-
-                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
-                                        --vm-name {{ CONTEXT.vm_name }} \
-                                        --subscription {{ CONTEXT.subscription_id }} \
-                                        --query "[].id" -o tsv | xargs -I {} basename {}
-    report:                           *check
-
-  - id:                               "NET-0003"
     name:                             "Subnet"
     description:                      "Retrieves the subnet(s) associated with the VM's network interface(s)"
     category:                         *network_check
@@ -144,7 +131,43 @@ checks:
                                         done
     report:                           *check
 
+  - id:                               "NET-0003"
+    name:                             "No of network interface"
+    description:                      "Checks the number of network interfaces on the VM"
+    category:                         *network_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      hardware_type:                  *vm
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
+                                        --query "[].{Name:id}" -o tsv | wc -l
+    report:                           *check
+
   - id:                               "NET-0004"
+    name:                             "Network Interface Name"
+    description:                      "Retrieves the name of the network interface(s) attached to the VM"
+    category:                         *network_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      hardware_type:                  *vm
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
+                                        --query "[].id" -o tsv | xargs -I {} basename {}
+    report:                           *check
+
+
+
+  - id:                               "NET-0005"
     name:                             "Accelerated Networking"
     description:                      "Checks if Accelerated Networking is enabled on the VM's network interface(s)"
     category:                         *network_check
@@ -169,7 +192,7 @@ checks:
       expected_output:                "true"
     report:                           *check
 
-  - id:                               "NET-0005"
+  - id:                               "NET-0006"
     name:                             "No of IP configurations"
     description:                      "Checks the number of IP configurations on each network interface"
     category:                         *network_check
@@ -191,7 +214,7 @@ checks:
                                         done
     report:                           *check
 
-  - id:                               "NET-0006"
+  - id:                               "NET-0007"
     name:                             "IP Details"
     description:                      "Retrieves all IP addresses configured on the VM's network interface(s)"
     category:                         *network_check

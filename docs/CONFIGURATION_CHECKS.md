@@ -29,17 +29,17 @@ Configuration validation serves as a critical quality gate in the SAP deployment
 - Storage account redundancy settings
 - Disk caching policies
 
-**SAP HANA Configuration**
-- Memory allocation
-- System replication parameters
+**SAP Database Configuration**
+- SAP HANA: Memory allocation, system replication parameters
+- IBM DB2: Hardware requirements, system language, OS tuning parameters
 
-**Pacemaker Cluster**
+**Pacemaker Cluster (HANA only)**
 - Resource agent versions and parameters
 - Fencing (STONITH) configuration
 - Resource constraints and colocation rules
 - Cluster communication settings
 
-**SAP HA Resources**
+**SAP HA Resources (HANA only)**
 - Virtual hostname configuration
 - File system mount options
 - Service startup ordering
@@ -56,8 +56,33 @@ Update the `TEST_TYPE` parameter in [`vars.yaml`](./../vars.yaml) file to `Confi
 
 Follow the steps (2.1 - 2.2) in [Setup Guide for SAP Testing Automation Framework](./SETUP.MD#2-system-configuration) to configure your system details.
 
+> **Note**: High Availability (HA) configuration checks and functional tests are currently supported only for SAP HANA databases. For IBM DB2 databases, only non-HA configuration checks are available.
 
-### 3. Test Execution
+### 3. Required Access and Permissions
+
+Ensure that the managed identity or service principal used by the controller virtual machine has the necessary permissions to access Azure resources and SAP systems for configuration validation.
+1. "Reader" role to the user-assigned managed identity on the resource group containing the SAP VMs and the Azure Load Balancer.
+1. "Reader" role to the user-assigned managed identity on the resource group containing the Azure NetApp Files account (if using Azure NetApp Files as shared storage).
+1. "Reader" role to the user-assigned managed identity on the resource group containing the storage account (if using Azure File Share as shared storage).
+1. "Reader" role to the user-assigned managed identity on the resource group containing the managed disks (if using Azure Managed Disks for SAP HANA data and log volumes).
+1. "Reader" role to the user-assigned managed identity on the resource group containing the shared disks (if using Azure Shared Disks for SBD devices).
+
+### 4. Azure Login (required)
+
+Ensure that you are logged into Azure CLI on the controller VM with the appropriate subscription context:
+
+```bash
+# Login to Azure using System Assigned Managed Identity
+az login --identity
+
+# Login to Azure using User Assigned Managed Identity
+az login --identity -u <client-id-of-user-assigned-managed-identity>
+
+# Set the desired subscription context
+az account set --subscription <subscription-id>
+```
+
+### 5. Test Execution
 
 To execute the script, run following command:
 
@@ -71,7 +96,7 @@ To execute the script, run following command:
 # Run checks with verbose logging
 ./scripts/sap_automation_qa.sh -vv
 
-# Run only Database (HANA) configuration checks
+# Run only Database configuration checks (supports both HANA and DB2)
 ./scripts/sap_automation_qa.sh --extra-vars='{"configuration_test_type":"Database"}'
 
 # Run only ASCS/ERS configuration checks
@@ -81,7 +106,7 @@ To execute the script, run following command:
 ./scripts/sap_automation_qa.sh --extra-vars='{"configuration_test_type":"ApplicationInstances"}'
 ```
 
-### 4. Viewing Test Results
+### 6. Viewing Test Results
 
 After the test execution completes, a detailed HTML report is generated that summarizes the PASS/FAIL status of each test case and includes detailed execution logs for every step of the automation run.
 
@@ -99,12 +124,11 @@ After the test execution completes, a detailed HTML report is generated that sum
    The report file is named using the following format:
 
    ```
-   HA_{SAP_TIER}_{DATABASE_TYPE}_{OS_DISTRO_NAME}_{INVOCATION_ID}.html
+   CONFIG_{SAP_SID}_{DATABASE_TYPE}_{INVOCATION_ID}.html
    ```
 
-   - `SAP_TIER`: The SAP tier tested (e.g., DB, SCS)
+   - `SAP_SID`: The SAP system ID (e.g., HN1, NWP)
    - `DATABASE_TYPE`: The database type (e.g., HANA)
-   - `OS_DISTRO_NAME`: The operating system distribution (e.g., SLES15SP4)
    - `INVOCATION_ID`: A unique identifier (Group invocation ID) for the test run which is logged at the end of test execution. Find example screenshot below:
 
       ![Test Execution Completion Screenshot](./images/execution_screenshot.png)

@@ -69,10 +69,10 @@ hana_storage_requirements:
   HANADataStripeSize:          "256.00k"
   HANALOGStripeSize:           "64.00k"
 
-# DB2 Storage Requirements
+# Db2 Storage Requirements
 db2_storage_requirements:
-  DB2DataStripeSize:           "256.00k"
-  DB2LOGStripeSize:            "64.00k"
+  Db2DataStripeSize:           "256.00k"
+  Db2LOGStripeSize:            "64.00k"
 
 # VM deployment patterns
 vm_patterns:

@@ -9,6 +9,7 @@ import logging
 import time
 import json
 import re
+import sys
 from typing import Optional, Dict, Any, List, Type
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
@@ -91,6 +92,7 @@ class ConfigurationCheckModule(SapAutomationQA):
             "string": self.validate_string,
             "range": self.validate_numeric_range,
             "list": self.validate_list,
+            "min_list": self.validate_min_list,
             "check_support": self.validate_vm_support,
             "properties": self.validate_properties,
         }
@@ -497,6 +499,58 @@ class ConfigurationCheckModule(SapAutomationQA):
             ),
         }
 
+    def validate_min_list(self, check: Check, collected_data: str) -> Dict[str, Any]:
+        """
+        Validate that each value in a space-separated list meets or exceeds minimum values.
+        Used for kernel parameters like kernel.sem where actual values must be >= minimum required.
+
+        :param check: Check definition containing min_values and separator in validator_args
+        :type check: Check
+        :param collected_data: Space-separated string of values from system
+        :type collected_data: str
+        :return: Validation result dictionary
+        :rtype: Dict[str, Any]
+        """
+        min_values = check.validator_args.get("min_values", [])
+        separator = check.validator_args.get("separator", " ")
+        try:
+
+            if not isinstance(min_values, list):
+                return {
+                    "status": TestStatus.ERROR.value,
+                }
+
+            collected_values = (
+                str(collected_data).strip().split(separator) if collected_data else []
+            )
+            collected_values = [val.strip() for val in collected_values if val.strip()]
+            if len(collected_values) != len(min_values):
+                return {
+                    "status": self._create_validation_result(check.severity, False),
+                }
+            all_valid = True
+            for actual, minimum in zip(collected_values, min_values):
+                try:
+                    actual_int = int(actual)
+                    minimum_int = int(minimum)
+                    if actual_int > sys.maxsize or minimum_int > sys.maxsize:
+                        continue
+                    if actual_int < minimum_int:
+                        all_valid = False
+                        break
+                except (ValueError, OverflowError):
+                    all_valid = False
+                    break
+
+            return {
+                "status": self._create_validation_result(check.severity, all_valid),
+            }
+        except Exception as ex:
+            self.log(logging.ERROR, f"Error while validating min list {ex}")
+            return {
+                "status": TestStatus.ERROR.value,
+            }
+
     def validate_vm_support(self, check: Check, collected_data: str) -> Dict[str, Any]:
         """
         Validates if a VM SKU is supported for the given role and database type
@@ -609,6 +663,11 @@ class ConfigurationCheckModule(SapAutomationQA):
                 valid_list = check.validator_args.get("valid_list", [])
                 if isinstance(valid_list, list) and valid_list:
                     expected_value = ", ".join(str(v) for v in valid_list)
+            elif check.validator_type == "min_list":
+                min_values = check.validator_args.get("min_values", [])
+                separator = check.validator_args.get("separator", " ")
+                if isinstance(min_values, list) and min_values:
+                    expected_value = f"Min: {separator.join(str(v) for v in min_values)}"
             elif check.validator_type == "properties":
                 props = check.validator_args.get("properties", [])
                 if isinstance(props, list) and props:
@@ -875,7 +934,7 @@ class ConfigurationCheckModule(SapAutomationQA):
                 context["hostname"] = custom_hostname
 
             self.set_context(context)
-            if self.context.get("check_type", {}).get("file_name") == "hana":
+            if self.context.get("check_type", {}).get("file_name") in ["hana", "db2"]:
                 temp_context = FileSystemCollector(parent=self).collect(
                     check=None, context=self.context
                 )

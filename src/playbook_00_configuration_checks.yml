@@ -106,7 +106,7 @@
       loop_control:
         loop_var:                       check_type
 
-    - name:                             "Run role-specific checks for DB hosts"
+    - name:                             "Run role-specific checks for HANA DB hosts"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
       vars:
@@ -117,18 +117,44 @@
           results_var:                  "db_hana_results"
       when:                             >-
                                         role == 'DB' and
+                                        (platform | default('HANA') | upper == 'HANA') and
                                         (configuration_test_type == 'all' or
                                           configuration_test_type == 'Database')
 
-    - name:                             "Debug DB checks execution"
+    - name:                             "Debug HANA checks execution"
       ansible.builtin.debug:
         msg:                            "Executing Database (HANA) checks on host {{ inventory_hostname }}"
       when:                             >-
                                         role == 'DB' and
+                                        (platform | default('HANA') | upper == 'HANA') and
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'Database')
 
-    - name:                             "Run HA configuration checks for DB hosts"
+    - name:                             "Run role-specific checks for Db2 DB hosts"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      vars:
+        check_type:
+          name:                         "Database (Db2) Checks"
+          file_name:                    "db2"
+          checks_var:                   "db_db2_checks"
+          results_var:                  "db_db2_results"
+      when:                             >-
+                                        role == 'DB' and
+                                        (platform | default('HANA') | upper == 'DB2') and
+                                        (configuration_test_type == 'all' or
+                                          configuration_test_type == 'Database')
+
+    - name:                             "Debug Db2 checks execution"
+      ansible.builtin.debug:
+        msg:                            "Executing Database (Db2) checks on host {{ inventory_hostname }}"
+      when:                             >-
+                                        role == 'DB' and
+                                        (platform | default('HANA') | upper == 'DB2') and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'Database')
+
+    - name:                             "Run HA configuration checks for HANA DB hosts"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
       vars:
@@ -137,11 +163,11 @@
           file_name:                    "high_availability"
           checks_var:                   "db_ha_config_checks"
           results_var:                  "db_ha_config_results"
-      when:                             >-
-                                        role == 'DB' and
-                                        database_high_availability | default(false) | bool and
-                                        (configuration_test_type == 'all' or
-                                         configuration_test_type == 'Database')
+      when:
+                                        - role == 'DB'
+                                        - (platform | default('HANA') | upper == 'HANA')
+                                        - database_high_availability | default(false) | bool
+                                        - (configuration_test_type == 'all' or configuration_test_type == 'Database')
 
     - name:                             "Run role-specific checks for ASCS/SCS hosts"
       ansible.builtin.include_tasks:
@@ -298,6 +324,18 @@
       loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].db_hana_results is defined
 
+    - name:                             "Collect DB (Db2) check results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].db_db2_results
+                                            | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'db_db2',
+                                          'metadata': hostvars[item].db_db2_results_metadata
+                                          | default({})}] }}"
+      loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
+      when:                             hostvars[item].db_db2_results is defined
+
     - name:                             "Collect DB HA configuration check results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].db_ha_config_results
@@ -400,3 +438,8 @@
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
       vars:
         html_template_name:            "./templates/config_checks_report.html"
+        report_file_name:              "CONFIG_{{ sap_sid | upper }}_{{ platform | upper }}_{{ test_group_invocation_id }}"
+
+    - name:                             "Debug the file name of the report generated"
+      ansible.builtin.debug:
+        msg:                            "Report file CONFIG_{{ sap_sid | upper }}_{{ platform | upper }}_{{ test_group_invocation_id }} generated."

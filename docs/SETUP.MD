@@ -44,7 +44,7 @@ For the framework to access the properties of the Azure Load Balancer in a high 
 **Permissions required for Configuration Checks:**
 1. "Reader" role to the user-assigned managed identity on the resource group containing the SAP VMs and the Azure Load Balancer.
 1. "Reader" role to the user-assigned managed identity on the resource group containing the Azure NetApp Files account (if using Azure NetApp Files as shared storage).
-1. "Storage Account Reader" role to the user-assigned managed identity on the resource group containing the storage account (if using Azure File Share as shared storage).
+1. "Reader" role to the user-assigned managed identity on the resource group containing the storage account (if using Azure File Share as shared storage).
 1. "Reader" role to the user-assigned managed identity on the resource group containing the managed disks (if using Azure Managed Disks for SAP HANA data and log volumes).
 1. "Reader" role to the user-assigned managed identity on the resource group containing the shared disks (if using Azure Shared Disks for SBD devices).
 
