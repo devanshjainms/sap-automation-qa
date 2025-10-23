@@ -128,13 +128,12 @@ class TestAzureLoadBalancer:
         :param mocker: Mocking library for Python.
         :type mocker: _mocker.MagicMock
         """
+
         class LBWithoutPrivateIP:
             def __init__(self):
                 self.name = "public-lb"
                 self.location = "test"
-                self.frontend_ip_configurations = [
-                    {"public_ip_address": "1.2.3.4"}
-                ]
+                self.frontend_ip_configurations = [{"public_ip_address": "1.2.3.4"}]
                 self.load_balancing_rules = []
                 self.probes = []
 
@@ -151,6 +150,7 @@ class TestAzureLoadBalancer:
         patched_client.return_value.load_balancers.list_all.return_value = [
             LBWithoutPrivateIP(),
             LoadBalancer("test", "127.0.0.1"),
+        ]
 
         azure_lb = AzureLoadBalancer(
             module_params={
@@ -185,13 +185,12 @@ class TestAzureLoadBalancer:
         :param mocker: Mocking library for Python.
         :type mocker: _mocker.MagicMock
         """
+
         class LBWithCamelCase:
             def __init__(self):
                 self.name = "camelcase-lb"
                 self.location = "test"
-                self.frontend_ip_configurations = [
-                    {"privateIpAddress": "192.168.1.1"}
-                ]
+                self.frontend_ip_configurations = [{"privateIpAddress": "192.168.1.1"}]
                 self.load_balancing_rules = []
                 self.probes = []
 
@@ -242,16 +241,13 @@ class TestAzureLoadBalancer:
         :param mocker: Mocking library for Python.
         :type mocker: _mocker.MagicMock
         """
+
         class LBWithNestedProperties:
             def __init__(self):
                 self.name = "nested-lb"
                 self.location = "test"
                 self.frontend_ip_configurations = [
-                    {
-                        "properties": {
-                            "private_ip_address": "10.0.0.5"
-                        }
-                    }
+                    {"properties": {"private_ip_address": "10.0.0.5"}}
                 ]
                 self.load_balancing_rules = []
                 self.probes = []
