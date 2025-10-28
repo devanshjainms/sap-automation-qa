@@ -109,6 +109,11 @@ class CommandCollector(Collector):
             user = check.collector_args.get("user", "")
             if not command:
                 return "ERROR: No command specified"
+            if user:
+                if not re.match(r"^[a-zA-Z0-9_-]+$", user):
+                    self.parent.log(logging.ERROR, f"Invalid user parameter detected: {user}")
+                    return "ERROR: Invalid user parameter"
+
             try:
                 command = self.sanitize_command(command)
             except ValueError as e:
@@ -123,16 +128,13 @@ class CommandCollector(Collector):
                 )
                 return f"ERROR: Command sanitization failed after substitution: {e}"
 
-            check.command = command
             if user and user != "root":
-                if not re.match(r"^[a-zA-Z0-9_-]+$", user):
-                    self.parent.log(logging.ERROR, f"Invalid user parameter: {user}")
-                    return f"ERROR: Invalid user parameter: {user}"
-
                 if user == "db2sid":
                     user = f"db2{context.get('database_sid', '').lower()}"
+                command = f"su - {user} -c {shlex.quote(command)}"
+                self.parent.log(logging.INFO, f"Executing command as user {user} {command}")
 
-                command = f"sudo -u {shlex.quote(user)} {command}"
+            check.command = command
 
             return self.parent.execute_command_subprocess(
                 command, shell_command=check.collector_args.get("shell", True)
@@ -339,7 +341,11 @@ class AzureDataParser(Collector):
 
             fs_entry = None
             for fs in filesystem_data:
-                if fs.get("target") == mount_point:
+                if fs.get("target") in (
+                    mount_point,
+                    f"{mount_point}/{context.get('database_sid', '').upper()}",
+                    f"{mount_point}/{context.get('sap_sid', '').upper()}",
+                ):
                     fs_entry = fs
                     break
 
