@@ -440,13 +440,34 @@
           info_count:                   "{{ all_results | selectattr('status', 'equalto', 'INFO') | list | length }}"
           config_check_types:           "{{ all_results | map(attribute='check.category') | unique | list }}"
 
-    - name:                            "Render HTML report for configuration checks"
-      ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
-      no_log:                           true
-      vars:
-        html_template_name:            "./templates/config_checks_report.html"
-        report_file_name:              "CONFIG_{{ sap_sid | upper }}_{{ platform | upper }}"
+    - name:                             "Export test results to JSON for post-processing"
+      ansible.builtin.copy:
+        content:                        "{{ all_results | to_nice_json }}"
+        dest:                           "{{ _workspace_directory }}/quality_assurance/config_check_results.json"
+        mode:                           '0644'
+      delegate_to:                      localhost
 
-    - name:                             "Debug the file name of the report generated"
+    - name:                             "Export system info to JSON for post-processing"
+      ansible.builtin.copy:
+        content:                        "{{ system_info | to_nice_json }}"
+        dest:                           "{{ _workspace_directory }}/quality_assurance/system_info.json"
+        mode:                           '0644'
+      delegate_to:                      localhost
+
+    - name:                             "Export playbook metadata for post-processing"
+      ansible.builtin.copy:
+        content:                        |
+          {
+            "test_group_invocation_id": "{{ test_group_invocation_id }}",
+            "test_group_name": "{{ test_group_name }}",
+            "test_group_start_time": "{{ test_group_start_time }}",
+            "sap_sid": "{{ sap_sid | upper }}",
+            "platform": "{{ platform | upper }}"
+          }
+        dest:                           "{{ _workspace_directory }}/playbook_vars.json"
+        mode:                           '0644'
+      delegate_to:                      localhost
+
+    - name:                             "Info message about post-execution report generation"
       ansible.builtin.debug:
-        msg:                            "Report file CONFIG_{{ sap_sid | upper }}_{{ platform | upper }}_{{ test_group_invocation_id }} generated."
+        msg:                            "Configuration check data exported. HTML report will be generated after playbook completion."

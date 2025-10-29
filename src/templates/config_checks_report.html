@@ -1117,6 +1117,269 @@
     .status-count:nth-child(3) { animation-delay: 0.2s; }
     .status-count:nth-child(4) { animation-delay: 0.3s; }
 
+    /* Execution Summary Styles */
+    .execution-summary {
+      padding: 10px 0;
+    }
+
+    .execution-summary p {
+      margin: 8px 0;
+      font-size: 14px;
+    }
+
+    .host-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .host-stat-box {
+      background: var(--bg-light);
+      border-radius: 8px;
+      padding: 12px;
+      border-left: 4px solid var(--primary-color);
+    }
+
+    .host-stat-name {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #323130;
+    }
+
+    .host-stat-details {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .stat-item {
+      font-size: 13px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .stat-item.passed {
+      background: rgba(16, 124, 16, 0.1);
+      color: var(--success-color);
+    }
+
+    .stat-item.failed {
+      background: rgba(209, 52, 56, 0.1);
+      color: var(--error-color);
+    }
+
+    .stat-item.changed {
+      background: rgba(255, 140, 0, 0.1);
+      color: var(--warning-color);
+    }
+
+    .expand-button {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .expand-button:hover {
+      background: #005a9e;
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    #exec-log-toggle-icon {
+      transition: transform 0.2s ease;
+      display: inline-block;
+    }
+
+    #exec-log-toggle-icon.expanded {
+      transform: rotate(90deg);
+    }
+
+    /* Execution Logs Panel */
+    .execution-logs-panel {
+      margin: 20px 0;
+      animation: slideDown 0.3s ease-out;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .execution-timeline {
+      position: relative;
+      padding-left: 30px;
+      margin: 20px 0;
+    }
+
+    .execution-timeline::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--primary-color), var(--bg-light));
+    }
+
+    .timeline-item {
+      position: relative;
+      margin-bottom: 20px;
+      padding: 12px 16px;
+      background: white;
+      border-radius: 8px;
+      border-left: 3px solid var(--primary-color);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s ease;
+    }
+
+    .timeline-item:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateX(4px);
+    }
+
+    .timeline-item.status-failed {
+      border-left-color: var(--error-color);
+      background: rgba(209, 52, 56, 0.02);
+    }
+
+    .timeline-item.status-ok {
+      border-left-color: var(--success-color);
+    }
+
+    .timeline-item.status-skipped {
+      opacity: 0.6;
+      border-left-color: #a19f9d;
+    }
+
+    .timeline-marker {
+      position: absolute;
+      left: -34px;
+      top: 20px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: white;
+      border: 3px solid var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 120, 215, 0.1);
+    }
+
+    .timeline-item.status-failed .timeline-marker {
+      border-color: var(--error-color);
+      box-shadow: 0 0 0 3px rgba(209, 52, 56, 0.1);
+    }
+
+    .timeline-item.status-ok .timeline-marker {
+      border-color: var(--success-color);
+      box-shadow: 0 0 0 3px rgba(16, 124, 16, 0.1);
+    }
+
+    .timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .timeline-task-name {
+      font-weight: 600;
+      color: #323130;
+      font-size: 14px;
+    }
+
+    .timeline-duration {
+      font-size: 13px;
+      color: #605e5c;
+      font-weight: 500;
+      background: var(--bg-light);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .timeline-meta {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .timeline-host {
+      font-size: 12px;
+      color: #605e5c;
+      background: var(--bg-light);
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    .status-badge-ok {
+      background: rgba(16, 124, 16, 0.1);
+      color: var(--success-color);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-badge-failed {
+      background: rgba(209, 52, 56, 0.1);
+      color: var(--error-color);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .status-badge-skipped {
+      background: rgba(161, 159, 157, 0.1);
+      color: #605e5c;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .timeline-result {
+      margin-top: 8px;
+      padding: 10px;
+      background: var(--bg-light);
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .result-msg {
+      color: #323130;
+      margin-bottom: 6px;
+    }
+
+    .result-stderr {
+      color: var(--error-color);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     /* Footer Styles */
     .footer {
       bottom: 0;
@@ -1142,6 +1405,16 @@
       .footer {
         flex-direction: column;
         text-align: center;
+      }
+
+      .host-stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .timeline-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
       }
     }
   </style>
@@ -1205,6 +1478,77 @@
             </div>
           </div>
         </div>
+        {% if execution_data and execution_data.playbook_info %}
+        <div class="system-info-container">
+          <h2 class="system-info-heading">Execution Summary</h2>
+          <div class="execution-summary">
+            <p>
+              <strong>Playbook:</strong> {{ execution_data.playbook_info.name|default('Unknown') }}
+            </p>
+            <p>
+              <strong>Duration:</strong> {{ "%.2f"|format(execution_data.stats.total_duration|default(0)) }} seconds
+            </p>
+            <p>
+              <strong>Total Tasks:</strong> {{ execution_data.stats.total_tasks|default(0) }}
+            </p>
+            <p>
+              <strong>Start Time:</strong> {{ execution_data.playbook_info.start_time|default('N/A') }}
+            </p>
+            {% if execution_data.stats.hosts %}
+            <div class="host-stats-grid">
+              {% for host, stats in execution_data.stats.hosts.items() %}
+              <div class="host-stat-box">
+                <div class="host-stat-name">{{ host }}</div>
+                <div class="host-stat-details">
+                  <span class="stat-item passed">✓ {{ stats.ok }}</span>
+                  <span class="stat-item failed">✗ {{ stats.failures }}</span>
+                  {% if stats.changed > 0 %}
+                  <span class="stat-item changed">⟳ {{ stats.changed }}</span>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+            <button class="expand-button" onclick="toggleExecutionLogs()">
+              <span id="exec-log-toggle-icon">▶</span> View Detailed Execution Logs
+            </button>
+          </div>
+        </div>
+        
+        <div id="execution-logs-panel" class="execution-logs-panel" style="display: none;">
+          <div class="system-info-container">
+            <h2 class="system-info-heading">Task Execution Timeline</h2>
+            <div class="execution-timeline">
+              {% for task in execution_data.tasks %}
+              <div class="timeline-item status-{{ task.status|lower }}">
+                <div class="timeline-marker"></div>
+                <div class="timeline-content">
+                  <div class="timeline-header">
+                    <span class="timeline-task-name">{{ task.name }}</span>
+                    <span class="timeline-duration">{{ "%.3f"|format(task.duration|default(0)) }}s</span>
+                  </div>
+                  <div class="timeline-meta">
+                    <span class="timeline-host">{{ task.host }}</span>
+                    <span class="timeline-status status-badge-{{ task.status|lower }}">{{ task.status }}</span>
+                  </div>
+                  {% if task.result and (task.result.msg or task.result.stderr or task.result.failed) %}
+                  <div class="timeline-result">
+                    {% if task.result.msg %}
+                    <div class="result-msg">{{ task.result.msg }}</div>
+                    {% endif %}
+                    {% if task.result.stderr %}
+                    <div class="result-stderr">{{ task.result.stderr }}</div>
+                    {% endif %}
+                  </div>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
         <div class="config-checks-container">
 
           <div class="tab-navigation">
@@ -1596,6 +1940,20 @@
           }
         }
       })
+    }
+
+    // Toggle execution logs panel
+    function toggleExecutionLogs() {
+      const panel = document.getElementById('execution-logs-panel');
+      const icon = document.getElementById('exec-log-toggle-icon');
+      
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        icon.classList.add('expanded');
+      } else {
+        panel.style.display = 'none';
+        icon.classList.remove('expanded');
+      }
     }
   </script>
 </body>

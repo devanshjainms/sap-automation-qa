@@ -273,6 +273,63 @@ get_filtered_test_config() {
     echo "$filtered_config"
 }
 
+# Generate configuration report with execution logs.
+# This function is called after playbook execution completes successfully.
+# It invokes the standalone report generator to merge test results with execution logs.
+# :param workspace_dir: The workspace directory containing logs and results.
+# :param playbook_name: The name of the playbook that was executed.
+# :return: None. Logs warning if report generation fails but doesn't exit.
+generate_configuration_report() {
+    local workspace_dir=$1
+    local playbook_name=$2
+    
+    log "INFO" "Generating configuration report with execution logs..."
+    local execution_log=$(find "$workspace_dir" -name "execution_log_*.json" -type f 2>/dev/null | sort | tail -n 1)
+    
+    if [[ -z "$execution_log" ]]; then
+        log "WARNING" "No execution log found in $workspace_dir - report will be generated without timing data"
+    else
+        log "INFO" "Found execution log: $execution_log"
+    fi
+    
+    local results_file="$workspace_dir/quality_check/config_check_results.json"
+    local system_info_file="$workspace_dir/quality_check/system_info.json"
+    
+    local invocation_id=$(grep "test_group_invocation_id:" "$workspace_dir/playbook_vars.json" 2>/dev/null | awk '{print $2}' | tr -d '",')
+    local group_name="CONFIG_${SAP_SID:-UNKNOWN}_${PLATFORM:-UNKNOWN}"
+    
+    if [[ -z "$invocation_id" && -n "$execution_log" ]]; then
+        invocation_id=$(basename "$execution_log" | sed 's/execution_log_\(.*\)\.json/\1/')
+        log "INFO" "Using execution log timestamp as invocation ID: $invocation_id"
+    fi
+    
+    local report_cmd_args=(
+        "--invocation-id" "${invocation_id:-$(uuidgen)}"
+        "--group-name" "$group_name"
+        "--workspace" "$workspace_dir"
+    )
+    
+    if [[ -f "$results_file" ]]; then
+        report_cmd_args+=("--results-file" "$results_file")
+    fi
+    
+    if [[ -f "$system_info_file" ]]; then
+        report_cmd_args+=("--system-info-file" "$system_info_file")
+    fi
+    
+    if [[ -n "$execution_log" ]]; then
+        report_cmd_args+=("--execution-log" "$execution_log")
+    fi
+    
+    log "INFO" "Invoking report generator: python3 ${cmd_dir}/../src/modules/generate_configuration_report.py ${report_cmd_args[*]}"
+    
+    if python3 "${cmd_dir}/../src/modules/generate_configuration_report.py" "${report_cmd_args[@]}" 2>&1 | tee -a "$workspace_dir/report_generation.log"; then
+        log "INFO" "Configuration report generated successfully"
+    else
+        log "WARNING" "Failed to generate enhanced configuration report - check $workspace_dir/report_generation.log"
+    fi
+}
+
 # Retrieve a secret from Azure Key Vault.
 # :param key_vault_id: The ID of the Key Vault.
 # :param secret_id: The ID of the secret in the Key Vault.
@@ -467,11 +524,16 @@ run_ansible_playbook() {
     if [[ -n "$ANSIBLE_VERBOSE" ]]; then
         command+=" $ANSIBLE_VERBOSE"
     fi
-
+ 
+    export SAP_QA_WORKSPACE_DIR="$system_config_folder"
+   
     log "INFO" "Running ansible playbook... Command: $command"
     eval $command
     return_code=$?
     log "INFO" "Ansible playbook execution completed with return code: $return_code"
+    if [[ "$playbook_name" == "playbook_00_configuration_checks" && $return_code -eq 0 ]]; then
+        generate_configuration_report "$system_config_folder" "$playbook_name"
+    fi
 
     # Clean up temporary files if they exist
     if [[ -n "$temp_file" && -f "$temp_file" ]]; then
