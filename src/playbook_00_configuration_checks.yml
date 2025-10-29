@@ -440,17 +440,24 @@
           info_count:                   "{{ all_results | selectattr('status', 'equalto', 'INFO') | list | length }}"
           config_check_types:           "{{ all_results | map(attribute='check.category') | unique | list }}"
 
+    - name:                             "Ensure logs directory exists"
+      ansible.builtin.file:
+        path:                           "{{ _workspace_directory }}/logs"
+        state:                          directory
+        mode:                           '0755'
+      delegate_to:                      localhost
+
     - name:                             "Export test results to JSON for post-processing"
       ansible.builtin.copy:
         content:                        "{{ all_results | to_nice_json }}"
-        dest:                           "{{ _workspace_directory }}/quality_assurance/config_check_results.json"
+        dest:                           "{{ _workspace_directory }}/logs/config_check_results.json"
         mode:                           '0644'
       delegate_to:                      localhost
 
     - name:                             "Export system info to JSON for post-processing"
       ansible.builtin.copy:
         content:                        "{{ system_info | to_nice_json }}"
-        dest:                           "{{ _workspace_directory }}/quality_assurance/system_info.json"
+        dest:                           "{{ _workspace_directory }}/logs/system_info.json"
         mode:                           '0644'
       delegate_to:                      localhost
 
