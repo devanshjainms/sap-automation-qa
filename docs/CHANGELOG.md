@@ -13,4 +13,4 @@ Release Date: 11-04-2025
    - Offline Validation for HA configurations for SAP HANA Database and Central Services.
 2. Configuration Checks (preview release):
    - Initial implementation of configuration checks for SAP systems.
-   - Support for validating SAP systems with HANA/DB2 database types.
+   - Support for validating SAP systems with HANA and IBM Db2 databases.
