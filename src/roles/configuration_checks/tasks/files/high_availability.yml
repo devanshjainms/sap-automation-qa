@@ -1,0 +1,125 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------8
+# |                    High Availability Configuration Checks                  |
+# +------------------------------------4--------------------------------------*/
+
+enums:
+  severity:
+    - info:                           &info "INFO"
+    - high:                           &high "HIGH"
+    - low:                            &low "LOW"
+    - warning:                        &warning "WARNING"
+    - critical:                       &critical "CRITICAL"
+
+  os_type:
+    - suse:                           &suse "SLES_SAP"
+    - redhat:                         &redhat "REDHAT"
+    - all_os:                         &os_type [*suse, *redhat]
+
+  collector_type:
+    - command:                        &command "command"
+    - azure:                          &azure "azure"
+    - module:                         &module "module"
+
+  category:
+    - ha:                             &ha_check "High Availability"
+
+  report:
+    - table:                          &table "table"
+    - check:                          &check "check"
+
+  role:
+    - db:                             &db_role "DB"
+    - ascs:                           &ascs_role "SCS"
+    - ers:                            &ers_role "ERS"
+
+  cluster_type:
+    - sbd:                            &sbd "ISCSI"
+    - fencing_agent:                  &fencing_agent "AFA"
+    - all_fencing_agent:              &cluster_type [*sbd, *fencing_agent]
+
+checks:
+  - id:                               "HA-HANA-001"
+    name:                             "Database HA Cluster Configuration"
+    description:                      "Validates Pacemaker cluster configuration parameters for SAP HANA database high availability"
+    category:                         *ha_check
+    severity:                         *info
+    applicability:
+      os_type:                        *os_type
+      role:                           [*db_role]
+      high_availability:              true
+      high_availability_agent:        *cluster_type
+    collector_type:                   *module
+    collector_args:
+      module_name:                    "get_pcmk_properties_db"
+      module_args:                    {}
+    report:                           *table
+
+  - id:                               "HA-SCS-001"
+    name:                             "SCS/ERS HA Cluster Configuration"
+    description:                      "Validates Pacemaker cluster configuration parameters for SAP ASCS/ERS high availability"
+    category:                         *ha_check
+    severity:                         *info
+    applicability:
+      os_type:                        *os_type
+      role:                           [*ascs_role, *ers_role]
+      high_availability:              true
+      high_availability_agent:        *cluster_type
+    collector_type:                   *module
+    collector_args:
+      module_name:                    "get_pcmk_properties_scs"
+      module_args:                    {}
+    report:                           *table
+
+  - id:                               "HA-LB-002"
+    name:                             "Load Balancer Configuration"
+    description:                      "Validates load balancers configuration parameters in SAP VMs' Load Balancer backend address pools"
+    category:                         *ha_check
+    severity:                         *info
+    applicability:
+      os_type:                        *os_type
+      role:                           [*ascs_role, *db_role, *ers_role]
+      high_availability:              true
+      high_availability_agent:        *cluster_type
+    collector_type:                   *module
+    collector_args:
+      module_name:                    "get_azure_lb"
+      module_args:                    {}
+    report:                           *table
+
+  - id:                               "HA-LB-001"
+    name:                             "Load Balancer Name"
+    description:                      "Name of the load balancer"
+    category:                         *ha_check
+    severity:                         *info
+    applicability:
+      os_type:                        *os_type
+      role:                           [*ascs_role, *db_role, *ers_role]
+      high_availability:              true
+      high_availability_agent:        *cluster_type
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                      if command -v az >/dev/null 2>&1; then
+                                        nic_id=$(az vm show --resource-group {{ CONTEXT.resource_group_name }} --name {{ CONTEXT.vm_name }} --query 'networkProfile.networkInterfaces[0].id' -o tsv 2>/dev/null);
+                                        if [ $? -eq 0 ] && [ -n "$nic_id" ] && [ "$nic_id" != "null" ]; then
+                                          lb_backend_pools=$(az network nic show --ids "$nic_id" --query 'ipConfigurations[0].loadBalancerBackendAddressPools[0].id' -o tsv 2>/dev/null);
+                                          if [ -n "$lb_backend_pools" ] && [ "$lb_backend_pools" != "null" ]; then
+                                            load_balancer_name=$(echo "$lb_backend_pools" | grep -oP '/loadBalancers/\K[^/]+');
+                                            if [ -n "$load_balancer_name" ]; then
+                                              echo "$load_balancer_name";
+                                            else
+                                              echo "No Load Balancer defined";
+                                            fi
+                                          else
+                                            echo "No Load Balancer defined";
+                                          fi
+                                        else
+                                          echo "Error: Failed to retrieve NIC";
+                                        fi
+                                      else
+                                        echo "Error: Azure CLI not available";
+                                      fi
+    report:                           *check

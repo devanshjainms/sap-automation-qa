@@ -1,0 +1,246 @@
+enums:
+  severity:
+    - info:                           &info "INFO"
+    - high:                           &high "HIGH"
+    - low:                            &low "LOW"
+    - warning:                        &warning "WARNING"
+    - critical:                       &critical "CRITICAL"
+    - all_severity:                   &severity [*info, *high, *low, *warning, *critical]
+
+  os_type:
+    - suse:                           &suse "SLES_SAP"
+    - redhat:                         &redhat "REDHAT"
+    - oraclelinux:                    &oraclelinux "OracleLinux"
+    - windows:                        &windows "Windows"
+    - all_os:                         &os_type [*suse, *redhat, *oraclelinux, *windows]
+
+  os_version:
+    - suse_12_3:                      &suse_12_3 "SUSE 12 SP3"
+    - suse_12_4:                      &suse_12_4 "SUSE 12 SP4"
+    - suse_12_5:                      &suse_12_5 "SUSE 12 SP5"
+    - suse_15_0:                      &suse_15_0 "SUSE 15 SP0"
+    - suse_15_0:                      &suse_15_1 "SUSE 15 SP1"
+    - all_versions:                   &all_versions "all"
+
+  hardware_type:
+    - vm:                             &vm "VM"
+    - hli:                            &hli "HLI"
+    - all_hardware:                   &all_hardware [*vm, *hli]
+
+  storage_type:
+    premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","PremiumV2_LRS","AFS"]
+    anf:                              &anf ["ANF"]
+    all_storage:                      &all_storage ["Premium_LRS","UltraSSD_LRS","StandardSSD_LRS","Standard_LRS","ANF","PremiumV2_LRS","AFS"]
+
+  workload:
+    - sap:                            &sap "SAP"
+    - all_workload:                   &workload [*sap]
+
+  db:
+    - hana:                           &hana "HANA"
+    - mssql:                          &mssql "MSSQL"
+    - oracle:                         &oracle "Oracle"
+    - db2:                            &db2 "Db2"
+    - ase:                            &ase "ASE"
+    - all_db:                         &db [*hana, *mssql, *oracle, *db2, *ase]
+
+  role:
+    - db:                             &db_role "DB"
+    - ascs:                           &ascs_role "SCS"
+    - ers:                            &ers_role "ERS"
+    - app:                            &app_role "APP"
+    - webdispatcher:                  &web_dispatch "WEB"
+    - pas:                            &pas "PAS"
+    - all_role:                       &role [*db_role, *ascs_role, *ers_role, *app_role, *web_dispatch, *pas]
+
+  cluster_type:
+    - sbd:                            &sbd "ISCSI"
+    - fencing_agent:                  &fencing_agent "AFA"
+    - all_fencing_agent:              &cluster_type [*sbd, *fencing_agent]
+
+  collector_type:
+    - command:                        &command "command"
+    - azure:                          &azure "azure"
+    - all_collector_type:             &collector_type [*command, *azure]
+
+  category:
+    - package:                        &package_check "Package"
+    - vm:                             &vm_check "Virtual Machine"
+    - sap:                            &sap_check "SAP"
+    - os:                             &os_check "Operating System"
+    - network:                        &network_check "Networking"
+    - all_check_types:                &category [*package_check, *vm_check, *sap_check, *os_check, *network_check]
+
+  user:
+    - root:                           &root "root"
+    - sidadm:                         &sidadm "sidadm"
+    - all_users:                      &user [*root, *sidadm]
+
+  validator_type:
+    - string:                         &string "string"
+    - range:                          &range "range"
+    - list:                           &list "list"
+    - all:                            &validator_type [*string, *range, *list]
+
+  report:
+    - check:                          &check "check"
+    - section:                        &section "section"
+    - table:                          &table "table"
+    - report:                         &report [*check, *section, *table]
+
+checks:
+  - id:                               "NET-0001"
+    name:                             "Virtual Network"
+    description:                      "Retrieves the virtual network(s) associated with the VM's network interface(s)"
+    category:                         *network_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      hardware_type:                  *vm
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
+                                        --query "[].id" -o tsv | while read nic_id; do \
+                                          nic=$(basename "$nic_id"); \
+                                          az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
+                                          --query "ipConfigurations[].subnet.id" -o tsv | awk -F'/' '{print $(NF-2)}'; \
+                                        done
+    report:                           *check
+
+  - id:                               "NET-0002"
+    name:                             "Subnet"
+    description:                      "Retrieves the subnet(s) associated with the VM's network interface(s)"
+    category:                         *network_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      hardware_type:                  *vm
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
+                                        --query "[].id" -o tsv | while read nic_id; do \
+                                          nic=$(basename "$nic_id"); \
+                                          az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
+                                          --query "ipConfigurations[].subnet.id" -o tsv | xargs -I {} basename {}; \
+                                        done
+    report:                           *check
+
+  - id:                               "NET-0003"
+    name:                             "No of network interface"
+    description:                      "Checks the number of network interfaces on the VM"
+    category:                         *network_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      hardware_type:                  *vm
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
+                                        --query "[].{Name:id}" -o tsv | wc -l
+    report:                           *check
+
+  - id:                               "NET-0004"
+    name:                             "Network Interface Name"
+    description:                      "Retrieves the name of the network interface(s) attached to the VM"
+    category:                         *network_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      hardware_type:                  *vm
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
+                                        --query "[].id" -o tsv | xargs -I {} basename {}
+    report:                           *check
+
+
+
+  - id:                               "NET-0005"
+    name:                             "Accelerated Networking"
+    description:                      "Checks if Accelerated Networking is enabled on the VM's network interface(s)"
+    category:                         *network_check
+    severity:                         *high
+    workload:                         *workload
+    applicability:
+      hardware_type:                  *vm
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
+                                        --query "[].id" -o tsv | while read nic_id; do \
+                                          nic=$(basename "$nic_id"); \
+                                          status=$(az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
+                                          --query "enableAcceleratedNetworking" -o tsv); \
+                                          echo "$status"; \
+                                        done
+    validator_type:                   *string
+    validator_args:
+      expected_output:                "true"
+    report:                           *check
+
+  - id:                               "NET-0006"
+    name:                             "No of IP configurations"
+    description:                      "Checks the number of IP configurations on each network interface"
+    category:                         *network_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      hardware_type:                  *vm
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} \
+                                        --query "[].id" -o tsv | while read nic_id; do \
+                                          nic=$(basename "$nic_id"); \
+                                          count=$(az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
+                                          --query "ipConfigurations | length(@)" -o tsv); \
+                                          echo "$nic: $count"; \
+                                        done
+    report:                           *check
+
+  - id:                               "NET-0007"
+    name:                             "IP Details"
+    description:                      "Retrieves all IP addresses configured on the VM's network interface(s)"
+    category:                         *network_check
+    severity:                         *info
+    workload:                         *workload
+    applicability:
+      hardware_type:                  *vm
+    collector_type:                   *azure
+    collector_args:
+      command:                        |-
+                                        az vm nic list --resource-group {{ CONTEXT.resource_group_name }} \
+                                        --vm-name {{ CONTEXT.vm_name }} \
+                                        --subscription {{ CONTEXT.subscription_id }} --query "[].id" -o tsv |
+                                        while read -r nic_id; do
+                                          nic=$(basename "$nic_id")
+                                          az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
+                                            --query "ipConfigurations[].{IP:privateIPAddress, Primary:primary}" -o tsv |
+                                          while read -r line; do
+                                            ip=$(echo "$line" | awk '{print $1}')
+                                            is_primary=$(echo "$line" | awk '{print $2}' | tr -d '\r\t ' | tr '[:upper:]' '[:lower:]')
+                                            if [ "$is_primary" = "true" ]; then
+                                              echo "$nic: $ip Primary"
+                                            else
+                                              echo "$nic: $ip Secondary"
+                                            fi
+                                          done
+                                        done
+
+    report:                           *check

@@ -21,11 +21,11 @@
     - name:                         "Pre validation: Get HANA resource id for saphanasr_angi"
       when:                         saphanasr_provider | default('SAPHanaSR') == "SAPHanaSR-angi"
       block:
-        - name:                     "Pre validation: Get HANA resource id for saphanasr_angi"
+        - name:                     "Pre validation: Get HANA clone resource id for saphanasr_angi"
           become:                   true
           ansible.builtin.shell: >-
                                     set -o pipefail && {{ commands
-                                      | selectattr('name','equalto','get_hana_resource_id_saphanasr_angi')
+                                      | selectattr('name','equalto','get_hana_clone_resource_id_saphanasr_angi')
                                       | map(attribute=(ansible_os_family|upper))
                                       | first
                                     }}
@@ -35,9 +35,24 @@
           register:                 hana_clone_resource_id
           failed_when:              hana_clone_resource_id.rc != 0
 
+        - name:                     "Pre validation: Get HANA primitive resource id for saphanasr_angi"
+          become:                   true
+          ansible.builtin.shell: >-
+                                    set -o pipefail && {{ commands
+                                      | selectattr('name','equalto','get_hana_primitive_resource_id_saphanasr_angi')
+                                      | map(attribute=(ansible_os_family|upper))
+                                      | first
+                                    }}
+          args:
+            executable:             /bin/bash
+          changed_when:             false
+          register:                 hana_primitive_resource_id
+          failed_when:              hana_primitive_resource_id.rc != 0
+
         - name:                     "Pre validation: Set fact the hana_clone_resource_name"
           ansible.builtin.set_fact:
-            hana_clone_resource_name:     "{{ hana_clone_resource_id.stdout }}"
+            hana_clone_resource_name: "{{ hana_clone_resource_id.stdout }}"
+            hana_primitive_resource_name: "{{ hana_primitive_resource_id.stdout }}"
 
     - name:                         "Pre validation: Get HANA Clone resource id"
       when:                         saphanasr_provider | default('SAPHanaSR') == "SAPHanaSR"

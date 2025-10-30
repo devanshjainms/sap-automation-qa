@@ -1,0 +1,365 @@
+enums:
+  os_type:
+    - suse:                           &suse "SLES_SAP"
+    - redhat:                         &redhat "REDHAT"
+    - oraclelinux:                    &oraclelinux "OracleLinux"
+    - windows:                        &windows "Windows"
+    - all_os:                         &all_os [*suse, *redhat, *oraclelinux, *windows]
+
+  os_version:
+    - suse_12_3:                      &suse_12_3 "SUSE 12 SP3"
+    - suse_12_4:                      &suse_12_4 "SUSE 12 SP4"
+    - suse_12_5:                      &suse_12_5 "SUSE 12 SP5"
+    - all_versions:                   &all_versions "all"
+
+  hardware_type:
+    - vm:                             &vm "VM"
+    - hli:                            &hli "HLI"
+    - all_hardware:                   &all_hardware [*vm, *hli]
+
+  storage_type:
+    premium_storage:                  &premium_storage ["Premium_LRS","UltraSSD_LRS","StandardSSD_LRS","Standard_LRS","PremiumV2_LRS","AFS"]
+    anf:                              &anf ["ANF"]
+    all_storage:                      &all_storage ["Premium_LRS","UltraSSD_LRS","StandardSSD_LRS","Standard_LRS","ANF","PremiumV2_LRS","AFS"]
+
+  workload:
+    - sap:                            &sap "SAP"
+    - all_workload:                   &all_workload [*sap]
+
+  db:
+    - hana:                           &hana "HANA"
+    - mssql:                          &mssql "MSSQL"
+    - oracle:                         &oracle "Oracle"
+    - db2:                            &db2 "Db2"
+    - ase:                            &ase "ASE"
+    - all_db:                         &all_db [*hana, *mssql, *oracle, *db2, *ase]
+
+  role:
+    - db:                             &db_role "DB"
+    - ascs:                           &ascs_role "SCS"
+    - ers:                            &ers_role "ERS"
+    - app:                            &app_role "APP"
+    - webdispatcher:                  &web_dispatch "WEB"
+    - pas:                            &pas "PAS"
+    - all_role:                       &all_role [*db_role, *ascs_role, *ers_role, *app_role, *web_dispatch, *pas]
+
+  fencing_agent:
+    - sbd:                            &sbd "ISCSI"
+    - fencing_agent:                  &fencing_agent "AFA"
+    - all_fencing_agent:              &all_fencing_agent [*sbd, *fencing_agent]
+
+  collector_type:
+    - command:                        &command "command"
+    - azure:                          &azure "azure"
+    - all_collector_type:             &all_collector_type [*command, *azure]
+
+  severity:
+    - info:                           &info "INFO"
+    - high:                           &high "HIGH"
+    - low:                            &low "LOW"
+    - warning:                        &warning "WARNING"
+    - all_severity:                   &all_severity [*info, *high, *low, *warning]
+
+  category:
+    - package:                        &package_check "Package"
+    - vm:                             &vm_check "Virtual Machine"
+    - sap:                            &sap_check "SAP"
+    - os:                             &os_check "Operating System"
+    - all_check_types:                &all_check_types [*package_check, *vm_check, *sap_check, *os_check]
+
+  user:
+    - root:                           &root "root"
+    - sidadm:                         &sidadm "sidadm"
+    - all_users:                      &all_users [*root, *sidadm]
+
+  validator_type:
+    - string:                         &string "string"
+    - range:                          &range "range"
+
+  report:
+    - check:                          &check "check"
+    - section:                        &section "section"
+    - table:                          &table "table"
+
+# Checks for APP roles
+
+checks:
+  - id:                                 "APP-0001"
+    name:                               "IPv4 keepalive time"
+    description:                        "Optimize for faster reconnect after ASCS failover"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat, *oraclelinux]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*pas, *app_role]
+      database_type:                    [*hana, *mssql, *oracle, *db2]
+      high_availability:                true
+      high_availability_agent:          [*sbd, *fencing_agent]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_keepalive_time"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "net.ipv4.tcp_keepalive_time = 300"
+    report:                             *check
+    references:
+      sap:                              "1410736"
+
+  - id:                                 "APP-0002"
+    name:                               "IPv4 tcp_retries2"
+    description:                        "Optimize for faster reconnect after ASCS failover"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat, *oraclelinux]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*pas, *app_role]
+      database_type:                    [*hana, *mssql, *oracle, *db2]
+      high_availability:                true
+      high_availability_agent:          [*sbd, *fencing_agent]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_retries2"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "net.ipv4.tcp_retries2 = 15"
+    report:                             *check
+    references:
+      sap:                              "2696099"
+      other:                            "https://www.suse.com/de-de/support/kb/doc/?id=000019293"
+
+  - id:                                 "APP-0003"
+    name:                               "IPv4 keepalive interval"
+    description:                        "Optimize for faster reconnect after ASCS failover"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat, *oraclelinux]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*pas, *app_role]
+      database_type:                    [*hana, *mssql, *oracle, *db2]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_keepalive_intvl"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "net.ipv4.tcp_keepalive_intvl = 75"
+    report:                             *check
+    references:
+      sap:                              "1410736"
+
+  - id:                                 "APP-0004"
+    name:                               "IPv4 keepalive probes"
+    description:                        "Optimize for faster reconnect after ASCS failover"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat, *oraclelinux]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*pas, *app_role]
+      database_type:                    [*hana, *mssql, *oracle, *db2]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_keepalive_probes"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "net.ipv4.tcp_keepalive_probes = 9"
+    report:                             *check
+    references:
+      sap:                              "1410736"
+
+  - id:                                 "APP-0005"
+    name:                               "IPv4 tcp_tw_recycle"
+    description:                        "Optimize for faster reconnect after ASCS failover"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse]
+      os_version:                       [*suse_12_3]
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*pas, *app_role]
+      database_type:                    [*hana, *mssql, *oracle, *db2]
+      high_availability:                true
+      high_availability_agent:          [*sbd, *fencing_agent]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_tw_recycle"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "net.ipv4.tcp_tw_recycle = 0"
+    report:                             *check
+    references:
+      other:                            "https://www.suse.com/support/kb/doc/?id=000019722"
+
+  - id:                                 "APP-0006"
+    name:                               "IPv4 tcp_tw_reuse"
+    description:                        "Optimize for faster reconnect after ASCS failover"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat, *oraclelinux]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*app_role, *pas]
+      database_type:                    [*hana, *mssql, *oracle, *db2]
+      high_availability:                true
+      high_availability_agent:          [*sbd, *fencing_agent]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_tw_reuse"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "net.ipv4.tcp_tw_reuse = 0"
+    report:                             *check
+    references:
+      other:                            "https://www.suse.com/support/kb/doc/?id=000019722"
+
+  - id:                                 "APP-0007"
+    name:                               "IPv4 tcp_retries1"
+    description:                        "Optimize for faster reconnect after ASCS failover"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat, *oraclelinux]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*pas, *app_role]
+      database_type:                    [*hana, *mssql, *oracle, *db2]
+      high_availability:                true
+      high_availability_agent:          [*sbd, *fencing_agent]
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_retries1"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "net.ipv4.tcp_retries1 = 3"
+    report:                             *check
+    references:
+      other:                            "https://www.suse.com/support/kb/doc/?id=000019722"
+
+  - id:                                 "APP-0008"
+    name:                               "Filesystem Mount Points"
+    description:                        "Lists all mounted filesystems and their types to ensure APP directories are configured with supported filesystems."
+    category:                           *sap_check
+    severity:                           *info
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*app_role, *pas]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "filesystem"
+    report:                             *table
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 "APP-0009"
+    name:                               "Azure Disks"
+    description:                        "Lists all attached Azure disks to ensure APP directories are configured with supported disks."
+    category:                           *sap_check
+    severity:                           *info
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*app_role, *pas]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "azure_disks"
+    report:                             *table
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+
+  - id:                                 "APP-0010"
+    name:                               "LVM Groups"
+    description:                        "Lists all LVM groups to ensure APP server directories are configured with supported LVM configurations."
+    category:                           *sap_check
+    severity:                           *info
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*app_role, *pas]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "lvm_groups"
+    report:                             *table
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 "APP-0011"
+    name:                               "LVM Volumes"
+    description:                        "Lists all LVM volumes to ensure APP server directories are configured with supported LVM configurations."
+    category:                           *sap_check
+    severity:                           *info
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*app_role, *pas]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "lvm_volumes"
+    report:                             *table
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"
+
+  - id:                                 "APP-0012"
+    name:                               "ANF Volumes"
+    description:                        "Lists all ANF volumes to ensure APP server directories are configured with supported ANF configurations."
+    category:                           *sap_check
+    severity:                           *info
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *vm
+      storage_type:                     *all_storage
+      role:                             [*app_role, *pas]
+    collector_type:                     *azure
+    collector_args:
+      resource_type:                    "anf_volumes"
+    report:                             *table
+    references:
+      sap:                              "2972496"
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/hana-vm-operations-storage"

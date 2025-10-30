@@ -15,11 +15,13 @@
       become:                          true
       ansible.builtin.pip:
         name:
-          - ansible-runner
+          - azure-identity
           - azure-kusto-data
           - azure-kusto-ingest
-          - azure-identity
+          - azure-mgmt-compute
           - azure-mgmt-network
+          - azure-storage-blob
+          - azure-storage-queue
           - pandas
 
 - hosts:                               "{{ sap_sid | upper }}_DB"
@@ -58,7 +60,7 @@
     - name:                            "Set the test group name based on the inputs"
       ansible.builtin.set_fact:
         test_group_name:               "{{ sap_functional_test_type_map
-                                        | selectattr('name', 'equalto', sap_functional_test_type)
+                                        | selectattr('name', 'equalto', SAP_FUNCTIONAL_TEST_TYPE)
                                         | map(attribute='value') | first }}_{{ platform | upper }}"
       run_once:                        true
 
@@ -78,7 +80,7 @@
       vars:
         group_invocation_id:           "{{ test_group_invocation_id }}"
         group_start_time:              "{{ test_group_start_time }}"
-        group_name:                    "{{ sap_functional_test_type }}"
+        group_name:                    "{{ SAP_FUNCTIONAL_TEST_TYPE }}"
       when:
                                        - test_group_name is defined
                                        - item.enabled | default(true)

@@ -14,19 +14,21 @@
     - name:                            "Install python azure pacakges required"
       ansible.builtin.pip:
         name:
-          - ansible-runner
+          - azure-identity
           - azure-kusto-data
           - azure-kusto-ingest
-          - azure-identity
+          - azure-mgmt-compute
           - azure-mgmt-network
+          - azure-storage-blob
+          - azure-storage-queue
           - pandas
 
     - name:                            "Set the test group name based on the inputs"
       ansible.builtin.set_fact:
         test_group_name:               "{{ sap_functional_test_type_map
-                                        | selectattr('name', 'equalto', sap_functional_test_type)
+                                        | selectattr('name', 'equalto', SAP_FUNCTIONAL_TEST_TYPE)
                                         | map(attribute='value') | first }}{{ '_' + (platform | upper)
-                                        if sap_functional_test_type == 'DatabaseHighAvailability' else '' }}"
+                                        if SAP_FUNCTIONAL_TEST_TYPE == 'DatabaseHighAvailability' else '' }}"
       run_once:                        true
 
     - name:                            Set the test group facts
@@ -45,7 +47,7 @@
       vars:
         group_invocation_id:           "{{ test_group_invocation_id }}"
         group_start_time:              "{{ test_group_start_time }}"
-        group_name:                    "{{ sap_functional_test_type }}"
+        group_name:                    "{{ SAP_FUNCTIONAL_TEST_TYPE }}"
       when:                             test_group_name is defined
 
     - name:                            "Render HTML report for the test group logs"

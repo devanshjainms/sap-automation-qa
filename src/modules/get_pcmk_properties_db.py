@@ -171,6 +171,7 @@ class HAClusterValidator(BaseHAClusterValidator):
         "azurelb": ".//primitive[@type='azure-lb']",
         "angi_filesystem": ".//primitive[@type='SAPHanaFilesystem']",
         "angi_hana": ".//primitive[@type='SAPHanaController']",
+        "azureevents": ".//primitive[@type='azure-events-az']",
     }
 
     def __init__(
@@ -227,6 +228,7 @@ class HAClusterValidator(BaseHAClusterValidator):
         """
         Resource validation with HANA-specific logic and offline validation support.
         Validates resource constants by iterating through expected parameters.
+        Also checks for required resources.
 
         :return: A list of parameter dictionaries
         :rtype: list
@@ -243,6 +245,7 @@ class HAClusterValidator(BaseHAClusterValidator):
             if resource_scope is not None:
                 parameters.extend(self._parse_resources_section(resource_scope))
 
+            self._check_required_resources()
         except Exception as ex:
             self.result["message"] += f"Error validating resource constants: {str(ex)} "
 
@@ -270,45 +273,44 @@ class HAClusterValidator(BaseHAClusterValidator):
             ) as file:
                 global_ini_content = file.read().splitlines()
 
-            section_start = (
-                global_ini_content.index("[ha_dr_provider_sushanasr]")
-                if self.saphanasr_provider == HanaSRProvider.ANGI
-                else global_ini_content.index("[ha_dr_provider_SAPHanaSR]")
-            )
-            properties_slice = global_ini_content[section_start + 1 : section_start + 4]
+            for section_name, section_properties in global_ini_defaults.items():
+                try:
+                    section_start = global_ini_content.index(f"[{section_name}]")
+                    next_section_start = len(global_ini_content)
+                    for i in range(section_start + 1, len(global_ini_content)):
+                        if global_ini_content[i].strip().startswith("["):
+                            next_section_start = i
+                            break
 
-            global_ini_properties = {
-                key.strip(): val.strip()
-                for line in properties_slice
-                for key, sep, val in [line.partition("=")]
-                if sep
-            }
+                    properties_slice = global_ini_content[section_start + 1 : next_section_start]
 
-            for param_name, expected_config in global_ini_defaults.items():
-                value = global_ini_properties.get(param_name, "")
-                if isinstance(expected_config, dict):
-                    expected_value = expected_config.get("value")
-                    is_required = expected_config.get("required", False)
-                else:
-                    expected_value = expected_config
-                    is_required = False
+                    global_ini_properties = {
+                        key.strip(): val.strip()
+                        for line in properties_slice
+                        for key, sep, val in [line.partition("=")]
+                        if sep and key.strip()
+                    }
 
-                self.log(
-                    logging.INFO,
-                    f"param_name: {param_name}, value: {value}, expected_value: {expected_config}",
-                )
-                parameters.append(
-                    self._create_parameter(
-                        category="global_ini",
-                        name=param_name,
-                        value=value,
-                        expected_value=(
-                            expected_config.get("value")
-                            if isinstance(expected_config, dict)
-                            else expected_value
-                        ),
-                    )
-                )
+                    for param_name, expected_config in section_properties.items():
+                        value = global_ini_properties.get(param_name, "")
+                        expected_value = expected_config.get("value", "")
+
+                        self.log(
+                            logging.INFO,
+                            f"param_name: {param_name}, value: {value}, "
+                            + f"expected_value: {expected_value}",
+                        )
+                        parameters.append(
+                            self._create_parameter(
+                                category="global_ini",
+                                id=section_name,
+                                name=param_name,
+                                value=value,
+                                expected_value=expected_value,
+                            )
+                        )
+                except ValueError:
+                    self.log(logging.WARNING, f"Section {section_name} not found in global.ini")
         except Exception as ex:
             self.log(logging.ERROR, f"Error parsing global.ini: {str(ex)}")
 

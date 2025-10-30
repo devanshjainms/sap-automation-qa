@@ -7,6 +7,7 @@ ansible-runner
 azure-identity
 azure-kusto-data
 azure-kusto-ingest
+azure-mgmt-compute
 azure-mgmt-network
 azure-storage-blob
 azure-storage-queue

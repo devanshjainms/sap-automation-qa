@@ -19,6 +19,9 @@ CRM_CONFIG_DEFAULTS:
   stonith-enabled:
     value:                          "true"
     required:                       false
+  stonith-timeout:
+    value:                          ["210", "210s"]
+    required:                       false
   concurrent-fencing:
     value:                          "true"
     required:                       false
@@ -109,7 +112,7 @@ RESOURCE_DEFAULTS:
       required:                     false
       instance_attributes:
         pcmk_delay_max:
-          value:                    "15"
+          value:                    ["15", "15s"]
           required:                 false
         pcmk_monitor_retries:
           value:                    "4"
@@ -139,7 +142,7 @@ RESOURCE_DEFAULTS:
       required:                     false
       instance_attributes:
         pcmk_delay_max:
-          value:                    "15"
+          value:                    ["15", "15s"]
           required:                 false
         pcmk_monitor_retries:
           value:                    "4"
@@ -451,12 +454,45 @@ RESOURCE_DEFAULTS:
           timeout:
             value:                  ["20", "20s"]
             required:               false
+
+    azureevents:
+      required:                     true
+      meta_attributes:
+        allow-unhealthy-nodes:
+          value:                    "true"
+          required:                 false
+        failure-timeout:
+          value:                    "120s"
+          required:                 false
+      operations:
+        monitor:
+          interval:
+            value:                  ["10", "10s"]
+            required:               false
+          timeout:
+            value:                  ["240", "240s"]
+            required:               false
+        start:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["10", "10s"]
+            required:               false
+        stop:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["10", "10s"]
+            required:               false
+
   REDHAT:
     fence_agent:
       required:                     false
       instance_attributes:
         pcmk_delay_max:
-          value:                    "15"
+          value:                    ["15", "15s"]
           required:                 false
         pcmk_monitor_retries:
           value:                    "4"
@@ -708,6 +744,38 @@ RESOURCE_DEFAULTS:
             value:                  ["20", "20s"]
             required:               false
 
+    azureevents:
+      required:                     true
+      meta_attributes:
+        allow-unhealthy-nodes:
+          value:                    "true"
+          required:                 false
+        failure-timeout:
+          value:                    "120s"
+          required:                 false
+      operations:
+        monitor:
+          interval:
+            value:                  ["10", "10s"]
+            required:               false
+          timeout:
+            value:                  ["240", "240s"]
+            required:               false
+        start:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["10", "10s"]
+            required:               false
+        stop:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["10", "10s"]
+            required:               false
+
 # === OS Parameters ===
 # Run command as root. Format of command is: "parent_key child_key"
 # Example: sysctl net.ipv4.tcp_timestamps
@@ -733,36 +801,91 @@ OS_PARAMETERS:
 GLOBAL_INI:
   SUSE:
     SAPHanaSR:
-      provider:
-        value:                      "SAPHanaSR"
-        required:                   true
-      path:
-        value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
-        required:                   true
-      execution_order:
-        value:                      "1"
-        required:                   true
+      ha_dr_provider_SAPHanaSR:
+        provider:
+          value:                      "SAPHanaSR"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "1"
+          required:                   true
+      ha_dr_provider_suschksrv:
+        provider:
+          value:                      "susChkSrv"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "3"
+          required:                   true
+        action_on_host:
+          value:                      "fence"
+          required:                   true
+      trace:
+        ha_dr_sushanasr:
+          required:                   false
     SAPHanaSR-angi:
-      provider:
-        value:                      "susHanaSR"
-        required:                   true
-      path:
-        value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
-        required:                   true
-      execution_order:
-        value:                      "1"
-        required:                   true
+      ha_dr_provider_sushanasr:
+        provider:
+          value:                      "susHanaSR"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR-angi", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "1"
+          required:                   true
+      ha_dr_provider_suschksrv:
+        provider:
+          value:                      "susChkSrv"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR-angi", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "3"
+          required:                   true
+        action_on_host:
+          value:                      "fence"
+          required:                   true
+      trace:
+        ha_dr_sushanasr:
+          required:                   false
+        ha_dr_suschksrv:
+          required:                   false
   REDHAT:
     SAPHanaSR:
-      provider:
-        value:                      "SAPHanaSR"
-        required:                   true
-      path:
-        value:                      ["/usr/share/SAPHanaSR/srHook", "/hana/shared/myHooks"]
-        required:                   true
-      execution_order:
-        value:                      "1"
-        required:                   true
+      ha_dr_provider_SAPHanaSR:
+        provider:
+          value:                      "SAPHanaSR"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR/srHook", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "1"
+          required:                   true
+      ha_dr_provider_suschksrv:
+        provider:
+          value:                      "susChkSrv"
+          required:                   true
+        path:
+          value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
+          required:                   true
+        execution_order:
+          value:                      "3"
+          required:                   true
+        action_on_host:
+          value:                      "fence"
+          required:                   true
+      trace:
+        ha_dr_saphanasr:
+          required:                   false
+        ha_dr_chksrv:
+          required:                   false
 
 # === Azure Load Balancer ===
 # Azure Load Balancer configuration

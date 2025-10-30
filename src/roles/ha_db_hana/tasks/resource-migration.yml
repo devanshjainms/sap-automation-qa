@@ -37,7 +37,7 @@
             - name:                     "Test Execution: Get HANA resource id for saphanasr_angi"
               ansible.builtin.shell: >-
                                         set -o pipefail && {{ commands
-                                          | selectattr('name','equalto','get_hana_resource_id_saphanasr_angi')
+                                          | selectattr('name','equalto','get_hana_clone_resource_id_saphanasr_angi')
                                           | map(attribute=(ansible_os_family|upper))
                                           | first
                                         }}

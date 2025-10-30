@@ -45,6 +45,24 @@ class TestDbHaConfigValidation(RolesTestingBaseDB):
         :yield temp_dir: Path to the temporary test environment.
         :ytype: str
         """
+        commands = [
+            {
+                "name": "get_hana_clone_resource_id",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+            {
+                "name": "get_hana_primitive_resource_id",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+            {
+                "name": "get_hana_clone_resource_id_saphanasr_angi",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+            {
+                "name": "get_hana_primitive_resource_id_saphanasr_angi",
+                "SUSE": "cibadmin --query --scope resources",
+            },
+        ]
 
         temp_dir = self.setup_test_environment(
             role_type="ha_db_hana",
@@ -59,9 +77,10 @@ class TestDbHaConfigValidation(RolesTestingBaseDB):
                 "project/library/get_package_list",
                 "bin/crm_resource",
                 "bin/crm",
+                "bin/cibadmin",
                 "bin/SAPHanaSR-manageProvider",
             ],
-            extra_vars_override={"node_tier": "hana"},
+            extra_vars_override={"node_tier": "hana", "commands": commands},
         )
 
         os.makedirs(f"{temp_dir}/project/roles/ha_db_hana/tasks/files", exist_ok=True)

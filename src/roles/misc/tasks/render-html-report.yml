@@ -10,13 +10,16 @@
   delegate_to:                          localhost
   block:
     - name:                             "Load HTML jinja2 template"
+      no_log:                           true
       ansible.builtin.set_fact:
-        html_report_template:           "{{ lookup('file', './templates/report.html') }}"
+        html_report_template:           "{{ lookup('file', html_template_name | default('./templates/report.html')) }}"
 
     - name:                             "Read the log file and create a HTML report"
       render_html_report:
         test_group_invocation_id:       "{{ test_group_invocation_id }}"
-        test_group_name:                "{{ test_group_name }}_{{ target_os_family | default(ansible_os_family | default('SUSE')) | upper }}"
+        test_group_name:                "{{ report_file_name | default(test_group_name + '_' + ansible_os_family | upper) }}"
         report_template:                "{{ html_report_template }}"
         workspace_directory:            "{{ _workspace_directory }}"
+        test_case_results:              "{{ all_results | default([]) }}"
+        system_info:                    "{{ system_info | default({}) }}"
       register:                         report_file_path

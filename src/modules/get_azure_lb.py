@@ -233,31 +233,63 @@ class AzureLoadBalancer(SapAutomationQA):
             for inbound_rule in inbound_rules
             if "privateIpAddress" in inbound_rule
         )
+
+        self.log(logging.INFO, f"Looking for load balancers with IPs: {load_balancer_ips}")
+
         found_load_balancer = None
+
+        def get_private_ip_from_config(config):
+            """
+            Extract private IP from frontend config, handling different key variations.
+            Azure SDK might return different structures based on authentication context.
+            """
+            private_ip = config.get("private_ip_address") or config.get("privateIpAddress")
+            return private_ip
 
         found_load_balancer = next(
             (
                 lb
                 for lb in load_balancers
-                for frontend_ip_config in lb["frontend_ip_configurations"]
-                if frontend_ip_config["private_ip_address"] in load_balancer_ips
+                for frontend_ip_config in lb.get("frontend_ip_configurations", [])
+                if get_private_ip_from_config(frontend_ip_config) in load_balancer_ips
             ),
             None,
         )
+
+        if not found_load_balancer and load_balancers:
+            available_ips = []
+            self.log(
+                logging.WARNING, f"No matching load balancer found for IPs: {load_balancer_ips}"
+            )
+            for lb in load_balancers:
+                lb_name = lb.get("name", "unknown")
+                for config in lb.get("frontend_ip_configurations", []):
+                    private_ip = get_private_ip_from_config(config)
+                    if private_ip:
+                        available_ips.append(f"{lb_name}:{private_ip}")
+                    else:
+                        self.log(
+                            logging.DEBUG,
+                            f"Frontend config structure for {lb_name}: {list(config.keys())}",
+                        )
+            self.log(logging.WARNING, f"Available load balancers and private IPs: {available_ips}")
         parameters = []
 
         def check_parameters(entity, parameters_dict, entity_type):
-            for key, expected_value in parameters_dict.items():
+            for key, value_object in parameters_dict.items():
+                entity_value = entity.get(key, "N/A")
+                expected_value = value_object.get("value", "")
+
                 parameters.append(
                     Parameters(
                         category=entity_type,
-                        id=entity["name"],
+                        id=entity.get("name", "unknown"),
                         name=key,
-                        value=str(entity[key]),
+                        value=str(entity_value),
                         expected_value=str(expected_value),
                         status=(
                             TestStatus.SUCCESS.value
-                            if entity[key] == expected_value
+                            if entity_value == expected_value
                             else TestStatus.ERROR.value
                         ),
                     ).to_dict()
@@ -317,6 +349,12 @@ class AzureLoadBalancer(SapAutomationQA):
                 )
                 self.result["message"] += "Successfully validated load balancer parameters"
             else:
+                self.result.update(
+                    {
+                        "details": {"parameters": []},
+                        "status": TestStatus.ERROR.value,
+                    }
+                )
                 self.result["message"] += (
                     "Load Balancer details not fetched."
                     " Ensure that the Managed Identity (MSI) has sufficient permissions "

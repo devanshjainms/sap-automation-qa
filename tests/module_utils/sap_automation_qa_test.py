@@ -178,9 +178,14 @@ class TestSapAutomationQA:
                 "src.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
             )
             sap_qa = SapAutomationQA()
+
             command = "echo 'Hello World'"
-            result = sap_qa.execute_command_subprocess(command)
-            assert result == ""
+            result = sap_qa.execute_command_subprocess(command, shell_command=True)
+            assert "Hello World" in result
+
+            command_list = ["echo", "Hello World"]
+            result_list = sap_qa.execute_command_subprocess(command_list, shell_command=False)
+            assert "Hello World" in result_list
 
     def test_parse_xml_output(self, monkeypatch):
         """
