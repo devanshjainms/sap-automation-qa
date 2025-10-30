@@ -292,8 +292,8 @@ generate_configuration_report() {
         log "INFO" "Found execution log: $execution_log"
     fi
     
-    local results_file="$workspace_dir/quality_check/config_check_results.json"
-    local system_info_file="$workspace_dir/quality_check/system_info.json"
+    local results_file="$workspace_dir/logs/config_check_results.json"
+    local system_info_file="$workspace_dir/logs/system_info.json"
     
     local invocation_id=$(grep "test_group_invocation_id:" "$workspace_dir/playbook_vars.json" 2>/dev/null | awk '{print $2}' | tr -d '",')
     local group_name="CONFIG_${SAP_SID:-UNKNOWN}_${PLATFORM:-UNKNOWN}"

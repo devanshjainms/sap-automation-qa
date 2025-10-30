@@ -18,10 +18,16 @@ from typing import Any, Dict, List, Optional
 import jinja2
 from ansible.module_utils.basic import AnsibleModule
 
+_project_root = Path(__file__).parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 try:
     from ansible.module_utils.sap_automation_qa import SapAutomationQA
     from ansible.module_utils.enums import TestStatus
+    ANSIBLE_CONTEXT = True
 except ImportError:
+    ANSIBLE_CONTEXT = False
     from src.module_utils.sap_automation_qa import SapAutomationQA
     from src.module_utils.enums import TestStatus
 
