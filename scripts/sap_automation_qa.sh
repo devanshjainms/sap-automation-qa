@@ -348,6 +348,7 @@ retrieve_secret_from_key_vault() {
 # :param system_params: The path to the SAP parameters file.
 # :param auth_type: The authentication type (e.g., "SSHKEY", "VMPASSWORD").
 # :param system_config_folder: The path to the system configuration folder.
+# :param framework_version: The framework version from VERSION file.
 # :return: None. Exits with the return code of the ansible-playbook command.
 run_ansible_playbook() {
     local playbook_name=$1
@@ -355,6 +356,7 @@ run_ansible_playbook() {
     local system_params=$3
     local auth_type=$4
     local system_config_folder=$5
+    local framework_version=$6
 
     local extra_vars=""
     if [[ -n "$TEST_GROUPS" || -n "$TEST_CASES" ]]; then
@@ -377,7 +379,8 @@ run_ansible_playbook() {
     if [[ "$OFFLINE_MODE" == "true" ]]; then
         log "INFO" "Offline mode: Skipping SSH authentication setup"
         command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts \
-            -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars --connection=local"
+            -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' \
+            -e \"framework_version=$framework_version\" $extra_vars --connection=local"
     else
         # Set local secret_id and key_vault_id if defined
         local secret_id=$(grep "^secret_id:" "$system_params" | awk '{split($0,a,": "); print a[2]}' | xargs || true)
@@ -401,7 +404,8 @@ run_ansible_playbook() {
                 check_file_exists "$temp_file" \
                     "Temporary SSH key file not found. Please check the Key Vault secret ID."
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts --private-key $temp_file \
-                    -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars"
+                    -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' \
+                    -e \"framework_version=$framework_version\" $extra_vars"
             else
                 local ssh_key_dir="${cmd_dir}/../WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME"
                 local ssh_key=""
@@ -433,7 +437,8 @@ run_ansible_playbook() {
 
                 chmod 600 "$ssh_key"
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts --private-key $ssh_key \
-                    -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars"
+                    -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' \
+                    -e \"framework_version=$framework_version\" $extra_vars"
             fi
 
         elif [[ "$auth_type" == "VMPASSWORD" ]]; then
@@ -447,14 +452,14 @@ run_ansible_playbook() {
                     "Temporary password file not found. Please check the Key Vault secret ID."
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts \
                     --extra-vars 'ansible_ssh_pass=$(cat $temp_file)' --extra-vars @$VARS_FILE -e @$system_params \
-                    -e '_workspace_directory=$system_config_folder' $extra_vars"
+                    -e '_workspace_directory=$system_config_folder' -e \"framework_version=$framework_version\" $extra_vars"
             else
                 local password_file="${cmd_dir}/../WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME/password"
                 check_file_exists "$password_file" \
                     "password file not found in WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME directory."
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts \
                     --extra-vars 'ansible_ssh_pass=$(cat $password_file)' --extra-vars @$VARS_FILE -e @$system_params \
-                    -e '_workspace_directory=$system_config_folder' $extra_vars"
+                    -e '_workspace_directory=$system_config_folder' -e \"framework_version=$framework_version\" $extra_vars"
             fi
 
         else
@@ -542,7 +547,9 @@ main() {
     playbook_name=$(get_playbook_name "$TEST_TYPE" "$SAP_FUNCTIONAL_TEST_TYPE" "$OFFLINE_MODE")
     log "INFO" "Using playbook: $playbook_name."
 
-    run_ansible_playbook "$playbook_name" "$SYSTEM_HOSTS" "$SYSTEM_PARAMS" "$AUTHENTICATION_TYPE" "$SYSTEM_CONFIG_FOLDER"
+    FRAMEWORK_VERSION=$(read_version_file)
+    log "INFO" "Framework version: $FRAMEWORK_VERSION"
+    run_ansible_playbook "$playbook_name" "$SYSTEM_HOSTS" "$SYSTEM_PARAMS" "$AUTHENTICATION_TYPE" "$SYSTEM_CONFIG_FOLDER" "$FRAMEWORK_VERSION"
 
 }
 

@@ -233,3 +233,26 @@ install_packages() {
         log "INFO" "All required packages are already installed."
     fi
 }
+
+
+# Function to read VERSION file
+# Looks for VERSION file in the project root directory
+# :return: The version string from the VERSION file
+read_version_file() {
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local project_root="$(cd "$script_dir/.." && pwd)"
+    local version_file="$project_root/VERSION"
+    
+    if [[ -f "$version_file" ]]; then
+        local version
+        version=$(<"$version_file")
+        version=$(echo "$version" | tr -d '[:space:]')
+        if [[ -z "$version" ]]; then
+            log "ERROR" "VERSION file is empty at: $version_file"
+        fi
+        echo "$version"
+    else
+        log "ERROR" "VERSION file not found at: $version_file"
+        exit 1
+    fi
+}
