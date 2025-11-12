@@ -10,6 +10,8 @@
   gather_facts:                        true
   name:                                "Setup deployer for HA Testing Framework"
   vars_files:                          "./vars/input-api.yaml"
+  vars:
+    ansible_python_interpreter:         "{{ playbook_dir }}/../.venv/bin/python"
   tasks:
     - name:                             "Install python3-venv system package"
       become:                           true
@@ -34,6 +36,8 @@
   name:                                "Host tasks"
   gather_facts:                        true
   vars_files:                          "./vars/input-api.yaml"
+  vars:
+    ansible_python_interpreter:         "{{ playbook_dir }}/../.venv/bin/python"
   tasks:
     - name:                            "Enable profile_tasks callback plugin"
       ansible.builtin.set_fact:
