@@ -26,7 +26,7 @@
       become:                           false
       ansible.builtin.pip:
         virtualenv:                     "{{ playbook_dir }}/../.venv"
-        requirements:                   "{{ playbook_dir }}/../requirements.ini"
+        requirements:                   "{{ playbook_dir }}/../requirements.in"
 
 
     - name:                             "Generate test group ID and timestamp"
