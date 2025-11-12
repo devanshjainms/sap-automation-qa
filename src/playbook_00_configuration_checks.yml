@@ -11,8 +11,9 @@
   vars_files:                           "./vars/input-api.yaml"
   tasks:
     - name:                             "Install python azure packages required"
-      become:                           true
+      become:                           false
       ansible.builtin.pip:
+        virtualenv:                     "{{ playbook_dir }}/../.venv"
         name:
           - azure-identity
           - azure-kusto-data
