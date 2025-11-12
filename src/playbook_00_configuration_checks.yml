@@ -10,6 +10,12 @@
   name:                                 "Setup deployer for Configuration Checks"
   vars_files:                           "./vars/input-api.yaml"
   tasks:
+    - name:                             "Create virtual environment"
+      ansible.builtin.pip:
+        name:                           pip
+        virtualenv:                     "{{ playbook_dir }}/../.venv"
+        virtualenv_command:             python3 -m venv
+
     - name:                             "Install python azure packages required"
       become:                           false
       ansible.builtin.pip:
