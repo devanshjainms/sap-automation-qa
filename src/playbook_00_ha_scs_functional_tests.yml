@@ -11,18 +11,23 @@
   name:                                "Setup deployer for HA Testing Framework"
   vars_files:                          "./vars/input-api.yaml"
   tasks:
-    - name:                            "Install python azure pacakges required"
-      become:                          true
+    - name:                             "Install python3-venv system package"
+      become:                           true
+      ansible.builtin.package:
+        name:                           python3-venv
+        state:                          present
+
+    - name:                             "Create virtual environment"
       ansible.builtin.pip:
-        name:
-          - azure-identity
-          - azure-kusto-data
-          - azure-kusto-ingest
-          - azure-mgmt-compute
-          - azure-mgmt-network
-          - azure-storage-blob
-          - azure-storage-queue
-          - pandas
+        name:                           pip
+        virtualenv:                     "{{ playbook_dir }}/../.venv"
+        virtualenv_command:             python3 -m venv
+
+    - name:                             "Install python azure packages required"
+      become:                           false
+      ansible.builtin.pip:
+        virtualenv:                     "{{ playbook_dir }}/../.venv"
+        requirements:                   "{{ playbook_dir }}/../requirements.ini"
 
 - hosts: "{{ sap_sid | upper }}_SCS:
     {{ sap_sid | upper }}_ERS"
