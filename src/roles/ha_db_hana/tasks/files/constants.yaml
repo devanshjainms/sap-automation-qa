@@ -34,6 +34,9 @@ CRM_CONFIG_DEFAULTS:
   azure-events-az_globalPullState:
     value:                          "IDLE"
     required:                       false
+  have-watchdog:
+    value:                          "true"
+    required:                       false
 
 # === Operation Defaults ===
 # cibadmin --query --scope op_defaults
@@ -50,7 +53,7 @@ OP_DEFAULTS:
 RSC_DEFAULTS:
   migration-threshold:
     value:                          "5000"
-    required:                       false
+    required:                       true
   priority:
     value:                          "1"
     required:                       false
@@ -868,18 +871,18 @@ GLOBAL_INI:
         execution_order:
           value:                      "1"
           required:                   true
-      ha_dr_provider_suschksrv:
+      ha_dr_provider_chksrv:
         provider:
-          value:                      "susChkSrv"
+          value:                      "ChkSrv"
           required:                   true
         path:
           value:                      ["/usr/share/SAPHanaSR", "/hana/shared/myHooks"]
           required:                   true
         execution_order:
-          value:                      "3"
+          value:                      "2"
           required:                   true
         action_on_host:
-          value:                      "fence"
+          value:                      "kill"
           required:                   true
       trace:
         ha_dr_saphanasr:

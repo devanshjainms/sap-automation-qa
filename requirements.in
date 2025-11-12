@@ -1,8 +1,3 @@
-# Ansible packages
-ansible-core
-ansible-lint
-ansible-runner
-
 # Azure packages
 azure-identity
 azure-kusto-data

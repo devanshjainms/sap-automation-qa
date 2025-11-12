@@ -13,7 +13,7 @@ set_output_context
 # Ensure we're in the project root directory
 cd "$(dirname "$script_dir")"
 
-packages=("python3-pip" "sshpass" "python3-venv")
+packages=("python3-pip" "sshpass" "python3-venv", "ansible")
 install_packages "${packages[@]}"
 
 # Install az cli if not present
