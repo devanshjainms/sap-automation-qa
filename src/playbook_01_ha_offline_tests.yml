@@ -11,11 +11,20 @@
   name:                                "Setup deployer for HA Testing Framework"
   vars_files:                          "./vars/input-api.yaml"
   tasks:
-    - name:                             "Install python3-venv system package"
+    - name:                             "Check if python3-venv is available"
+      ansible.builtin.command:
+        cmd:                            python3 -m venv --help
+      register:                         venv_check
+      ignore_errors:                    true
+      changed_when:                     false
+
+    - name:                             "Install python3-venv system package (if needed)"
       become:                           true
       ansible.builtin.package:
         name:                           python3-venv
         state:                          present
+      when:                             venv_check.rc != 0
+      ignore_errors:                    true
 
     - name:                             "Create virtual environment"
       ansible.builtin.pip:
@@ -24,14 +33,13 @@
         virtualenv_command:             python3 -m venv
 
     - name:                            "Install python azure packages required"
-      become:                           false
       ansible.builtin.pip:
         virtualenv:                     "{{ playbook_dir }}/../.venv"
         requirements:                   "{{ playbook_dir }}/../requirements.in"
-          - azure-mgmt-network
-          - azure-storage-blob
-          - azure-storage-queue
-          - pandas
+
+    - name:                             "Set Python interpreter to use virtual environment"
+      ansible.builtin.set_fact:
+        ansible_python_interpreter:     "{{ playbook_dir }}/../.venv/bin/python"
 
     - name:                            "Set the test group name based on the inputs"
       ansible.builtin.set_fact:
