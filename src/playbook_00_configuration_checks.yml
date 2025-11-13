@@ -10,25 +10,6 @@
   name:                                 "Setup deployer for Configuration Checks"
   vars_files:                           "./vars/input-api.yaml"
   tasks:
-    - name:                             "Install python3-venv system package"
-      become:                           true
-      ansible.builtin.package:
-        name:                           python3-venv
-        state:                          present
-
-    - name:                             "Create virtual environment"
-      ansible.builtin.pip:
-        name:                           pip
-        virtualenv:                     "{{ playbook_dir }}/../.venv"
-        virtualenv_command:             python3 -m venv
-
-    - name:                             "Install python azure packages required"
-      become:                           false
-      ansible.builtin.pip:
-        virtualenv:                     "{{ playbook_dir }}/../.venv"
-        requirements:                   "{{ playbook_dir }}/../requirements.in"
-
-
     - name:                             "Generate test group ID and timestamp"
       ansible.builtin.set_fact:
         test_group_invocation_id:       "{{ lookup('pipe', 'uuidgen') }}"
