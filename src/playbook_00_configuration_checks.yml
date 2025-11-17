@@ -53,11 +53,6 @@
                                         | map(attribute='value')
                                         | first }}"
 
-    - name:                             "Debug ansible python interpreter"
-      ansible.builtin.debug:
-        msg:                            "Ansible Python Interpreter: {{ ansible_python_interpreter }}"
-      when:                             ansible_python_interpreter is defined
-
 - hosts: "{{ sap_sid | upper }}_SCS:
           {{ sap_sid | upper }}_ERS:
           {{ sap_sid | upper }}_DB:

@@ -169,7 +169,7 @@
       no_log:                       true
       delegate_to:                  localhost
       vars:
-        ansible_python_interpreter: "{{ hostvars['localhost'].ansible_python_interpreter | default('{{ playbook_dir }}/../.venv/bin/python') }}"
+        ansible_python_interpreter: "{{ playbook_dir }}/../.venv/bin/python"
       configuration_check_module:
         check_file_content:         "{{ azure_checks_yaml }}"
         context:                    "{{ system_context }}"

@@ -8,7 +8,7 @@
   failed_when:                          false
   delegate_to:                          localhost
   vars:
-    ansible_python_interpreter:         "{{ hostvars['localhost'].ansible_python_interpreter | default('{{ playbook_dir }}/../.venv/bin/python') }}"
+    ansible_python_interpreter:         "{{ playbook_dir }}/../.venv/bin/python"
   send_telemetry_data:
     telemetry_data_destination:         "{{ telemetry_data_destination | default('none') | lower }}"
     laws_workspace_id:                  "{{ laws_workspace_id | default('') }}"

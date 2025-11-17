@@ -1,0 +1,10 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Group variables for localhost tasks
+# IMPORTANT: This virtual environment only exists on the localhost/jump box, NOT on SAP hosts
+# These settings apply to tasks that are delegated to localhost from SAP hosts
+# The virtual environment contains Azure SDK packages required for Azure operations
+
+ansible_python_interpreter: "{{ playbook_dir }}/../.venv/bin/python"
+ansible_connection: local
