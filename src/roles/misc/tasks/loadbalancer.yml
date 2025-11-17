@@ -31,9 +31,6 @@
 
         - name:                         "Azure Load Balancer check for the DB nodes"
           delegate_to:                  localhost
-          environment:
-            PATH: "{{ hostvars['localhost']['venv_path'] }}"
-            PYTHONPATH: "{{ hostvars['localhost']['venv_pythonpath'] }}"
           get_azure_lb:
             subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
             region:                     "{{ azure_instance_metadata.json.compute.location }}"
