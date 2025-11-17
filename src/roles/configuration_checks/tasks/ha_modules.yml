@@ -76,9 +76,6 @@
 
     - name:                             "Execute Azure Load Balancer Configuration Module"
       delegate_to:                      localhost
-      environment:
-        PATH: "{{ hostvars['localhost']['venv_path'] }}"
-        PYTHONPATH: "{{ hostvars['localhost']['venv_pythonpath'] }}"
       get_azure_lb:
         subscription_id:                "{{ compute_metadata.json.compute.subscriptionId }}"
         region:                         "{{ compute_metadata.json.compute.location }}"

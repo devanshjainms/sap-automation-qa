@@ -168,9 +168,6 @@
       become:                       true
       no_log:                       true
       delegate_to:                  localhost
-      environment:
-        PATH: "{{ hostvars['localhost']['venv_path'] }}"
-        PYTHONPATH: "{{ hostvars['localhost']['venv_pythonpath'] }}"
       configuration_check_module:
         check_file_content:         "{{ azure_checks_yaml }}"
         context:                    "{{ system_context }}"
