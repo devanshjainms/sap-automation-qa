@@ -76,44 +76,6 @@
         ansible_callbacks:
           profile_tasks:                true
 
-    - name:                             "Debug ansible python interpreter"
-      ansible.builtin.debug:
-        msg:                            "Ansible Python Interpreter: {{ ansible_python_interpreter }}"
-      when:                             ansible_python_interpreter is defined
-
-    - name:                             "Check if pip3 is available on target hosts"
-      ansible.builtin.command:
-        cmd:                            python3 -m pip --version
-      register:                         pip_check
-      ignore_errors:                    true
-      changed_when:                     false
-
-    - name:                             "Install pip if not available"
-      become:                           true
-      ansible.builtin.package:
-        name:                           python3-pip
-        state:                          present
-      when:                             pip_check.rc != 0
-      ignore_errors:                    true
-
-    - name:                             "Install required Python packages on SAP hosts for configuration checks"
-      ansible.builtin.pip:
-        name:
-          - azure-identity
-          - azure-kusto-data
-          - azure-kusto-ingest
-          - azure-mgmt-compute
-          - azure-mgmt-network
-          - azure-storage-blob
-          - azure-storage-queue
-          - jmespath
-          - pandas
-          - PyYAML
-          - requests
-        extra_args:                     "--user --break-system-packages"
-      ignore_errors:                    true
-      run_once:                         true
-
     - name:                             "Set configuration test type if not defined"
       ansible.builtin.set_fact:
         configuration_test_type:        "{{ configuration_test_type | default('all') }}"
