@@ -8,3 +8,7 @@
 
 ansible_python_interpreter: "{{ playbook_dir }}/../.venv/bin/python"
 ansible_connection: local
+
+# Environment variables for virtual environment activation
+venv_path: "{{ playbook_dir }}/../.venv/bin:{{ ansible_env.PATH }}"
+venv_pythonpath: "{{ playbook_dir }}/../.venv/lib/python3.10/site-packages"

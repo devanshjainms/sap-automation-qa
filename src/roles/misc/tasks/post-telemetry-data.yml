@@ -8,10 +8,8 @@
   failed_when:                          false
   delegate_to:                          localhost
   environment:
-    PATH: "{{ playbook_dir }}/../.venv/bin:{{ ansible_env.PATH }}"
-    PYTHONPATH: "{{ playbook_dir }}/../.venv/lib/python*/site-packages"
-  vars:
-    ansible_python_interpreter:         "{{ playbook_dir }}/../.venv/bin/python"
+    PATH: "{{ hostvars['localhost']['venv_path'] }}"
+    PYTHONPATH: "{{ hostvars['localhost']['venv_pythonpath'] }}"
   send_telemetry_data:
     telemetry_data_destination:         "{{ telemetry_data_destination | default('none') | lower }}"
     laws_workspace_id:                  "{{ laws_workspace_id | default('') }}"
