@@ -69,6 +69,20 @@
         ansible_callbacks:
           profile_tasks:                true
 
+    - name: Show python interpreter used on localhost
+      delegate_to: localhost
+      ansible.builtin.debug:
+        msg:
+          - "ansible_playbook_python: {{ ansible_playbook_python }}"
+          - "ansible_python_interpreter var: {{ ansible_python_interpreter | default('UNSET') }}"
+
+    # Fail if venv is not being used
+    - name:                             "Fail if virtual environment is not being used"
+      ansible.builtin.fail:
+        msg:                            "Python virtual environment is not being used. Please ensure that the virtual environment is created and activated."
+      when:                             ansible_python_interpreter is not defined or
+                                        not ansible_python_interpreter.startswith(playbook_dir + '/../.venv/')
+
     - name:                             "Set configuration test type if not defined"
       ansible.builtin.set_fact:
         configuration_test_type:        "{{ configuration_test_type | default('all') }}"
