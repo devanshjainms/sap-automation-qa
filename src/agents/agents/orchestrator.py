@@ -1,84 +1,106 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """
-Orchestrator for routing chat requests to agents.
+Orchestrator powered by Semantic Kernel for routing chat requests to agents.
+
+This orchestrator uses Semantic Kernel with AgentRoutingPlugin for intelligent
+request routing using function calling.
 """
 
 import json
-import logging
 from typing import Optional
+
+from semantic_kernel import Kernel
+from semantic_kernel.contents import ChatHistory
 
 from src.agents.models.chat import ChatRequest, ChatResponse, ChatMessage
 from src.agents.agents.base import AgentRegistry
-from src.agents.llm_client import call_llm
-from src.agents.prompts import ORCHESTRATOR_ROUTING_SYSTEM_PROMPT
+from src.agents.plugins.routing import AgentRoutingPlugin
+from src.agents.prompts import ORCHESTRATOR_SK_SYSTEM_PROMPT
 from src.agents.models.execution import ExecutionRequest
 from src.agents.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-class Orchestrator:
-    """Routes chat requests to appropriate agents."""
+class OrchestratorSK:
+    """Routes chat requests to appropriate agents using Semantic Kernel."""
 
-    def __init__(self, registry: AgentRegistry) -> None:
-        """Initialize orchestrator with agent registry.
+    def __init__(self, registry: AgentRegistry, kernel: Kernel) -> None:
+        """Initialize orchestrator with agent registry and Semantic Kernel.
 
         :param registry: AgentRegistry containing available agents
         :type registry: AgentRegistry
+        :param kernel: Configured Semantic Kernel instance
+        :type kernel: Kernel
         """
         self.registry = registry
+        self.kernel = kernel
+        routing_plugin = AgentRoutingPlugin(registry)
+        self.kernel.add_plugin(plugin=routing_plugin, plugin_name="AgentRouting")
+        logger.info("OrchestratorSK initialized with Semantic Kernel and AgentRouting plugin")
 
-    async def _choose_agent_with_llm(self, request: ChatRequest) -> tuple[str, dict]:
-        """Use LLM to choose the best agent for the request.
+    async def _choose_agent_with_sk(self, request: ChatRequest) -> tuple[str, dict]:
+        """Use Semantic Kernel to choose the best agent for the request.
 
         :param request: ChatRequest with conversation history
         :type request: ChatRequest
         :returns: Tuple of (agent_name, agent_input dict)
         :rtype: tuple[str, dict]
         """
-        available_agents = self.registry.list_agents()
-        agents_description = "\n".join(
-            [f"- {agent['name']}: {agent['description']}" for agent in available_agents]
-        )
+        chat_history = ChatHistory()
+        chat_history.add_system_message(ORCHESTRATOR_SK_SYSTEM_PROMPT)
 
-        system_prompt = ORCHESTRATOR_ROUTING_SYSTEM_PROMPT.format(
-            agents_description=agents_description
-        )
-
-        llm_messages = [{"role": "system", "content": system_prompt}]
         for msg in request.messages:
-            llm_messages.append({"role": msg.role, "content": msg.content})
+            if msg.role == "user":
+                chat_history.add_user_message(msg.content)
+            elif msg.role == "assistant":
+                chat_history.add_assistant_message(msg.content)
 
         try:
-            logger.info("Calling Azure OpenAI for agent routing...")
-            response = await call_llm(llm_messages)
-            logger.info(f"LLM response received: {response}")
-            content_clean = response.choices[0].message.content.strip()
-            logger.info(f"LLM content: {content_clean}")
-            if content_clean.startswith("```json"):
-                content_clean = content_clean[7:]
-                if content_clean.endswith("```"):
-                    content_clean = content_clean[:-3]
-            elif content_clean.startswith("```"):
-                content_clean = content_clean[3:]
-                if content_clean.endswith("```"):
-                    content_clean = content_clean[:-3]
+            logger.info("Calling SK for agent routing with function calling...")
+            chat_service = self.kernel.get_service(service_id="azure_openai_chat")
+            execution_settings = chat_service.get_prompt_execution_settings_class()(
+                function_choice_behavior="auto",
+                max_completion_tokens=500,
+            )
 
-            routing_decision = json.loads(content_clean.strip())
+            response = await chat_service.get_chat_message_content(
+                chat_history=chat_history,
+                settings=execution_settings,
+                kernel=self.kernel,
+            )
 
-            agent_name = routing_decision.get("agent_name", "echo")
-            agent_input = routing_decision.get("agent_input", {})
+            logger.info("SK routing response received")
 
-            logger.info(f"Routing to agent: {agent_name} with input: {agent_input}")
-            if agent_name not in self.registry:
-                logger.warning(f"Agent {agent_name} not found, falling back to echo")
+            response_content = str(response) if response else ""
+            try:
+                if "{" in response_content and "}" in response_content:
+                    start_idx = response_content.find("{")
+                    end_idx = response_content.rfind("}") + 1
+                    json_str = response_content[start_idx:end_idx]
+                    routing_decision = json.loads(json_str)
+
+                    agent_name = routing_decision.get("agent_name", "echo")
+                    agent_input = routing_decision.get("agent_input", {})
+
+                    logger.info(f"Routing to agent: {agent_name} with input: {agent_input}")
+
+                    if agent_name not in self.registry:
+                        logger.warning(f"Agent {agent_name} not found, falling back to echo")
+                        return ("echo", {})
+
+                    return (agent_name, agent_input)
+                else:
+                    logger.warning("No JSON found in routing response, falling back to echo")
+                    return ("echo", {})
+
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse routing decision JSON: {e}")
                 return ("echo", {})
 
-            return (agent_name, agent_input)
-
         except Exception as e:
-            logger.error(f"Error in LLM routing: {type(e).__name__}: {e}", exc_info=True)
+            logger.error(f"Error in SK routing: {type(e).__name__}: {e}", exc_info=True)
             return ("echo", {})
 
     async def handle_chat(
@@ -101,7 +123,7 @@ class Orchestrator:
         :rtype: ChatResponse
         :raises ValueError: If no suitable agent found
         """
-        agent_name, agent_input = await self._choose_agent_with_llm(request)
+        agent_name, agent_input = await self._choose_agent_with_sk(request)
         if agent_name == "test_executor":
             return await self._handle_test_execution(request, agent_input, context)
         agent = self.registry.get(agent_name)

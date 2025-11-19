@@ -8,15 +8,16 @@ import uvicorn
 
 from src.agents.models.chat import ChatRequest, ChatResponse
 from src.agents.agents.base import create_default_agent_registry
-from src.agents.agents.orchestrator import Orchestrator
+from src.agents.agents.orchestrator import OrchestratorSK
+from src.agents.sk_kernel import create_kernel
 from src.agents.logging_config import initialize_logging, get_logger, set_correlation_id
 
-# Initialize centralized logging once at startup
 initialize_logging(level=logging.INFO)
 
 logger = get_logger(__name__)
+kernel = create_kernel()
 agent_registry = create_default_agent_registry()
-orchestrator = Orchestrator(agent_registry)
+orchestrator = OrchestratorSK(registry=agent_registry, kernel=kernel)
 
 app = FastAPI()
 
@@ -55,14 +56,11 @@ async def debug_env():
 @app.post("/chat")
 async def chat(request: ChatRequest) -> ChatResponse:
     """Chat endpoint that routes to appropriate agent via orchestrator."""
-    # Set correlation ID for this request (generate if not provided)
     correlation_id = set_correlation_id(request.correlation_id)
 
     logger.info(f"Received chat request with {len(request.messages)} messages")
     response = await orchestrator.handle_chat(request, context={})
     logger.info(f"Returning response with {len(response.messages)} messages")
-    
-    # Include correlation ID in response
     response.correlation_id = correlation_id
     return response
 

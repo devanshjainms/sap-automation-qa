@@ -48,7 +48,7 @@ test_groups:
           including Corosync settings, Pacemaker resources, SBD device configuration,
           and HANA system replication setup. This test is run in an offline mode where the CIB files are
           already available in the offline_validation directory.
-        enabled:                    true
+        enabled:                    false
         destructive:                false
         requires:
           - hana
@@ -231,7 +231,7 @@ test_groups:
           including Corosync settings, Pacemaker resources, SBD device configuration, and SCS system
           replication setup. This test is run in an offline mode where the CIB files are
           already available in the offline_validation directory.
-        enabled:                    true
+        enabled:                    false
         destructive:                false
         requires:
           - scs_high_availability

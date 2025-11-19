@@ -1,108 +1,101 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """
-Help agent that provides information about SAP QA capabilities using documentation context.
+Echo agent powered by Semantic Kernel for documentation assistance.
+
+This agent uses Semantic Kernel with DocumentationPlugin for intelligent
+documentation-based help using function calling.
 """
 
-from pathlib import Path
 from typing import Optional
+
+from semantic_kernel import Kernel
+from semantic_kernel.contents import ChatHistory
 
 from src.agents.models.chat import ChatMessage, ChatResponse
 from src.agents.agents.base import Agent
-from src.agents.llm_client import call_llm
-from src.agents.prompts import ECHO_AGENT_SYSTEM_PROMPT
+from src.agents.plugins.documentation import DocumentationPlugin
+from src.agents.prompts import ECHO_AGENT_SK_SYSTEM_PROMPT
 from src.agents.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-class EchoAgent(Agent):
-    """
-    Agent that provides helpful information about SAP QA assistant capabilities using documentation.
+class EchoAgentSK(Agent):
+    """Agent for providing documentation-based help using Semantic Kernel.
+
+    This agent uses SK's native function calling to interact with documentation,
+    allowing the LLM to autonomously choose which documentation to retrieve.
     """
 
-    def __init__(self) -> None:
-        """Initialize EchoAgent with helpful description."""
+    def __init__(self, kernel: Kernel) -> None:
+        """Initialize EchoAgent with Semantic Kernel.
+
+        :param kernel: Configured Semantic Kernel instance
+        :type kernel: Kernel
+        """
         super().__init__(
             name="echo",
             description="Provides general help and information about the SAP QA assistant using "
             + "documentation context. Use for greetings, general questions, or when user intent is unclear.",
         )
-        self.docs_dir = Path(__file__).parent.parent.parent.parent / "docs"
-        logger.info(f"EchoAgent initialized with docs directory: {self.docs_dir}")
 
-    def _load_documentation_context(self) -> str:
-        """Load all markdown documentation files recursively from the docs directory.
+        self.kernel = kernel
+        documentation_plugin = DocumentationPlugin()
+        self.kernel.add_plugin(plugin=documentation_plugin, plugin_name="Documentation")
 
-        Includes main docs and subdirectories like high_availability/.
-        Also lists available images for reference.
-
-        :returns: Concatenated documentation content
-        :rtype: str
-        """
-        docs_content = []
-
-        if not self.docs_dir.exists():
-            logger.warning(f"Documentation directory not found: {self.docs_dir}")
-            return ""
-        md_files = sorted(self.docs_dir.rglob("*.md"))
-
-        for md_file in md_files:
-            try:
-                with open(md_file, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    relative_path = md_file.relative_to(self.docs_dir)
-                    docs_content.append(f"# Documentation: {relative_path}\n\n{content}")
-                logger.info(f"Loaded documentation file: {relative_path}")
-            except Exception as e:
-                logger.error(f"Error reading {md_file}: {e}")
-                continue
-        images_dir = self.docs_dir / "images"
-        if images_dir.exists():
-            image_files = sorted(images_dir.glob("*"))
-            if image_files:
-                image_list = "\n".join([f"- {img.name}" for img in image_files])
-                docs_content.append(
-                    f"""# Available Documentation Images
-
-The following images are available in docs/images/ to illustrate the framework:
-{image_list}
-
-These images provide visual references for the SAP QA automation framework architecture and execution flows."""
-                )
-
-        full_context = "\n\n---\n\n".join(docs_content)
-        logger.info(
-            f"Loaded {len(md_files)} documentation files, total length: {len(full_context)} chars"
-        )
-        return full_context
+        logger.info("EchoAgentSK initialized with Semantic Kernel and Documentation plugin")
 
     async def run(
         self,
         messages: list[ChatMessage],
         context: Optional[dict] = None,
     ) -> ChatResponse:
-        """Provide helpful information using LLM with documentation context.
+        """Execute the Echo agent using Semantic Kernel with documentation functions.
 
-        :param messages: Full conversation history
+        This method uses SK's native function calling to let the LLM
+        decide which documentation operations to perform.
+
+        :param messages: List of ChatMessage objects from the conversation
         :type messages: list[ChatMessage]
-        :param context: Optional metadata (unused)
+        :param context: Optional context dictionary (not used)
         :type context: Optional[dict]
-        :returns: ChatResponse with helpful information
+        :returns: ChatResponse with the agent's response
         :rtype: ChatResponse
-        :raises Exception: Re-raises any exception from LLM call
         """
-        logger.info("EchoAgent processing request with documentation context")
-
-        docs_context = self._load_documentation_context()
-        system_prompt = ECHO_AGENT_SYSTEM_PROMPT.format(docs_context=docs_context)
-        llm_messages = [{"role": "system", "content": system_prompt}]
+        logger.info(f"EchoAgentSK.run called with {len(messages)} messages")
+        chat_history = ChatHistory()
+        chat_history.add_system_message(ECHO_AGENT_SK_SYSTEM_PROMPT)
         for msg in messages:
-            llm_messages.append({"role": msg.role, "content": msg.content})
-        logger.info("Calling LLM with documentation context")
-        response = await call_llm(llm_messages)
+            if msg.role == "user":
+                chat_history.add_user_message(msg.content)
+            elif msg.role == "assistant":
+                chat_history.add_assistant_message(msg.content)
 
-        response_content = response.choices[0].message.content
-        logger.info(f"LLM response received, length: {len(response_content)} chars")
+        logger.info(f"Chat history prepared with {len(chat_history.messages)} messages")
 
-        return ChatResponse(messages=[ChatMessage(role="assistant", content=response_content)])
+        try:
+            chat_service = self.kernel.get_service(service_id="azure_openai_chat")
+            execution_settings = chat_service.get_prompt_execution_settings_class()(
+                function_choice_behavior="auto",
+                max_completion_tokens=2000,
+            )
+            logger.info("Calling SK chat completion with function calling enabled")
+            response = await chat_service.get_chat_message_content(
+                chat_history=chat_history,
+                settings=execution_settings,
+                kernel=self.kernel,
+            )
+
+            logger.info("SK chat completion returned successfully")
+            response_content = str(response) if response else ""
+            response_message = ChatMessage(
+                role="assistant",
+                content=response_content,
+            )
+
+            return ChatResponse(messages=[response_message])
+
+        except Exception as e:
+            logger.error(f"Error in EchoAgentSK: {type(e).__name__}: {e}", exc_info=True)
+            raise

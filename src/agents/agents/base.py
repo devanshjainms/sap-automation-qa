@@ -11,45 +11,6 @@ from typing import Optional
 from src.agents.models.chat import ChatMessage, ChatResponse
 
 
-def create_default_agent_registry() -> "AgentRegistry":
-    """
-    Create and populate default agent registry.
-    This uses Semantic Kernel for SystemContextAgent and TestPlannerAgent.
-
-    :return: An AgentRegistry with default agents registered
-    :rtype: AgentRegistry
-    """
-    from src.agents.agents.echo_agent import EchoAgent
-    from src.agents.agents.test_planner_agent import TestPlannerAgentSK
-    from src.agents.agents.system_context_agent import SystemContextAgentSK
-    from src.agents.agents.test_executor_agent import TestExecutorAgent
-    from src.agents.workspace.workspace_store import WorkspaceStore
-    from src.agents.plugins.execution import ExecutionPlugin
-    from src.agents.ansible_runner import AnsibleRunner
-    from src.agents.sk_kernel import create_kernel
-
-    kernel = create_kernel()
-    workspace_root = Path(__file__).parent.parent.parent.parent / "WORKSPACES" / "SYSTEM"
-    workspace_store = WorkspaceStore(workspace_root)
-    src_dir = Path(__file__).parent.parent.parent
-    ansible_runner = AnsibleRunner(base_dir=src_dir)
-    execution_plugin = ExecutionPlugin(
-        workspace_store=workspace_store, ansible_runner=ansible_runner
-    )
-    kernel.add_plugin(execution_plugin, plugin_name="execution")
-
-    registry = AgentRegistry()
-    registry.register(EchoAgent())
-    registry.register(TestPlannerAgentSK(kernel=kernel, workspace_store=workspace_store))
-    registry.register(SystemContextAgentSK(kernel=kernel, workspace_store=workspace_store))
-    registry.register(
-        TestExecutorAgent(
-            kernel=kernel, workspace_store=workspace_store, execution_plugin=execution_plugin
-        )
-    )
-    return registry
-
-
 class Agent(ABC):
     """
     Abstract base class for agents.
@@ -124,3 +85,42 @@ class AgentRegistry:
         :returns: True if agent exists in registry
         """
         return name in self._agents
+
+
+def create_default_agent_registry() -> "AgentRegistry":
+    """
+    Create and populate default agent registry.
+    All agents now use Semantic Kernel for function calling.
+
+    :return: An AgentRegistry with default agents registered
+    :rtype: AgentRegistry
+    """
+    from src.agents.agents.echo_agent import EchoAgentSK
+    from src.agents.agents.test_planner_agent import TestPlannerAgentSK
+    from src.agents.agents.system_context_agent import SystemContextAgentSK
+    from src.agents.agents.test_executor_agent import TestExecutorAgent
+    from src.agents.workspace.workspace_store import WorkspaceStore
+    from src.agents.plugins.execution import ExecutionPlugin
+    from src.agents.ansible_runner import AnsibleRunner
+    from src.agents.sk_kernel import create_kernel
+
+    kernel = create_kernel()
+    workspace_root = Path(__file__).parent.parent.parent.parent / "WORKSPACES" / "SYSTEM"
+    workspace_store = WorkspaceStore(workspace_root)
+    src_dir = Path(__file__).parent.parent.parent
+    ansible_runner = AnsibleRunner(base_dir=src_dir)
+    execution_plugin = ExecutionPlugin(
+        workspace_store=workspace_store, ansible_runner=ansible_runner
+    )
+    kernel.add_plugin(execution_plugin, plugin_name="execution")
+
+    registry = AgentRegistry()
+    registry.register(EchoAgentSK(kernel=kernel))
+    registry.register(TestPlannerAgentSK(kernel=kernel, workspace_store=workspace_store))
+    registry.register(SystemContextAgentSK(kernel=kernel, workspace_store=workspace_store))
+    registry.register(
+        TestExecutorAgent(
+            kernel=kernel, workspace_store=workspace_store, execution_plugin=execution_plugin
+        )
+    )
+    return registry
