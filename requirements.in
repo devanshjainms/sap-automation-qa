@@ -27,6 +27,13 @@ Jinja2
 PyYAML
 requests
 
+# API and agentic frameworks
+fastapi
+uvicorn
+pydantic
+openai
+semantic-kernel
+
 # CLI tools
 click
 rich

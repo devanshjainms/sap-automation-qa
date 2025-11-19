@@ -1,0 +1,110 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+"""
+SystemContextAgent powered by Semantic Kernel.
+
+This agent uses Semantic Kernel for agentic workspace management
+with function calling, replacing the custom tool loop.
+"""
+
+import logging
+from typing import Optional
+
+from semantic_kernel import Kernel
+from semantic_kernel.contents import ChatHistory
+from semantic_kernel.functions import KernelArguments
+
+from src.agents.models.chat import ChatMessage, ChatResponse
+from src.agents.agents.base import Agent
+from src.agents.workspace.workspace_store import WorkspaceStore
+from src.agents.plugins.workspace import WorkspacePlugin
+from src.agents.prompts import SYSTEM_CONTEXT_AGENT_SYSTEM_PROMPT
+from src.agents.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+class SystemContextAgentSK(Agent):
+    """Agent for managing SAP QA system workspaces using Semantic Kernel.
+
+    This agent uses SK's native function calling to interact with workspaces,
+    allowing the LLM to autonomously choose which workspace operations to perform.
+    """
+
+    def __init__(self, kernel: Kernel, workspace_store: WorkspaceStore) -> None:
+        """Initialize SystemContextAgent with Semantic Kernel.
+
+        :param kernel: Configured Semantic Kernel instance
+        :type kernel: Kernel
+        :param workspace_store: WorkspaceStore instance for managing workspaces
+        :type workspace_store: WorkspaceStore
+        """
+        super().__init__(
+            name="system_context",
+            description=(
+                "Manages SAP QA system workspaces. Use this agent when the user wants to: "
+                "list existing workspaces, find a workspace by SID/environment, "
+                "get workspace details, or create a new workspace for testing."
+            ),
+        )
+
+        self.kernel = kernel
+        self.workspace_store = workspace_store
+        workspace_plugin = WorkspacePlugin(workspace_store)
+        self.kernel.add_plugin(plugin=workspace_plugin, plugin_name="Workspace")
+
+        logger.info(f"SystemContextAgentSK initialized with Semantic Kernel and Workspace plugin")
+
+    async def run(
+        self,
+        messages: list[ChatMessage],
+        context: Optional[dict] = None,
+    ) -> ChatResponse:
+        """Execute the SystemContext agent using Semantic Kernel.
+
+        This method uses SK's native function calling to let the LLM
+        decide which workspace operations to perform.
+
+        :param messages: List of ChatMessage objects from the conversation
+        :type messages: list[ChatMessage]
+        :param context: Optional context dictionary (not used)
+        :type context: Optional[dict]
+        :returns: ChatResponse with the agent's response
+        :rtype: ChatResponse
+        """
+        logger.info(f"SystemContextAgentSK.run called with {len(messages)} messages")
+        chat_history = ChatHistory()
+        chat_history.add_system_message(SYSTEM_CONTEXT_AGENT_SYSTEM_PROMPT)
+        for msg in messages:
+            if msg.role == "user":
+                chat_history.add_user_message(msg.content)
+            elif msg.role == "assistant":
+                chat_history.add_assistant_message(msg.content)
+
+        logger.info(f"Chat history prepared with {len(chat_history.messages)} messages")
+
+        try:
+            chat_service = self.kernel.get_service(service_id="azure_openai_chat")
+            execution_settings = chat_service.get_prompt_execution_settings_class()(
+                function_choice_behavior="auto",
+                max_completion_tokens=2000,
+            )
+            logger.info("Calling SK chat completion with function calling enabled")
+            response = await chat_service.get_chat_message_content(
+                chat_history=chat_history,
+                settings=execution_settings,
+                kernel=self.kernel,
+            )
+
+            logger.info("SK chat completion returned successfully")
+            response_content = str(response) if response else ""
+            response_message = ChatMessage(
+                role="assistant",
+                content=response_content,
+            )
+
+            return ChatResponse(messages=[response_message])
+
+        except Exception as e:
+            logger.error(f"Error in SystemContextAgentSK: {type(e).__name__}: {e}", exc_info=True)
+            raise

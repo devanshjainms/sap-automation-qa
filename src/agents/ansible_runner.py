@@ -1,0 +1,188 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+"""Ansible execution wrapper for SAP QA framework.
+
+This module provides a safe abstraction over ansible-playbook and ansible CLI,
+capturing structured output for test execution and diagnostics.
+"""
+
+import json
+import logging
+import subprocess
+from pathlib import Path
+from typing import Any, Optional
+
+from src.agents.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+class AnsibleRunner:
+    """Wrapper around Ansible CLI for controlled test execution and diagnostics."""
+
+    def __init__(self, base_dir: Path):
+        """Initialize AnsibleRunner.
+
+        :param base_dir: Base directory for resolving relative paths (typically project root)
+        :type base_dir: Path
+        """
+        self.base_dir = Path(base_dir)
+        logger.info(f"AnsibleRunner initialized with base_dir: {self.base_dir}")
+
+    def run_playbook(
+        self,
+        inventory: Path,
+        playbook: Path,
+        extra_vars: Optional[dict[str, Any]] = None,
+        tags: Optional[list[str]] = None,
+        skip_tags: Optional[list[str]] = None,
+    ) -> dict[str, Any]:
+        """Execute ansible-playbook with given parameters.
+
+        :param inventory: Path to Ansible inventory file (hosts.yaml)
+        :type inventory: Path
+        :param playbook: Path to Ansible playbook (.yml)
+        :type playbook: Path
+        :param extra_vars: Optional variables to pass via --extra-vars
+        :type extra_vars: Optional[dict[str, Any]]
+        :param tags: Optional list of tags to run
+        :type tags: Optional[list[str]]
+        :param skip_tags: Optional list of tags to skip
+        :type skip_tags: Optional[list[str]]
+        :returns: Dict containing rc (return code), stdout, stderr, command
+        :rtype: dict[str, Any]
+        """
+        cmd = [
+            "ansible-playbook",
+            str(playbook),
+            "-i",
+            str(inventory),
+        ]
+        if extra_vars:
+            cmd.extend(["--extra-vars", json.dumps(extra_vars)])
+        if tags:
+            cmd.extend(["--tags", ",".join(tags)])
+
+        if skip_tags:
+            cmd.extend(["--skip-tags", ",".join(skip_tags)])
+
+        logger.info(f"Running ansible-playbook: {' '.join(cmd)}")
+
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=self.base_dir,
+                capture_output=True,
+                text=True,
+                timeout=3600,
+            )
+
+            logger.info(f"ansible-playbook completed with rc={result.returncode}")
+
+            return {
+                "rc": result.returncode,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "command": " ".join(cmd),
+            }
+
+        except subprocess.TimeoutExpired:
+            logger.error("ansible-playbook timed out after 3600 seconds")
+            return {
+                "rc": -1,
+                "stdout": "",
+                "stderr": "Execution timed out after 3600 seconds",
+                "command": " ".join(cmd),
+            }
+        except Exception as e:
+            logger.error(f"Error running ansible-playbook: {e}")
+            return {
+                "rc": -1,
+                "stdout": "",
+                "stderr": f"Execution error: {e}",
+                "command": " ".join(cmd),
+            }
+
+    def run_ad_hoc(
+        self,
+        inventory: Path,
+        host_pattern: str,
+        module: str,
+        args: str,
+        become: bool = False,
+    ) -> dict[str, Any]:
+        """Execute ansible ad-hoc command for diagnostics.
+
+        :param inventory: Path to Ansible inventory file
+        :type inventory: Path
+        :param host_pattern: Ansible host pattern (e.g., 'db', 'all', 'scs')
+        :type host_pattern: str
+        :param module: Ansible module to use (e.g., 'shell', 'command', 'setup')
+        :type module: str
+        :param args: Module arguments (e.g., command to execute)
+        :type args: str
+        :param become: Whether to use privilege escalation (sudo)
+        :type become: bool
+        :returns: Dict containing rc, stdout, stderr, command, results
+        :rtype: dict[str, Any]
+        """
+        cmd = [
+            "ansible",
+            host_pattern,
+            "-i",
+            str(inventory),
+            "-m",
+            module,
+            "-a",
+            args,
+        ]
+
+        if become:
+            cmd.append("--become")
+
+        logger.info(f"Running ansible ad-hoc: {' '.join(cmd)}")
+
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=self.base_dir,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+
+            logger.info(f"ansible ad-hoc completed with rc={result.returncode}")
+            ansible_results = None
+            try:
+                if result.stdout:
+                    ansible_results = {"raw_output": result.stdout}
+            except Exception:
+                pass
+
+            return {
+                "rc": result.returncode,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "command": " ".join(cmd),
+                "results": ansible_results,
+            }
+
+        except subprocess.TimeoutExpired:
+            logger.error("ansible ad-hoc timed out after 300 seconds")
+            return {
+                "rc": -1,
+                "stdout": "",
+                "stderr": "Execution timed out after 300 seconds",
+                "command": " ".join(cmd),
+                "results": None,
+            }
+        except Exception as e:
+            logger.error(f"Error running ansible ad-hoc: {e}")
+            return {
+                "rc": -1,
+                "stdout": "",
+                "stderr": f"Execution error: {e}",
+                "command": " ".join(cmd),
+                "results": None,
+            }

@@ -36,6 +36,10 @@ test_groups:
           including Corosync settings, Pacemaker resources, SBD device configuration,
           and HANA system replication setup.
         enabled:                    true
+        destructive:                false
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Parameters Validation Offline
         task_name:                  ha-config-offline
@@ -45,6 +49,10 @@ test_groups:
           and HANA system replication setup. This test is run in an offline mode where the CIB files are
           already available in the offline_validation directory.
         enabled:                    true
+        destructive:                false
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       Azure Load Balancer Validation
         task_name:                  azure-lb
@@ -52,6 +60,10 @@ test_groups:
           The Azure LB configuration test validates Azure Load Balancer setup including health probe
           configuration, backend pool settings, load balancing rules, and frontend IP configuration.
         enabled:                    true
+        destructive:                false
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Resource Migration
         task_name:                  resource-migration
@@ -62,6 +74,10 @@ test_groups:
           stability throughout the transition, and validates complete data synchronization after
           migration.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Primary Node Crash
         task_name:                  primary-node-crash
@@ -71,6 +87,10 @@ test_groups:
           the process, then verifies automatic failover to the secondary node, monitors system
           replication status, and confirms service recovery without data loss.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Block Network Communication
         task_name:                  block-network
@@ -81,6 +101,10 @@ test_groups:
           become isolated, and ensures cluster stability and data consistency after network
           sconnectivity is restored.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Crash index server on primary node
         task_name:                  primary-crash-index
@@ -91,6 +115,10 @@ test_groups:
           proper failover execution, ensures data consistency, and validates service restoration after
           recovery.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Primary Node Kill
         task_name:                  primary-node-kill
@@ -100,6 +128,10 @@ test_groups:
           triggering automatic failover to the secondary node. The test verifies proper promotion of
           secondary to primary, ensures data consistency, and validates complete cluster recovery.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Echo B on Primary Node
         task_name:                  primary-echo-b
@@ -109,6 +141,10 @@ test_groups:
           tests the cluster's ability to handle unexpected primary node failures, validates proper
           failover execution, and verifies data consistency after recovery.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Secondary Node Kill
         task_name:                  secondary-node-kill
@@ -118,6 +154,10 @@ test_groups:
           node maintains normal operation while the secondary node undergoes recovery, ensuring cluster
           stability and proper data synchronization after the recovery process completes.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Echo B on Secondary Node
         task_name:                  secondary-echo-b
@@ -127,6 +167,10 @@ test_groups:
           procedures. The test validates that the primary node maintains operation, verifies cluster
           stability, and ensures system replication resumes correctly after the secondary node recovers.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Freeze File System on Primary Node
         task_name:                  fs-freeze
@@ -136,6 +180,10 @@ test_groups:
           node running HANA database, which triggers automatic failover to the secondary node. The test
           verifies proper cluster reaction, resource migration, and data consistency after recovery.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Test SBD Inquisitor kill
         task_name:                  sbd-fencing
@@ -144,6 +192,10 @@ test_groups:
           node. Tests proper fence detection, node isolation, and automated failover to ensure cluster
           integrity during hardware or communication failures.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
       - name:                       HA Functional Test- Crash index server on secondary node
         task_name:                  secondary-crash-index
@@ -153,6 +205,10 @@ test_groups:
           verifying the cluster's ability to handle secondary failures, tests automatic recovery
           mechanisms, and ensures system replication resumes properly after service restoration.
         enabled:                    true
+        destructive:                true
+        requires:
+          - hana
+          - database_high_availability
 
   - name:                           HA_SCS
     test_cases:
@@ -163,6 +219,10 @@ test_groups:
           including Corosync settings, Pacemaker resources, SBD device configuration, and SCS system
           replication setup.
         enabled:                    true
+        destructive:                false
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "HA Parameters Validation Offline"
         task_name:                  ha-config-offline
@@ -172,6 +232,10 @@ test_groups:
           replication setup. This test is run in an offline mode where the CIB files are
           already available in the offline_validation directory.
         enabled:                    true
+        destructive:                false
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       Azure Load Balancer Validation
         task_name:                  azure-lb
@@ -179,6 +243,10 @@ test_groups:
           The Azure LB configuration test validates Azure Load Balancer setup including health probe
           configuration, backend pool settings, load balancing rules, and frontend IP configuration.
         enabled:                    true
+        destructive:                false
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "SAPControl Config Validation"
         task_name:                  sapcontrol-config
@@ -188,6 +256,10 @@ test_groups:
           HACheckFailoverConfig, and HACheckConfig, capturing their outputs and statuses to
           ensure proper configuration and functionality.
         enabled:                    true
+        destructive:                false
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "Manual ASCS Migration"
         task_name:                  ascs-migration
@@ -195,6 +267,10 @@ test_groups:
           The Resource Migration test validates planned failover scenarios by controlling resource
           movement between SCS nodes, ensuring proper role changes.
         enabled:                    true
+        destructive:                true
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "ASCS Node Crash"
         task_name:                  ascs-node-crash
@@ -204,6 +280,10 @@ test_groups:
           automatic failover to the ERS node, monitors system replication status, and confirms
           service recovery.
         enabled:                    true
+        destructive:                true
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "Block Network Communication"
         task_name:                  block-network
@@ -214,6 +294,10 @@ test_groups:
           nodes become isolated, and ensures cluster stability after network connectivity is
           restored.
         enabled:                    true
+        destructive:                true
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "Kill Message Server Process"
         task_name:                  kill-message-server
@@ -223,6 +307,10 @@ test_groups:
           cluster reaction, automatic failover to the ERS node, and ensures service continuity
           after the process failure.
         enabled:                    true
+        destructive:                true
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "Kill Enqueue Server Process"
         task_name:                  kill-enqueue-server
@@ -231,6 +319,10 @@ test_groups:
           the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
+        destructive:                true
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "Kill Enqueue Replication Server Process"
         task_name:                  kill-enqueue-replication
@@ -239,6 +331,10 @@ test_groups:
           the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
+        destructive:                true
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "Kill sapstartsrv Process for ASCS"
         task_name:                  kill-sapstartsrv-process
@@ -247,6 +343,10 @@ test_groups:
           the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
+        destructive:                true
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "Manual Restart of ASCS Instance"
         task_name:                  manual-restart
@@ -255,6 +355,10 @@ test_groups:
           the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
+        destructive:                true
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
       - name:                       "HAFailoverToNode Test"
         task_name:                  ha-failover-to-node
@@ -263,6 +367,10 @@ test_groups:
           the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
+        destructive:                true
+        requires:
+          - scs_high_availability
+          - ascs_ers
 
 
 # Default values for HANA DB HA Test Cases
