@@ -28,28 +28,33 @@
       test_execution_hostname:          ""
       test_case_hostname:               ""
 
-- name:                                 "Distribute metadata to test hosts"
+- name:                                 "Share metadata payload with each host"
   run_once:                             true
-  vars:
-    metadata:                           "{{ hostvars['localhost'].test_case_metadata_payload | default({}) }}"
+  delegate_to:                          "{{ target_host }}"
   delegate_facts:                       true
   ansible.builtin.set_fact:
-    test_case_name:                     "{{ metadata.test_case_name }}"
-    test_case_description:              "{{ metadata.test_case_description }}"
-    test_case_invocation_id:            "{{ metadata.test_case_invocation_id }}"
-    test_case_start_time_epoch:         "{{ metadata.test_case_start_time_epoch }}"
-    test_case_status:                   "{{ metadata.test_case_status }}"
-    test_case_details:                  {{ metadata.test_case_details }}
-    test_case_message:                  "{{ metadata.test_case_message }}"
-    test_case_var_log_messages:         {{ metadata.test_case_var_log_messages }}
-    test_case_message_from_test_case:   "{{ metadata.test_case_message_from_test_case }}"
-    test_case_details_from_test_case:   {{ metadata.test_case_details_from_test_case }}
-    test_execution_start:               "{{ metadata.test_execution_start }}"
-    test_execution_end:                 "{{ metadata.test_execution_end }}"
-    test_execution_start_time:          "{{ metadata.test_execution_start_time }}"
-    test_execution_end_time:            "{{ metadata.test_execution_end_time }}"
-    test_execution_hostname:            "{{ metadata.test_execution_hostname }}"
-    test_case_hostname:                 "{{ metadata.test_case_hostname }}"
+    test_case_metadata_payload:         "{{ hostvars['localhost'].test_case_metadata_payload | default({}) | to_json }}"
   loop:                                 "{{ (ansible_play_hosts_all + ['localhost']) | unique }}"
   loop_control:
     loop_var:                           target_host
+
+- name:                                 "Initialize test case facts on current host"
+  vars:
+    metadata:                           "{{ test_case_metadata_payload | default('{}') | from_json }}"
+  ansible.builtin.set_fact:
+    test_case_name:                     "{{ metadata.test_case_name | default('') }}"
+    test_case_description:              "{{ metadata.test_case_description | default('') }}"
+    test_case_invocation_id:            "{{ metadata.test_case_invocation_id | default('') }}"
+    test_case_start_time_epoch:         "{{ metadata.test_case_start_time_epoch | default('') }}"
+    test_case_status:                   "{{ metadata.test_case_status | default('') }}"
+    test_case_details:                  "{{ metadata.test_case_details | default({}) }}"
+    test_case_message:                  "{{ metadata.test_case_message | default('') }}"
+    test_case_var_log_messages:         "{{ metadata.test_case_var_log_messages | default([]) }}"
+    test_case_message_from_test_case:   "{{ metadata.test_case_message_from_test_case | default('') }}"
+    test_case_details_from_test_case:   "{{ metadata.test_case_details_from_test_case | default({}) }}"
+    test_execution_start:               "{{ metadata.test_execution_start | default('') }}"
+    test_execution_end:                 "{{ metadata.test_execution_end | default('') }}"
+    test_execution_start_time:          "{{ metadata.test_execution_start_time | default('') }}"
+    test_execution_end_time:            "{{ metadata.test_execution_end_time | default('') }}"
+    test_execution_hostname:            "{{ metadata.test_execution_hostname | default('') }}"
+    test_case_hostname:                 "{{ metadata.test_case_hostname | default('') }}"
