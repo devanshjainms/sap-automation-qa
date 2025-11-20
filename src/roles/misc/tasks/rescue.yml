@@ -52,13 +52,13 @@
     - name:                             "Post Validations: Rescure operation set test case status"
       delegate_to:                      localhost
       ansible.builtin.set_fact:
-        test_case_name:                 "{{ item.name }}: {{ test_execution_hostname | default(inventory_hostname) }}"
-        test_case_hostname:             "{{ virtual_host | default(inventory_hostname) }}"
-        test_case_description:          "{{ item.description }}"
+        test_case_hostname:             "{{ test_execution_hostname or virtual_host | default(inventory_hostname) }}"
         test_case_status:               "FAILED"
         test_case_message:              "{{ ansible_failed_result | default('Unknown error occurred') }}"
         test_case_details:              "{{ ansible_failed_result | default('No error details available')}}"
         test_case_var_log_messages:     "{{ combined_logs | default([]) }}"
+        test_execution_start_time:      "{{ test_execution_start or test_case_start_time_epoch }}"
+        test_execution_end_time:        "{{ test_execution_end or now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
 
 - name:                                 "Post Telemetry Data"
   ansible.builtin.include_tasks:        "roles/misc/tasks/post-telemetry-data.yml"
