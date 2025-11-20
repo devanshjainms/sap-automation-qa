@@ -25,7 +25,12 @@
 - name:                                 "Prepare cluster configuration payload"
   ansible.builtin.set_fact:
     ha_cluster_config_snapshot: |-
-      Command: {{ ha_cluster_config_dump_command }}
+      Command: {{
+        commands
+        | selectattr('name', 'equalto', 'ha_cluster_config_dump')
+        | map(attribute=(ansible_os_family | upper))
+        | list | first | default('Not defined')
+      }}
       ---
       {{
         (ha_cluster_config_dump_result.stdout | default('') | trim)
