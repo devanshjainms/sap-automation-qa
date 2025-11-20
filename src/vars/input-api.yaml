@@ -315,3 +315,7 @@ commands:
   - name:                           ascs_resource_unmigrate_cmd
     SUSE:                           "crm resource clear {{ cluster_status_pre.ascs_resource_id | default('rsc_sap_' ~ sap_sid ~ '_ASCS' ~ scs_instance_number) }}"
     REDHAT:                         "pcs resource clear {{ cluster_status_pre.ascs_resource_id | default('rsc_sap_' ~ sap_sid ~ '_ASCS' ~ scs_instance_number) }}"
+
+  - name:                           ha_cluster_config_dump
+    SUSE:                           "crm config show"
+    REDHAT:                         "pcs config show"
