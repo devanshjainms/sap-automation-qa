@@ -11,7 +11,6 @@ This agent executes tests from a TestPlan with strict safety controls:
 """
 
 import json
-import logging
 from typing import Optional
 from datetime import datetime
 
@@ -23,6 +22,7 @@ from src.agents.agents.base import Agent
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.plugins.execution import ExecutionPlugin
 from src.agents.models.execution import ExecutionRequest, ExecutionResult
+from src.agents.models.reasoning import sanitize_snapshot
 from src.agents.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -157,7 +157,19 @@ class TestExecutorAgent(Agent):
                 logger.warning("No tests selected for execution")
                 return results
 
-            logger.info(f"Executing {len(tests_to_execute)} tests")
+            logger.info(f"Will execute {len(tests_to_execute)} tests")
+            
+            self.tracer.step(
+                "test_selection",
+                "decision",
+                f"Selected {len(tests_to_execute)} tests for execution",
+                output_snapshot=sanitize_snapshot({
+                    "mode": request.mode,
+                    "test_count": len(tests_to_execute),
+                    "include_destructive": request.include_destructive,
+                    "environment": effective_env
+                })
+            )
 
             for test in tests_to_execute:
                 logger.info(
@@ -293,7 +305,19 @@ class TestExecutorAgent(Agent):
         :returns: ChatResponse with execution summary
         :rtype: ChatResponse
         """
+        self.tracer.start()
         try:
+            self.tracer.step(
+                "execution_planning",
+                "inference",
+                "Understanding test execution request",
+                input_snapshot=sanitize_snapshot({
+                    "has_test_plan": context and "test_plan" in context if context else False,
+                    "has_execution_request": context and "execution_request" in context if context else False,
+                    "message_count": len(messages)
+                })
+            )
+            
             if not context or "test_plan" not in context or "execution_request" not in context:
                 raise ValueError(
                     "TestExecutorAgent requires structured input with test_plan and execution_request"
@@ -305,10 +329,37 @@ class TestExecutorAgent(Agent):
 
             logger.info(f"Executing test plan for workspace {test_plan.workspace_id}")
             results = await self.execute(test_plan, execution_request)
+            self.tracer.step(
+                "execution_run",
+                "tool_call",
+                "Test execution completed",
+                output_snapshot=sanitize_snapshot({
+                    "total_results": len(results),
+                    "passed": sum(1 for r in results if r.status == "passed"),
+                    "failed": sum(1 for r in results if r.status == "failed"),
+                    "skipped": sum(1 for r in results if r.status == "skipped")
+                })
+            )
+            
             summary = self.build_summary(results)
 
-            return ChatResponse(messages=[ChatMessage(role="assistant", content=summary)])
+            return ChatResponse(
+                messages=[ChatMessage(role="assistant", content=summary)],
+                reasoning_trace=self.tracer.get_trace()
+            )
 
         except Exception as e:
             logger.error(f"Error in TestExecutorAgent.run: {e}")
+            
+            self.tracer.step(
+                "execution_run",
+                "inference",
+                f"Error during test execution: {str(e)}",
+                error=str(e),
+                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__})
+            )
+            
             raise
+        
+        finally:
+            self.tracer.finish()

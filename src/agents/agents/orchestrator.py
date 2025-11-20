@@ -9,15 +9,14 @@ request routing using function calling.
 
 import json
 from typing import Optional
-
 from semantic_kernel import Kernel
 from semantic_kernel.contents import ChatHistory
-
 from src.agents.models.chat import ChatRequest, ChatResponse, ChatMessage
-from src.agents.agents.base import AgentRegistry
+from src.agents.agents.base import AgentRegistry, AgentTracer
 from src.agents.plugins.routing import AgentRoutingPlugin
 from src.agents.prompts import ORCHESTRATOR_SK_SYSTEM_PROMPT
 from src.agents.models.execution import ExecutionRequest
+from src.agents.models.reasoning import sanitize_snapshot
 from src.agents.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -36,6 +35,7 @@ class OrchestratorSK:
         """
         self.registry = registry
         self.kernel = kernel
+        self.tracer = AgentTracer(agent_name="orchestrator")
         routing_plugin = AgentRoutingPlugin(registry)
         self.kernel.add_plugin(plugin=routing_plugin, plugin_name="AgentRouting")
         logger.info("OrchestratorSK initialized with Semantic Kernel and AgentRouting plugin")
@@ -57,6 +57,11 @@ class OrchestratorSK:
             elif msg.role == "assistant":
                 chat_history.add_assistant_message(msg.content)
 
+        agent_name = "echo"
+        agent_input = {}
+        routing_reason = "ok"
+        sk_content_length = 0
+
         try:
             logger.info("Calling SK for agent routing with function calling...")
             chat_service = self.kernel.get_service(service_id="azure_openai_chat")
@@ -74,6 +79,7 @@ class OrchestratorSK:
             logger.info("SK routing response received")
 
             response_content = str(response) if response else ""
+            sk_content_length = len(response_content)
             try:
                 if "{" in response_content and "}" in response_content:
                     start_idx = response_content.find("{")
@@ -88,20 +94,34 @@ class OrchestratorSK:
 
                     if agent_name not in self.registry:
                         logger.warning(f"Agent {agent_name} not found, falling back to echo")
-                        return ("echo", {})
-
-                    return (agent_name, agent_input)
+                        agent_name = "echo"
+                        agent_input = {}
+                        routing_reason = "agent_not_found"
                 else:
                     logger.warning("No JSON found in routing response, falling back to echo")
-                    return ("echo", {})
+                    routing_reason = "no_json"
 
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse routing decision JSON: {e}")
-                return ("echo", {})
+                routing_reason = "json_parse_error"
 
         except Exception as e:
             logger.error(f"Error in SK routing: {type(e).__name__}: {e}", exc_info=True)
-            return ("echo", {})
+            routing_reason = f"exception:{type(e).__name__}"
+        self.tracer.step(
+            "routing",
+            "decision",
+            "Agent routing decision based on SK response",
+            input_snapshot=sanitize_snapshot({"message_count": len(request.messages)}),
+            output_snapshot=sanitize_snapshot({
+                "agent_name": agent_name,
+                "agent_input_keys": list(agent_input.keys()),
+                "routing_reason": routing_reason,
+                "sk_content_length": sk_content_length
+            })
+        )
+
+        return (agent_name, agent_input)
 
     async def handle_chat(
         self,
@@ -123,16 +143,38 @@ class OrchestratorSK:
         :rtype: ChatResponse
         :raises ValueError: If no suitable agent found
         """
-        agent_name, agent_input = await self._choose_agent_with_sk(request)
-        if agent_name == "test_executor":
-            return await self._handle_test_execution(request, agent_input, context)
-        agent = self.registry.get(agent_name)
-        if agent is None:
-            raise ValueError(f"Agent '{agent_name}' not found in registry")
-        if context is None:
-            context = {}
-        context["agent_input"] = agent_input
-        return await agent.run(messages=request.messages, context=context)
+        self.tracer.start()
+        
+        try:
+            agent_name, agent_input = await self._choose_agent_with_sk(request)
+            
+            if agent_name == "test_executor":
+                return await self._handle_test_execution(request, agent_input, context)
+            
+            agent = self.registry.get(agent_name)
+            if agent is None:
+                raise ValueError(f"Agent '{agent_name}' not found in registry")
+            
+            if context is None:
+                context = {}
+            context["agent_input"] = agent_input
+            
+            response = await agent.run(messages=request.messages, context=context)
+            response.reasoning_trace = self.tracer.get_trace()
+            return response
+        
+        except Exception as e:
+            self.tracer.step(
+                "response_generation",
+                "inference",
+                f"Error during orchestration: {str(e)}",
+                error=str(e),
+                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__})
+            )
+            raise
+        
+        finally:
+            self.tracer.finish()
 
     async def _handle_test_execution(
         self,
@@ -154,6 +196,13 @@ class OrchestratorSK:
         try:
             logger.info("Generating test plan for execution request...")
 
+            self.tracer.step(
+                "test_selection",
+                "tool_call",
+                "Invoking test planner to generate test plan",
+                input_snapshot=sanitize_snapshot({"agent_input_keys": list(agent_input.keys())})
+            )
+
             test_planner = self.registry.get("test_planner")
             if test_planner is None:
                 raise ValueError("TestPlannerAgent not found")
@@ -172,6 +221,18 @@ class OrchestratorSK:
                     f"Retrieved test plan from TestPlannerAgent: "
                     + f"workspace={test_plan.get('workspace_id')}, "
                     + f"tests={test_plan.get('total_tests', 0)}"
+                )
+                
+                self.tracer.step(
+                    "test_selection",
+                    "decision",
+                    "Test plan generated successfully",
+                    output_snapshot=sanitize_snapshot({
+                        "workspace_id": test_plan.get('workspace_id'),
+                        "total_tests": test_plan.get('total_tests', 0),
+                        "safe_tests": len(test_plan.get('safe_tests', [])),
+                        "destructive_tests": len(test_plan.get('destructive_tests', []))
+                    })
                 )
             else:
                 logger.warning("TestPlannerAgent did not return a structured test plan")
@@ -207,6 +268,16 @@ class OrchestratorSK:
             )
 
             logger.info("Executing test plan...")
+            self.tracer.step(
+                "execution_planning",
+                "tool_call",
+                "Dispatching test execution to test executor",
+                input_snapshot=sanitize_snapshot({
+                    "workspace_id": execution_request.workspace_id,
+                    "mode": execution_request.mode,
+                    "include_destructive": execution_request.include_destructive
+                })
+            )
 
             test_executor = self.registry.get("test_executor")
             if test_executor is None:
@@ -225,10 +296,18 @@ class OrchestratorSK:
 
         except Exception as e:
             logger.error(f"Error in test execution orchestration: {e}")
+            self.tracer.step(
+                "execution_planning",
+                "inference",
+                f"Error during test execution orchestration: {str(e)}",
+                error=str(e),
+                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__})
+            )
             return ChatResponse(
                 messages=[
                     ChatMessage(
                         role="assistant", content=f"Error orchestrating test execution: {str(e)}"
                     )
-                ]
+                ],
+                reasoning_trace=self.tracer.get_trace()
             )

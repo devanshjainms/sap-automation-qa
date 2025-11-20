@@ -6,9 +6,98 @@ Agent abstraction for SAP QA backend
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal, Any
 
 from src.agents.models.chat import ChatMessage, ChatResponse
+from src.agents.models.reasoning import ReasoningTracer
+
+
+class AgentTracer:
+    """
+    Wrapper for ReasoningTracer that automatically includes agent name.
+
+    This provides a clean interface for agents to record reasoning steps
+    without having to pass agent name every time.
+    """
+
+    def __init__(self, agent_name: str):
+        """
+        Initialize AgentTracer with agent name.
+
+        :param agent_name: Name of the agent using this tracer
+        :type agent_name: str
+        """
+        self.agent_name = agent_name
+        self._tracer: Optional[ReasoningTracer] = None
+
+    def start(self) -> None:
+        """
+        Start a new reasoning trace.
+        """
+        self._tracer = ReasoningTracer(agent_name=self.agent_name)
+        self._tracer.__enter__()
+
+    def step(
+        self,
+        phase: Literal[
+            "input_understanding",
+            "workspace_resolution",
+            "system_capabilities",
+            "test_selection",
+            "execution_planning",
+            "execution_run",
+            "diagnostics",
+            "routing",
+            "documentation_retrieval",
+            "response_generation",
+        ],
+        kind: Literal["tool_call", "inference", "decision"],
+        description: str,
+        input_snapshot: Optional[dict[str, Any]] = None,
+        output_snapshot: Optional[dict[str, Any]] = None,
+        error: Optional[str] = None,
+    ) -> None:
+        """
+        Add a reasoning step to the current trace.
+
+        :param phase: Workflow phase this step belongs to
+        :type phase: Literal
+        :param kind: Type of step (tool_call, inference, decision)
+        :type kind: Literal
+        :param description: Human-readable description of the step
+        :type description: str
+        :param input_snapshot: Small summary of inputs
+        :type input_snapshot: Optional[dict[str, Any]]
+        :param output_snapshot: Small summary of outputs
+        :type output_snapshot: Optional[dict[str, Any]]
+        :param error: Error message if step failed
+        :type error: Optional[str]
+        """
+        if self._tracer:
+            self._tracer.step(
+                phase,
+                kind,
+                description,
+                agent=self.agent_name,
+                input_snapshot=input_snapshot,
+                output_snapshot=output_snapshot,
+                error=error,
+            )
+
+    def get_trace(self) -> Optional[dict]:
+        """
+        Get the trace as a dictionary for inclusion in responses.
+
+        :return: Trace dictionary or None if no trace started
+        :rtype: Optional[dict]
+        """
+        return self._tracer.get_trace() if self._tracer else None
+
+    def finish(self) -> None:
+        """Finish the current trace."""
+        if self._tracer:
+            self._tracer.__exit__(None, None, None)
+            self._tracer = None
 
 
 class Agent(ABC):
@@ -27,6 +116,7 @@ class Agent(ABC):
         """
         self.name = name
         self.description = description
+        self.tracer = AgentTracer(agent_name=name)
 
     @abstractmethod
     async def run(
