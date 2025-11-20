@@ -4,9 +4,8 @@
 # /*---------------------------------------------------------------------------
 # |                          Block Network Communication                       |
 # +--------------------------------------------------------------------------*/
-- name:                                     "Test Setup Tasks"
-  ansible.builtin.include_tasks:            "roles/misc/tasks/test-case-setup.yml"
-  run_once:                                 true
+- name:                                 "Test Setup Tasks"
+  ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
 
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |

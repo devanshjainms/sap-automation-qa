@@ -7,7 +7,6 @@
 - name:                                 "Test Setup Tasks"
   when:                                 NFS_provider == "ANF"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
-  run_once:                             true
 
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
