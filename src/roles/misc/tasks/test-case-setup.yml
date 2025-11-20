@@ -31,8 +31,7 @@
 - name:                                 "Distribute metadata to test hosts"
   run_once:                             true
   vars:
-    metadata:                           {{ hostvars['localhost'].test_case_metadata_payload }}
-  delegate_to:                          "{{ target_host }}"
+    metadata:                           "{{ hostvars['localhost'].test_case_metadata_payload | default({}) }}"
   delegate_facts:                       true
   ansible.builtin.set_fact:
     test_case_name:                     "{{ metadata.test_case_name }}"
