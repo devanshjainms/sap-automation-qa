@@ -5,25 +5,52 @@
 #                       Task to setup telemetry information for each test case           #
 ##########################################################################################
 
-- name:                                 "Setup telemetry data for each test case"
-  ansible.builtin.set_fact:
-    test_case_name:                     "{{ item.name }}"
-    test_case_description:              "{{ item.description }}"
-    test_case_invocation_id:            "{{ lookup('pipe', 'uuidgen') }}"
-    test_case_start_time_epoch:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
-    test_case_status:                   "Starting"
-    test_case_details:                  {}
-    test_case_message:                  "Test case execution started"
-    test_case_var_log_messages:         []
-    test_execution_start:               ""
-    test_execution_end:                 ""
-    test_execution_start_time:          ""
-    test_execution_end_time:            ""
-    test_execution_hostname:            ""
-
-- name:                                 "Ensure test_case_invocation_id is available on all nodes"
-  ansible.builtin.set_fact:
-    test_case_invocation_id:            "{{ test_case_invocation_id }}"
-    test_case_start_time_epoch:         "{{ test_case_start_time_epoch }}"
+- name:                                 "Prepare shared test case metadata on localhost"
   run_once:                             true
   delegate_to:                          localhost
+  delegate_facts:                       true
+  ansible.builtin.set_fact:
+    test_case_metadata_payload:
+      test_case_name:                   "{{ item.name }}"
+      test_case_description:            "{{ item.description }}"
+      test_case_invocation_id:          "{{ lookup('pipe', 'uuidgen') }}"
+      test_case_start_time_epoch:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+      test_case_status:                 "Starting"
+      test_case_details:                {}
+      test_case_message:                "Test case execution started"
+      test_case_var_log_messages:       []
+      test_case_message_from_test_case: ""
+      test_case_details_from_test_case: {}
+      test_execution_start:             ""
+      test_execution_end:               ""
+      test_execution_start_time:        ""
+      test_execution_end_time:          ""
+      test_execution_hostname:          ""
+      test_case_hostname:               ""
+
+- name:                                 "Distribute metadata to test hosts"
+  run_once:                             true
+  vars:
+    metadata:                           {{ hostvars['localhost'].test_case_metadata_payload }}
+  delegate_to:                          "{{ target_host }}"
+  delegate_facts:                       true
+  ansible.builtin.set_fact:
+    test_case_name:                     "{{ metadata.test_case_name }}"
+    test_case_description:              "{{ metadata.test_case_description }}"
+    test_case_invocation_id:            "{{ metadata.test_case_invocation_id }}"
+    test_case_start_time_epoch:         "{{ metadata.test_case_start_time_epoch }}"
+    test_case_status:                   "{{ metadata.test_case_status }}"
+    test_case_details:                  {{ metadata.test_case_details }}
+    test_case_message:                  "{{ metadata.test_case_message }}"
+    test_case_var_log_messages:         {{ metadata.test_case_var_log_messages }}
+    test_case_message_from_test_case:   "{{ metadata.test_case_message_from_test_case }}"
+    test_case_details_from_test_case:   {{ metadata.test_case_details_from_test_case }}
+    test_execution_start:               "{{ metadata.test_execution_start }}"
+    test_execution_end:                 "{{ metadata.test_execution_end }}"
+    test_execution_start_time:          "{{ metadata.test_execution_start_time }}"
+    test_execution_end_time:            "{{ metadata.test_execution_end_time }}"
+    test_execution_hostname:            "{{ metadata.test_execution_hostname }}"
+    test_case_hostname:                 "{{ metadata.test_case_hostname }}"
+  loop:                                 "{{ (ansible_play_hosts_all + ['localhost']) | unique }}"
+  loop_control:
+    loop_var:                           target_host
