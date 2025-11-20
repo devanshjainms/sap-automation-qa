@@ -30,8 +30,8 @@
                                           "TestCaseMessage": "{{ test_case_message | default('') }}",
                                           "TestCaseDetails": "{{ test_case_details | default('') }}",
                                           "DurationSeconds": "{{
-                                              ((test_execution_end_time | default(now(utc=true, fmt='%Y-%m-%d %H:%M:%S')) | to_datetime)
-                                              - (test_execution_start_time | default(test_case_start_time_epoch) | to_datetime))
+                                              (((test_execution_end_time or now(utc=true, fmt='%Y-%m-%d %H:%M:%S')) | to_datetime)
+                                              - ((test_execution_start_time or test_case_start_time_epoch) | to_datetime))
                                           }}",
                                           "DbFencingType": "{{ database_cluster_type if (database_high_availability | default(false)) else 'DB not HA' }}",
                                           "ScsFencingType": "{{ scs_cluster_type if (scs_high_availability | default(false)) else 'SCS not HA' }}",
