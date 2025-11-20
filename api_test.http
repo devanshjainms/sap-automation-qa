@@ -1,0 +1,62 @@
+### Health Check
+GET http://localhost:8000/healthz
+
+### Test Chat Endpoint - Echo Agent
+POST http://localhost:8000/chat
+Content-Type: application/json
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is high availability testing?"
+    }
+  ]
+}
+
+### Test Chat Endpoint - Ask about HANA
+POST http://localhost:8000/chat
+Content-Type: application/json
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "How does SAP HANA high availability work in this framework?"
+    }
+  ]
+}
+
+### Test Chat Endpoint - Ask about configuration checks
+POST http://localhost:8000/chat
+Content-Type: application/json
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What should be the value of migration threshold parameter in HANA db"
+    }
+  ]
+}
+
+### Test with conversation history
+POST http://localhost:8000/chat
+Content-Type: application/json
+
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Tell me about HA testing"
+    },
+    {
+      "role": "assistant",
+      "content": "High availability testing validates failover scenarios..."
+    },
+    {
+      "role": "user",
+      "content": "What about SCS testing?"
+    }
+  ]
+}
