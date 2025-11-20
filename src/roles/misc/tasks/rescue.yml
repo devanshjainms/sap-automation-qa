@@ -52,6 +52,8 @@
     - name:                             "Post Validations: Rescure operation set test case status"
       delegate_to:                      localhost
       ansible.builtin.set_fact:
+        test_case_name:                 "{{ test_case_name | default('') }}"
+        test_case_description:          "{{ test_case_description | default('') }}"
         test_case_hostname:             "{{ test_execution_hostname or virtual_host | default(inventory_hostname) }}"
         test_case_status:               "FAILED"
         test_case_message:              "{{ ansible_failed_result | default('Unknown error occurred') }}"

@@ -33,8 +33,8 @@
       }}
       ---
       {{
-        (ha_cluster_config_dump_result.stdout | default('') | trim)
-        if (ha_cluster_config_dump_result.stdout is defined and (ha_cluster_config_dump_result.stdout | trim | length > 0))
+        (ha_cluster_config_dump_result.stdout | default(''))
+        if (ha_cluster_config_dump_result.stdout is defined and (ha_cluster_config_dump_result.stdout | length > 0))
         else (ha_cluster_config_dump_result.stderr | default('No output captured.'))
       }}
 
