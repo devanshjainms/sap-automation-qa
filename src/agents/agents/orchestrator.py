@@ -160,7 +160,13 @@ class OrchestratorSK:
             context["agent_input"] = agent_input
             
             response = await agent.run(messages=request.messages, context=context)
-            response.reasoning_trace = self.tracer.get_trace()
+            orch_trace = self.tracer.get_trace()
+            if orch_trace and response.reasoning_trace:
+                orch_trace["steps"].extend(response.reasoning_trace.get("steps", []))
+                response.reasoning_trace = orch_trace
+            elif orch_trace:
+                response.reasoning_trace = orch_trace
+                
             return response
         
         except Exception as e:
@@ -214,6 +220,8 @@ class OrchestratorSK:
             planning_response = await test_planner.run(
                 messages=request.messages, context=planning_context
             )
+            planner_trace = planning_response.reasoning_trace
+            
             test_plan = None
             if planning_response.test_plan:
                 test_plan = planning_response.test_plan
@@ -254,6 +262,15 @@ class OrchestratorSK:
                 last_message = (
                     planning_response.messages[-1].content if planning_response.messages else ""
                 )
+                
+                orch_trace = self.tracer.get_trace()
+                planner_trace = planning_response.reasoning_trace
+                if orch_trace and planner_trace:
+                    orch_trace["steps"].extend(planner_trace.get("steps", []))
+                    planning_response.reasoning_trace = orch_trace
+                elif orch_trace:
+                    planning_response.reasoning_trace = orch_trace
+
                 if "success" in last_message.lower() or "completed" in last_message.lower():
                     logger.info("Test executed successfully without formal test plan generation")
                     return planning_response
@@ -291,6 +308,18 @@ class OrchestratorSK:
             execution_response = await test_executor.run(
                 messages=request.messages, context=execution_context
             )
+            
+            orch_trace = self.tracer.get_trace()
+            if orch_trace:
+                all_steps = orch_trace["steps"]
+                
+                if planner_trace:
+                    all_steps.extend(planner_trace.get("steps", []))
+                
+                if execution_response.reasoning_trace:
+                    all_steps.extend(execution_response.reasoning_trace.get("steps", []))
+                
+                execution_response.reasoning_trace = orch_trace
 
             return execution_response
 

@@ -181,10 +181,23 @@ class ExecutionPlugin:
             if not playbook_path.exists():
                 return json.dumps({"error": f"Playbook not found at {playbook_path}"})
 
+            sap_params_path = Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id / "sap-parameters.yaml"
+            extra_vars = {}
+            if sap_params_path.exists():
+                try:
+                    with open(sap_params_path, "r") as f:
+                        extra_vars = yaml.safe_load(f) or {}
+                    logger.info(f"Loaded sap-parameters from {sap_params_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to load sap-parameters.yaml: {e}")
+            else:
+                logger.warning(f"sap-parameters.yaml not found at {sap_params_path}")
+
             logger.info(f"Running test {test_id} for workspace {workspace_id}")
             result = self.ansible.run_playbook(
                 inventory=inventory_path,
                 playbook=playbook_path,
+                extra_vars=extra_vars,
                 tags=tags if tags else None,
             )
 

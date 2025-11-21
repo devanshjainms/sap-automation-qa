@@ -17,19 +17,27 @@ logger = logging.getLogger(__name__)
 class DocumentationPlugin:
     """Plugin providing documentation access functions for the SAP Testing Automation Framework."""
 
-    def __init__(self, docs_dir: str = "docs"):
+    def __init__(self, docs_dir: str = "docs", src_dir: str = "src"):
         """
         Initialize the documentation plugin.
 
         :param docs_dir: Path to the documentation directory (relative to project root).
         :type docs_dir: str
+        :param src_dir: Path to the source directory (relative to project root).
+        :type src_dir: str
         """
         self.docs_dir = Path(docs_dir)
+        self.src_dir = Path(src_dir)
+        
+        project_root = Path(__file__).parent.parent.parent.parent
+        
         if not self.docs_dir.is_absolute():
-            project_root = Path(__file__).parent.parent.parent.parent
             self.docs_dir = project_root / docs_dir
+            
+        if not self.src_dir.is_absolute():
+            self.src_dir = project_root / src_dir
 
-        logger.info(f"DocumentationPlugin initialized with docs_dir: {self.docs_dir}")
+        logger.info(f"DocumentationPlugin initialized with docs_dir: {self.docs_dir}, src_dir: {self.src_dir}")
 
     @kernel_function(
         name="get_all_documentation",
@@ -100,38 +108,93 @@ class DocumentationPlugin:
             return error_msg
 
         results = []
-        md_files = sorted(self.docs_dir.rglob("*.md"))
-
-        if not md_files:
-            return f"No documentation files found in {self.docs_dir}"
-
         query_lower = query.lower()
+        
+        md_files = sorted(self.docs_dir.rglob("*.md"))
+        if md_files:
+            for md_file in md_files:
+                try:
+                    content = md_file.read_text(encoding="utf-8")
+                    lines = content.split("\n")
+                    for i, line in enumerate(lines):
+                        if query_lower in line.lower():
+                            start_idx = max(0, i - 2)
+                            end_idx = min(len(lines), i + 3)
+                            context_lines = lines[start_idx:end_idx]
 
-        for md_file in md_files:
-            try:
-                content = md_file.read_text(encoding="utf-8")
-                lines = content.split("\n")
+                            relative_path = md_file.relative_to(self.docs_dir.parent)
+                            excerpt = "\n".join(context_lines)
+                            results.append(f"--- {relative_path} (line {i+1}) ---\n{excerpt}\n")
+                            if len(results) > 20: 
+                                break
 
-                for i, line in enumerate(lines):
-                    if query_lower in line.lower():
-                        start_idx = max(0, i - 2)
-                        end_idx = min(len(lines), i + 3)
-                        context_lines = lines[start_idx:end_idx]
-
-                        relative_path = md_file.relative_to(self.docs_dir.parent)
-                        excerpt = "\n".join(context_lines)
-                        results.append(f"--- {relative_path} (line {i+1}) ---\n{excerpt}\n")
-
-            except Exception as e:
-                logger.error(f"Error searching {md_file}: {e}")
-                continue
+                except Exception as e:
+                    logger.error(f"Error searching {md_file}: {e}")
+                    continue
 
         if not results:
-            return f"No matches found for '{query}' in documentation."
+            return f"No documentation found matching '{query}'."
 
-        result = "\n".join(results[:10])
-        logger.info(f"Found {len(results)} matches for '{query}' (returning top 10)")
-        return result
+        return "\n".join(results[:15])
+
+    @kernel_function(
+        name="search_codebase",
+        description="Searches the source code and configuration files for keywords. "
+        + "Useful for finding default values, constants, error messages, or implementation details "
+        + "that might not be in the high-level documentation.",
+    )
+    def search_codebase(
+        self,
+        query: Annotated[str, "The keyword or phrase to search for"],
+    ) -> Annotated[str, "Matching code snippets"]:
+        """
+        Search the codebase for a specific query.
+
+        :param query: The search term to find in the codebase.
+        :type query: str
+        :return: Relevant code snippets containing the query.
+        :rtype: str
+        """
+        logger.info(f"Searching codebase for: {query}")
+
+        if not self.src_dir.exists():
+            return f"Source directory not found: {self.src_dir}"
+
+        results = []
+        query_lower = query.lower()
+        
+        extensions = ["*.py", "*.yml", "*.yaml", "*.sh", "*.j2"]
+        
+        for ext in extensions:
+            files = sorted(self.src_dir.rglob(ext))
+            for file_path in files:
+                if ".venv" in str(file_path) or "__pycache__" in str(file_path):
+                    continue
+                    
+                try:
+                    content = file_path.read_text(encoding="utf-8")
+                    if query_lower in content.lower():
+                        lines = content.splitlines()
+                        for i, line in enumerate(lines):
+                            if query_lower in line.lower():
+                                start = max(0, i - 3)
+                                end = min(len(lines), i + 4)
+                                context = "\n".join(lines[start:end])
+                                relative_path = file_path.relative_to(self.src_dir.parent)
+                                results.append(f"--- {relative_path} (line {i+1}) ---\n{context}\n")
+                                
+                                if len(results) > 30:
+                                    break
+                except Exception:
+                    continue
+            
+            if len(results) > 30:
+                break
+
+        if not results:
+            return f"No code matches found for '{query}'."
+
+        return "\n".join(results[:20])
 
     @kernel_function(
         name="list_documentation_files",

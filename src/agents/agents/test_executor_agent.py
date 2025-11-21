@@ -48,8 +48,9 @@ class TestExecutorAgent(Agent):
         """
         super().__init__(
             name="test_executor",
-            description="Executes SAP QA tests from a TestPlan using Ansible,"
-            + f" with strong safety and env-based gating.",
+            description="Executes SAP QA tests, runs playbooks, performs configuration checks, "
+            + "and runs functional tests (HA, crash, failover) using Ansible. "
+            + "Use this agent whenever the user asks to 'run', 'execute', 'perform', or 'start' a test.",
         )
 
         self.kernel = kernel

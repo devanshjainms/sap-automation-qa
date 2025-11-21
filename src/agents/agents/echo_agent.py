@@ -37,8 +37,9 @@ class EchoAgentSK(Agent):
         """
         super().__init__(
             name="echo",
-            description="Provides general help and information about the SAP QA assistant using "
-            + "documentation context. Use for greetings, general questions, or when user intent is unclear.",
+            description="Provides general help, documentation, and information about the framework. "
+            + "Use for greetings, general questions, or when user intent is unclear. "
+            + "NEVER use this agent for executing tests or running commands.",
         )
 
         self.kernel = kernel
