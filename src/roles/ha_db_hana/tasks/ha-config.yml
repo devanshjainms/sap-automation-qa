@@ -7,6 +7,37 @@
 - name:                                 "Test Setup Tasks"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
 
+- name:                                 "Capture cluster configuration snapshot"
+  become:                               true
+  ansible.builtin.shell: >-
+                                        set -o pipefail && {{
+                                          commands
+                                          | selectattr('name', 'equalto', 'ha_cluster_config_dump')
+                                          | map(attribute=(ansible_os_family | upper))
+                                          | list | first | default('')
+                                        }}
+  args:
+    executable:                         /bin/bash
+  register:                             ha_cluster_config_dump_result
+  changed_when:                         false
+  failed_when:                          false
+
+- name:                                 "Prepare cluster configuration payload"
+  ansible.builtin.set_fact:
+    ha_cluster_config_snapshot: |-
+      Command: {{
+        commands
+        | selectattr('name', 'equalto', 'ha_cluster_config_dump')
+        | map(attribute=(ansible_os_family | upper))
+        | list | first | default('Not defined')
+      }}
+      ---
+      {{
+        (ha_cluster_config_dump_result.stdout | default('') | trim)
+        if (ha_cluster_config_dump_result.stdout is defined and (ha_cluster_config_dump_result.stdout | trim | length > 0))
+        else (ha_cluster_config_dump_result.stderr | default('No output captured.'))
+      }}
+
 - name:                                 "Ensure a list of package version is available for logging"
   no_log:                               true
   block:
@@ -151,22 +182,22 @@
 
     - name:                             "Set the test case status to PASSED"
       ansible.builtin.set_fact:
-        test_case_name:                 "{{ item.name }}: {{ virtual_host }}"
         test_case_status:               "{{ test_result.status }}"
         test_case_message:              "{{ test_result.message }}"
         test_case_details:              "{{ test_result.details }}"
         test_case_hostname:             "{{ virtual_host }}"
         package_versions:               "{{ packages_list.details }}"
+        test_case_var_log_messages:     "{{ ha_cluster_config_snapshot | default('Cluster configuration snapshot unavailable') }}"
 
   rescue:
     - name:                             "Test case failed"
       ansible.builtin.set_fact:
-          test_case_name:               "{{ item.name }}: {{ virtual_host }}"
           test_case_status:             "FAILED"
           test_case_details:            "{{ test_result }}"
           test_case_message:            "{{ ansible_failed_result }}"
           test_case_hostname:           "{{ virtual_host }}"
           package_versions:             "{{ packages_list.details }}"
+          test_case_var_log_messages:   "{{ ha_cluster_config_snapshot | default('Cluster configuration snapshot unavailable') }}"
 
 - name:                                 "Post Telemetry Data"
   ansible.builtin.include_tasks:        "roles/misc/tasks/post-telemetry-data.yml"
