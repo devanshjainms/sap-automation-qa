@@ -15,6 +15,11 @@ SAP_FUNCTIONAL_TEST_TYPE:   DatabaseHighAvailability
 # SAP System Configuration
 # String: Name of the SAP system configuration to be tested (Location: WORKSPACES/SYSTEM/DEV-WEEU-SAP01-X00 directory)
 SYSTEM_CONFIG_NAME:         DEV-WEEU-SAP01-X00
+
+# Workspaces Directory
+# String: Directory containing the WORKSPACES (default: WORKSPACES)
+WORKSPACES_DIR:             WORKSPACES
+
 # Choose the type of authentication you configured for a local account on the SAP VMs.
 # String: VMPASSWORD SSHKEY
 AUTHENTICATION_TYPE:        SSHKEY
