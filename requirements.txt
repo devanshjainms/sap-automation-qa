@@ -4,18 +4,18 @@
 #
 #    pip-compile requirements.in
 #
-ansible-compat==25.8.2
+ansible-compat==25.11.0
     # via ansible-lint
 ansible-core==2.17.14
     # via
     #   -r requirements.in
     #   ansible-compat
     #   ansible-lint
-ansible-lint==25.9.2
+ansible-lint==25.11.1
     # via -r requirements.in
 ansible-runner==2.4.2
     # via -r requirements.in
-astroid==4.0.1
+astroid==4.0.2
     # via pylint
 attrs==25.4.0
     # via
@@ -33,35 +33,35 @@ azure-identity==1.25.1
     # via
     #   -r requirements.in
     #   azure-kusto-data
-azure-kusto-data==5.0.5
+azure-kusto-data==6.0.0
     # via
     #   -r requirements.in
     #   azure-kusto-ingest
-azure-kusto-ingest==5.0.5
+azure-kusto-ingest==6.0.0
     # via -r requirements.in
-azure-mgmt-compute==37.0.1
+azure-mgmt-compute==37.1.0
     # via -r requirements.in
 azure-mgmt-core==1.6.0
     # via
     #   azure-mgmt-compute
     #   azure-mgmt-network
-azure-mgmt-network==30.0.0
+azure-mgmt-network==30.1.0
     # via -r requirements.in
-azure-storage-blob==12.23.0
+azure-storage-blob==12.26.0
     # via
     #   -r requirements.in
     #   azure-kusto-ingest
-azure-storage-queue==12.12.0
+azure-storage-queue==12.13.0
     # via
     #   -r requirements.in
     #   azure-kusto-ingest
-black==25.9.0
+black==25.11.0
     # via
     #   -r requirements.in
     #   ansible-lint
 bracex==2.6
     # via wcmatch
-certifi==2025.10.5
+certifi==2025.11.12
     # via
     #   msrest
     #   requests
@@ -71,11 +71,11 @@ cffi==2.0.0
     #   cryptography
 charset-normalizer==3.4.4
     # via requests
-click==8.3.0
+click==8.3.1
     # via
     #   -r requirements.in
     #   black
-coverage[toml]==7.11.0
+coverage[toml]==7.12.0
     # via
     #   -r requirements.in
     #   pytest-cov
@@ -92,7 +92,7 @@ dill==0.4.0
     # via pylint
 distro==1.9.0
     # via ansible-lint
-exceptiongroup==1.3.0
+exceptiongroup==1.3.1
     # via pytest
 filelock==3.20.0
     # via ansible-lint
@@ -189,9 +189,9 @@ pyjwt[crypto]==2.10.1
     # via
     #   msal
     #   pyjwt
-pylint==4.0.2
+pylint==4.0.4
     # via -r requirements.in
-pytest==8.4.2
+pytest==9.0.1
     # via
     #   -r requirements.in
     #   pytest-cov
@@ -206,7 +206,7 @@ python-dateutil==2.9.0.post0
     # via
     #   azure-kusto-data
     #   pandas
-pytokens==0.2.0
+pytokens==0.3.0
     # via black
 pytz==2025.2
     # via pandas
@@ -237,13 +237,13 @@ resolvelib==1.0.1
     # via ansible-core
 rich==14.2.0
     # via -r requirements.in
-rpds-py==0.28.0
+rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
 ruamel-yaml==0.18.16
     # via ansible-lint
-ruamel-yaml-clib==0.2.14
+ruamel-yaml-clib==0.2.15
     # via
     #   ansible-lint
     #   ruamel-yaml

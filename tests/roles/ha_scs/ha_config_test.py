@@ -45,6 +45,12 @@ class TestASCSHaConfigValidation(RolesTestingBaseSCS):
         :ytype: str
         """
 
+        commands = [
+            {
+                "name": "ha_cluster_config_dump",
+                "SUSE": "crm configure show",
+            }
+        ]
         temp_dir = self.setup_test_environment(
             role_type="ha_scs",
             ansible_inventory=ansible_inventory,
@@ -58,9 +64,7 @@ class TestASCSHaConfigValidation(RolesTestingBaseSCS):
                 "bin/crm_resource",
                 "bin/crm",
             ],
-            extra_vars_override={
-                "node_tier": "scs",
-            },
+            extra_vars_override={"node_tier": "scs", "commands": commands},
         )
 
         os.makedirs(f"{temp_dir}/project/roles/ha_scs/tasks/files", exist_ok=True)
