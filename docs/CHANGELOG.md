@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.1
+Release Date: 12-09-2025
+1. CI/CD Workflow Upgrades:
+2. HA constants, validation logic updates and validation enhancements
+3. SAP Automation Script Improvements
 
 ## 1.0.0
 Release Date: 11-04-2025
