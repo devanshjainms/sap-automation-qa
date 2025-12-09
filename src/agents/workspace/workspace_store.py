@@ -84,6 +84,8 @@ class WorkspaceStore:
 
         if workspace_path.exists():
             metadata = WorkspaceMetadata.from_workspace_id(workspace_id, self.root_path)
+            if metadata is None:
+                raise ValueError(f"Invalid workspace_id format: {workspace_id}")
             return (metadata, False)
         workspace_path.mkdir(parents=True, exist_ok=True)
         if template_dir and template_dir.exists():
@@ -97,6 +99,8 @@ class WorkspaceStore:
             (workspace_path / "offline_validation").mkdir(exist_ok=True)
 
         metadata = WorkspaceMetadata.from_workspace_id(workspace_id, self.root_path)
+        if metadata is None:
+            raise ValueError(f"Invalid workspace_id format: {workspace_id}")
         return (metadata, True)
 
     def find_by_sid_env(self, sid: str, env: Optional[str] = None) -> list[WorkspaceMetadata]:

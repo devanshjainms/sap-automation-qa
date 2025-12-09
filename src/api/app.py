@@ -1,68 +1,68 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""FastAPI application with health check endpoints."""
+"""FastAPI application with agent orchestration and conversation persistence."""
 
 import logging
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 import uvicorn
 
-from src.agents.models.chat import ChatRequest, ChatResponse
 from src.agents.agents.base import create_default_agent_registry
 from src.agents.agents.orchestrator import OrchestratorSK
 from src.agents.sk_kernel import create_kernel
-from src.agents.logging_config import initialize_logging, get_logger, set_correlation_id
+from src.agents.logging_config import initialize_logging, get_logger
+from src.agents.persistence import ConversationManager
+from src.api.routes import (
+    agents_router,
+    chat_router,
+    conversations_router,
+    health_router,
+    set_agent_registry,
+    set_chat_conversation_manager,
+    set_conversation_manager,
+    set_orchestrator,
+)
 
 initialize_logging(level=logging.INFO)
 
 logger = get_logger(__name__)
-kernel = create_kernel()
-agent_registry = create_default_agent_registry()
-orchestrator = OrchestratorSK(registry=agent_registry, kernel=kernel)
-
-app = FastAPI()
 
 
-@app.get("/")
-async def root():
-    """Root endpoint returning status."""
-    return {"status": "ok"}
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager for startup/shutdown."""
+    logger.info("Initializing application...")
+    kernel = create_kernel()
+    agent_registry = create_default_agent_registry()
+    orchestrator = OrchestratorSK(registry=agent_registry, kernel=kernel)
+    db_path = Path("data/chat_history.db")
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conversation_manager = ConversationManager(db_path=db_path)
+    set_agent_registry(agent_registry)
+    set_orchestrator(orchestrator)
+    set_conversation_manager(conversation_manager)
+    set_chat_conversation_manager(conversation_manager)
+
+    logger.info("Application initialized successfully")
+
+    yield
+    logger.info("Shutting down application...")
+    conversation_manager.close()
+    logger.info("Application shutdown complete")
 
 
-@app.get("/healthz")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
-
-
-@app.get("/agents")
-async def list_agents():
-    """List available agents and their descriptions."""
-    agents = agent_registry.list_agents()
-    return {"agents": agents}
-
-
-@app.get("/debug/env")
-async def debug_env():
-    """Debug endpoint to check environment variables."""
-    import os
-
-    return {
-        "AZURE_OPENAI_ENDPOINT": os.getenv("AZURE_OPENAI_ENDPOINT", "NOT SET"),
-        "AZURE_OPENAI_DEPLOYMENT": os.getenv("AZURE_OPENAI_DEPLOYMENT", "NOT SET"),
-        "AZURE_OPENAI_API_KEY": "***" if os.getenv("AZURE_OPENAI_API_KEY") else "NOT SET",
-    }
-
-
-@app.post("/chat")
-async def chat(request: ChatRequest) -> ChatResponse:
-    """Chat endpoint that routes to appropriate agent via orchestrator."""
-    correlation_id = set_correlation_id(request.correlation_id)
-
-    logger.info(f"Received chat request with {len(request.messages)} messages")
-    response = await orchestrator.handle_chat(request, context={})
-    logger.info(f"Returning response with {len(response.messages)} messages")
-    response.correlation_id = correlation_id
-    return response
+app = FastAPI(
+    title="SAP QA Agent API",
+    description="REST API for SAP Testing Automation Framework with AI agents",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+app.include_router(health_router)
+app.include_router(agents_router)
+app.include_router(chat_router)
+app.include_router(conversations_router)
 
 
 if __name__ == "__main__":

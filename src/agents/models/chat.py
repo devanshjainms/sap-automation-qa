@@ -1,21 +1,59 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """
-Pydantic models for structured SAP HA test planning.
+Pydantic models for chat messages and requests.
 
-This module defines the contract between the TestPlannerAgent and any test executor.
-The models ensure machine-readable test plans with proper metadata, requirements, and safety flags.
+This module defines the core chat message models used throughout the agent framework
+for communication between users, agents, and tools.
 """
 
+from datetime import datetime
+from enum import Enum
+from typing import Any, Optional
+from uuid import UUID, uuid4
+
 from pydantic import BaseModel, Field
-from typing import Optional
+
+
+class MessageRole(str, Enum):
+    """Role of the message sender.
+
+    :cvar USER: Message from the user
+    :cvar ASSISTANT: Message from the AI assistant
+    :cvar SYSTEM: System prompt or instruction
+    :cvar TOOL: Response from a tool invocation
+    """
+
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+    TOOL = "tool"
 
 
 class ChatMessage(BaseModel):
-    """Chat message with role and content."""
+    """Chat message with role and content.
+
+    :param role: Message sender role
+    :type role: str
+    :param content: Message content
+    :type content: str
+    """
 
     role: str
     content: str
+
+    @classmethod
+    def from_role(cls, role: MessageRole, content: str) -> "ChatMessage":
+        """Create a ChatMessage from a MessageRole enum.
+
+        :param role: Message role enum value
+        :type role: MessageRole
+        :param content: Message content
+        :type content: str
+        :returns: New ChatMessage instance
+        :rtype: ChatMessage
+        """
+        return cls(role=role.value, content=content)
 
 
 class ChatRequest(BaseModel):
