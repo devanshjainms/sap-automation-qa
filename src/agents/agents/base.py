@@ -191,6 +191,8 @@ def create_default_agent_registry() -> "AgentRegistry":
     from src.agents.agents.test_executor_agent import TestExecutorAgent
     from src.agents.workspace.workspace_store import WorkspaceStore
     from src.agents.plugins.execution import ExecutionPlugin
+    from src.agents.plugins.keyvault import KeyVaultPlugin
+    from src.agents.plugins.ssh import SSHPlugin
     from src.agents.ansible_runner import AnsibleRunner
     from src.agents.sk_kernel import create_kernel
 
@@ -199,10 +201,17 @@ def create_default_agent_registry() -> "AgentRegistry":
     workspace_store = WorkspaceStore(workspace_root)
     src_dir = Path(__file__).parent.parent.parent
     ansible_runner = AnsibleRunner(base_dir=src_dir)
+    keyvault_plugin = KeyVaultPlugin()
+    ssh_plugin = SSHPlugin()
+
     execution_plugin = ExecutionPlugin(
-        workspace_store=workspace_store, ansible_runner=ansible_runner
+        workspace_store=workspace_store,
+        ansible_runner=ansible_runner,
+        keyvault_plugin=keyvault_plugin,
     )
     kernel.add_plugin(execution_plugin, plugin_name="execution")
+    kernel.add_plugin(keyvault_plugin, plugin_name="keyvault")
+    kernel.add_plugin(ssh_plugin, plugin_name="ssh")
 
     registry = AgentRegistry()
     registry.register(EchoAgentSK(kernel=kernel))

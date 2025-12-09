@@ -4,8 +4,10 @@
 Workspace models for SAP QA testing.
 """
 
+import shutil
 from pathlib import Path
 from typing import Optional
+
 from src.agents.models.workspace import WorkspaceMetadata
 
 
@@ -85,8 +87,6 @@ class WorkspaceStore:
             return (metadata, False)
         workspace_path.mkdir(parents=True, exist_ok=True)
         if template_dir and template_dir.exists():
-            import shutil
-
             for item in template_dir.iterdir():
                 if item.is_file():
                     shutil.copy2(item, workspace_path / item.name)

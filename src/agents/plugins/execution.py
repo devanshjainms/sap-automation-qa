@@ -17,50 +17,47 @@ import logging
 import yaml
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional, TYPE_CHECKING
 
 from semantic_kernel.functions import kernel_function
 
+from src.agents.constants import TEST_GROUP_PLAYBOOKS, LOG_WHITELIST
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.ansible_runner import AnsibleRunner
 from src.agents.plugins.command_validator import validate_readonly_command
 from src.agents.models.execution import ExecutionResult
 from src.agents.logging_config import get_logger
 
+if TYPE_CHECKING:
+    from src.agents.plugins.keyvault import KeyVaultPlugin
+
 logger = get_logger(__name__)
-
-
-TEST_GROUP_PLAYBOOKS = {
-    "HA_DB_HANA": "playbook_00_ha_db_functional_tests.yml",
-    "HA_SCS": "playbook_00_ha_scs_functional_tests.yml",
-    "HA_OFFLINE": "playbook_01_ha_offline_tests.yml",
-    "CONFIG_CHECKS": "playbook_00_configuration_checks.yml",
-}
-
-LOG_WHITELIST = {
-    ("db", "hana_trace"): "/usr/sap/{sid}/HDB{instance}/*/trace/indexserver*.trc",
-    ("db", "hana_alert"): "/usr/sap/{sid}/HDB{instance}/*/trace/*alert*.trc",
-    ("scs", "sap_log"): "/usr/sap/{sid}/*/work/dev_*",
-    ("app", "sap_log"): "/usr/sap/{sid}/*/work/dev_*",
-    ("system", "messages"): "/var/log/messages",
-    ("system", "syslog"): "/var/log/syslog",
-}
 
 
 class ExecutionPlugin:
     """Semantic Kernel plugin for controlled SAP QA test execution."""
 
-    def __init__(self, workspace_store: WorkspaceStore, ansible_runner: AnsibleRunner):
+    def __init__(
+        self,
+        workspace_store: WorkspaceStore,
+        ansible_runner: AnsibleRunner,
+        keyvault_plugin: Optional["KeyVaultPlugin"] = None,
+    ):
         """Initialize ExecutionPlugin.
 
         :param workspace_store: WorkspaceStore for workspace metadata access
         :type workspace_store: WorkspaceStore
         :param ansible_runner: AnsibleRunner for Ansible execution
         :type ansible_runner: AnsibleRunner
+        :param keyvault_plugin: Optional KeyVaultPlugin for SSH key retrieval
+        :type keyvault_plugin: Optional[KeyVaultPlugin]
         """
         self.workspace_store = workspace_store
         self.ansible = ansible_runner
-        logger.info("ExecutionPlugin initialized")
+        self.keyvault_plugin = keyvault_plugin
+        logger.info(
+            f"ExecutionPlugin initialized (keyvault_enabled={keyvault_plugin is not None})"
+        )
 
     @kernel_function(
         name="resolve_test_execution",
@@ -192,6 +189,23 @@ class ExecutionPlugin:
                     logger.warning(f"Failed to load sap-parameters.yaml: {e}")
             else:
                 logger.warning(f"sap-parameters.yaml not found at {sap_params_path}")
+
+            if self.keyvault_plugin:
+                logger.info(f"Fetching SSH key from Key Vault for workspace {workspace_id}")
+                key_result_json = self.keyvault_plugin.get_ssh_key_for_workspace(
+                    workspace_id=workspace_id,
+                    workspace_root="WORKSPACES/SYSTEM",
+                )
+                key_result = json.loads(key_result_json)
+
+                if "error" in key_result:
+                    logger.warning(
+                        f"Failed to get SSH key from Key Vault: {key_result['error']}. "
+                        "Proceeding without Key Vault SSH key."
+                    )
+                else:
+                    extra_vars["ansible_ssh_private_key_file"] = key_result["key_path"]
+                    logger.info(f"SSH key set from Key Vault: {key_result['key_path']}")
 
             logger.info(f"Running test {test_id} for workspace {workspace_id}")
             result = self.ansible.run_playbook(

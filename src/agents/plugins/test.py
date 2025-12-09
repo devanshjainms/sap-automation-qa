@@ -46,8 +46,6 @@ class TestPlannerPlugin:
         :rtype: str
         """
         try:
-            import yaml
-
             with open(self.test_config_path, "r") as f:
                 config = yaml.safe_load(f)
 
@@ -82,8 +80,6 @@ class TestPlannerPlugin:
         :rtype: str
         """
         try:
-            import yaml
-
             with open(self.test_config_path, "r") as f:
                 config = yaml.safe_load(f)
 

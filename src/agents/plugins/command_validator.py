@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+
 """Command validation for read-only operations.
 
 This module provides strict validation for shell commands to ensure
@@ -7,151 +8,25 @@ only safe, read-only operations are executed via ad-hoc Ansible.
 """
 
 import shlex
-from typing import Set
+from typing import Tuple
 
+from src.agents.constants import (
+    ALLOWED_BINARIES,
+    FORBIDDEN_TOKENS,
+    SAFE_PATH_PREFIXES,
+)
 from src.agents.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-
-ALLOWED_BINARIES: Set[str] = {
-    "cat",
-    "tail",
-    "head",
-    "grep",
-    "egrep",
-    "fgrep",
-    "sed",
-    "awk",
-    "ls",
-    "find",
-    "df",
-    "free",
-    "ps",
-    "top",
-    "journalctl",
-    "sysctl",
-    "uname",
-    "uptime",
-    "hostname",
-    "whoami",
-    "id",
-    "date",
-    "w",
-    "who",
-    "last",
-    "netstat",
-    "ss",
-    "ip",
-    "lsof",
-    "du",
-    "wc",
-    "sort",
-    "uniq",
-    "cut",
-    "tr",
-}
-
-
-FORBIDDEN_TOKENS: Set[str] = {
-    ">",
-    ">>",
-    "2>",
-    "2>>",
-    "&>",
-    "&>>",
-    "tee",
-    "rm",
-    "mv",
-    "cp",
-    "chmod",
-    "chown",
-    "chgrp",
-    "chattr",
-    "mkdir",
-    "rmdir",
-    "touch",
-    "useradd",
-    "userdel",
-    "usermod",
-    "groupadd",
-    "groupdel",
-    "groupmod",
-    "passwd",
-    "systemctl",
-    "service",
-    "initctl",
-    "shutdown",
-    "reboot",
-    "halt",
-    "poweroff",
-    "init",
-    "pkill",
-    "kill",
-    "killall",
-    "skill",
-    "mount",
-    "umount",
-    "swapon",
-    "swapoff",
-    "echo",
-    "apt",
-    "apt-get",
-    "dpkg",
-    "yum",
-    "dnf",
-    "zypper",
-    "pacman",
-    "rpm",
-    "pip",
-    "pip3",
-    "python",
-    "python3",
-    "perl",
-    "ruby",
-    "node",
-    "npm",
-    "bash",
-    "sh",
-    "zsh",
-    "csh",
-    "tcsh",
-    "ksh",
-    "gcc",
-    "g++",
-    "make",
-    "cmake",
-    "sudo",
-    "su",
-    "-w",
-    "--write",
-    "ifconfig",
-    "ifup",
-    "ifdown",
-    "iptables",
-    "ip6tables",
-    "firewall-cmd",
-    "ufw",
-    "setenforce",
-    "setsebool",
-    "crontab",
-    "vi",
-    "vim",
-    "nano",
-    "emacs",
-    "ed",
-}
-
-
-SAFE_PATH_PREFIXES: Set[str] = {
-    "/proc",
-    "/sys",
-    "/etc",
-    "/var/log",
-    "/usr/sap",
-    "/hana",
-    "/tmp",
-}
+# Re-export constants for backward compatibility
+__all__ = [
+    "ALLOWED_BINARIES",
+    "FORBIDDEN_TOKENS",
+    "SAFE_PATH_PREFIXES",
+    "validate_readonly_command",
+    "validate_command_safe",
+]
 
 
 def validate_readonly_command(command: str) -> None:
@@ -208,14 +83,17 @@ def validate_readonly_command(command: str) -> None:
         token_lower = token.lower()
         if token_lower in FORBIDDEN_TOKENS:
             raise ValueError(
-                f"Token '{token}' is a forbidden operation. " "This operation is not allowed."
+                f"Token '{token}' is a forbidden operation. "
+                "This operation is not allowed."
             )
         if "/" not in token and "." not in token:
             for forbidden in FORBIDDEN_TOKENS:
                 if token_lower == forbidden:
                     raise ValueError(
-                        f"Token '{token}' is forbidden. " "This operation is not allowed."
+                        f"Token '{token}' is forbidden. "
+                        "This operation is not allowed."
                     )
+
     if binary == "sysctl":
         if any(token in ["-w", "--write"] for token in tokens):
             raise ValueError(
@@ -232,3 +110,21 @@ def validate_readonly_command(command: str) -> None:
                 )
 
     logger.info(f"Command validated as read-only: {command}")
+
+
+def validate_command_safe(command: str) -> Tuple[bool, str]:
+    """Validate command and return result as tuple instead of raising.
+
+    This is a wrapper around validate_readonly_command that returns
+    a tuple (is_valid, reason) instead of raising exceptions.
+
+    :param command: Shell command string to validate
+    :type command: str
+    :returns: Tuple of (is_valid, reason)
+    :rtype: Tuple[bool, str]
+    """
+    try:
+        validate_readonly_command(command)
+        return True, "Command validated as safe"
+    except ValueError as e:
+        return False, str(e)
