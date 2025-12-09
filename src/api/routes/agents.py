@@ -12,7 +12,6 @@ from src.agents.agents.base import AgentRegistry
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
-# Global agent registry - set by app.py during startup
 _agent_registry: Optional[AgentRegistry] = None
 
 

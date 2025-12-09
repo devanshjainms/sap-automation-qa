@@ -118,7 +118,7 @@ class ExecutionPlugin:
             workspace = self.workspace_store.get_workspace(workspace_id)
             if not workspace:
                 return json.dumps({"error": f"Workspace '{workspace_id}' not found"})
-            hosts_path = Path("WORKSPACES/SYSTEM") / workspace_id / "hosts.yaml"
+            hosts_path = Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id / "hosts.yaml"
 
             if not hosts_path.exists():
                 return json.dumps({"error": f"hosts.yaml not found at {hosts_path}"})
@@ -265,6 +265,37 @@ class ExecutionPlugin:
             )
             return json.dumps(exec_result.model_dump(), default=str, indent=2)
 
+    def _map_role_to_inventory_group(self, role: str, sid: str) -> str:
+        """Map a role name to the Ansible inventory group pattern.
+
+        Inventory groups follow the pattern: {SID}_{ROLE}
+        For example: X00_DB, X00_SCS, X00_ERS, X00_APP, X00_PAS
+
+        :param role: Role name (db, scs, ers, app, pas, all)
+        :type role: str
+        :param sid: SAP System ID
+        :type sid: str
+        :returns: Ansible inventory group pattern
+        :rtype: str
+        """
+        role_lower = role.lower().strip()
+
+        if role_lower == "all":
+            return "all"
+
+        role_map = {
+            "db": "DB",
+            "hana": "DB",
+            "database": "DB",
+            "scs": "SCS",
+            "ers": "ERS",
+            "app": "APP",
+            "pas": "PAS",
+        }
+
+        mapped_role = role_map.get(role_lower, role.upper())
+        return f"{sid}_{mapped_role}"
+
     @kernel_function(
         name="run_readonly_command",
         description="Run a read-only diagnostic command (ls, cat, tail, sysctl, df, "
@@ -308,14 +339,18 @@ class ExecutionPlugin:
             workspace = self.workspace_store.get_workspace(workspace_id)
             if not workspace:
                 return json.dumps({"error": f"Workspace '{workspace_id}' not found"})
-            inventory_path = Path("WORKSPACES/SYSTEM") / workspace_id / "hosts.yaml"
+            inventory_path = Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id / "hosts.yaml"
             if not inventory_path.exists():
                 return json.dumps({"error": f"Inventory not found at {inventory_path}"})
 
-            logger.info(f"Running validated read-only command on {role} hosts: {command}")
+            host_pattern = self._map_role_to_inventory_group(role, workspace.sid)
+            logger.info(
+                f"Running validated read-only command on {role} hosts "
+                f"(pattern: {host_pattern}): {command}"
+            )
             result = self.ansible.run_ad_hoc(
                 inventory=inventory_path,
-                host_pattern=role,
+                host_pattern=host_pattern,
                 module="shell",
                 args=command,
             )

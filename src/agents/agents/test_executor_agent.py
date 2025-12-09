@@ -8,10 +8,11 @@ This agent executes tests from a TestPlan with strict safety controls:
 - Destructive test approval required
 - Workspace validation
 - Structured result collection
+- Async execution with real-time status updates
 """
 
 import json
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 
 from semantic_kernel import Kernel
@@ -25,17 +26,27 @@ from src.agents.models.execution import ExecutionRequest, ExecutionResult
 from src.agents.models.reasoning import sanitize_snapshot
 from src.agents.logging_config import get_logger
 
+if TYPE_CHECKING:
+    from src.agents.execution import JobStore, JobWorker, ExecutionJob
+
 logger = get_logger(__name__)
 
 
 class TestExecutorAgent(Agent):
-    """Agent for executing SAP QA tests with strong safety and environment gating."""
+    """Agent for executing SAP QA tests with strong safety and environment gating.
+
+    Supports two execution modes:
+    1. Synchronous (blocking): For quick tests or when streaming not needed
+    2. Asynchronous (non-blocking): For long-running tests with real-time updates
+    """
 
     def __init__(
         self,
         kernel: Kernel,
         workspace_store: WorkspaceStore,
         execution_plugin: ExecutionPlugin,
+        job_store: Optional["JobStore"] = None,
+        job_worker: Optional["JobWorker"] = None,
     ):
         """Initialize TestExecutorAgent.
 
@@ -45,6 +56,10 @@ class TestExecutorAgent(Agent):
         :type workspace_store: WorkspaceStore
         :param execution_plugin: ExecutionPlugin for test execution
         :type execution_plugin: ExecutionPlugin
+        :param job_store: Optional JobStore for async execution tracking
+        :type job_store: Optional[JobStore]
+        :param job_worker: Optional JobWorker for background execution
+        :type job_worker: Optional[JobWorker]
         """
         super().__init__(
             name="test_executor",
@@ -56,8 +71,11 @@ class TestExecutorAgent(Agent):
         self.kernel = kernel
         self.workspace_store = workspace_store
         self.execution_plugin = execution_plugin
+        self.job_store = job_store
+        self.job_worker = job_worker
+        self._async_enabled = job_store is not None and job_worker is not None
 
-        logger.info("TestExecutorAgent initialized")
+        logger.info(f"TestExecutorAgent initialized (async_enabled={self._async_enabled})")
 
     async def execute(
         self, test_plan: TestPlan, request: ExecutionRequest
@@ -159,17 +177,19 @@ class TestExecutorAgent(Agent):
                 return results
 
             logger.info(f"Will execute {len(tests_to_execute)} tests")
-            
+
             self.tracer.step(
                 "test_selection",
                 "decision",
                 f"Selected {len(tests_to_execute)} tests for execution",
-                output_snapshot=sanitize_snapshot({
-                    "mode": request.mode,
-                    "test_count": len(tests_to_execute),
-                    "include_destructive": request.include_destructive,
-                    "environment": effective_env
-                })
+                output_snapshot=sanitize_snapshot(
+                    {
+                        "mode": request.mode,
+                        "test_count": len(tests_to_execute),
+                        "include_destructive": request.include_destructive,
+                        "environment": effective_env,
+                    }
+                ),
             )
 
             for test in tests_to_execute:
@@ -218,6 +238,89 @@ class TestExecutorAgent(Agent):
             )
             return [error_result]
 
+    async def execute_async(
+        self,
+        workspace_id: str,
+        test_ids: list[str],
+        test_group: str,
+        conversation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> "ExecutionJob":
+        """Start async test execution and return job for tracking.
+
+        This method creates a job and starts execution in the background.
+        The caller can then stream job events for real-time updates.
+
+        :param workspace_id: Workspace to run tests against
+        :type workspace_id: str
+        :param test_ids: List of test IDs to execute
+        :type test_ids: list[str]
+        :param test_group: Test group (HA_DB_HANA, HA_SCS, etc.)
+        :type test_group: str
+        :param conversation_id: Associated conversation ID
+        :type conversation_id: Optional[str]
+        :param user_id: User who initiated execution
+        :type user_id: Optional[str]
+        :returns: ExecutionJob for tracking
+        :rtype: ExecutionJob
+        :raises RuntimeError: If async execution not enabled
+        """
+        if not self._async_enabled:
+            raise RuntimeError(
+                "Async execution not enabled. Initialize with job_store and job_worker."
+            )
+
+        assert self.job_store is not None
+        assert self.job_worker is not None
+        from src.agents.execution import ExecutionJob
+        workspace = self.workspace_store.get_workspace(workspace_id)
+        if not workspace:
+            raise ValueError(f"Workspace '{workspace_id}' not found")
+        if workspace.env == "PRD":
+            logger.warning(f"PRD environment detected for workspace {workspace_id}")
+        job = self.job_store.create_job(
+            workspace_id=workspace_id,
+            test_ids=test_ids,
+            conversation_id=conversation_id,
+            user_id=user_id,
+            test_id=test_ids[0] if len(test_ids) == 1 else None,
+            test_group=test_group,
+            metadata={
+                "environment": workspace.env,
+                "initiated_via": "chat",
+            },
+        )
+
+        logger.info(
+            f"Created async job {job.id} for {len(test_ids)} tests " f"on workspace {workspace_id}"
+        )
+        await self.job_worker.submit_job(job)
+        return job
+
+    def get_job_status(self, job_id: str) -> Optional["ExecutionJob"]:
+        """Get status of a running or completed job.
+
+        :param job_id: Job ID to check
+        :type job_id: str
+        :returns: Job if found
+        :rtype: Optional[ExecutionJob]
+        """
+        if not self.job_store:
+            return None
+        return self.job_store.get_job(job_id)
+
+    def get_active_jobs_for_user(self, user_id: str) -> list["ExecutionJob"]:
+        """Get active jobs for a user.
+
+        :param user_id: User ID
+        :type user_id: str
+        :returns: List of active jobs
+        :rtype: list[ExecutionJob]
+        """
+        if not self.job_store:
+            return []
+        return self.job_store.get_active_jobs(user_id)
+
     def _find_test_by_id(self, test_plan: TestPlan, test_id: str):
         """Find a test by ID in the TestPlan.
 
@@ -260,11 +363,9 @@ class TestExecutorAgent(Agent):
         )
 
         for i, result in enumerate(results, 1):
-            status_emoji = {"success": "✅", "failed": "❌", "partial": "⚠️", "skipped": "⏭️"}.get(
-                result.status, "❓"
-            )
 
-            summary_lines.append(f"\n## {i}. {status_emoji} {result.test_id or 'Unknown Test'}")
+
+            summary_lines.append(f"\n## {i}. {result.test_id or 'Unknown Test'}")
 
             if result.test_group:
                 summary_lines.append(f"   - **Group**: {result.test_group}")
@@ -295,31 +396,38 @@ class TestExecutorAgent(Agent):
     ) -> ChatResponse:
         """Handle structured execution requests (Agent interface implementation).
 
-        This agent expects structured input from the orchestrator:
-        - context["test_plan"]: TestPlan object as dict
-        - context["execution_request"]: ExecutionRequest object as dict
+        This agent supports two modes:
+        1. Synchronous: Uses context["test_plan"] and context["execution_request"]
+        2. Async (preferred): Uses context["async_execution"] with workspace_id, test_ids, test_group
 
         :param messages: Chat messages (used for logging/context)
         :type messages: list[ChatMessage]
-        :param context: Required context with test_plan and execution_request
+        :param context: Context with execution parameters
         :type context: Optional[dict]
-        :returns: ChatResponse with execution summary
+        :returns: ChatResponse with execution summary or job info
         :rtype: ChatResponse
         """
         self.tracer.start()
         try:
+            context = context or {}
+            if "async_execution" in context and self._async_enabled:
+                return await self._run_async(messages, context)
+            if "job_status_query" in context:
+                return await self._handle_job_status_query(context)
             self.tracer.step(
                 "execution_planning",
                 "inference",
                 "Understanding test execution request",
-                input_snapshot=sanitize_snapshot({
-                    "has_test_plan": context and "test_plan" in context if context else False,
-                    "has_execution_request": context and "execution_request" in context if context else False,
-                    "message_count": len(messages)
-                })
+                input_snapshot=sanitize_snapshot(
+                    {
+                        "has_test_plan": "test_plan" in context,
+                        "has_execution_request": "execution_request" in context,
+                        "message_count": len(messages),
+                    }
+                ),
             )
-            
-            if not context or "test_plan" not in context or "execution_request" not in context:
+
+            if "test_plan" not in context or "execution_request" not in context:
                 raise ValueError(
                     "TestExecutorAgent requires structured input with test_plan and execution_request"
                 )
@@ -334,33 +442,184 @@ class TestExecutorAgent(Agent):
                 "execution_run",
                 "tool_call",
                 "Test execution completed",
-                output_snapshot=sanitize_snapshot({
-                    "total_results": len(results),
-                    "passed": sum(1 for r in results if r.status == "passed"),
-                    "failed": sum(1 for r in results if r.status == "failed"),
-                    "skipped": sum(1 for r in results if r.status == "skipped")
-                })
+                output_snapshot=sanitize_snapshot(
+                    {
+                        "total_results": len(results),
+                        "passed": sum(1 for r in results if r.status == "passed"),
+                        "failed": sum(1 for r in results if r.status == "failed"),
+                        "skipped": sum(1 for r in results if r.status == "skipped"),
+                    }
+                ),
             )
-            
+
             summary = self.build_summary(results)
 
             return ChatResponse(
                 messages=[ChatMessage(role="assistant", content=summary)],
-                reasoning_trace=self.tracer.get_trace()
+                reasoning_trace=self.tracer.get_trace(),
+                metadata=None,
             )
 
         except Exception as e:
             logger.error(f"Error in TestExecutorAgent.run: {e}")
-            
+
             self.tracer.step(
                 "execution_run",
                 "inference",
                 f"Error during test execution: {str(e)}",
                 error=str(e),
-                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__})
+                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__}),
             )
-            
+
             raise
-        
+
         finally:
             self.tracer.finish()
+
+    async def _run_async(
+        self,
+        messages: list[ChatMessage],
+        context: dict,
+    ) -> ChatResponse:
+        """Handle async execution request.
+
+        :param messages: Chat messages
+        :type messages: list[ChatMessage]
+        :param context: Context with async_execution params
+        :type context: dict
+        :returns: ChatResponse with job info
+        :rtype: ChatResponse
+        """
+        async_params = context["async_execution"]
+        workspace_id = async_params["workspace_id"]
+        test_ids = async_params.get("test_ids", [])
+        test_group = async_params.get("test_group", "CONFIG_CHECKS")
+        conversation_id = context.get("conversation_id")
+        user_id = context.get("user_id")
+
+        self.tracer.step(
+            "execution_async",
+            "tool_call",
+            f"Starting async execution for {len(test_ids)} tests",
+            input_snapshot=sanitize_snapshot(
+                {
+                    "workspace_id": workspace_id,
+                    "test_count": len(test_ids),
+                    "test_group": test_group,
+                }
+            ),
+        )
+
+        try:
+            job = await self.execute_async(
+                workspace_id=workspace_id,
+                test_ids=test_ids,
+                test_group=test_group,
+                conversation_id=conversation_id,
+                user_id=user_id,
+            )
+
+            test_list = ", ".join(test_ids[:3])
+            if len(test_ids) > 3:
+                test_list += f" and {len(test_ids) - 3} more"
+
+            response_content = (
+                f"🚀 **Starting test execution**\n\n"
+                f"- **Workspace**: `{workspace_id}`\n"
+                f"- **Tests**: {test_list}\n"
+                f"- **Job ID**: `{job.id}`\n\n"
+                f"I'll provide real-time updates as the tests progress..."
+            )
+
+            self.tracer.step(
+                "execution_async",
+                "decision",
+                f"Job {job.id} submitted for execution",
+                output_snapshot=sanitize_snapshot(
+                    {
+                        "job_id": str(job.id),
+                        "status": job.status.value,
+                    }
+                ),
+            )
+
+            return ChatResponse(
+                messages=[ChatMessage(role="assistant", content=response_content)],
+                reasoning_trace=self.tracer.get_trace(),
+                metadata={"job_id": str(job.id), "streaming": True},
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to start async execution: {e}")
+            return ChatResponse(
+                messages=[
+                    ChatMessage(
+                        role="assistant", content=f"Failed to start test execution: {str(e)}"
+                    )
+                ],
+                reasoning_trace=self.tracer.get_trace(),
+                metadata=None,
+            )
+
+    async def _handle_job_status_query(self, context: dict) -> ChatResponse:
+        """Handle job status query.
+
+        :param context: Context with job_status_query params
+        :type context: dict
+        :returns: ChatResponse with job status
+        :rtype: ChatResponse
+        """
+        query = context["job_status_query"]
+        job_id = query.get("job_id")
+        user_id = query.get("user_id")
+
+        if job_id:
+            job = self.get_job_status(job_id)
+            if job:
+                from src.agents.execution.worker import JobEventEmitter
+
+                summary = JobEventEmitter.format_job_summary(job)
+                return ChatResponse(
+                    messages=[ChatMessage(role="assistant", content=summary)],
+                    reasoning_trace=self.tracer.get_trace(),
+                    metadata=None,
+                )
+            else:
+                return ChatResponse(
+                    messages=[ChatMessage(role="assistant", content=f"Job `{job_id}` not found.")],
+                    reasoning_trace=self.tracer.get_trace(),
+                    metadata=None,
+                )
+        elif user_id:
+            jobs = self.get_active_jobs_for_user(user_id)
+            if jobs:
+                from src.agents.execution.worker import JobEventEmitter
+
+                lines = ["**Your Active Jobs:**\n"]
+                for job in jobs:
+                    lines.append(JobEventEmitter.format_job_summary(job))
+                    lines.append("")
+                return ChatResponse(
+                    messages=[ChatMessage(role="assistant", content="\n".join(lines))],
+                    reasoning_trace=self.tracer.get_trace(),
+                    metadata=None,
+                )
+            else:
+                return ChatResponse(
+                    messages=[
+                        ChatMessage(role="assistant", content="You have no active test executions.")
+                    ],
+                    reasoning_trace=self.tracer.get_trace(),
+                    metadata=None,
+                )
+        else:
+            return ChatResponse(
+                messages=[
+                    ChatMessage(
+                        role="assistant",
+                        content="Please specify a job ID or ask about your active jobs.",
+                    )
+                ],
+                reasoning_trace=self.tracer.get_trace(),
+                metadata=None,
+            )

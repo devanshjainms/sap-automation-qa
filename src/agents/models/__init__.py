@@ -28,6 +28,7 @@ from src.agents.models.conversation import (
     Message,
 )
 from src.agents.models.execution import ExecutionRequest, ExecutionResult
+from src.agents.models.job import ExecutionJob, JobEvent, JobEventType, JobStatus
 from src.agents.models.reasoning import ReasoningStep, ReasoningTrace
 from src.agents.models.test import PlannedTest, TestPlan
 from src.agents.models.workspace import WorkspaceMetadata
@@ -60,6 +61,11 @@ __all__ = [
     # Execution models
     "ExecutionRequest",
     "ExecutionResult",
+    # Job execution models
+    "ExecutionJob",
+    "JobEvent",
+    "JobEventType",
+    "JobStatus",
     # Reasoning models
     "ReasoningStep",
     "ReasoningTrace",

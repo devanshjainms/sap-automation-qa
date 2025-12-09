@@ -34,6 +34,7 @@ class ReasoningStep(BaseModel):
         "test_selection",
         "execution_planning",
         "execution_run",
+        "execution_async",
         "diagnostics",
         "routing",
         "documentation_retrieval",
@@ -92,6 +93,7 @@ class ReasoningTrace(BaseModel):
             "test_selection",
             "execution_planning",
             "execution_run",
+            "execution_async",
             "diagnostics",
             "routing",
             "documentation_retrieval",
@@ -249,7 +251,7 @@ class ReasoningTrace(BaseModel):
                 lines.append(f"- **Output**: {step.output_snapshot}")
 
             if step.error:
-                lines.append(f"- **Error**: ⚠️ {step.error}")
+                lines.append(f"- **Error**:  {step.error}")
 
             lines.append("")
 
@@ -349,6 +351,7 @@ class ReasoningTracer:
             "test_selection",
             "execution_planning",
             "execution_run",
+            "execution_async",
             "diagnostics",
             "routing",
             "documentation_retrieval",

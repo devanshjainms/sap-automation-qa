@@ -46,6 +46,7 @@ class AgentTracer:
             "test_selection",
             "execution_planning",
             "execution_run",
+            "execution_async",
             "diagnostics",
             "routing",
             "documentation_retrieval",

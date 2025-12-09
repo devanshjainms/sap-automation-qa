@@ -415,3 +415,9 @@ copilot-instructions.md
 
 # Environment variables file
 .env
+
+# SQLite database files
+data/
+*.db
+*.sqlite
+*.sqlite3

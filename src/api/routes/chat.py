@@ -82,6 +82,7 @@ async def chat(
             messages=[ChatMessage(role="assistant", content="Service not initialized")],
             correlation_id=request.correlation_id,
             reasoning_trace=None,
+            metadata=None,
         )
 
     correlation_id = set_correlation_id(request.correlation_id)

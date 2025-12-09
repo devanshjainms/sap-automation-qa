@@ -72,3 +72,6 @@ class ChatResponse(BaseModel):
     reasoning_trace: Optional[dict] = Field(
         None, description="Reasoning trace showing agent's chain-of-thought"
     )
+    metadata: Optional[dict] = Field(
+        None, description="Additional metadata (e.g., job_id for streaming)"
+    )
