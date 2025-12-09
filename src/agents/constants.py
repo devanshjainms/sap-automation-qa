@@ -322,3 +322,13 @@ DEFAULT_SSH_OPTIONS: Tuple[str, ...] = (
     "-o BatchMode=yes",
     "-o LogLevel=ERROR",
 )
+
+# =============================================================================
+# Guard Layer Constants
+# =============================================================================
+
+GUARDED_FUNCTIONS: Set[str] = {
+    "run_test_by_id",
+    "run_readonly_command",
+    "execute_tests",
+}

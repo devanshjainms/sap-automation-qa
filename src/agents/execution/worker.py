@@ -15,6 +15,7 @@ from uuid import UUID
 
 from src.agents.models.job import ExecutionJob, JobEvent, JobEventType, JobStatus
 from src.agents.execution.store import JobStore
+from src.agents.execution.exceptions import WorkspaceLockError
 from src.agents.plugins.execution import ExecutionPlugin
 from src.agents.logging_config import get_logger
 
@@ -51,12 +52,22 @@ class JobWorker:
         """Submit a job for async execution.
 
         Creates the job in the store and starts background execution.
+        Enforces workspace-level locking - only one job per workspace.
 
         :param job: Job to execute
         :type job: ExecutionJob
         :returns: The submitted job with ID
         :rtype: ExecutionJob
+        :raises WorkspaceLockError: If workspace already has an active job
         """
+        active_job = self.job_store.get_active_job_for_workspace(job.workspace_id)
+        if active_job:
+            logger.warning(f"Workspace {job.workspace_id} already has active job {active_job.id}")
+            raise WorkspaceLockError(
+                workspace_id=job.workspace_id,
+                active_job_id=str(active_job.id),
+            )
+
         self._event_queues[str(job.id)] = asyncio.Queue()
 
         task = asyncio.create_task(self._execute_job(job))

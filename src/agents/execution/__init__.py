@@ -8,12 +8,25 @@ This package provides:
 - Job storage for persistence
 - Async worker for background execution
 - Event streaming for real-time updates
+- Custom exceptions for error handling
+- Guard layer for safety constraints
 """
 
-# Import job models from canonical location
 from src.agents.models.job import ExecutionJob, JobStatus, JobEvent, JobEventType
 from src.agents.execution.store import JobStore
 from src.agents.execution.worker import JobWorker
+from src.agents.execution.exceptions import (
+    ExecutionError,
+    WorkspaceLockError,
+    JobNotFoundError,
+    JobCancellationError,
+)
+from src.agents.execution.guards import (
+    GuardLayer,
+    GuardResult,
+    GuardReason,
+    GuardFilter,
+)
 
 __all__ = [
     "ExecutionJob",
@@ -22,4 +35,12 @@ __all__ = [
     "JobEventType",
     "JobStore",
     "JobWorker",
+    "ExecutionError",
+    "WorkspaceLockError",
+    "JobNotFoundError",
+    "JobCancellationError",
+    "GuardLayer",
+    "GuardResult",
+    "GuardReason",
+    "GuardFilter",
 ]

@@ -16,6 +16,7 @@ from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 
 from semantic_kernel import Kernel
+from semantic_kernel.filters import FilterTypes
 
 from src.agents.models.chat import ChatMessage, ChatResponse
 from src.agents.models.test import TestPlan
@@ -24,6 +25,7 @@ from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.plugins.execution import ExecutionPlugin
 from src.agents.models.execution import ExecutionRequest, ExecutionResult
 from src.agents.models.reasoning import sanitize_snapshot
+from src.agents.execution import GuardLayer, GuardFilter
 from src.agents.logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -34,6 +36,10 @@ logger = get_logger(__name__)
 
 class TestExecutorAgent(Agent):
     """Agent for executing SAP QA tests with strong safety and environment gating.
+
+    Uses Semantic Kernel with:
+    - ExecutionPlugin: Provides test execution tools as SK functions
+    - GuardFilter: Intercepts function calls to enforce safety constraints
 
     Supports two execution modes:
     1. Synchronous (blocking): For quick tests or when streaming not needed
@@ -49,6 +55,9 @@ class TestExecutorAgent(Agent):
         job_worker: Optional["JobWorker"] = None,
     ):
         """Initialize TestExecutorAgent.
+
+        Registers ExecutionPlugin with Semantic Kernel and adds GuardFilter
+        for safety enforcement.
 
         :param kernel: Semantic Kernel instance
         :type kernel: Kernel
@@ -75,7 +84,26 @@ class TestExecutorAgent(Agent):
         self.job_worker = job_worker
         self._async_enabled = job_store is not None and job_worker is not None
 
-        logger.info(f"TestExecutorAgent initialized (async_enabled={self._async_enabled})")
+        self.guard_layer = GuardLayer(
+            job_store=job_store,
+            workspace_store=workspace_store,
+        )
+
+        self.kernel.add_plugin(
+            plugin=execution_plugin,
+            plugin_name="execution",
+        )
+
+        guard_filter = GuardFilter(self.guard_layer)
+        self.kernel.add_filter(
+            filter_type=FilterTypes.FUNCTION_INVOCATION,
+            filter=guard_filter.on_function_invocation,
+        )
+
+        logger.info(
+            f"TestExecutorAgent initialized with SK plugin and guard filter "
+            f"(async_enabled={self._async_enabled})"
+        )
 
     async def execute(
         self, test_plan: TestPlan, request: ExecutionRequest
@@ -197,9 +225,16 @@ class TestExecutorAgent(Agent):
                     f"Executing test: {test.test_id} ({test.test_name}) "
                     f"[destructive={test.destructive}]"
                 )
-                result_json = self.execution_plugin.run_test_by_id(
-                    workspace_id=test_plan.workspace_id, test_id=test.test_id
+
+                result = await self.kernel.invoke(
+                    plugin_name="execution",
+                    function_name="run_test_by_id",
+                    workspace_id=test_plan.workspace_id,
+                    test_id=test.test_id,
+                    test_group=test.test_group,
                 )
+
+                result_json = str(result) if result else "{}"
                 result_dict = json.loads(result_json)
                 if "error" in result_dict:
                     logger.error(f"Test execution error: {result_dict['error']}")
@@ -265,19 +300,19 @@ class TestExecutorAgent(Agent):
         :rtype: ExecutionJob
         :raises RuntimeError: If async execution not enabled
         """
-        if not self._async_enabled:
-            raise RuntimeError(
-                "Async execution not enabled. Initialize with job_store and job_worker."
-            )
+        guard_result = self.guard_layer.check_execution(
+            workspace_id=workspace_id,
+            test_ids=test_ids,
+            is_destructive=False,
+        )
+        if not guard_result.allowed:
+            raise RuntimeError(self.guard_layer.format_denial_message(guard_result))
 
         assert self.job_store is not None
         assert self.job_worker is not None
-        from src.agents.execution import ExecutionJob
+
         workspace = self.workspace_store.get_workspace(workspace_id)
-        if not workspace:
-            raise ValueError(f"Workspace '{workspace_id}' not found")
-        if workspace.env == "PRD":
-            logger.warning(f"PRD environment detected for workspace {workspace_id}")
+        assert workspace is not None  # Validated by guard_layer.check_execution
         job = self.job_store.create_job(
             workspace_id=workspace_id,
             test_ids=test_ids,
@@ -296,6 +331,18 @@ class TestExecutorAgent(Agent):
         )
         await self.job_worker.submit_job(job)
         return job
+
+    def get_active_job_for_workspace(self, workspace_id: str) -> Optional["ExecutionJob"]:
+        """Get the active job for a workspace, if any.
+
+        :param workspace_id: Workspace ID to check
+        :type workspace_id: str
+        :returns: Active job or None
+        :rtype: Optional[ExecutionJob]
+        """
+        if not self.job_store:
+            return None
+        return self.job_store.get_active_job_for_workspace(workspace_id)
 
     def get_job_status(self, job_id: str) -> Optional["ExecutionJob"]:
         """Get status of a running or completed job.
@@ -363,7 +410,6 @@ class TestExecutorAgent(Agent):
         )
 
         for i, result in enumerate(results, 1):
-
 
             summary_lines.append(f"\n## {i}. {result.test_id or 'Unknown Test'}")
 
@@ -552,11 +598,7 @@ class TestExecutorAgent(Agent):
         except Exception as e:
             logger.error(f"Failed to start async execution: {e}")
             return ChatResponse(
-                messages=[
-                    ChatMessage(
-                        role="assistant", content=f"Failed to start test execution: {str(e)}"
-                    )
-                ],
+                messages=[ChatMessage(role="assistant", content=str(e))],
                 reasoning_trace=self.tracer.get_trace(),
                 metadata=None,
             )

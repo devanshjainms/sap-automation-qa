@@ -243,6 +243,48 @@ class JobStore(SQLiteBase):
             )
         return [self._row_to_job(row) for row in rows]
 
+    def has_active_job_for_workspace(self, workspace_id: str) -> bool:
+        """Check if workspace has an active (pending/running) job.
+
+        Used to enforce workspace-level job locking - only one job
+        per workspace can run at a time.
+
+        :param workspace_id: Workspace ID to check
+        :type workspace_id: str
+        :returns: True if workspace has an active job
+        :rtype: bool
+        """
+        row = self.fetchone(
+            """
+            SELECT 1 FROM execution_jobs
+            WHERE workspace_id = ?
+            AND status IN ('pending', 'running')
+            LIMIT 1
+            """,
+            (workspace_id,),
+        )
+        return row is not None
+
+    def get_active_job_for_workspace(self, workspace_id: str) -> Optional[ExecutionJob]:
+        """Get the active job for a workspace, if any.
+
+        :param workspace_id: Workspace ID to check
+        :type workspace_id: str
+        :returns: Active job or None
+        :rtype: Optional[ExecutionJob]
+        """
+        row = self.fetchone(
+            """
+            SELECT * FROM execution_jobs
+            WHERE workspace_id = ?
+            AND status IN ('pending', 'running')
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (workspace_id,),
+        )
+        return self._row_to_job(row) if row else None
+
     def update_job(self, job: ExecutionJob) -> None:
         """Update a job in the database.
 
