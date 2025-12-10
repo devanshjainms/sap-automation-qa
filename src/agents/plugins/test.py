@@ -279,7 +279,7 @@ class TestPlannerPlugin:
             capabilities=applicable_tests_result.get("capabilities_used", {}),
             safe_tests=safe_planned_tests,
             destructive_tests=destructive_planned_tests,
-            total_tests=0,  # Will be calculated in post_init
+            total_tests=0,
             plan_metadata={
                 "generated_at": datetime.utcnow().isoformat() + "Z",
                 "agent_version": "semantic_kernel_1.0",

@@ -80,10 +80,6 @@ class ConversationManager:
         """
         return self._storage
 
-    # -------------------------------------------------------------------------
-    # Conversation Lifecycle
-    # -------------------------------------------------------------------------
-
     def create_conversation(
         self,
         user_id: Optional[str] = None,
@@ -269,10 +265,6 @@ class ConversationManager:
         )
         return conversation
 
-    # -------------------------------------------------------------------------
-    # Message Management
-    # -------------------------------------------------------------------------
-
     def add_user_message(
         self,
         conversation_id: UUID | str,
@@ -386,10 +378,6 @@ class ConversationManager:
             for msg in messages
         ]
 
-    # -------------------------------------------------------------------------
-    # Reasoning Trace Management
-    # -------------------------------------------------------------------------
-
     def add_reasoning_trace(
         self,
         conversation_id: UUID | str,
@@ -419,10 +407,6 @@ class ConversationManager:
         :rtype: list[ReasoningTrace]
         """
         return self._storage.get_reasoning_traces(conversation_id)
-
-    # -------------------------------------------------------------------------
-    # Summary Management
-    # -------------------------------------------------------------------------
 
     def update_summary(
         self,
@@ -464,10 +448,6 @@ class ConversationManager:
         """
         return self._storage.get_summary(conversation_id)
 
-    # -------------------------------------------------------------------------
-    # High-level Chat Operations
-    # -------------------------------------------------------------------------
-
     def process_chat_request(
         self,
         conversation_id: UUID | str,
@@ -490,17 +470,13 @@ class ConversationManager:
         :returns: Tuple of (chat_history, turn_index)
         :rtype: tuple[list[ChatMessage], int]
         """
-        # Add user message
         self.add_user_message(
             conversation_id=conversation_id,
             content=user_message,
             metadata=user_metadata,
         )
 
-        # Get full history
         chat_history = self.get_chat_history(conversation_id)
-
-        # Calculate turn index (number of user messages - 1, 0-based)
         turn_index = sum(1 for msg in chat_history if msg.role == "user") - 1
 
         return chat_history, turn_index
@@ -527,25 +503,18 @@ class ConversationManager:
         :returns: Created assistant message
         :rtype: Message
         """
-        # Get assistant's reply (last message in response)
         assistant_content = ""
         if response.messages:
             assistant_content = response.messages[-1].content
-
-        # Build metadata
         metadata: dict[str, Any] = {}
         if response.test_plan:
             metadata["has_test_plan"] = True
             metadata["test_count"] = response.test_plan.get("total_tests", 0)
-
-        # Persist assistant message
         message = self.add_assistant_message(
             conversation_id=conversation_id,
             content=assistant_content,
             metadata=metadata,
         )
-
-        # Persist reasoning trace if present
         if response.reasoning_trace:
             trace = ReasoningTrace(
                 agent_name=response.reasoning_trace.get("agent_name"),
@@ -558,10 +527,6 @@ class ConversationManager:
             )
 
         return message
-
-    # -------------------------------------------------------------------------
-    # Utility Methods
-    # -------------------------------------------------------------------------
 
     def generate_title_from_first_message(
         self,

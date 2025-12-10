@@ -14,11 +14,6 @@ from pydantic import BaseModel, Field
 from src.agents.models.conversation import Conversation, ConversationListItem, Message
 
 
-# -------------------------------------------------------------------------
-# Health & Status Models
-# -------------------------------------------------------------------------
-
-
 class StatusResponse(BaseModel):
     """Simple status response."""
 
@@ -39,11 +34,6 @@ class DebugEnvResponse(BaseModel):
     AZURE_OPENAI_API_KEY: str = Field(..., description="Masked API key status")
 
 
-# -------------------------------------------------------------------------
-# Agent Models
-# -------------------------------------------------------------------------
-
-
 class AgentInfo(BaseModel):
     """Information about a single agent."""
 
@@ -56,11 +46,6 @@ class AgentListResponse(BaseModel):
 
     agents: list[AgentInfo] = Field(default_factory=list, description="List of agents")
     error: Optional[str] = Field(None, description="Error message if any")
-
-
-# -------------------------------------------------------------------------
-# Conversation Request/Response Models
-# -------------------------------------------------------------------------
 
 
 class CreateConversationRequest(BaseModel):

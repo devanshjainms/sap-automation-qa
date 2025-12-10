@@ -312,7 +312,7 @@ class TestExecutorAgent(Agent):
         assert self.job_worker is not None
 
         workspace = self.workspace_store.get_workspace(workspace_id)
-        assert workspace is not None  # Validated by guard_layer.check_execution
+        assert workspace is not None
         job = self.job_store.create_job(
             workspace_id=workspace_id,
             test_ids=test_ids,

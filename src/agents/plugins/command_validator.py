@@ -19,7 +19,6 @@ from src.agents.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# Re-export constants for backward compatibility
 __all__ = [
     "ALLOWED_BINARIES",
     "FORBIDDEN_TOKENS",

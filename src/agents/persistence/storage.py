@@ -32,7 +32,6 @@ from src.agents.models.reasoning import ReasoningTrace
 logger = logging.getLogger(__name__)
 
 
-# SQL Schema
 _SCHEMA = """
 -- Conversations table
 CREATE TABLE IF NOT EXISTS conversations (
@@ -124,7 +123,6 @@ class ChatStorage:
                 check_same_thread=False,
             )
             self._local.connection.row_factory = sqlite3.Row
-            # Enable foreign keys
             self._local.connection.execute("PRAGMA foreign_keys = ON")
         return self._local.connection
 
@@ -172,10 +170,6 @@ class ChatStorage:
         if hasattr(self._local, "connection") and self._local.connection:
             self._local.connection.close()
             self._local.connection = None
-
-    # -------------------------------------------------------------------------
-    # Conversation CRUD
-    # -------------------------------------------------------------------------
 
     def create_conversation(
         self,
@@ -328,10 +322,6 @@ class ChatStorage:
 
         return [self._row_to_conversation(row) for row in rows]
 
-    # -------------------------------------------------------------------------
-    # Message CRUD
-    # -------------------------------------------------------------------------
-
     def add_message(
         self,
         conversation_id: UUID | str,
@@ -384,7 +374,6 @@ class ChatStorage:
                 ),
             )
 
-            # Update conversation timestamp
             cursor.execute(
                 "UPDATE conversations SET updated_at = ? WHERE id = ?",
                 (datetime.utcnow().isoformat(), str(conversation_id)),
@@ -451,10 +440,6 @@ class ChatStorage:
             messages=messages,
             summary=summary,
         )
-
-    # -------------------------------------------------------------------------
-    # Summary CRUD
-    # -------------------------------------------------------------------------
 
     def upsert_summary(
         self,
@@ -528,10 +513,6 @@ class ChatStorage:
 
         return self._row_to_summary(row)
 
-    # -------------------------------------------------------------------------
-    # Reasoning Trace CRUD
-    # -------------------------------------------------------------------------
-
     def add_reasoning_trace(
         self,
         conversation_id: UUID | str,
@@ -587,10 +568,6 @@ class ChatStorage:
         cursor.close()
 
         return [self._row_to_trace(row) for row in rows]
-
-    # -------------------------------------------------------------------------
-    # Row converters
-    # -------------------------------------------------------------------------
 
     @staticmethod
     def _row_to_conversation(row: sqlite3.Row) -> Conversation:
