@@ -90,7 +90,7 @@ async def _generate_ai_title(user_message: str) -> str:
         chat_service = _kernel.get_service(service_id="azure_openai_chat")
         logger.info(f"Got chat service: {chat_service}")
         execution_settings = chat_service.get_prompt_execution_settings_class()(
-            max_completion_tokens=30,
+            max_completion_tokens=100,
         )
 
         chat_history = ChatHistory()
@@ -215,7 +215,6 @@ async def chat(
             turn_index=turn_index,
         )
 
-    # Generate AI title for new conversations
     if is_new_conversation and first_user_message and active_conversation_id:
         logger.info(f"Generating AI title for new conversation {active_conversation_id}")
         try:
