@@ -340,7 +340,12 @@ class ReasoningTracer:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit context manager and clear current trace."""
         if self._token:
-            _current_trace.reset(self._token)
+            try:
+                _current_trace.reset(self._token)
+            except ValueError:
+                pass
+            finally:
+                self._token = None
 
     def step(
         self,

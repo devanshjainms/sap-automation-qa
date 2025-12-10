@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
-from src.agents.models.conversation import Conversation, Message
+from src.agents.models.conversation import Conversation, ConversationListItem, Message
 
 
 # -------------------------------------------------------------------------
@@ -105,9 +105,13 @@ class ConversationResponse(BaseModel):
 
 
 class ConversationListResponse(BaseModel):
-    """Response containing a list of conversations."""
+    """Response containing a list of conversations for sidebar display.
 
-    conversations: list[Conversation]
+    Like GitHub Copilot, returns only id, title, and updated_at
+    for efficient list rendering.
+    """
+
+    conversations: list[ConversationListItem]
     total: int = Field(..., description="Total number of conversations matching filters")
     limit: int = Field(..., description="Maximum results per page")
     offset: int = Field(..., description="Number of results skipped")

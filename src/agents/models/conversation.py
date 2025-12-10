@@ -106,6 +106,30 @@ class Conversation(BaseModel):
         self.update_timestamp()
 
 
+class ConversationListItem(BaseModel):
+    """Lightweight conversation item for list views.
+
+    Used in conversation lists (like GitHub Copilot sidebar) to show
+    just the essential info: id, title, and when it was last updated.
+
+    :param id: Unique conversation identifier
+    :type id: UUID
+    :param title: Human-readable conversation title
+    :type title: Optional[str]
+    :param updated_at: Timestamp when conversation was last updated
+    :type updated_at: datetime
+    """
+
+    id: UUID
+    title: Optional[str] = None
+    updated_at: datetime
+
+    class Config:
+        """Pydantic configuration."""
+
+        from_attributes = True
+
+
 class ConversationSummary(BaseModel):
     """Compressed summary of a conversation for context management.
 

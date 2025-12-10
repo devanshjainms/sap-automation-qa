@@ -13,6 +13,7 @@ This package provides:
 """
 
 from src.agents.models.job import ExecutionJob, JobStatus, JobEvent, JobEventType
+from src.agents.models.execution import GuardReason, GuardResult
 from src.agents.execution.store import JobStore
 from src.agents.execution.worker import JobWorker
 from src.agents.execution.exceptions import (
@@ -23,8 +24,6 @@ from src.agents.execution.exceptions import (
 )
 from src.agents.execution.guards import (
     GuardLayer,
-    GuardResult,
-    GuardReason,
     GuardFilter,
 )
 

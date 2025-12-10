@@ -7,9 +7,67 @@ This module defines the contract between the TestPlannerAgent and TestExecutorAg
 ensuring type-safe, auditable test execution with proper environment gating.
 """
 
+from dataclasses import dataclass, field
+from enum import Enum
 from pydantic import BaseModel, Field
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, TYPE_CHECKING
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from src.agents.models.job import ExecutionJob
+
+
+class GuardReason(Enum):
+    """Enumeration of guard rejection reasons.
+
+    These are deterministic, auditable reasons why a guard check failed.
+    """
+
+    WORKSPACE_LOCKED = "workspace_locked"
+    PRD_DESTRUCTIVE_BLOCKED = "prd_destructive_blocked"
+    WORKSPACE_NOT_FOUND = "workspace_not_found"
+    INVALID_TEST_IDS = "invalid_test_ids"
+    PERMISSION_DENIED = "permission_denied"
+    ASYNC_NOT_ENABLED = "async_not_enabled"
+
+
+@dataclass
+class GuardResult:
+    """Result of a guard check.
+
+    :param allowed: Whether the action is allowed
+    :param reason: Rejection reason if not allowed
+    :param message: Human-readable message
+    :param details: Additional context for the rejection
+    :param blocking_job: Job that's blocking (for workspace lock)
+    """
+
+    allowed: bool
+    reason: Optional[GuardReason] = None
+    message: Optional[str] = None
+    details: dict[str, Any] = field(default_factory=dict)
+    blocking_job: Optional["ExecutionJob"] = None
+
+    @staticmethod
+    def allow() -> "GuardResult":
+        """Create an allowing result."""
+        return GuardResult(allowed=True)
+
+    @staticmethod
+    def deny(
+        reason: GuardReason,
+        message: str,
+        details: Optional[dict[str, Any]] = None,
+        blocking_job: Optional["ExecutionJob"] = None,
+    ) -> "GuardResult":
+        """Create a denying result."""
+        return GuardResult(
+            allowed=False,
+            reason=reason,
+            message=message,
+            details=details or {},
+            blocking_job=blocking_job,
+        )
 
 
 class ExecutionResult(BaseModel):

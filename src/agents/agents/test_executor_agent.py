@@ -570,7 +570,7 @@ class TestExecutorAgent(Agent):
                 test_list += f" and {len(test_ids) - 3} more"
 
             response_content = (
-                f"🚀 **Starting test execution**\n\n"
+                f"**Starting test execution**\n\n"
                 f"- **Workspace**: `{workspace_id}`\n"
                 f"- **Tests**: {test_list}\n"
                 f"- **Job ID**: `{job.id}`\n\n"

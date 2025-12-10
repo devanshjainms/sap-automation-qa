@@ -4,11 +4,13 @@
 """API routes for conversation management.
 
 This module provides REST endpoints for:
-- Listing user conversations (GET /chats)
-- Getting a specific conversation (GET /chats/{id})
-- Creating new conversations (POST /chats)
-- Deleting conversations (DELETE /chats/{id})
-- Sending messages in conversations (POST /chats/{id}/messages)
+- Listing user conversations (GET /conversations)
+- Getting a specific conversation (GET /conversations/{id})
+- Updating conversations (PATCH /conversations/{id})
+- Deleting conversations (DELETE /conversations/{id})
+- Getting messages from a conversation (GET /conversations/{id}/messages)
+
+Note: To chat and get AI responses, use the /chat endpoint instead.
 """
 
 from typing import Optional
@@ -19,15 +21,12 @@ from src.agents.models import (
     ConversationDetailResponse,
     ConversationListResponse,
     ConversationResponse,
-    CreateConversationRequest,
     MessageListResponse,
-    MessageResponse,
-    SendMessageRequest,
     UpdateConversationRequest,
 )
 from src.agents.persistence import ConversationManager
 
-router = APIRouter(prefix="/chats", tags=["conversations"])
+router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 _conversation_manager: Optional[ConversationManager] = None
 
@@ -61,10 +60,10 @@ async def list_conversations(
     limit: int = Query(50, ge=1, le=100, description="Maximum results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
 ) -> ConversationListResponse:
-    """List conversations for a user.
+    """List conversations for sidebar display.
 
-    This endpoint is called when a user logs into the UI to show their past
-    conversations. Supports filtering by user_id and workspace_id.
+    Returns lightweight conversation items with just id, title, and updated_at
+    (like GitHub Copilot or M365 Copilot sidebar).
 
     :param user_id: Optional user ID to filter by
     :type user_id: Optional[str]
@@ -74,11 +73,11 @@ async def list_conversations(
     :type limit: int
     :param offset: Number of conversations to skip (for pagination)
     :type offset: int
-    :returns: List of conversations with pagination info
+    :returns: List of conversation items with pagination info
     :rtype: ConversationListResponse
     """
     manager = get_conversation_manager()
-    conversations = manager.list_conversations(
+    conversations = manager.list_conversation_items(
         user_id=user_id,
         workspace_id=workspace_id,
         limit=limit,
@@ -95,30 +94,6 @@ async def list_conversations(
         limit=limit,
         offset=offset,
     )
-
-
-@router.post("", response_model=ConversationResponse, status_code=201)
-async def create_conversation(
-    request: CreateConversationRequest,
-    user_id: Optional[str] = Query(None, description="User ID for the conversation"),
-) -> ConversationResponse:
-    """Create a new conversation.
-
-    :param request: Conversation creation request
-    :type request: CreateConversationRequest
-    :param user_id: User ID to associate with conversation
-    :type user_id: Optional[str]
-    :returns: Created conversation
-    :rtype: ConversationResponse
-    """
-    manager = get_conversation_manager()
-    conversation = manager.create_conversation(
-        user_id=user_id,
-        title=request.title,
-        workspace_id=request.workspace_id,
-        metadata=request.metadata,
-    )
-    return ConversationResponse(conversation=conversation)
 
 
 @router.get("/{conversation_id}", response_model=ConversationDetailResponse)
@@ -228,36 +203,3 @@ async def get_messages(
         messages=messages,
         conversation_id=conversation_id,
     )
-
-
-@router.post("/{conversation_id}/messages", response_model=MessageResponse, status_code=201)
-async def send_message(
-    conversation_id: str,
-    request: SendMessageRequest,
-) -> MessageResponse:
-    """Add a user message to a conversation.
-
-    Note: This endpoint only persists the message. To get an AI response,
-    use the /chat endpoint with a conversation_id.
-
-    :param conversation_id: Conversation ID
-    :type conversation_id: str
-    :param request: Message to send
-    :type request: SendMessageRequest
-    :returns: Created message
-    :rtype: MessageResponse
-    :raises HTTPException: 404 if conversation not found
-    """
-    manager = get_conversation_manager()
-
-    conversation = manager.get_conversation(conversation_id)
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    message = manager.add_user_message(
-        conversation_id=conversation_id,
-        content=request.content,
-        metadata=request.metadata,
-    )
-
-    return MessageResponse(message=message)

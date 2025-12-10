@@ -22,6 +22,7 @@ from src.agents.models import (
     ChatRequest,
     ChatResponse,
     Conversation,
+    ConversationListItem,
     ConversationSummary,
     ConversationWithMessages,
     Message,
@@ -170,6 +171,43 @@ class ConversationManager:
             limit=limit,
             offset=offset,
         )
+
+    def list_conversation_items(
+        self,
+        user_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[ConversationListItem]:
+        """List conversations as lightweight items for sidebar display.
+
+        Returns only id, title, and updated_at like GitHub Copilot.
+
+        :param user_id: Filter by user ID
+        :type user_id: Optional[str]
+        :param workspace_id: Filter by workspace ID
+        :type workspace_id: Optional[str]
+        :param limit: Maximum results
+        :type limit: int
+        :param offset: Results to skip
+        :type offset: int
+        :returns: List of conversation items
+        :rtype: list[ConversationListItem]
+        """
+        conversations = self._storage.list_conversations(
+            user_id=user_id,
+            workspace_id=workspace_id,
+            limit=limit,
+            offset=offset,
+        )
+        return [
+            ConversationListItem(
+                id=conv.id,
+                title=conv.title,
+                updated_at=conv.updated_at,
+            )
+            for conv in conversations
+        ]
 
     def delete_conversation(self, conversation_id: UUID | str) -> bool:
         """Delete a conversation and all related data.

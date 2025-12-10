@@ -17,9 +17,7 @@ Guards handle:
 - Input validation
 """
 
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Optional, TYPE_CHECKING
+from typing import Callable, Optional, TYPE_CHECKING, Any
 
 from semantic_kernel.filters.functions.function_invocation_context import (
     FunctionInvocationContext,
@@ -28,6 +26,7 @@ from semantic_kernel.functions.function_result import FunctionResult
 
 from src.agents.constants import GUARDED_FUNCTIONS
 from src.agents.logging_config import get_logger
+from src.agents.models.execution import GuardReason, GuardResult
 
 if TYPE_CHECKING:
     from src.agents.execution.store import JobStore
@@ -35,56 +34,6 @@ if TYPE_CHECKING:
     from src.agents.workspace.workspace_store import WorkspaceStore
 
 logger = get_logger(__name__)
-
-
-class GuardReason(Enum):
-    """Enumeration of guard rejection reasons."""
-
-    WORKSPACE_LOCKED = "workspace_locked"
-    PRD_DESTRUCTIVE_BLOCKED = "prd_destructive_blocked"
-    WORKSPACE_NOT_FOUND = "workspace_not_found"
-    INVALID_TEST_IDS = "invalid_test_ids"
-    PERMISSION_DENIED = "permission_denied"
-    ASYNC_NOT_ENABLED = "async_not_enabled"
-
-
-@dataclass
-class GuardResult:
-    """Result of a guard check.
-
-    :param allowed: Whether the action is allowed
-    :param reason: Rejection reason if not allowed
-    :param message: Human-readable message
-    :param details: Additional context for the rejection
-    :param blocking_job: Job that's blocking (for workspace lock)
-    """
-
-    allowed: bool
-    reason: Optional[GuardReason] = None
-    message: Optional[str] = None
-    details: dict[str, Any] = field(default_factory=dict)
-    blocking_job: Optional["ExecutionJob"] = None
-
-    @staticmethod
-    def allow() -> "GuardResult":
-        """Create an allowing result."""
-        return GuardResult(allowed=True)
-
-    @staticmethod
-    def deny(
-        reason: GuardReason,
-        message: str,
-        details: Optional[dict[str, Any]] = None,
-        blocking_job: Optional["ExecutionJob"] = None,
-    ) -> "GuardResult":
-        """Create a denying result."""
-        return GuardResult(
-            allowed=False,
-            reason=reason,
-            message=message,
-            details=details or {},
-            blocking_job=blocking_job,
-        )
 
 
 class GuardLayer:
@@ -227,12 +176,10 @@ class GuardLayer:
             job = result.blocking_job
             if job:
                 started = (
-                    job.started_at.strftime("%Y-%m-%d %H:%M:%S")
-                    if job.started_at
-                    else "pending"
+                    job.started_at.strftime("%Y-%m-%d %H:%M:%S") if job.started_at else "pending"
                 )
                 return (
-                    f"⚠️ **Cannot start tests - workspace is busy**\n\n"
+                    f"**Cannot start tests - workspace is busy**\n\n"
                     f"Workspace `{result.details.get('workspace_id')}` "
                     f"already has an active job:\n\n"
                     f"- **Job ID**: `{job.id}`\n"
@@ -243,11 +190,11 @@ class GuardLayer:
                     f"Please wait for the current job to complete, or cancel it:\n"
                     f'*"Cancel job {job.id}"*'
                 )
-            return f"⚠️ **Workspace is busy**\n\n{result.message}"
+            return f"**Workspace is busy**\n\n{result.message}"
 
         if result.reason == GuardReason.PRD_DESTRUCTIVE_BLOCKED:
             return (
-                f"🚫 **Production Safety Block**\n\n"
+                f"**Production Safety Block**\n\n"
                 f"{result.message}\n\n"
                 f"- **Workspace**: `{result.details.get('workspace_id')}`\n"
                 f"- **Environment**: `{result.details.get('environment')}`\n\n"
@@ -256,7 +203,7 @@ class GuardLayer:
 
         if result.reason == GuardReason.WORKSPACE_NOT_FOUND:
             return (
-                f"❌ **Workspace Not Found**\n\n"
+                f"**Workspace Not Found**\n\n"
                 f"{result.message}\n\n"
                 f'Use *"list workspaces"* to see available workspaces.'
             )
@@ -265,9 +212,9 @@ class GuardLayer:
             return f"⚙️ **Configuration Error**\n\n{result.message}"
 
         if result.reason == GuardReason.INVALID_TEST_IDS:
-            return f"❌ **Invalid Request**\n\n{result.message}"
+            return f"**Invalid Request**\n\n{result.message}"
 
-        return f"❌ **Blocked**\n\n{result.message}"
+        return f"**Blocked**\n\n{result.message}"
 
 
 class GuardFilter:
@@ -321,9 +268,7 @@ class GuardFilter:
         )
 
         if not guard_result.allowed:
-            logger.warning(
-                f"GuardFilter BLOCKED {function_name}: {guard_result.reason}"
-            )
+            logger.warning(f"GuardFilter BLOCKED {function_name}: {guard_result.reason}")
             error_message = self.guard_layer.format_denial_message(guard_result)
             context.result = FunctionResult(
                 function=context.function.metadata,

@@ -23,11 +23,17 @@ from src.agents.models.chat import (
 )
 from src.agents.models.conversation import (
     Conversation,
+    ConversationListItem,
     ConversationSummary,
     ConversationWithMessages,
     Message,
 )
-from src.agents.models.execution import ExecutionRequest, ExecutionResult
+from src.agents.models.execution import (
+    ExecutionRequest,
+    ExecutionResult,
+    GuardReason,
+    GuardResult,
+)
 from src.agents.models.job import ExecutionJob, JobEvent, JobEventType, JobStatus
 from src.agents.models.reasoning import ReasoningStep, ReasoningTrace
 from src.agents.models.test import PlannedTest, TestPlan
@@ -61,6 +67,8 @@ __all__ = [
     # Execution models
     "ExecutionRequest",
     "ExecutionResult",
+    "GuardReason",
+    "GuardResult",
     # Job execution models
     "ExecutionJob",
     "JobEvent",

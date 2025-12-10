@@ -23,6 +23,7 @@ from src.api.routes import (
     streaming_router,
     set_agent_registry,
     set_chat_conversation_manager,
+    set_chat_kernel,
     set_conversation_manager,
     set_job_worker,
     set_orchestrator,
@@ -50,10 +51,12 @@ async def lifespan(app: FastAPI):
     from src.agents.agents.test_executor_agent import TestExecutorAgent
 
     test_executor_base = agent_registry.get("test_executor")
+    print(f"DEBUG: test_executor_base from registry: {test_executor_base}, type: {type(test_executor_base)}")
     job_store: JobStore | None = None
     job_worker: JobWorker | None = None
 
     if test_executor_base and isinstance(test_executor_base, TestExecutorAgent):
+        print("DEBUG: Entering TestExecutorAgent configuration block")
         test_executor: TestExecutorAgent = test_executor_base
         job_store = JobStore(db_path=db_path)
         job_worker = JobWorker(job_store=job_store, execution_plugin=test_executor.execution_plugin)
@@ -61,8 +64,9 @@ async def lifespan(app: FastAPI):
         test_executor.job_store = job_store
         test_executor.job_worker = job_worker
         test_executor._async_enabled = True
+        test_executor.guard_layer.job_store = job_store
 
-        logger.info("Async job execution enabled")
+        print(f"DEBUG: Async enabled. guard_layer.job_store is None: {test_executor.guard_layer.job_store is None}")
     else:
         logger.warning("Test executor not found - async job execution disabled")
 
@@ -70,6 +74,7 @@ async def lifespan(app: FastAPI):
     set_orchestrator(orchestrator)
     set_conversation_manager(conversation_manager)
     set_chat_conversation_manager(conversation_manager)
+    set_chat_kernel(kernel)
     if job_worker:
         set_job_worker(job_worker)
 
