@@ -141,9 +141,7 @@ class ConversationManager:
         :returns: Conversation with messages if found
         :rtype: Optional[ConversationWithMessages]
         """
-        return self._storage.get_conversation_with_messages(
-            conversation_id, message_limit
-        )
+        return self._storage.get_conversation_with_messages(conversation_id, message_limit)
 
     def list_conversations(
         self,
@@ -382,7 +380,9 @@ class ConversationManager:
         """
         messages = self._storage.get_messages(conversation_id, limit=limit)
         return [
-            ChatMessage(role=msg.role.value if hasattr(msg.role, 'value') else msg.role, content=msg.content)
+            ChatMessage(
+                role=msg.role.value if hasattr(msg.role, "value") else msg.role, content=msg.content
+            )
             for msg in messages
         ]
 
@@ -578,7 +578,7 @@ class ConversationManager:
         """
         messages = self.get_messages(conversation_id, limit=5)
         for msg in messages:
-            role_value = msg.role.value if hasattr(msg.role, 'value') else msg.role
+            role_value = msg.role.value if hasattr(msg.role, "value") else msg.role
             if role_value == "user":
                 title = msg.content[:50]
                 if len(msg.content) > 50:
@@ -599,8 +599,9 @@ class ConversationManager:
         """
         messages = self.get_messages(conversation_id)
         user_count = sum(
-            1 for msg in messages
-            if (msg.role.value if hasattr(msg.role, 'value') else msg.role) == "user"
+            1
+            for msg in messages
+            if (msg.role.value if hasattr(msg.role, "value") else msg.role) == "user"
         )
         return user_count
 

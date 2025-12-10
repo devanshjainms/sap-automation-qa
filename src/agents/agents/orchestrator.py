@@ -113,12 +113,14 @@ class OrchestratorSK:
             "decision",
             "Agent routing decision based on SK response",
             input_snapshot=sanitize_snapshot({"message_count": len(request.messages)}),
-            output_snapshot=sanitize_snapshot({
-                "agent_name": agent_name,
-                "agent_input_keys": list(agent_input.keys()),
-                "routing_reason": routing_reason,
-                "sk_content_length": sk_content_length
-            })
+            output_snapshot=sanitize_snapshot(
+                {
+                    "agent_name": agent_name,
+                    "agent_input_keys": list(agent_input.keys()),
+                    "routing_reason": routing_reason,
+                    "sk_content_length": sk_content_length,
+                }
+            ),
         )
 
         return (agent_name, agent_input)
@@ -144,21 +146,21 @@ class OrchestratorSK:
         :raises ValueError: If no suitable agent found
         """
         self.tracer.start()
-        
+
         try:
             agent_name, agent_input = await self._choose_agent_with_sk(request)
-            
+
             if agent_name == "test_executor":
                 return await self._handle_test_execution(request, agent_input, context)
-            
+
             agent = self.registry.get(agent_name)
             if agent is None:
                 raise ValueError(f"Agent '{agent_name}' not found in registry")
-            
+
             if context is None:
                 context = {}
             context["agent_input"] = agent_input
-            
+
             response = await agent.run(messages=request.messages, context=context)
             orch_trace = self.tracer.get_trace()
             if orch_trace and response.reasoning_trace:
@@ -166,19 +168,19 @@ class OrchestratorSK:
                 response.reasoning_trace = orch_trace
             elif orch_trace:
                 response.reasoning_trace = orch_trace
-                
+
             return response
-        
+
         except Exception as e:
             self.tracer.step(
                 "response_generation",
                 "inference",
                 f"Error during orchestration: {str(e)}",
                 error=str(e),
-                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__})
+                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__}),
             )
             raise
-        
+
         finally:
             self.tracer.finish()
 
@@ -206,7 +208,7 @@ class OrchestratorSK:
                 "test_selection",
                 "tool_call",
                 "Invoking test planner to generate test plan",
-                input_snapshot=sanitize_snapshot({"agent_input_keys": list(agent_input.keys())})
+                input_snapshot=sanitize_snapshot({"agent_input_keys": list(agent_input.keys())}),
             )
 
             test_planner = self.registry.get("test_planner")
@@ -221,7 +223,7 @@ class OrchestratorSK:
                 messages=request.messages, context=planning_context
             )
             planner_trace = planning_response.reasoning_trace
-            
+
             test_plan = None
             if planning_response.test_plan:
                 test_plan = planning_response.test_plan
@@ -230,17 +232,19 @@ class OrchestratorSK:
                     + f"workspace={test_plan.get('workspace_id')}, "
                     + f"tests={test_plan.get('total_tests', 0)}"
                 )
-                
+
                 self.tracer.step(
                     "test_selection",
                     "decision",
                     "Test plan generated successfully",
-                    output_snapshot=sanitize_snapshot({
-                        "workspace_id": test_plan.get('workspace_id'),
-                        "total_tests": test_plan.get('total_tests', 0),
-                        "safe_tests": len(test_plan.get('safe_tests', [])),
-                        "destructive_tests": len(test_plan.get('destructive_tests', []))
-                    })
+                    output_snapshot=sanitize_snapshot(
+                        {
+                            "workspace_id": test_plan.get("workspace_id"),
+                            "total_tests": test_plan.get("total_tests", 0),
+                            "safe_tests": len(test_plan.get("safe_tests", [])),
+                            "destructive_tests": len(test_plan.get("destructive_tests", [])),
+                        }
+                    ),
                 )
             else:
                 logger.warning("TestPlannerAgent did not return a structured test plan")
@@ -262,7 +266,7 @@ class OrchestratorSK:
                 last_message = (
                     planning_response.messages[-1].content if planning_response.messages else ""
                 )
-                
+
                 orch_trace = self.tracer.get_trace()
                 planner_trace = planning_response.reasoning_trace
                 if orch_trace and planner_trace:
@@ -289,11 +293,13 @@ class OrchestratorSK:
                 "execution_planning",
                 "tool_call",
                 "Dispatching test execution to test executor",
-                input_snapshot=sanitize_snapshot({
-                    "workspace_id": execution_request.workspace_id,
-                    "mode": execution_request.mode,
-                    "include_destructive": execution_request.include_destructive
-                })
+                input_snapshot=sanitize_snapshot(
+                    {
+                        "workspace_id": execution_request.workspace_id,
+                        "mode": execution_request.mode,
+                        "include_destructive": execution_request.include_destructive,
+                    }
+                ),
             )
 
             test_executor = self.registry.get("test_executor")
@@ -308,17 +314,17 @@ class OrchestratorSK:
             execution_response = await test_executor.run(
                 messages=request.messages, context=execution_context
             )
-            
+
             orch_trace = self.tracer.get_trace()
             if orch_trace:
                 all_steps = orch_trace["steps"]
-                
+
                 if planner_trace:
                     all_steps.extend(planner_trace.get("steps", []))
-                
+
                 if execution_response.reasoning_trace:
                     all_steps.extend(execution_response.reasoning_trace.get("steps", []))
-                
+
                 execution_response.reasoning_trace = orch_trace
 
             return execution_response
@@ -330,7 +336,7 @@ class OrchestratorSK:
                 "inference",
                 f"Error during test execution orchestration: {str(e)}",
                 error=str(e),
-                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__})
+                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__}),
             )
             return ChatResponse(
                 messages=[
@@ -338,5 +344,6 @@ class OrchestratorSK:
                         role="assistant", content=f"Error orchestrating test execution: {str(e)}"
                     )
                 ],
-                reasoning_trace=self.tracer.get_trace()
+                reasoning_trace=self.tracer.get_trace(),
+                metadata=None,
             )

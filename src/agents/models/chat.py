@@ -61,6 +61,9 @@ class ChatRequest(BaseModel):
 
     messages: list[ChatMessage]
     correlation_id: Optional[str] = None
+    workspace_ids: Optional[list[str]] = Field(
+        None, description="List of workspace IDs to use as context for this request"
+    )
 
 
 class ChatResponse(BaseModel):

@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from src.agents.agents.base import create_default_agent_registry
@@ -21,6 +22,7 @@ from src.api.routes import (
     conversations_router,
     health_router,
     streaming_router,
+    workspaces_router,
     set_agent_registry,
     set_chat_conversation_manager,
     set_chat_kernel,
@@ -51,7 +53,9 @@ async def lifespan(app: FastAPI):
     from src.agents.agents.test_executor_agent import TestExecutorAgent
 
     test_executor_base = agent_registry.get("test_executor")
-    print(f"DEBUG: test_executor_base from registry: {test_executor_base}, type: {type(test_executor_base)}")
+    print(
+        f"DEBUG: test_executor_base from registry: {test_executor_base}, type: {type(test_executor_base)}"
+    )
     job_store: JobStore | None = None
     job_worker: JobWorker | None = None
 
@@ -66,7 +70,9 @@ async def lifespan(app: FastAPI):
         test_executor._async_enabled = True
         test_executor.guard_layer.job_store = job_store
 
-        print(f"DEBUG: Async enabled. guard_layer.job_store is None: {test_executor.guard_layer.job_store is None}")
+        print(
+            f"DEBUG: Async enabled. guard_layer.job_store is None: {test_executor.guard_layer.job_store is None}"
+        )
     else:
         logger.warning("Test executor not found - async job execution disabled")
 
@@ -96,11 +102,26 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(health_router)
 app.include_router(agents_router)
 app.include_router(chat_router)
 app.include_router(conversations_router)
 app.include_router(streaming_router)
+app.include_router(workspaces_router)
 
 
 if __name__ == "__main__":

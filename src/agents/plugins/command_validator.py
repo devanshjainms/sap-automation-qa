@@ -83,15 +83,13 @@ def validate_readonly_command(command: str) -> None:
         token_lower = token.lower()
         if token_lower in FORBIDDEN_TOKENS:
             raise ValueError(
-                f"Token '{token}' is a forbidden operation. "
-                "This operation is not allowed."
+                f"Token '{token}' is a forbidden operation. " "This operation is not allowed."
             )
         if "/" not in token and "." not in token:
             for forbidden in FORBIDDEN_TOKENS:
                 if token_lower == forbidden:
                     raise ValueError(
-                        f"Token '{token}' is forbidden. "
-                        "This operation is not allowed."
+                        f"Token '{token}' is forbidden. " "This operation is not allowed."
                     )
 
     if binary == "sysctl":

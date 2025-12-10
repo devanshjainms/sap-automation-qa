@@ -55,9 +55,7 @@ class ExecutionPlugin:
         self.workspace_store = workspace_store
         self.ansible = ansible_runner
         self.keyvault_plugin = keyvault_plugin
-        logger.info(
-            f"ExecutionPlugin initialized (keyvault_enabled={keyvault_plugin is not None})"
-        )
+        logger.info(f"ExecutionPlugin initialized (keyvault_enabled={keyvault_plugin is not None})")
 
     @kernel_function(
         name="resolve_test_execution",
@@ -178,7 +176,9 @@ class ExecutionPlugin:
             if not playbook_path.exists():
                 return json.dumps({"error": f"Playbook not found at {playbook_path}"})
 
-            sap_params_path = Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id / "sap-parameters.yaml"
+            sap_params_path = (
+                Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id / "sap-parameters.yaml"
+            )
             extra_vars = {}
             if sap_params_path.exists():
                 try:

@@ -88,9 +88,7 @@ class KeyVaultPlugin:
 
         if cache_key not in self._credentials:
             if client_id and client_id != "00000000-0000-0000-0000-000000000000":
-                self._credentials[cache_key] = ManagedIdentityCredential(
-                    client_id=client_id
-                )
+                self._credentials[cache_key] = ManagedIdentityCredential(client_id=client_id)
                 logger.info(
                     f"Azure credential initialized using ManagedIdentityCredential "
                     f"with client_id: {client_id}"
@@ -215,9 +213,7 @@ class KeyVaultPlugin:
         """
         effective_vault = vault_name.strip() if vault_name else self.default_vault_name
         effective_identity = (
-            managed_identity_client_id.strip()
-            if managed_identity_client_id
-            else None
+            managed_identity_client_id.strip() if managed_identity_client_id else None
         )
 
         if not effective_vault:
@@ -313,9 +309,7 @@ class KeyVaultPlugin:
         """
         effective_vault = vault_name.strip() if vault_name else self.default_vault_name
         effective_identity = (
-            managed_identity_client_id.strip()
-            if managed_identity_client_id
-            else None
+            managed_identity_client_id.strip() if managed_identity_client_id else None
         )
 
         if not effective_vault:
@@ -441,9 +435,7 @@ class KeyVaultPlugin:
                     return json.dumps({"error": error_msg, "workspace_id": workspace_id})
 
             identity_info = (
-                f", identity: {managed_identity_client_id}"
-                if managed_identity_client_id
-                else ""
+                f", identity: {managed_identity_client_id}" if managed_identity_client_id else ""
             )
             logger.info(
                 f"Using vault '{vault_name}', secret '{ssh_secret_name}'{identity_info} "
@@ -500,9 +492,7 @@ class KeyVaultPlugin:
         """
         effective_vault = vault_name.strip() if vault_name else self.default_vault_name
         effective_identity = (
-            managed_identity_client_id.strip()
-            if managed_identity_client_id
-            else None
+            managed_identity_client_id.strip() if managed_identity_client_id else None
         )
 
         if not effective_vault:

@@ -74,20 +74,19 @@ class SystemContextAgentSK(Agent):
         :rtype: ChatResponse
         """
         logger.info(f"SystemContextAgentSK.run called with {len(messages)} messages")
-        
+
         self.tracer.start()
-        
+
         try:
             self.tracer.step(
                 "workspace_resolution",
                 "tool_call",
                 "Processing workspace management request with SK",
-                input_snapshot=sanitize_snapshot({
-                    "message_count": len(messages),
-                    "has_context": context is not None
-                })
+                input_snapshot=sanitize_snapshot(
+                    {"message_count": len(messages), "has_context": context is not None}
+                ),
             )
-            
+
             chat_history = ChatHistory()
             chat_history.add_system_message(SYSTEM_CONTEXT_AGENT_SYSTEM_PROMPT)
             for msg in messages:
@@ -116,33 +115,30 @@ class SystemContextAgentSK(Agent):
                 "response_generation",
                 "inference",
                 "Generated workspace management response",
-                output_snapshot=sanitize_snapshot({
-                    "response_length": len(response_content)
-                })
+                output_snapshot=sanitize_snapshot({"response_length": len(response_content)}),
             )
-            
+
             response_message = ChatMessage(
                 role="assistant",
                 content=response_content,
             )
 
             return ChatResponse(
-                messages=[response_message],
-                reasoning_trace=self.tracer.get_trace()
+                messages=[response_message], reasoning_trace=self.tracer.get_trace(), metadata=None
             )
 
         except Exception as e:
             logger.error(f"Error in SystemContextAgentSK: {type(e).__name__}: {e}", exc_info=True)
-            
+
             self.tracer.step(
                 "workspace_resolution",
                 "inference",
                 f"Error during workspace management: {str(e)}",
                 error=str(e),
-                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__})
+                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__}),
             )
-            
+
             raise
-        
+
         finally:
             self.tracer.finish()

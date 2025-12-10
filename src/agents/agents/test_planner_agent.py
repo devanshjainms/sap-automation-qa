@@ -62,18 +62,22 @@ class TestPlannerAgentSK(Agent):
         :rtype: ChatResponse
         """
         self.tracer.start()
-        
+
         try:
             self.tracer.step(
                 "system_capabilities",
                 "tool_call",
                 "Invoking SK with test planning plugins",
-                input_snapshot=sanitize_snapshot({
-                    "message_count": len(messages),
-                    "has_agent_input": context and "agent_input" in context if context else False
-                })
+                input_snapshot=sanitize_snapshot(
+                    {
+                        "message_count": len(messages),
+                        "has_agent_input": (
+                            context and "agent_input" in context if context else False
+                        ),
+                    }
+                ),
             )
-            
+
             chat_history = ChatHistory()
             chat_history.add_system_message(TEST_PLANNER_AGENT_SYSTEM_PROMPT)
             for msg in messages:
@@ -111,34 +115,37 @@ class TestPlannerAgentSK(Agent):
                     "test_selection",
                     "decision",
                     "Test plan generated successfully",
-                    output_snapshot=sanitize_snapshot({
-                        "workspace_id": test_plan_dict['workspace_id'],
-                        "total_tests": test_plan_dict['total_tests'],
-                        "safe_tests": len(test_plan_dict.get('safe_tests', [])),
-                        "destructive_tests": len(test_plan_dict.get('destructive_tests', []))
-                    })
+                    output_snapshot=sanitize_snapshot(
+                        {
+                            "workspace_id": test_plan_dict["workspace_id"],
+                            "total_tests": test_plan_dict["total_tests"],
+                            "safe_tests": len(test_plan_dict.get("safe_tests", [])),
+                            "destructive_tests": len(test_plan_dict.get("destructive_tests", [])),
+                        }
+                    ),
                 )
-                
+
                 self.test_planner_plugin._last_generated_plan = None
 
             return ChatResponse(
                 messages=[ChatMessage(role="assistant", content=response_content)],
                 test_plan=test_plan_dict,
-                reasoning_trace=self.tracer.get_trace()
+                reasoning_trace=self.tracer.get_trace(),
+                metadata=None,
             )
 
         except Exception as e:
             logger.error(f"Error in TestPlannerAgentSK: {e}", exc_info=True)
-            
+
             self.tracer.step(
                 "test_selection",
                 "inference",
                 f"Error during test planning: {str(e)}",
                 error=str(e),
-                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__})
+                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__}),
             )
-            
+
             raise
-        
+
         finally:
             self.tracer.finish()

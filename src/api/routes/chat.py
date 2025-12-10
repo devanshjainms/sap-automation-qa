@@ -191,6 +191,7 @@ async def chat(
                 request = ChatRequest(
                     messages=chat_history,
                     correlation_id=correlation_id,
+                    workspace_ids=request.workspace_ids or [],
                 )
     else:
         conversation = _conversation_manager.create_conversation(user_id=user_id)
@@ -205,7 +206,11 @@ async def chat(
             )
 
     response = await _orchestrator.handle_chat(
-        request, context={"conversation_id": active_conversation_id}
+        request,
+        context={
+            "conversation_id": active_conversation_id,
+            "workspace_ids": request.workspace_ids or [],
+        },
     )
 
     if active_conversation_id:

@@ -28,16 +28,18 @@ class DocumentationPlugin:
         """
         self.docs_dir = Path(docs_dir)
         self.src_dir = Path(src_dir)
-        
+
         project_root = Path(__file__).parent.parent.parent.parent
-        
+
         if not self.docs_dir.is_absolute():
             self.docs_dir = project_root / docs_dir
-            
+
         if not self.src_dir.is_absolute():
             self.src_dir = project_root / src_dir
 
-        logger.info(f"DocumentationPlugin initialized with docs_dir: {self.docs_dir}, src_dir: {self.src_dir}")
+        logger.info(
+            f"DocumentationPlugin initialized with docs_dir: {self.docs_dir}, src_dir: {self.src_dir}"
+        )
 
     @kernel_function(
         name="get_all_documentation",
@@ -109,7 +111,7 @@ class DocumentationPlugin:
 
         results = []
         query_lower = query.lower()
-        
+
         md_files = sorted(self.docs_dir.rglob("*.md"))
         if md_files:
             for md_file in md_files:
@@ -125,7 +127,7 @@ class DocumentationPlugin:
                             relative_path = md_file.relative_to(self.docs_dir.parent)
                             excerpt = "\n".join(context_lines)
                             results.append(f"--- {relative_path} (line {i+1}) ---\n{excerpt}\n")
-                            if len(results) > 20: 
+                            if len(results) > 20:
                                 break
 
                 except Exception as e:
@@ -162,15 +164,15 @@ class DocumentationPlugin:
 
         results = []
         query_lower = query.lower()
-        
+
         extensions = ["*.py", "*.yml", "*.yaml", "*.sh", "*.j2"]
-        
+
         for ext in extensions:
             files = sorted(self.src_dir.rglob(ext))
             for file_path in files:
                 if ".venv" in str(file_path) or "__pycache__" in str(file_path):
                     continue
-                    
+
                 try:
                     content = file_path.read_text(encoding="utf-8")
                     if query_lower in content.lower():
@@ -182,12 +184,12 @@ class DocumentationPlugin:
                                 context = "\n".join(lines[start:end])
                                 relative_path = file_path.relative_to(self.src_dir.parent)
                                 results.append(f"--- {relative_path} (line {i+1}) ---\n{context}\n")
-                                
+
                                 if len(results) > 30:
                                     break
                 except Exception:
                     continue
-            
+
             if len(results) > 30:
                 break
 

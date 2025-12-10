@@ -79,9 +79,7 @@ class UpdateConversationRequest(BaseModel):
     """Request to update a conversation."""
 
     title: Optional[str] = Field(None, description="New title for the conversation")
-    workspace_id: Optional[str] = Field(
-        None, description="New workspace to bind to conversation"
-    )
+    workspace_id: Optional[str] = Field(None, description="New workspace to bind to conversation")
 
 
 class SendMessageRequest(BaseModel):

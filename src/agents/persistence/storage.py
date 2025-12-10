@@ -234,9 +234,7 @@ class ChatStorage:
         :rtype: Optional[Conversation]
         """
         conn = self._get_connection()
-        cursor = conn.execute(
-            "SELECT * FROM conversations WHERE id = ?", (str(conversation_id),)
-        )
+        cursor = conn.execute("SELECT * FROM conversations WHERE id = ?", (str(conversation_id),))
         row = cursor.fetchone()
         cursor.close()
 
@@ -282,9 +280,7 @@ class ChatStorage:
         :rtype: bool
         """
         with self._transaction() as cursor:
-            cursor.execute(
-                "DELETE FROM conversations WHERE id = ?", (str(conversation_id),)
-            )
+            cursor.execute("DELETE FROM conversations WHERE id = ?", (str(conversation_id),))
             deleted = cursor.rowcount > 0
 
         if deleted:
@@ -362,7 +358,9 @@ class ChatStorage:
         else:
             role_value = role.value
 
-        conv_id = UUID(str(conversation_id)) if isinstance(conversation_id, str) else conversation_id
+        conv_id = (
+            UUID(str(conversation_id)) if isinstance(conversation_id, str) else conversation_id
+        )
         message = Message(
             conversation_id=conv_id,
             role=MessageRole(role_value),
@@ -478,12 +476,10 @@ class ChatStorage:
         :returns: Created/updated summary
         :rtype: ConversationSummary
         """
-        conv_id = UUID(str(conversation_id)) if isinstance(conversation_id, str) else conversation_id
-        last_msg_id = (
-            UUID(str(last_message_id))
-            if last_message_id
-            else None
+        conv_id = (
+            UUID(str(conversation_id)) if isinstance(conversation_id, str) else conversation_id
         )
+        last_msg_id = UUID(str(last_message_id)) if last_message_id else None
 
         summary_obj = ConversationSummary(
             conversation_id=conv_id,
@@ -570,9 +566,7 @@ class ChatStorage:
 
         logger.debug("Added reasoning trace for turn %d", turn_index)
 
-    def get_reasoning_traces(
-        self, conversation_id: UUID | str
-    ) -> list[ReasoningTrace]:
+    def get_reasoning_traces(self, conversation_id: UUID | str) -> list[ReasoningTrace]:
         """Get all reasoning traces for a conversation.
 
         :param conversation_id: Conversation ID
