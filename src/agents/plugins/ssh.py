@@ -27,7 +27,7 @@ from src.agents.constants import (
     DEFAULT_SSH_TIMEOUT,
     DEFAULT_SSH_OPTIONS,
 )
-from src.agents.logging_config import get_logger
+from src.agents.observability import get_logger
 from src.agents.plugins.command_validator import validate_command_safe
 
 logger = get_logger(__name__)

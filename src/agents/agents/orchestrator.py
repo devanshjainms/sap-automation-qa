@@ -8,6 +8,7 @@ request routing using function calling.
 """
 
 import json
+import time
 from typing import Optional
 from semantic_kernel import Kernel
 from semantic_kernel.contents import ChatHistory
@@ -17,7 +18,12 @@ from src.agents.plugins.routing import AgentRoutingPlugin
 from src.agents.prompts import ORCHESTRATOR_SK_SYSTEM_PROMPT
 from src.agents.models.execution import ExecutionRequest
 from src.agents.models.reasoning import sanitize_snapshot
-from src.agents.logging_config import get_logger
+from src.agents.models.streaming import (
+    emit_thinking_start,
+    emit_thinking_step,
+    emit_thinking_end,
+)
+from src.agents.observability import get_logger
 
 logger = get_logger(__name__)
 
@@ -48,6 +54,14 @@ class OrchestratorSK:
         :returns: Tuple of (agent_name, agent_input dict)
         :rtype: tuple[str, dict]
         """
+        await emit_thinking_start()
+        routing_step_id = await emit_thinking_step(
+            agent="orchestrator",
+            action="Analyzing request...",
+            status="in_progress",
+        )
+        routing_start = time.time()
+
         chat_history = ChatHistory()
         chat_history.add_system_message(ORCHESTRATOR_SK_SYSTEM_PROMPT)
 
@@ -78,18 +92,56 @@ class OrchestratorSK:
 
             logger.info("SK routing response received")
 
+            routing_json = None
+            if response and hasattr(response, "items"):
+                for item in response.items:
+                    item_type = type(item).__name__
+                    logger.info(f"Response item type: {item_type}")
+                    if item_type == "FunctionResultContent":
+                        result_str = str(item.result) if hasattr(item, "result") else str(item)
+                        logger.info(f"Found function result: {result_str}")
+                        if "agent_name" in result_str:
+                            routing_json = result_str
+                            break
+            if not routing_json:
+                for msg in reversed(chat_history.messages):
+                    if hasattr(msg, "items"):
+                        for item in msg.items:
+                            item_str = str(item)
+                            if "agent_name" in item_str and "{" in item_str:
+                                start = item_str.find("{")
+                                end = item_str.rfind("}") + 1
+                                if start >= 0 and end > start:
+                                    routing_json = item_str[start:end]
+                                    logger.info(f"Found routing JSON in history: {routing_json}")
+                                    break
+                    if routing_json:
+                        break
+            for item in reversed(chat_history.messages):
+                item_str = str(item)
+                if "agent_name" in item_str and "{" in item_str:
+                    try:
+                        start_idx = item_str.find("{")
+                        end_idx = item_str.rfind("}") + 1
+                        routing_json = item_str[start_idx:end_idx]
+                        logger.info(f"Found routing JSON in chat history: {routing_json}")
+                        break
+                    except Exception:
+                        pass
             response_content = str(response) if response else ""
             sk_content_length = len(response_content)
-            try:
-                if "{" in response_content and "}" in response_content:
-                    start_idx = response_content.find("{")
-                    end_idx = response_content.rfind("}") + 1
-                    json_str = response_content[start_idx:end_idx]
-                    routing_decision = json.loads(json_str)
 
+            if not routing_json and "{" in response_content and "agent_name" in response_content:
+                start_idx = response_content.find("{")
+                end_idx = response_content.rfind("}") + 1
+                routing_json = response_content[start_idx:end_idx]
+                logger.info(f"Found routing JSON in response: {routing_json}")
+
+            if routing_json:
+                try:
+                    routing_decision = json.loads(routing_json)
                     agent_name = routing_decision.get("agent_name", "echo")
                     agent_input = routing_decision.get("agent_input", {})
-
                     logger.info(f"Routing to agent: {agent_name} with input: {agent_input}")
 
                     if agent_name not in self.registry:
@@ -97,17 +149,27 @@ class OrchestratorSK:
                         agent_name = "echo"
                         agent_input = {}
                         routing_reason = "agent_not_found"
-                else:
-                    logger.warning("No JSON found in routing response, falling back to echo")
-                    routing_reason = "no_json"
-
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse routing decision JSON: {e}")
-                routing_reason = "json_parse_error"
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse routing decision JSON: {e}")
+                    routing_reason = "json_parse_error"
+            else:
+                logger.warning("No routing JSON found, falling back to echo")
+                routing_reason = "no_json"
 
         except Exception as e:
-            logger.error(f"Error in SK routing: {type(e).__name__}: {e}", exc_info=True)
+            logger.error(f"Error in SK routing: {type(e).__name__}: {e}", exc_info=e)
             routing_reason = f"exception:{type(e).__name__}"
+
+        routing_duration = int((time.time() - routing_start) * 1000)
+        await emit_thinking_step(
+            agent="orchestrator",
+            action=f"Routing to {agent_name}",
+            detail=f"Selected {agent_name} agent to handle request",
+            status="complete",
+            step_id=routing_step_id,
+            duration_ms=routing_duration,
+        )
+
         self.tracer.step(
             "routing",
             "decision",
@@ -151,7 +213,9 @@ class OrchestratorSK:
             agent_name, agent_input = await self._choose_agent_with_sk(request)
 
             if agent_name == "test_executor":
-                return await self._handle_test_execution(request, agent_input, context)
+                response = await self._handle_test_execution(request, agent_input, context)
+                await emit_thinking_end()
+                return response
 
             agent = self.registry.get(agent_name)
             if agent is None:
@@ -161,7 +225,26 @@ class OrchestratorSK:
                 context = {}
             context["agent_input"] = agent_input
 
+            agent_step_id = await emit_thinking_step(
+                agent=agent_name,
+                action=f"Processing with {agent_name}...",
+                status="in_progress",
+            )
+            agent_start = time.time()
+
             response = await agent.run(messages=request.messages, context=context)
+
+            agent_duration = int((time.time() - agent_start) * 1000)
+            await emit_thinking_step(
+                agent=agent_name,
+                action=f"Completed {agent_name}",
+                status="complete",
+                step_id=agent_step_id,
+                duration_ms=agent_duration,
+            )
+
+            await emit_thinking_end()
+
             orch_trace = self.tracer.get_trace()
             if orch_trace and response.reasoning_trace:
                 orch_trace["steps"].extend(response.reasoning_trace.get("steps", []))

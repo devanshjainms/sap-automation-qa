@@ -15,7 +15,7 @@ from src.agents.constants import (
     FORBIDDEN_TOKENS,
     SAFE_PATH_PREFIXES,
 )
-from src.agents.logging_config import get_logger
+from src.agents.observability import get_logger
 
 logger = get_logger(__name__)
 

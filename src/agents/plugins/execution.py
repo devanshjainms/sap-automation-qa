@@ -26,7 +26,7 @@ from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.ansible_runner import AnsibleRunner
 from src.agents.plugins.command_validator import validate_readonly_command
 from src.agents.models.execution import ExecutionResult
-from src.agents.logging_config import get_logger
+from src.agents.observability import get_logger
 
 if TYPE_CHECKING:
     from src.agents.plugins.keyvault import KeyVaultPlugin

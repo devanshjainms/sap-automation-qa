@@ -17,7 +17,7 @@ from src.agents.models.job import ExecutionJob, JobEvent, JobEventType, JobStatu
 from src.agents.execution.store import JobStore
 from src.agents.execution.exceptions import WorkspaceLockError
 from src.agents.plugins.execution import ExecutionPlugin
-from src.agents.logging_config import get_logger
+from src.agents.observability import get_logger
 
 logger = get_logger(__name__)
 

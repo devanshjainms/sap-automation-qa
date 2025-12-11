@@ -3,6 +3,7 @@
 """FastAPI application with agent orchestration and conversation persistence."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -13,7 +14,11 @@ import uvicorn
 from src.agents.agents.base import create_default_agent_registry
 from src.agents.agents.orchestrator import OrchestratorSK
 from src.agents.sk_kernel import create_kernel
-from src.agents.logging_config import initialize_logging, get_logger
+from src.agents.observability import (
+    initialize_logging,
+    get_logger,
+    add_observability_middleware,
+)
 from src.agents.persistence import ConversationManager
 from src.agents.execution import JobStore, JobWorker
 from src.api.routes import (
@@ -31,7 +36,8 @@ from src.api.routes import (
     set_orchestrator,
 )
 
-initialize_logging(level=logging.INFO)
+log_format = os.environ.get("LOG_FORMAT", "json")
+initialize_logging(level=logging.INFO, log_format=log_format)
 
 logger = get_logger(__name__)
 
@@ -102,6 +108,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+add_observability_middleware(app)
 
 app.add_middleware(
     CORSMiddleware,

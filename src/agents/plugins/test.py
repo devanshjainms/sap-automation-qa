@@ -14,7 +14,7 @@ from datetime import datetime
 
 from semantic_kernel.functions import kernel_function
 from src.agents.models.test import PlannedTest, TestPlan
-from src.agents.logging_config import get_logger
+from src.agents.observability import get_logger
 
 logger = get_logger(__name__)
 

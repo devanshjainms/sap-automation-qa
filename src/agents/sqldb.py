@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Generator
 
-from src.agents.logging_config import get_logger
+from src.agents.observability import get_logger
 
 logger = get_logger(__name__)
 

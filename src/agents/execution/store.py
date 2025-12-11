@@ -16,7 +16,7 @@ from uuid import UUID
 
 from src.agents.models.job import ExecutionJob, JobEvent, JobEventType, JobStatus
 from src.agents.sqldb import SQLiteBase
-from src.agents.logging_config import get_logger
+from src.agents.observability import get_logger
 
 logger = get_logger(__name__)
 

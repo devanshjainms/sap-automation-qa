@@ -26,7 +26,7 @@ from src.agents.plugins.execution import ExecutionPlugin
 from src.agents.models.execution import ExecutionRequest, ExecutionResult
 from src.agents.models.reasoning import sanitize_snapshot
 from src.agents.execution import GuardLayer, GuardFilter
-from src.agents.logging_config import get_logger
+from src.agents.observability import get_logger
 
 if TYPE_CHECKING:
     from src.agents.execution import JobStore, JobWorker, ExecutionJob
@@ -259,7 +259,7 @@ class TestExecutorAgent(Agent):
             return results
 
         except Exception as e:
-            logger.error(f"Error in TestExecutorAgent: {e}", exc_info=True)
+            logger.error(f"Error in TestExecutorAgent: {e}", exc_info=e)
 
             error_result = ExecutionResult(
                 workspace_id=request.workspace_id,

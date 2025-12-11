@@ -25,7 +25,7 @@ from semantic_kernel.filters.functions.function_invocation_context import (
 from semantic_kernel.functions.function_result import FunctionResult
 
 from src.agents.constants import GUARDED_FUNCTIONS
-from src.agents.logging_config import get_logger
+from src.agents.observability import get_logger
 from src.agents.models.execution import GuardReason, GuardResult
 
 if TYPE_CHECKING:

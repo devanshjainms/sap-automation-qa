@@ -15,9 +15,8 @@ from typing import Any, AsyncGenerator, Optional
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
-from src.agents.models.job import JobEvent
 from src.agents.execution.worker import JobWorker, JobEventEmitter
-from src.agents.logging_config import get_logger
+from src.agents.observability import get_logger
 
 logger = get_logger(__name__)
 

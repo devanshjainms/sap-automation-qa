@@ -16,6 +16,20 @@ from pydantic import BaseModel, Field
 
 _current_trace: ContextVar[Optional["ReasoningTrace"]] = ContextVar("_current_trace", default=None)
 
+TracingPhase = Literal[
+    "input_understanding",
+    "workspace_resolution",
+    "system_capabilities",
+    "test_selection",
+    "execution_planning",
+    "execution_run",
+    "execution_async",
+    "diagnostics",
+    "routing",
+    "documentation_retrieval",
+    "response_generation",
+]
+
 
 class ReasoningStep(BaseModel):
     """
@@ -27,19 +41,7 @@ class ReasoningStep(BaseModel):
 
     id: str = Field(default_factory=lambda: str(uuid4()))
     agent: str = Field(..., description="Name of the agent that created this step")
-    phase: Literal[
-        "input_understanding",
-        "workspace_resolution",
-        "system_capabilities",
-        "test_selection",
-        "execution_planning",
-        "execution_run",
-        "execution_async",
-        "diagnostics",
-        "routing",
-        "documentation_retrieval",
-        "response_generation",
-    ] = Field(..., description="Phase of agent workflow this step belongs to")
+    phase: TracingPhase = Field(..., description="Phase of agent workflow this step belongs to")
     kind: Literal["tool_call", "inference", "decision"] = Field(
         ..., description="Type of reasoning step"
     )

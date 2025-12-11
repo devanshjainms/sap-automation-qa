@@ -332,3 +332,24 @@ GUARDED_FUNCTIONS: Set[str] = {
     "run_readonly_command",
     "execute_tests",
 }
+
+
+# =============================================================================
+# Middleware Constants
+# =============================================================================
+CORRELATION_ID_HEADER = "X-Correlation-ID"
+CONVERSATION_ID_HEADER = "X-Conversation-ID"
+WORKSPACE_ID_HEADER = "X-Workspace-ID"
+
+SKIP_PATHS = frozenset(
+    {
+        "/health",
+        "/healthz",
+        "/ready",
+        "/readiness",
+        "/live",
+        "/liveness",
+        "/metrics",
+        "/favicon.ico",
+    }
+)
