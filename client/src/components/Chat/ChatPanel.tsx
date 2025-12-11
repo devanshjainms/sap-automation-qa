@@ -7,83 +7,14 @@
  */
 
 import React, { useEffect, useRef, useCallback } from "react";
-import {
-  makeStyles,
-  tokens,
-  Text,
-  Spinner,
-  Button,
-} from "@fluentui/react-components";
+import { Text, Button } from "@fluentui/react-components";
 import { BotSparkleRegular } from "@fluentui/react-icons";
 import { ChatMessageComponent } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
+import { ThinkingIndicator } from "./ThinkingIndicator";
 import { useChat, useWorkspace } from "../../context";
 import { APP_STRINGS, APP_CONFIG } from "../../constants";
-
-const useStyles = makeStyles({
-  container: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100%",
-    backgroundColor: tokens.colorNeutralBackground2,
-  },
-  messagesContainer: {
-    flex: 1,
-    overflowY: "auto",
-    padding: tokens.spacingVerticalL,
-  },
-  emptyState: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    height: "100%",
-    gap: tokens.spacingVerticalL,
-    padding: tokens.spacingHorizontalXXL,
-    textAlign: "center",
-  },
-  emptyStateIcon: {
-    fontSize: "64px",
-    color: tokens.colorBrandForeground1,
-  },
-  emptyStateTitle: {
-    fontSize: tokens.fontSizeBase500,
-    fontWeight: tokens.fontWeightSemibold,
-    color: tokens.colorNeutralForeground1,
-  },
-  emptyStateSubtitle: {
-    color: tokens.colorNeutralForeground2,
-    maxWidth: "400px",
-  },
-  suggestions: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: tokens.spacingHorizontalS,
-    justifyContent: "center",
-    marginTop: tokens.spacingVerticalM,
-  },
-  suggestionButton: {
-    maxWidth: "280px",
-  },
-  loadingIndicator: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-    padding: tokens.spacingVerticalM,
-    maxWidth: "900px",
-    margin: "0 auto",
-    color: tokens.colorNeutralForeground2,
-  },
-  errorMessage: {
-    padding: tokens.spacingVerticalM,
-    margin: tokens.spacingVerticalM + " auto",
-    maxWidth: "900px",
-    backgroundColor: tokens.colorPaletteRedBackground2,
-    color: tokens.colorPaletteRedForeground2,
-    borderRadius: tokens.borderRadiusMedium,
-    textAlign: "center",
-  },
-});
+import { useChatPanelStyles as useStyles } from "../../styles";
 
 const SUGGESTIONS = [
   APP_STRINGS.SUGGESTION_WORKSPACES,
@@ -147,14 +78,30 @@ export const ChatPanel: React.FC = () => {
           </div>
         ) : (
           <>
-            {state.messages.map((message, index) => (
-              <ChatMessageComponent key={index} message={message} />
-            ))}
-            {state.isLoading && (
-              <div className={styles.loadingIndicator}>
-                <Spinner size="tiny" />
-                <Text>{APP_STRINGS.CHAT_THINKING}</Text>
-              </div>
+            {state.messages.map((message, index) => {
+              const isLastAssistantMessage =
+                message.role === "assistant" &&
+                index === state.messages.length - 1;
+              const showThinkingBeforeThis =
+                isLastAssistantMessage && state.thinkingSteps.length > 0;
+
+              return (
+                <React.Fragment key={index}>
+                  {showThinkingBeforeThis && (
+                    <ThinkingIndicator
+                      isThinking={false}
+                      steps={state.thinkingSteps}
+                    />
+                  )}
+                  <ChatMessageComponent message={message} />
+                </React.Fragment>
+              );
+            })}
+            {state.isThinking && (
+              <ThinkingIndicator
+                isThinking={state.isThinking}
+                steps={state.thinkingSteps}
+              />
             )}
             {state.error && (
               <div className={styles.errorMessage}>

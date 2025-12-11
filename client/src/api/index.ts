@@ -13,6 +13,7 @@ export {
   buildConversationsQuery,
 } from "./endpoints";
 export { chatApi } from "./chatApi";
+export type { ThinkingStep, StreamCallbacks, SendMessageParams } from "./chatApi";
 export { conversationsApi } from "./conversationsApi";
 export { healthApi } from "./healthApi";
 export { jobsApi } from "./jobsApi";

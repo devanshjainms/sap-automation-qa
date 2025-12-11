@@ -8,8 +8,6 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import {
-  makeStyles,
-  tokens,
   Text,
   Spinner,
   Badge,
@@ -26,75 +24,7 @@ import {
 import { Job, JobStatus } from "../../types";
 import { jobsApi } from "../../api";
 import { APP_STRINGS, APP_CONFIG } from "../../constants";
-
-const useStyles = makeStyles({
-  container: {
-    backgroundColor: tokens.colorNeutralBackground3,
-    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
-    padding: tokens.spacingVerticalM,
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: tokens.spacingVerticalS,
-  },
-  title: {
-    fontWeight: tokens.fontWeightSemibold,
-    fontSize: tokens.fontSizeBase300,
-  },
-  testList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: tokens.spacingVerticalS,
-  },
-  testItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-    padding: tokens.spacingVerticalXS + " " + tokens.spacingHorizontalS,
-    backgroundColor: tokens.colorNeutralBackground1,
-    borderRadius: tokens.borderRadiusMedium,
-  },
-  testInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  testName: {
-    fontWeight: tokens.fontWeightSemibold,
-    fontSize: tokens.fontSizeBase200,
-  },
-  testDescription: {
-    fontSize: tokens.fontSizeBase100,
-    color: tokens.colorNeutralForeground3,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  statusIcon: {
-    fontSize: "20px",
-  },
-  running: {
-    color: tokens.colorBrandForeground1,
-  },
-  completed: {
-    color: tokens.colorPaletteGreenForeground1,
-  },
-  failed: {
-    color: tokens.colorPaletteRedForeground1,
-  },
-  pending: {
-    color: tokens.colorNeutralForeground3,
-  },
-  emptyState: {
-    textAlign: "center",
-    color: tokens.colorNeutralForeground3,
-    padding: tokens.spacingVerticalM,
-  },
-  progressContainer: {
-    marginTop: tokens.spacingVerticalXS,
-  },
-});
+import { useTestExecutionPanelStyles as useStyles } from "../../styles";
 
 const getStatusIcon = (status: JobStatus) => {
   switch (status) {
@@ -192,7 +122,7 @@ export const TestExecutionPanel: React.FC = () => {
     <div className={styles.container}>
       <div className={styles.header}>
         <Text className={styles.title}>{APP_STRINGS.TEST_PANEL_TITLE}</Text>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <div className={styles.headerActions}>
           {totalCount > 0 && (
             <Badge appearance="filled" color="informative">
               {completedCount}/{totalCount}

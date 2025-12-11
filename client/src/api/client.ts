@@ -38,11 +38,14 @@ const createApiClient = (): AxiosInstance => {
         _retry?: boolean;
       };
 
+      const correlationId = originalRequest?.headers?.get?.("X-Correlation-ID") || "unknown";
+      
       if (error.response?.status === 401) {
-        console.error("Authentication required");
+        console.error(`[${correlationId}] Authentication required`);
       }
 
       if (error.response?.status === 503 && !originalRequest._retry) {
+        console.warn(`[${correlationId}] Service unavailable, retrying...`);
         originalRequest._retry = true;
         await new Promise((resolve) =>
           setTimeout(resolve, APP_CONFIG.API_RETRY_DELAY),
@@ -50,6 +53,7 @@ const createApiClient = (): AxiosInstance => {
         return client(originalRequest);
       }
 
+      console.error(`[${correlationId}] API error:`, error.response?.status, error.message);
       return Promise.reject(error);
     },
   );

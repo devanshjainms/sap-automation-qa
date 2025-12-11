@@ -7,88 +7,17 @@
  */
 
 import React, { useState } from "react";
-import {
-  makeStyles,
-  tokens,
-  Text,
-  Button,
-  Tooltip,
-  mergeClasses,
-} from "@fluentui/react-components";
+import { Button, Tooltip, mergeClasses } from "@fluentui/react-components";
 import {
   PersonRegular,
   BotSparkleRegular,
   CopyRegular,
   CheckmarkRegular,
 } from "@fluentui/react-icons";
+import ReactMarkdown from "react-markdown";
 import { ChatMessage as ChatMessageType } from "../../types";
 import { APP_STRINGS } from "../../constants";
-
-const useStyles = makeStyles({
-  messageContainer: {
-    display: "flex",
-    gap: tokens.spacingHorizontalM,
-    padding: tokens.spacingVerticalM,
-    maxWidth: "900px",
-    margin: "0 auto",
-  },
-  userMessage: {
-    flexDirection: "row-reverse",
-  },
-  avatar: {
-    width: "32px",
-    height: "32px",
-    borderRadius: tokens.borderRadiusCircular,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  userAvatar: {
-    backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundOnBrand,
-  },
-  assistantAvatar: {
-    backgroundColor: tokens.colorNeutralBackground3,
-    color: tokens.colorBrandForeground1,
-  },
-  messageContent: {
-    flex: 1,
-    minWidth: 0,
-  },
-  messageBubble: {
-    padding: tokens.spacingVerticalS + " " + tokens.spacingHorizontalM,
-    borderRadius: tokens.borderRadiusMedium,
-    whiteSpace: "pre-wrap",
-    wordBreak: "break-word",
-    lineHeight: "1.5",
-  },
-  userBubble: {
-    backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundOnBrand,
-    marginLeft: "auto",
-    maxWidth: "80%",
-  },
-  assistantBubble: {
-    backgroundColor: tokens.colorNeutralBackground3,
-    color: tokens.colorNeutralForeground1,
-  },
-  actions: {
-    display: "flex",
-    gap: tokens.spacingHorizontalXS,
-    marginTop: tokens.spacingVerticalXS,
-    opacity: 0,
-    transition: "opacity 0.2s",
-  },
-  actionsVisible: {
-    opacity: 1,
-  },
-  messageWrapper: {
-    ":hover .message-actions": {
-      opacity: 1,
-    },
-  },
-});
+import { useChatMessageStyles as useStyles } from "../../styles";
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -138,9 +67,14 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             className={mergeClasses(
               styles.messageBubble,
               isUser ? styles.userBubble : styles.assistantBubble,
+              !isUser && styles.markdown,
             )}
           >
-            <Text>{message.content}</Text>
+            {isUser ? (
+              message.content
+            ) : (
+              <ReactMarkdown>{message.content}</ReactMarkdown>
+            )}
           </div>
           {!isUser && (
             <div

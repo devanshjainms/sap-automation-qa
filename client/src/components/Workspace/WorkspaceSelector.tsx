@@ -8,8 +8,6 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  makeStyles,
-  tokens,
   Dropdown,
   Option,
   Label,
@@ -25,36 +23,7 @@ import {
 } from "@fluentui/react-icons";
 import { useWorkspace } from "../../context";
 import { APP_STRINGS } from "../../constants";
-
-const useStyles = makeStyles({
-  container: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-    padding: tokens.spacingVerticalS + " " + tokens.spacingHorizontalM,
-    backgroundColor: tokens.colorNeutralBackground1,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-  },
-  icon: {
-    color: tokens.colorBrandForeground1,
-  },
-  dropdown: {
-    minWidth: "240px",
-  },
-  actions: {
-    display: "flex",
-    gap: tokens.spacingHorizontalXS,
-  },
-  selectedInfo: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalXS,
-    padding: tokens.spacingVerticalXS + " " + tokens.spacingHorizontalS,
-    backgroundColor: tokens.colorBrandBackground2,
-    borderRadius: tokens.borderRadiusMedium,
-    fontSize: tokens.fontSizeBase200,
-  },
-});
+import { useWorkspaceSelectorStyles as useStyles } from "../../styles";
 
 export const WorkspaceSelector: React.FC = () => {
   const styles = useStyles();

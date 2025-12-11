@@ -17,10 +17,9 @@ import {
   ChatMessage,
   ConversationListItem,
   Message,
-  ReasoningTrace,
   TestPlan,
 } from "../types";
-import { chatApi, conversationsApi } from "../api";
+import { chatApi, conversationsApi, ThinkingStep } from "../api";
 import { APP_CONFIG } from "../constants";
 
 interface ChatState {
@@ -28,10 +27,11 @@ interface ChatState {
   messages: ChatMessage[];
   isLoading: boolean;
   isStreaming: boolean;
+  isThinking: boolean;
+  thinkingSteps: ThinkingStep[];
   error: string | null;
   conversations: ConversationListItem[];
   conversationsLoading: boolean;
-  reasoningTrace: ReasoningTrace | null;
   testPlan: TestPlan | null;
   selectedWorkspaceId: string | null;
 }
@@ -43,13 +43,15 @@ type ChatAction =
   | { type: "UPDATE_LAST_MESSAGE"; payload: string }
   | { type: "SET_LOADING"; payload: boolean }
   | { type: "SET_STREAMING"; payload: boolean }
+  | { type: "SET_THINKING"; payload: boolean }
+  | { type: "UPSERT_THINKING_STEP"; payload: ThinkingStep }
+  | { type: "CLEAR_THINKING_STEPS" }
   | { type: "SET_ERROR"; payload: string | null }
   | { type: "SET_CONVERSATIONS"; payload: ConversationListItem[] }
   | { type: "SET_CONVERSATIONS_LOADING"; payload: boolean }
   | { type: "ADD_CONVERSATION"; payload: ConversationListItem }
   | { type: "UPDATE_CONVERSATION"; payload: { id: string; title: string } }
   | { type: "REMOVE_CONVERSATION"; payload: string }
-  | { type: "SET_REASONING_TRACE"; payload: ReasoningTrace | null }
   | { type: "SET_TEST_PLAN"; payload: TestPlan | null }
   | { type: "SET_SELECTED_WORKSPACE"; payload: string | null }
   | { type: "RESET_CHAT" };
@@ -59,10 +61,11 @@ const initialState: ChatState = {
   messages: [],
   isLoading: false,
   isStreaming: false,
+  isThinking: false,
+  thinkingSteps: [],
   error: null,
   conversations: [],
   conversationsLoading: false,
-  reasoningTrace: null,
   testPlan: null,
   selectedWorkspaceId: localStorage.getItem(
     APP_CONFIG.STORAGE_KEYS.SELECTED_WORKSPACE,
@@ -90,6 +93,20 @@ const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
       return { ...state, isLoading: action.payload };
     case "SET_STREAMING":
       return { ...state, isStreaming: action.payload };
+    case "SET_THINKING":
+      return { ...state, isThinking: action.payload };
+    case "UPSERT_THINKING_STEP":
+      const existingIndex = state.thinkingSteps.findIndex(
+        (step) => step.id === action.payload.id
+      );
+      if (existingIndex >= 0) {
+        const updatedSteps = [...state.thinkingSteps];
+        updatedSteps[existingIndex] = action.payload;
+        return { ...state, thinkingSteps: updatedSteps };
+      }
+      return { ...state, thinkingSteps: [...state.thinkingSteps, action.payload] };
+    case "CLEAR_THINKING_STEPS":
+      return { ...state, thinkingSteps: [] };
     case "SET_ERROR":
       return { ...state, error: action.payload };
     case "SET_CONVERSATIONS":
@@ -117,8 +134,6 @@ const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
           (c) => c.id !== action.payload,
         ),
       };
-    case "SET_REASONING_TRACE":
-      return { ...state, reasoningTrace: action.payload };
     case "SET_TEST_PLAN":
       return { ...state, testPlan: action.payload };
     case "SET_SELECTED_WORKSPACE":
@@ -137,8 +152,9 @@ const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
         conversationId: null,
         messages: [],
         error: null,
-        reasoningTrace: null,
         testPlan: null,
+        isThinking: false,
+        thinkingSteps: [],
       };
     default:
       return state;
@@ -175,6 +191,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
       dispatch({ type: "ADD_MESSAGE", payload: userMessage });
       dispatch({ type: "SET_LOADING", payload: true });
       dispatch({ type: "SET_ERROR", payload: null });
+      dispatch({ type: "CLEAR_THINKING_STEPS" });
+      dispatch({ type: "SET_THINKING", payload: true });
 
       try {
         let messagesWithContext: ChatMessage[] = [
@@ -193,44 +211,68 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
           ];
         }
 
-        const response = await chatApi.sendMessage({
-          messages: messagesWithContext,
-          conversationId: state.conversationId || undefined,
-          workspaceIds: workspaceIds,
-        });
+        let responseContent = "";
+        let conversationIdFromResponse: string | null = null;
 
-        if (response.metadata?.conversation_id && !state.conversationId) {
-          dispatch({
-            type: "SET_CONVERSATION_ID",
-            payload: response.metadata.conversation_id,
-          });
+        await chatApi.sendMessageStreamWithThinking(
+          {
+            messages: messagesWithContext,
+            conversationId: state.conversationId || undefined,
+            workspaceIds: workspaceIds,
+          },
+          {
+            onThinkingStart: () => {
+              dispatch({ type: "SET_THINKING", payload: true });
+            },
+            onThinkingStep: (step) => {
+              dispatch({ type: "UPSERT_THINKING_STEP", payload: step });
+            },
+            onThinkingEnd: () => {
+              dispatch({ type: "SET_THINKING", payload: false });
+            },
+            onContent: (content) => {
+              responseContent = content;
+              const assistantMessage: ChatMessage = {
+                role: "assistant",
+                content: responseContent,
+              };
+              dispatch({ type: "ADD_MESSAGE", payload: assistantMessage });
+            },
+            onComplete: (response) => {
+              conversationIdFromResponse = response.metadata?.conversation_id || null;
 
-          dispatch({ type: "SET_CONVERSATIONS_LOADING", payload: true });
-          conversationsApi
-            .list({ limit: 50 })
-            .then((res) => {
+              if (conversationIdFromResponse && !state.conversationId) {
+                dispatch({
+                  type: "SET_CONVERSATION_ID",
+                  payload: conversationIdFromResponse,
+                });
+
+                dispatch({ type: "SET_CONVERSATIONS_LOADING", payload: true });
+                conversationsApi
+                  .list({ limit: 50 })
+                  .then((res) => {
+                    dispatch({
+                      type: "SET_CONVERSATIONS",
+                      payload: res.conversations,
+                    });
+                    dispatch({ type: "SET_CONVERSATIONS_LOADING", payload: false });
+                  })
+                  .catch(() => {
+                    dispatch({ type: "SET_CONVERSATIONS_LOADING", payload: false });
+                  });
+              }
+
+              dispatch({ type: "SET_TEST_PLAN", payload: response.test_plan });
+            },
+            onError: (error) => {
+              console.error("Stream error:", error);
               dispatch({
-                type: "SET_CONVERSATIONS",
-                payload: res.conversations,
+                type: "SET_ERROR",
+                payload: error.message || "Failed to send message",
               });
-              dispatch({ type: "SET_CONVERSATIONS_LOADING", payload: false });
-            })
-            .catch(() => {
-              dispatch({ type: "SET_CONVERSATIONS_LOADING", payload: false });
-            });
-        }
-
-        if (response.messages.length > 0) {
-          const assistantMessage =
-            response.messages[response.messages.length - 1];
-          dispatch({ type: "ADD_MESSAGE", payload: assistantMessage });
-        }
-
-        dispatch({
-          type: "SET_REASONING_TRACE",
-          payload: response.reasoning_trace,
-        });
-        dispatch({ type: "SET_TEST_PLAN", payload: response.test_plan });
+            },
+          }
+        );
       } catch (error) {
         console.error("Failed to send message:", error);
         dispatch({
@@ -240,6 +282,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         });
       } finally {
         dispatch({ type: "SET_LOADING", payload: false });
+        dispatch({ type: "SET_THINKING", payload: false });
       }
     },
     [state.conversationId, state.messages],
@@ -261,7 +304,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
 
       dispatch({ type: "SET_CONVERSATION_ID", payload: conversationId });
       dispatch({ type: "SET_MESSAGES", payload: chatMessages });
-      dispatch({ type: "SET_REASONING_TRACE", payload: null });
       dispatch({ type: "SET_TEST_PLAN", payload: null });
 
       if (response.conversation.active_workspace_id) {

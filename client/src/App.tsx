@@ -11,8 +11,6 @@ import {
   FluentProvider,
   webLightTheme,
   webDarkTheme,
-  makeStyles,
-  tokens,
   Tab,
   TabList,
   Button,
@@ -37,70 +35,13 @@ import {
 } from "./components";
 import { healthApi } from "./api";
 import { APP_STRINGS, LABELS } from "./constants";
+import { useAppStyles as useStyles } from "./styles";
 
 const ChatIcon = bundleIcon(ChatFilled, ChatRegular);
 const TestIcon = bundleIcon(
   ClipboardTaskListLtrFilled,
   ClipboardTaskListLtrRegular,
 );
-
-const useStyles = makeStyles({
-  root: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100vh",
-    backgroundColor: tokens.colorNeutralBackground1,
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalL}`,
-    borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
-    backgroundColor: tokens.colorNeutralBackground2,
-  },
-  headerLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalM,
-  },
-  headerRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-  },
-  title: {
-    fontSize: tokens.fontSizeBase500,
-    fontWeight: tokens.fontWeightSemibold,
-    color: tokens.colorNeutralForeground1,
-    margin: 0,
-  },
-  statusBadge: {
-    marginLeft: tokens.spacingHorizontalS,
-  },
-  mainContainer: {
-    display: "flex",
-    flex: 1,
-    overflow: "hidden",
-  },
-  sidebar: {
-    width: "280px",
-    borderRight: `1px solid ${tokens.colorNeutralStroke1}`,
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: tokens.colorNeutralBackground2,
-  },
-  content: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-  },
-  tabContent: {
-    flex: 1,
-    overflow: "hidden",
-  },
-});
 
 type TabValue = "chat" | "tests";
 
