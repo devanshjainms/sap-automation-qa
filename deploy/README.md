@@ -57,9 +57,36 @@ User (VPN) → VM (nginx:80) → React Frontend (static files)
    curl http://localhost/               # Frontend
    ```
 
-7. **Access the application:**
-   - Internal URL: `http://<vm-private-ip>/`
-   - Users must be on VPN/corporate network
+7. **Access the application** (see [Accessing the Web UI](#accessing-the-web-ui) below)
+
+### Accessing the Web UI
+
+Since the VM has only a private IP, choose one of these methods:
+
+#### Option A: Jump VM with Desktop (Recommended)
+If you have a Windows/Linux VM with desktop access in the same VNet:
+1. RDP/VNC into the jump VM
+2. Open a browser and navigate to `http://<backend-vm-private-ip>/`
+
+#### Option B: VS Code Remote-SSH with Port Forwarding
+1. Install VS Code with Remote-SSH extension
+2. Configure SSH via jump host or VPN in `~/.ssh/config`
+3. Connect to the VM via Remote-SSH
+4. VS Code auto-forwards ports - click on port 80 in the Ports panel
+5. Browse to the forwarded local URL
+
+#### Option C: SSH Tunnel (if direct SSH available)
+```bash
+ssh -L 8080:localhost:80 user@<vm-ip>
+# Then browse to http://localhost:8080
+```
+
+#### Option D: Bastion Native Client (requires admin setup)
+Ask your Azure admin to enable tunneling on Bastion:
+```bash
+az network bastion update --name <bastion-name> -g <rg> --enable-tunneling true
+```
+Then users can tunnel via CLI.
 
 ### Updating the Application
 
