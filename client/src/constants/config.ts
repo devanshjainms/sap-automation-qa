@@ -6,8 +6,27 @@
  * Centralized configuration constants for the application.
  */
 
+// Get API URL from environment variable (set at build time)
+// In production: leave empty for same-origin relative URLs (/api/*)
+// In development: defaults to localhost:8000
+const getApiBaseUrl = (): string => {
+  // Vite uses import.meta.env
+  const envUrl = (import.meta as any).env?.VITE_API_URL;
+  
+  // If explicitly set, use it
+  if (envUrl) return envUrl;
+  
+  // In production (served by nginx), use relative URL
+  if ((import.meta as any).env?.PROD) {
+    return "";  // Relative URLs: /api/chat, /api/workspaces, etc.
+  }
+  
+  // Fallback for development
+  return "http://localhost:8000";
+};
+
 export const APP_CONFIG = {
-  API_BASE_URL: process.env.REACT_APP_API_URL || "http://localhost:8000",
+  API_BASE_URL: getApiBaseUrl(),
   API_TIMEOUT: 120000,
   API_RETRY_ATTEMPTS: 3,
   API_RETRY_DELAY: 1000,

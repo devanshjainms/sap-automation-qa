@@ -1,0 +1,88 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: sap-qa-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONPATH=/app
+      # Enable Azure Managed Identity in container
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+    volumes:
+      - sap-qa-data:/app/data
+      - ssh-keys:/root/.ssh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - sap-qa-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Frontend build (runs once, exits after building)
+  frontend:
+    image: node:20-alpine
+    container_name: sap-qa-frontend-build
+    working_dir: /app
+    volumes:
+      - ../client:/app
+      - frontend-dist:/app/dist
+    environment:
+      - VITE_API_URL=  # Empty = same origin (relative URLs)
+    command: sh -c "npm ci && npm run build"
+    profiles:
+      - build  # Only run with: docker compose --profile build up
+
+  nginx:
+    image: nginx:alpine
+    container_name: sap-qa-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - frontend-dist:/usr/share/nginx/html:ro
+      - nginx-cache:/var/cache/nginx
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - sap-qa-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+volumes:
+  sap-qa-data:
+    name: sap-qa-data
+  ssh-keys:
+    name: sap-qa-ssh-keys
+  frontend-dist:
+    name: sap-qa-frontend-dist
+  nginx-cache:
+    name: sap-qa-nginx-cache
+
+networks:
+  sap-qa-network:
+    name: sap-qa-network
+    driver: bridge
