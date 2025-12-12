@@ -11,6 +11,19 @@ import axios, {
 } from "axios";
 import { APP_CONFIG } from "../constants";
 
+// Fallback for crypto.randomUUID (not available in non-HTTPS contexts)
+const generateUUID = (): string => {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback implementation
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 const createApiClient = (): AxiosInstance => {
   const client = axios.create({
     baseURL: APP_CONFIG.API_BASE_URL,
@@ -22,7 +35,7 @@ const createApiClient = (): AxiosInstance => {
 
   client.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-      const correlationId = crypto.randomUUID();
+      const correlationId = generateUUID();
       config.headers.set("X-Correlation-ID", correlationId);
       return config;
     },
