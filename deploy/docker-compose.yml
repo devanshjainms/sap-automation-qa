@@ -41,11 +41,11 @@ services:
     container_name: sap-qa-frontend-build
     working_dir: /app
     volumes:
-      - ../client:/app
-      - frontend-dist:/app/dist
+      - ../client:/app:ro
+      - frontend-dist:/output
     environment:
       - VITE_API_URL=  # Empty = same origin (relative URLs)
-    command: sh -c "npm ci && npm run build"
+    command: sh -c "npm ci && npm run build && cp -r dist/* /output/"
     profiles:
       - build  # Only run with: docker compose --profile build up
 
