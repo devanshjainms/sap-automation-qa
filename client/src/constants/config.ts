@@ -7,7 +7,7 @@
  */
 
 // Get API URL from environment variable (set at build time)
-// In production: leave empty for same-origin relative URLs (/api/*)
+// In production: /api prefix for nginx proxy
 // In development: defaults to localhost:8000
 const getApiBaseUrl = (): string => {
   // Create React App uses process.env.REACT_APP_*
@@ -16,9 +16,9 @@ const getApiBaseUrl = (): string => {
   // If explicitly set, use it
   if (envUrl) return envUrl;
   
-  // In production (served by nginx), use relative URL
+  // In production (served by nginx), use /api prefix
   if (process.env.NODE_ENV === "production") {
-    return "";  // Relative URLs: /api/chat, /api/workspaces, etc.
+    return "/api";  // nginx proxies /api/* to backend
   }
   
   // Fallback for development
