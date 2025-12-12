@@ -10,14 +10,14 @@
 // In production: leave empty for same-origin relative URLs (/api/*)
 // In development: defaults to localhost:8000
 const getApiBaseUrl = (): string => {
-  // Vite uses import.meta.env
-  const envUrl = (import.meta as any).env?.VITE_API_URL;
+  // Create React App uses process.env.REACT_APP_*
+  const envUrl = process.env.REACT_APP_API_URL;
   
   // If explicitly set, use it
   if (envUrl) return envUrl;
   
   // In production (served by nginx), use relative URL
-  if ((import.meta as any).env?.PROD) {
+  if (process.env.NODE_ENV === "production") {
     return "";  // Relative URLs: /api/chat, /api/workspaces, etc.
   }
   
