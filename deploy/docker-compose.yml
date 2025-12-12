@@ -44,7 +44,7 @@ services:
       - ../client:/src:ro
       - frontend-dist:/output
     environment:
-      - VITE_API_URL=  # Empty = same origin (relative URLs)
+      - REACT_APP_API_URL=  # Empty = same origin (relative URLs)
     command: sh -c "cp -r /src/* /build/ && npm ci && npm run build && cp -r build/* /output/"
     profiles:
       - build  # Only run with: docker compose --profile build up
