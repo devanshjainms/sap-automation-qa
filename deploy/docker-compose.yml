@@ -45,7 +45,7 @@ services:
       - frontend-dist:/output
     environment:
       - VITE_API_URL=  # Empty = same origin (relative URLs)
-    command: sh -c "cp -r /src/* /build/ && npm ci && npm run build && cp -r dist/* /output/"
+    command: sh -c "cp -r /src/* /build/ && npm ci && npm run build && cp -r build/* /output/"
     profiles:
       - build  # Only run with: docker compose --profile build up
 
