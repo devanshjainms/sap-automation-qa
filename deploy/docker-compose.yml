@@ -21,6 +21,8 @@ services:
     volumes:
       - sap-qa-data:/app/data
       - ssh-keys:/root/.ssh
+      # Persist workspaces created via the UI/API across rebuilds/recreates
+      - ../WORKSPACES:/app/WORKSPACES
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
       interval: 30s

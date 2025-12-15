@@ -34,9 +34,9 @@ class AgentRoutingPlugin:
 
     @kernel_function(
         name="route_to_echo",
-        description="Route the request to the Echo agent for general help, documentation questions, "
-        + "greetings, or when user intent is unclear. Use when user asks about framework capabilities, "
-        + "how to use the system, or needs general information.",
+        description="Route to Echo agent ONLY for pure documentation questions, greetings, "
+        + "or explaining how the framework works. Do NOT use for any operational requests like "
+        + "checking status, running commands, viewing logs, or diagnostics - those go to test_executor.",
     )
     def route_to_echo(
         self,
@@ -118,8 +118,12 @@ class AgentRoutingPlugin:
 
     @kernel_function(
         name="route_to_test_executor",
-        description="Route to Test Executor agent for running tests. Use when user explicitly asks to "
-        + "execute, run, or start tests. This agent handles actual test execution with safety controls. "
+        description="Route to Test Executor agent for ANY operational request on SAP systems. "
+        + "Use when user wants to: run tests, check cluster status, check Pacemaker status, "
+        + "tail log files, view system messages, run diagnostics, execute SSH commands to hosts, "
+        + "get HANA status, check SCS status, run 'crm status', run 'pcs status', or ANY command "
+        + "that needs to be executed on remote SAP hosts. This is the primary agent for all "
+        + "operational/diagnostic work. "
         + "Parameters: workspace_id (required), test_filter (optional), include_destructive (default: false).",
     )
     def route_to_test_executor(
