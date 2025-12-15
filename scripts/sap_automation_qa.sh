@@ -178,6 +178,15 @@ validate_params() {
         log "ERROR" "Error: The following parameters cannot be empty: ${missing_params[*]}"
         exit 1
     fi
+
+    WORKSPACES_DIR=$(grep "^WORKSPACES_DIR:" "$VARS_FILE" | awk '{split($0,a,": "); print a[2]}' | xargs)
+    if [[ -z "$WORKSPACES_DIR" ]]; then
+        WORKSPACES_DIR="WORKSPACES"
+        log "INFO" "WORKSPACES_DIR not set in vars.yaml, using default: $WORKSPACES_DIR"
+    else
+        log "INFO" "WORKSPACES_DIR: $WORKSPACES_DIR"
+    fi
+    export WORKSPACES_DIR
 }
 
 # Extract the error message from a command's output.
@@ -403,7 +412,7 @@ run_ansible_playbook() {
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts --private-key $temp_file \
                     -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars"
             else
-                local ssh_key_dir="${cmd_dir}/../WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME"
+                local ssh_key_dir="${cmd_dir}/../$WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME"
                 local ssh_key=""
                 local extensions=("ppk" "pem" "key" "private" "rsa" "ed25519" "ecdsa" "dsa" "")
 
@@ -429,7 +438,7 @@ run_ansible_playbook() {
                 fi
 
                 check_file_exists "$ssh_key" \
-                    "SSH key file not found in WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME directory. Looked for files with patterns: ssh_key.*, *ssh_key*"
+                    "SSH key file not found in $WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME directory. Looked for files with patterns: ssh_key.*, *ssh_key*"
 
                 chmod 600 "$ssh_key"
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts --private-key $ssh_key \
@@ -449,9 +458,9 @@ run_ansible_playbook() {
                     --extra-vars 'ansible_ssh_pass=$(cat $temp_file)' --extra-vars @$VARS_FILE -e @$system_params \
                     -e '_workspace_directory=$system_config_folder' $extra_vars"
             else
-                local password_file="${cmd_dir}/../WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME/password"
+                local password_file="${cmd_dir}/../$WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME/password"
                 check_file_exists "$password_file" \
-                    "password file not found in WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME directory."
+                    "password file not found in $WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME directory."
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts \
                     --extra-vars 'ansible_ssh_pass=$(cat $password_file)' --extra-vars @$VARS_FILE -e @$system_params \
                     -e '_workspace_directory=$system_config_folder' $extra_vars"
@@ -509,7 +518,7 @@ main() {
     validate_params
 
     # Check if the SYSTEM_HOSTS and SYSTEM_PARAMS directory exists inside WORKSPACES/SYSTEM folder
-    SYSTEM_CONFIG_FOLDER="${cmd_dir}/../WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME"
+    SYSTEM_CONFIG_FOLDER="${cmd_dir}/../$WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME"
     SYSTEM_HOSTS="$SYSTEM_CONFIG_FOLDER/hosts.yaml"
     SYSTEM_PARAMS="$SYSTEM_CONFIG_FOLDER/sap-parameters.yaml"
     TEST_TIER=$(echo "$TEST_TIER" | tr '[:upper:]' '[:lower:]')
@@ -519,9 +528,9 @@ main() {
     log "INFO" "Using Authentication Type: $AUTHENTICATION_TYPE."
 
     check_file_exists "$SYSTEM_HOSTS" \
-        "hosts.yaml not found in WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME directory."
+        "hosts.yaml not found in $WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME directory."
     check_file_exists "$SYSTEM_PARAMS" \
-        "sap-parameters.yaml not found in WORKSPACES/SYSTEM/$SYSTEM_CONFIG_NAME directory."
+        "sap-parameters.yaml not found in $WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME directory."
 
 		if [[ "$OFFLINE_MODE" == "true" ]]; then
         local crm_report_dir="$SYSTEM_CONFIG_FOLDER/offline_validation"

@@ -166,6 +166,7 @@ class HAClusterValidator(BaseHAClusterValidator):
         "ipaddr": ".//primitive[@type='IPaddr2']",
         "azurelb": ".//primitive[@type='azure-lb']",
         "azureevents": ".//primitive[@type='azure-events-az']",
+        "filesystem": ".//primitive[@type='Filesystem']",
     }
 
     def __init__(

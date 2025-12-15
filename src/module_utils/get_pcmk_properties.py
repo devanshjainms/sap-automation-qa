@@ -561,12 +561,33 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
 
         if failed_parameters:
             overall_status = TestStatus.ERROR.value
+            failed_param_names = []
+            for param in failed_parameters:
+                param_name = param.get("name", "")
+                category = param.get("category", "")
+                if param_name and category:
+                    failed_param_names.append(f"'{param_name}' ({category})")
+                elif param_name:
+                    failed_param_names.append(f"'{param_name}'")
+
+            if failed_param_names:
+                self.result["message"] += (
+                    f"HA parameter validation failed for {len(failed_parameters)} parameter(s): "
+                    f"{', '.join(failed_param_names)}. "
+                )
+            else:
+                self.result[
+                    "message"
+                ] += f"HA parameter validation failed for {len(failed_parameters)} parameter(s). "
         elif warning_parameters:
             overall_status = TestStatus.WARNING.value
+            self.result["message"] += "HA parameter validation completed with warnings. "
         elif self.result.get("status") == TestStatus.WARNING.value:
             overall_status = TestStatus.WARNING.value
+            self.result["message"] += "HA parameter validation completed with warnings. "
         else:
             overall_status = TestStatus.SUCCESS.value
+            self.result["message"] += "HA parameter validation completed successfully. "
 
         self.result.update(
             {
@@ -574,7 +595,6 @@ class BaseHAClusterValidator(SapAutomationQA, ABC):
                 "status": overall_status,
             }
         )
-        self.result["message"] += "HA parameter validation completed successfully. "
         recommendation_message = self._generate_recommendation_message()
         if recommendation_message:
             self.result["message"] += recommendation_message

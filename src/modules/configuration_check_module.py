@@ -997,7 +997,7 @@ class ConfigurationCheckModule(SapAutomationQA):
                         "duration_seconds": execution_duration,
                         "total_checks_attempted": len(self.checks),
                         "checks_completed": len(result.get("check_results", [])),
-                        "python_module_version": "1.0.0",
+                        "python_module_version": "1.0.1",
                         "execution_mode": (
                             "parallel"
                             if self.module_params.get("parallel_execution", False)
