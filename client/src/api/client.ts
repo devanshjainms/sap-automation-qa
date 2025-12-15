@@ -12,7 +12,7 @@ import axios, {
 import { APP_CONFIG } from "../constants";
 
 // Fallback for crypto.randomUUID (not available in non-HTTPS contexts)
-const generateUUID = (): string => {
+export const generateUUID = (): string => {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }

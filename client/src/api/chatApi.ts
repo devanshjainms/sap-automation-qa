@@ -4,7 +4,7 @@
 /**
  * Chat API Service - Handles chat message operations.
  */
-import { apiClient } from "./client";
+import { apiClient, generateUUID } from "./client";
 import { API_ENDPOINTS, buildChatQuery } from "./endpoints";
 import { ChatMessage, ChatResponse } from "../types";
 
@@ -64,7 +64,7 @@ export const chatApi = {
     const url = `${API_ENDPOINTS.CHAT}/stream${query ? `?${query}` : ""}`;
 
     try {
-      const correlationId = params.correlationId || crypto.randomUUID();
+      const correlationId = params.correlationId || generateUUID();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         "X-Correlation-ID": correlationId,
@@ -171,7 +171,7 @@ export const chatApi = {
     const url = `${API_ENDPOINTS.CHAT}/stream${query ? `?${query}` : ""}`;
 
     try {
-      const correlationId = params.correlationId || crypto.randomUUID();
+      const correlationId = params.correlationId || generateUUID();
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         "X-Correlation-ID": correlationId,
