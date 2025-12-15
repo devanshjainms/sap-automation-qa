@@ -342,31 +342,58 @@ show_logs() {
     docker compose logs -f
 }
 
+# Update and rebuild (pull latest code)
+update_and_rebuild() {
+    log_info "Pulling latest code..."
+    cd "$PROJECT_DIR"
+    git pull
+    
+    log_info "Rebuilding backend with no cache..."
+    cd "$DEPLOY_DIR"
+    docker compose build --no-cache backend
+    
+    log_info "Rebuilding frontend..."
+    docker rm -f sap-qa-frontend-build 2>/dev/null || true
+    docker volume rm -f sap-qa-frontend-dist 2>/dev/null || true
+    docker compose --profile build up frontend
+    
+    log_info "Restarting services..."
+    docker compose up -d
+    
+    log_info "Waiting for services to be healthy..."
+    sleep 5
+    
+    verify_deployment
+    log_success "Update complete!"
+}
+
 # Main menu
 show_menu() {
     echo ""
     echo "What would you like to do?"
     echo ""
     echo "  1) Full setup (recommended for first time)"
-    echo "  2) Reconfigure environment (.env)"
-    echo "  3) Rebuild frontend only"
-    echo "  4) Restart services"
-    echo "  5) View logs"
-    echo "  6) Check status"
-    echo "  7) Stop services"
-    echo "  8) Exit"
+    echo "  2) Update & rebuild (pull code + rebuild)"
+    echo "  3) Reconfigure environment (.env)"
+    echo "  4) Rebuild frontend only"
+    echo "  5) Restart services"
+    echo "  6) View logs"
+    echo "  7) Check status"
+    echo "  8) Stop services"
+    echo "  9) Exit"
     echo ""
-    read -p "Select option [1-8]: " choice
+    read -p "Select option [1-9]: " choice
     
     case $choice in
         1) full_setup ;;
-        2) setup_environment ;;
-        3) build_frontend && docker compose -f "$DEPLOY_DIR/docker-compose.yml" restart nginx ;;
-        4) start_services && verify_deployment ;;
-        5) show_logs ;;
-        6) verify_deployment ;;
-        7) cd "$DEPLOY_DIR" && docker compose down && log_success "Services stopped" ;;
-        8) exit 0 ;;
+        2) update_and_rebuild ;;
+        3) setup_environment ;;
+        4) build_frontend && docker compose -f "$DEPLOY_DIR/docker-compose.yml" restart nginx ;;
+        5) start_services && verify_deployment ;;
+        6) show_logs ;;
+        7) verify_deployment ;;
+        8) cd "$DEPLOY_DIR" && docker compose down && log_success "Services stopped" ;;
+        9) exit 0 ;;
         *) log_error "Invalid option" && show_menu ;;
     esac
 }
@@ -397,6 +424,9 @@ main() {
         --full|--install)
             full_setup
             ;;
+        --update)
+            update_and_rebuild
+            ;;
         --configure)
             setup_environment
             ;;
@@ -425,6 +455,7 @@ main() {
             echo ""
             echo "Options:"
             echo "  --full, --install   Run complete setup"
+            echo "  --update            Pull latest code and rebuild"
             echo "  --configure         Configure environment only"
             echo "  --build             Build frontend only"
             echo "  --start             Start services"
