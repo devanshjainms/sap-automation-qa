@@ -304,7 +304,7 @@ verify_deployment() {
     fi
     
     # Check API through nginx
-    if curl -sf http://localhost/api/health &>/dev/null; then
+    if curl -sf http://localhost/api/healthz &>/dev/null; then
         echo -e "  API (via nginx):     ${GREEN}✓ Proxying${NC}"
     else
         echo -e "  API (via nginx):     ${RED}✗ Proxy failed${NC}"
