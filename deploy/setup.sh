@@ -266,7 +266,7 @@ start_services() {
     # Wait for backend to be healthy
     RETRIES=30
     while [ $RETRIES -gt 0 ]; do
-        if docker exec sap-qa-backend curl -sf http://localhost:8000/health &>/dev/null; then
+        if docker exec sap-qa-backend curl -sf http://localhost:8000/healthz &>/dev/null; then
             break
         fi
         RETRIES=$((RETRIES-1))
@@ -290,7 +290,7 @@ verify_deployment() {
     echo "───────────────────────────────────────"
     
     # Check backend
-    if curl -sf http://localhost:8000/health &>/dev/null; then
+    if curl -sf http://localhost:8000/healthz &>/dev/null; then
         echo -e "  Backend (direct):    ${GREEN}✓ Healthy${NC}"
     else
         echo -e "  Backend (direct):    ${RED}✗ Unhealthy${NC}"
