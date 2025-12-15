@@ -69,6 +69,14 @@ def validate_readonly_command(command: str) -> None:
             if segment:
                 validate_readonly_command(segment)
         return
+
+    if tokens[0] == "sudo":
+        if len(tokens) < 2:
+            raise ValueError("sudo requires a command to execute")
+        remaining_cmd = " ".join(tokens[1:])
+        validate_readonly_command(remaining_cmd)
+        return
+
     binary = tokens[0]
     if "/" in binary:
         binary = binary.split("/")[-1]
@@ -78,7 +86,8 @@ def validate_readonly_command(command: str) -> None:
             f"Binary '{binary}' is not in the allowed list. "
             f"Allowed binaries: {', '.join(sorted(ALLOWED_BINARIES))}"
         )
-    for token in tokens:
+
+    for token in tokens[1:]:
         token_lower = token.lower()
         if token_lower in FORBIDDEN_TOKENS:
             raise ValueError(

@@ -59,6 +59,20 @@ ALLOWED_BINARIES: Set[str] = {
     # System logs
     "journalctl",
     "sysctl",
+    # Cluster management (read-only)
+    "crm",
+    "crm_mon",
+    "crm_attribute",
+    "cibadmin",
+    "pcs",
+    "corosync-cmapctl",
+    # SAP utilities
+    "hdbnsutil",
+    "sapcontrol",
+    "SAPHanaSR-showAttr",
+    "cs_clusterstate",
+    # Privilege escalation (for safe commands)
+    "sudo",
 }
 
 FORBIDDEN_TOKENS: Set[str] = {
