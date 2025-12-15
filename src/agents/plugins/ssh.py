@@ -13,6 +13,7 @@ All commands are validated against a whitelist for safety.
 """
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Annotated, Optional, Tuple
@@ -74,7 +75,12 @@ class SSHPlugin:
         command_lower = command.lower().strip()
 
         for pattern in SSH_BLOCKED_PATTERNS:
-            if pattern.lower() in command_lower:
+            pattern_lower = pattern.lower().strip()
+            if pattern_lower and pattern_lower[0].isalnum():
+                regex_pattern = r"(?:^|\s)" + re.escape(pattern_lower)
+            else:
+                regex_pattern = re.escape(pattern_lower)
+            if re.search(regex_pattern, command_lower):
                 return False, f"Command contains blocked pattern: '{pattern}'"
         if command.strip() in SSH_SAFE_COMMANDS:
             return True, "Command in safe list"

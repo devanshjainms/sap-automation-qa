@@ -28,6 +28,9 @@ Jinja2
 PyYAML
 requests
 
+# Ansible for HA testing
+ansible-core>=2.15
+
 # API and agentic frameworks
 fastapi
 uvicorn
