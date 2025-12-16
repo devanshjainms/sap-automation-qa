@@ -18,9 +18,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Any, Optional, Union
 
 from src.agents.observability.context import ObservabilityContextManager
@@ -369,6 +372,7 @@ class LoggerFactory:
         logger.setLevel(level)
         logger.handlers.clear()
 
+        # Console handler (stdout)
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
 
@@ -378,6 +382,22 @@ class LoggerFactory:
             handler.setFormatter(ConsoleFormatter(service_name=service_name))
 
         logger.addHandler(handler)
+
+        # File handler - always JSON for easy parsing
+        log_dir = Path(os.environ.get("LOG_DIR", "data/logs"))
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "sap-qa-agents.log"
+
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10 * 1024 * 1024,  # 10MB
+            backupCount=5,
+            encoding="utf-8",
+        )
+        file_handler.setLevel(level)
+        file_handler.setFormatter(JSONFormatter(service_name=service_name))
+        logger.addHandler(file_handler)
+
         logger.propagate = False
 
     @classmethod
