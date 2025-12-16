@@ -15,6 +15,7 @@ from src.agents.models.api import (
     StatusResponse,
     UpdateConversationRequest,
 )
+from src.agents.models.action import ActionJob, ActionPlan
 from src.agents.models.chat import (
     ChatMessage,
     ChatRequest,
@@ -64,6 +65,9 @@ __all__ = [
     "SendMessageRequest",
     "StatusResponse",
     "UpdateConversationRequest",
+    # Action plan models
+    "ActionJob",
+    "ActionPlan",
     # Chat models
     "ChatMessage",
     "ChatRequest",

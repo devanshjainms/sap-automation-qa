@@ -194,9 +194,9 @@ class OrchestratorSK:
     ) -> ChatResponse:
         """Route chat request to appropriate agent and return response.
 
-        For test execution requests, this orchestrator will:
-        1. First route to TestPlannerAgent to generate a plan
-        2. Then route to TestExecutorAgent with the generated plan
+        For operational/execution requests routed to the unified executor, this orchestrator will:
+        1. Invoke ActionPlannerAgent to generate a validated ActionPlan (jobs)
+        2. Invoke the unified executor (ActionExecutorAgent) with the ActionPlan
         3. Return the execution results
 
         :param request: ChatRequest with conversation history
@@ -212,8 +212,8 @@ class OrchestratorSK:
         try:
             agent_name, agent_input = await self._choose_agent_with_sk(request)
 
-            if agent_name == "test_executor":
-                response = await self._handle_test_execution(request, agent_input, context)
+            if agent_name == "action_executor":
+                response = await self._handle_action_execution(request, agent_input, context)
                 await emit_thinking_end()
                 return response
 
@@ -267,166 +267,54 @@ class OrchestratorSK:
         finally:
             self.tracer.finish()
 
-    async def _handle_test_execution(
+    async def _handle_action_execution(
         self,
         request: ChatRequest,
         agent_input: dict,
         context: Optional[dict] = None,
     ) -> ChatResponse:
-        """Handle test execution by coordinating TestPlannerAgent -> TestExecutorAgent.
+        """Generate an ActionPlan via ActionPlannerAgent, then execute it via unified executor."""
 
-        :param request: Original chat request
-        :type request: ChatRequest
-        :param agent_input: Input extracted for the test executor
-        :type agent_input: dict
-        :param context: Optional context
-        :type context: Optional[dict]
-        :returns: ChatResponse from test execution
-        :rtype: ChatResponse
-        """
-        try:
-            logger.info("Generating test plan for execution request...")
+        action_planner = self.registry.get("action_planner")
+        if action_planner is None:
+            raise ValueError("ActionPlannerAgent not found")
 
-            self.tracer.step(
-                "test_selection",
-                "tool_call",
-                "Invoking test planner to generate test plan",
-                input_snapshot=sanitize_snapshot({"agent_input_keys": list(agent_input.keys())}),
+        planning_context = {"agent_input": agent_input} if context is None else {**context}
+        planning_context["agent_input"] = agent_input
+
+        planning_response = await action_planner.run(
+            messages=request.messages,
+            context=planning_context,
+        )
+
+        action_plan = getattr(planning_response, "action_plan", None)
+        if not action_plan:
+            logger.warning(
+                "ActionPlannerAgent did not return ActionPlan; returning planner response"
             )
+            return planning_response
 
-            test_planner = self.registry.get("test_planner")
-            if test_planner is None:
-                raise ValueError("TestPlannerAgent not found")
-            planning_context = (
-                {"agent_input": agent_input}
-                if context is None
-                else {**context, "agent_input": agent_input}
-            )
-            planning_response = await test_planner.run(
-                messages=request.messages, context=planning_context
-            )
-            planner_trace = planning_response.reasoning_trace
+        action_executor = self.registry.get("action_executor")
+        if action_executor is None:
+            raise ValueError("ActionExecutorAgent not found")
 
-            test_plan = None
-            if planning_response.test_plan:
-                test_plan = planning_response.test_plan
-                logger.info(
-                    f"Retrieved test plan from TestPlannerAgent: "
-                    + f"workspace={test_plan.get('workspace_id')}, "
-                    + f"tests={test_plan.get('total_tests', 0)}"
-                )
+        execution_context = {"agent_input": agent_input, "action_plan": action_plan}
+        if context:
+            execution_context = {**context, **execution_context}
 
-                self.tracer.step(
-                    "test_selection",
-                    "decision",
-                    "Test plan generated successfully",
-                    output_snapshot=sanitize_snapshot(
-                        {
-                            "workspace_id": test_plan.get("workspace_id"),
-                            "total_tests": test_plan.get("total_tests", 0),
-                            "safe_tests": len(test_plan.get("safe_tests", [])),
-                            "destructive_tests": len(test_plan.get("destructive_tests", [])),
-                        }
-                    ),
-                )
-            else:
-                logger.warning("TestPlannerAgent did not return a structured test plan")
-                last_message = (
-                    planning_response.messages[-1].content if planning_response.messages else ""
-                )
-                if "test_plan" in last_message.lower() or "{" in last_message:
-                    try:
-                        start_idx = last_message.find("{")
-                        end_idx = last_message.rfind("}") + 1
-                        if start_idx >= 0 and end_idx > start_idx:
-                            json_str = last_message[start_idx:end_idx]
-                            test_plan = json.loads(json_str)
-                            logger.info("Extracted test plan from message content")
-                    except (json.JSONDecodeError, ValueError) as e:
-                        logger.error(f"Failed to parse JSON from message: {e}")
+        execution_response = await action_executor.run(
+            messages=request.messages,
+            context=execution_context,
+        )
 
-            if not test_plan:
-                last_message = (
-                    planning_response.messages[-1].content if planning_response.messages else ""
-                )
+        orch_trace = self.tracer.get_trace()
+        if orch_trace:
+            if planning_response.reasoning_trace:
+                orch_trace["steps"].extend(planning_response.reasoning_trace.get("steps", []))
+            if execution_response.reasoning_trace:
+                orch_trace["steps"].extend(execution_response.reasoning_trace.get("steps", []))
+            execution_response.reasoning_trace = orch_trace
 
-                orch_trace = self.tracer.get_trace()
-                planner_trace = planning_response.reasoning_trace
-                if orch_trace and planner_trace:
-                    orch_trace["steps"].extend(planner_trace.get("steps", []))
-                    planning_response.reasoning_trace = orch_trace
-                elif orch_trace:
-                    planning_response.reasoning_trace = orch_trace
+        return execution_response
 
-                if "success" in last_message.lower() or "completed" in last_message.lower():
-                    logger.info("Test executed successfully without formal test plan generation")
-                    return planning_response
-                else:
-                    logger.warning("No test plan generated, returning planner response")
-                    return planning_response
 
-            execution_request = ExecutionRequest(
-                workspace_id=agent_input.get("workspace_id", test_plan.get("workspace_id", "")),
-                include_destructive=False,
-                mode="selected" if agent_input.get("test_filter") else "all_safe",
-            )
-
-            logger.info("Executing test plan...")
-            self.tracer.step(
-                "execution_planning",
-                "tool_call",
-                "Dispatching test execution to test executor",
-                input_snapshot=sanitize_snapshot(
-                    {
-                        "workspace_id": execution_request.workspace_id,
-                        "mode": execution_request.mode,
-                        "include_destructive": execution_request.include_destructive,
-                    }
-                ),
-            )
-
-            test_executor = self.registry.get("test_executor")
-            if test_executor is None:
-                raise ValueError("TestExecutorAgent not found")
-
-            execution_context = {
-                "test_plan": test_plan,
-                "execution_request": execution_request.dict(),
-                "agent_input": agent_input,
-            }
-            execution_response = await test_executor.run(
-                messages=request.messages, context=execution_context
-            )
-
-            orch_trace = self.tracer.get_trace()
-            if orch_trace:
-                all_steps = orch_trace["steps"]
-
-                if planner_trace:
-                    all_steps.extend(planner_trace.get("steps", []))
-
-                if execution_response.reasoning_trace:
-                    all_steps.extend(execution_response.reasoning_trace.get("steps", []))
-
-                execution_response.reasoning_trace = orch_trace
-
-            return execution_response
-
-        except Exception as e:
-            logger.error(f"Error in test execution orchestration: {e}")
-            self.tracer.step(
-                "execution_planning",
-                "inference",
-                f"Error during test execution orchestration: {str(e)}",
-                error=str(e),
-                output_snapshot=sanitize_snapshot({"error_type": type(e).__name__}),
-            )
-            return ChatResponse(
-                messages=[
-                    ChatMessage(
-                        role="assistant", content=f"Error orchestrating test execution: {str(e)}"
-                    )
-                ],
-                reasoning_trace=self.tracer.get_trace(),
-                metadata=None,
-            )

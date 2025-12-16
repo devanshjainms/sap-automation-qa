@@ -56,31 +56,33 @@ async def lifespan(app: FastAPI):
 
     conversation_manager = ConversationManager(db_path=db_path)
 
-    from src.agents.agents.test_executor_agent import TestExecutorAgent
+    from src.agents.agents.action_executor_agent import ActionExecutorAgent
 
-    test_executor_base = agent_registry.get("test_executor")
+    action_executor_base = agent_registry.get("action_executor")
     print(
-        f"DEBUG: test_executor_base from registry: {test_executor_base}, type: {type(test_executor_base)}"
+        f"DEBUG: action_executor_base from registry: {action_executor_base}, type: {type(action_executor_base)}"
     )
     job_store: JobStore | None = None
     job_worker: JobWorker | None = None
 
-    if test_executor_base and isinstance(test_executor_base, TestExecutorAgent):
-        print("DEBUG: Entering TestExecutorAgent configuration block")
-        test_executor: TestExecutorAgent = test_executor_base
+    if action_executor_base and isinstance(action_executor_base, ActionExecutorAgent):
+        print("DEBUG: Entering ActionExecutorAgent configuration block")
+        action_executor: ActionExecutorAgent = action_executor_base
         job_store = JobStore(db_path=db_path)
-        job_worker = JobWorker(job_store=job_store, execution_plugin=test_executor.execution_plugin)
+        job_worker = JobWorker(
+            job_store=job_store, execution_plugin=action_executor.execution_plugin
+        )
 
-        test_executor.job_store = job_store
-        test_executor.job_worker = job_worker
-        test_executor._async_enabled = True
-        test_executor.guard_layer.job_store = job_store
+        action_executor.job_store = job_store
+        action_executor.job_worker = job_worker
+        action_executor._async_enabled = True
+        action_executor.guard_layer.job_store = job_store
 
         print(
-            f"DEBUG: Async enabled. guard_layer.job_store is None: {test_executor.guard_layer.job_store is None}"
+            f"DEBUG: Async enabled. guard_layer.job_store is None: {action_executor.guard_layer.job_store is None}"
         )
     else:
-        logger.warning("Test executor not found - async job execution disabled")
+        logger.warning("Action executor not found - async job execution disabled")
 
     set_agent_registry(agent_registry)
     set_orchestrator(orchestrator)

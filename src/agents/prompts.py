@@ -16,16 +16,17 @@ ORCHESTRATOR_SK_SYSTEM_PROMPT = """You route user requests to specialized agents
 AGENTS:
 - route_to_echo(): Documentation, help, general questions
 - route_to_system_context(): Workspace management (create, list, configure)
-- route_to_test_planner(): Test recommendations ("what tests for X?")
-- route_to_test_executor(): Run/execute tests
+- route_to_test_advisor(): Test recommendations ("what tests for X?")
+- route_to_action_executor(): Operational work and execution (diagnostics, commands, run tests)
 
 RULES:
 1. Call exactly ONE routing function per request
 2. Extract SID, workspace_id, or env from the message if mentioned
-3. "run/execute/start/check" → test_executor
-4. "create/list/find workspace" → system_context
-5. "what tests" → test_planner
-6. Everything else → echo
+3. Operational/diagnostic requests (cluster status, logs, commands) → action_executor
+4. "run/execute/start" → action_executor
+5. "create/list/find workspace" → system_context
+6. "what tests" → test_advisor
+7. Everything else → echo
 """
 
 # =============================================================================
@@ -79,7 +80,7 @@ HOSTS.YAML STRUCTURE:
 # Test Planner Agent - Recommends tests based on config
 # =============================================================================
 
-TEST_PLANNER_AGENT_SYSTEM_PROMPT = """You recommend SAP HA tests based on actual configuration.
+TEST_ADVISOR_AGENT_SYSTEM_PROMPT = """You recommend SAP HA tests based on actual configuration.
 
 TOOLS AVAILABLE:
 - list_test_groups(): List all available test groups
@@ -107,6 +108,24 @@ RULES:
 """
 
 # =============================================================================
+# Action Planner Agent - Produces ActionPlan jobs
+# =============================================================================
+
+ACTION_PLANNER_AGENT_SYSTEM_PROMPT = """You produce a machine-readable ActionPlan (jobs) for execution.
+
+TOOLS AVAILABLE:
+- ActionPlannerPlugin.create_action_plan(action_plan_json): Validate and store the ActionPlan
+- workspace.read_workspace_file(workspace_id, filename): Read workspace config files as needed
+- TestPlannerPlugin.list_test_groups(), get_test_cases_for_group(...): Use ONLY to plan jobs
+
+RULES:
+- You MUST call ActionPlannerPlugin.create_action_plan with a JSON ActionPlan.
+- Your ONLY structured output is ActionPlan; do NOT output TestPlan.
+- Jobs must be safe-by-default. Mark destructive jobs destructive=true.
+- Use multiple jobs for multi-step diagnostics (multiple commands and/or multiple logs).
+"""
+
+# =============================================================================
 # Echo Agent - Documentation & Help
 # =============================================================================
 
@@ -127,10 +146,10 @@ RULES:
 """
 
 # =============================================================================
-# Test Executor Agent - Runs tests
+# Action Executor Agent - Runs actions and tests
 # =============================================================================
 
-TEST_EXECUTOR_SYSTEM_PROMPT = """You execute SAP HA tests and diagnostic commands on remote hosts.
+ACTION_EXECUTOR_SYSTEM_PROMPT = """You execute SAP HA actions, tests, and diagnostic commands on remote hosts.
 
 WORKSPACE RESOLUTION (MANDATORY):
 If the user provides a SID (e.g., "SH8") instead of a full workspace_id:

@@ -36,7 +36,7 @@ class AgentRoutingPlugin:
         name="route_to_echo",
         description="Route to Echo agent ONLY for pure documentation questions, greetings, "
         + "or explaining how the framework works. Do NOT use for any operational requests like "
-        + "checking status, running commands, viewing logs, or diagnostics - those go to test_executor.",
+        + "checking status, running commands, viewing logs, or diagnostics - those go to action_executor.",
     )
     def route_to_echo(
         self,
@@ -80,19 +80,19 @@ class AgentRoutingPlugin:
         return json.dumps({"agent_name": "system_context", "agent_input": agent_input})
 
     @kernel_function(
-        name="route_to_test_planner",
-        description="Route to Test Planner agent for test recommendations and planning. Use when user "
+        name="route_to_test_advisor",
+        description="Route to Test Advisor agent for test recommendations and planning. Use when user "
         + "asks about: what tests to run, test recommendations for a system, available tests, "
         + "test planning, or wants to generate a test plan. "
         + "Parameters: sid (required or inferred), env (optional), test_filter (optional).",
     )
-    def route_to_test_planner(
+    def route_to_test_advisor(
         self,
         sid: Annotated[str, "SAP System ID (SID), e.g., 'X00'"] = "",
         env: Annotated[str, "Environment name, e.g., 'DEV', 'QA'"] = "",
         test_filter: Annotated[str, "Optional test filter, e.g., 'HA_DB_HANA', 'HA_SCS'"] = "",
     ) -> Annotated[str, "Routing decision as JSON"]:
-        """Route to test_planner agent.
+        """Route to test_advisor agent.
 
         :param sid: SAP System ID
         :type sid: str
@@ -104,7 +104,7 @@ class AgentRoutingPlugin:
         :rtype: str
         """
         logger.info(
-            f"Routing to test_planner agent (sid={sid}, env={env}, test_filter={test_filter})"
+            f"Routing to test_advisor agent (sid={sid}, env={env}, test_filter={test_filter})"
         )
         agent_input = {}
         if sid:
@@ -114,11 +114,11 @@ class AgentRoutingPlugin:
         if test_filter:
             agent_input["test_filter"] = test_filter
 
-        return json.dumps({"agent_name": "test_planner", "agent_input": agent_input})
+        return json.dumps({"agent_name": "test_advisor", "agent_input": agent_input})
 
     @kernel_function(
-        name="route_to_test_executor",
-        description="Route to Test Executor agent for ANY operational request on SAP systems. "
+        name="route_to_action_executor",
+        description="Route to Action Executor agent for ANY operational request on SAP systems. "
         + "Use when user wants to: run tests, check cluster status, check Pacemaker status, "
         + "tail log files, view system messages, run diagnostics, execute SSH commands to hosts, "
         + "get HANA status, check SCS status, run 'crm status', run 'pcs status', or ANY command "
@@ -126,7 +126,7 @@ class AgentRoutingPlugin:
         + "operational/diagnostic work. "
         + "Parameters: workspace_id (required), test_filter (optional), include_destructive (default: false).",
     )
-    def route_to_test_executor(
+    def route_to_action_executor(
         self,
         workspace_id: Annotated[str, "Workspace ID in format ENV-REGION-DEPLOYMENT-SID"] = "",
         sid: Annotated[str, "SAP System ID (SID), e.g., 'X00'"] = "",
@@ -136,7 +136,7 @@ class AgentRoutingPlugin:
             bool, "Whether to include destructive tests (default: false)"
         ] = False,
     ) -> Annotated[str, "Routing decision as JSON"]:
-        """Route to test_executor agent.
+        """Route to action_executor agent.
 
         :param workspace_id: Workspace ID
         :type workspace_id: str
@@ -152,7 +152,7 @@ class AgentRoutingPlugin:
         :rtype: str
         """
         logger.info(
-            f"Routing to test_executor agent (workspace_id={workspace_id}, sid={sid}, "
+            f"Routing to action_executor agent (workspace_id={workspace_id}, sid={sid}, "
             + f"env={env}, test_filter={test_filter}, include_destructive={include_destructive})"
         )
         agent_input = {}
@@ -167,7 +167,7 @@ class AgentRoutingPlugin:
         if include_destructive:
             agent_input["include_destructive"] = include_destructive
 
-        return json.dumps({"agent_name": "test_executor", "agent_input": agent_input})
+        return json.dumps({"agent_name": "action_executor", "agent_input": agent_input})
 
     @kernel_function(
         name="list_available_agents",

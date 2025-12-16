@@ -430,9 +430,10 @@ def create_default_agent_registry() -> "AgentRegistry":
     :rtype: AgentRegistry
     """
     from src.agents.agents.echo_agent import EchoAgentSK
-    from src.agents.agents.test_planner_agent import TestPlannerAgentSK
+    from src.agents.agents.action_planner_agent import ActionPlannerAgentSK
     from src.agents.agents.system_context_agent import SystemContextAgentSK
-    from src.agents.agents.test_executor_agent import TestExecutorAgent
+    from src.agents.agents.test_advisor_agent import TestAdvisorAgentSK
+    from src.agents.agents.action_executor_agent import ActionExecutorAgent
     from src.agents.workspace.workspace_store import WorkspaceStore
     from src.agents.plugins.execution import ExecutionPlugin
     from src.agents.plugins.keyvault import KeyVaultPlugin
@@ -459,10 +460,11 @@ def create_default_agent_registry() -> "AgentRegistry":
 
     registry = AgentRegistry()
     registry.register(EchoAgentSK(kernel=kernel))
-    registry.register(TestPlannerAgentSK(kernel=kernel, workspace_store=workspace_store))
+    registry.register(TestAdvisorAgentSK(kernel=kernel, workspace_store=workspace_store))
+    registry.register(ActionPlannerAgentSK(kernel=kernel, workspace_store=workspace_store))
     registry.register(SystemContextAgentSK(kernel=kernel, workspace_store=workspace_store))
     registry.register(
-        TestExecutorAgent(
+        ActionExecutorAgent(
             kernel=kernel, workspace_store=workspace_store, execution_plugin=execution_plugin
         )
     )

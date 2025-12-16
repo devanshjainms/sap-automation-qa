@@ -394,7 +394,7 @@ class AgentScope(ObservabilityScope):
     Automatically generates agent_invocation_id (span ID) and sets agent_name.
 
     Example:
-        with AgentScope(agent_name="test_executor", workspace_id="QA-001"):
+        with AgentScope(agent_name="action_executor", workspace_id="QA-001"):
             response = await agent.run(messages)
     """
 

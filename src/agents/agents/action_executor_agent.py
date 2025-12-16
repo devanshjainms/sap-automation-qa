@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """
-Test Executor Agent for SAP QA framework.
+Action Executor Agent for SAP QA framework.
 
-This agent executes tests from a TestPlan with strict safety controls:
+This agent executes actions from an ActionPlan with strict safety controls:
 - Environment gating (NEVER run destructive tests on PRD)
 - Destructive test approval required
 - Workspace validation
@@ -37,8 +37,8 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class TestExecutorAgent(Agent):
-    """Agent for executing SAP QA tests with strong safety and environment gating.
+class ActionExecutorAgent(Agent):
+    """Agent for executing SAP QA actions with strong safety and environment gating.
 
     Uses Semantic Kernel with:
     - ExecutionPlugin: Provides test execution tools as SK functions
@@ -57,7 +57,7 @@ class TestExecutorAgent(Agent):
         job_store: Optional["JobStore"] = None,
         job_worker: Optional["JobWorker"] = None,
     ):
-        """Initialize TestExecutorAgent.
+        """Initialize ActionExecutorAgent.
 
         Registers ExecutionPlugin with Semantic Kernel and adds GuardFilter
         for safety enforcement.
@@ -74,10 +74,10 @@ class TestExecutorAgent(Agent):
         :type job_worker: Optional[JobWorker]
         """
         super().__init__(
-            name="test_executor",
-            description="Executes SAP QA tests, runs playbooks, performs configuration checks, "
+            name="action_executor",
+            description="Executes SAP QA actions, runs playbooks, performs configuration checks, "
             + "and runs functional tests (HA, crash, failover) using Ansible. "
-            + "Use this agent whenever the user asks to 'run', 'execute', 'perform', or 'start' a test.",
+            + "Use this agent whenever the user asks to 'run', 'execute', 'perform', or 'start' a test or action.",
         )
 
         self.kernel = kernel
@@ -105,7 +105,7 @@ class TestExecutorAgent(Agent):
         )
 
         logger.info(
-            f"TestExecutorAgent initialized with SK plugin and guard filter "
+            f"ActionExecutorAgent initialized with SK plugin and guard filter "
             f"(async_enabled={self._async_enabled})"
         )
 
@@ -277,7 +277,7 @@ class TestExecutorAgent(Agent):
             return results
 
         except Exception as e:
-            logger.error(f"Error in TestExecutorAgent: {e}", exc_info=e)
+            logger.error(f"Error in ActionExecutorAgent: {e}", exc_info=e)
 
             error_result = ExecutionResult(
                 workspace_id=request.workspace_id,
@@ -496,7 +496,7 @@ class TestExecutorAgent(Agent):
 
             if "test_plan" not in context or "execution_request" not in context:
                 raise ValueError(
-                    "TestExecutorAgent requires structured input with either action_plan, "
+                    "ActionExecutorAgent requires structured input with either action_plan, "
                     "or test_plan + execution_request"
                 )
             test_plan_dict = context["test_plan"]
@@ -529,7 +529,7 @@ class TestExecutorAgent(Agent):
             )
 
         except Exception as e:
-            logger.error(f"Error in TestExecutorAgent.run: {e}")
+            logger.error(f"Error in ActionExecutorAgent.run: {e}")
 
             self.tracer.step(
                 "execution_run",

@@ -71,6 +71,7 @@ class ChatResponse(BaseModel):
 
     messages: list[ChatMessage]
     test_plan: Optional[dict] = None
+    action_plan: Optional[dict] = None
     correlation_id: Optional[str] = None
     reasoning_trace: Optional[dict] = Field(
         None, description="Reasoning trace showing agent's chain-of-thought"

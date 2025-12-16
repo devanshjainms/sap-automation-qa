@@ -3,7 +3,7 @@
 """
 Pydantic models for SAP QA test execution.
 
-This module defines the contract between the TestPlannerAgent and TestExecutorAgent,
+This module defines the contract between the ActionPlannerAgent and ActionExecutorAgent,
 ensuring type-safe, auditable test execution with proper environment gating.
 """
 
