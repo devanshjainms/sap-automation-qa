@@ -186,12 +186,12 @@ class KeyVaultPlugin:
         secret_name: Annotated[str, "Name of the secret in Key Vault"],
         vault_name: Annotated[
             str,
-            "Name of the Azure Key Vault (without .vault.azure.net). "
-            "Leave empty to use default vault.",
+            "REQUIRED: Name of the Azure Key Vault (without .vault.azure.net). "
+            "Read from workspace sap-parameters.yaml first.",
         ] = "",
         managed_identity_client_id: Annotated[
             str,
-            "Client ID of user-assigned managed identity. Leave empty to use default.",
+            "Client ID of user-assigned managed identity (optional).",
         ] = "",
     ) -> Annotated[str, "JSON string with secret value or error"]:
         """Retrieve a secret from Azure Key Vault.
@@ -267,7 +267,7 @@ class KeyVaultPlugin:
         ],
         vault_name: Annotated[
             str,
-            "Name of the Azure Key Vault. Leave empty to use default vault.",
+            "REQUIRED: Name of the Azure Key Vault. Read from workspace sap-parameters.yaml first.",
         ] = "",
         key_filename: Annotated[
             str,
@@ -275,7 +275,7 @@ class KeyVaultPlugin:
         ] = "id_rsa",
         managed_identity_client_id: Annotated[
             str,
-            "Client ID of user-assigned managed identity. Leave empty to use default.",
+            "Client ID of user-assigned managed identity (optional).",
         ] = "",
     ) -> Annotated[str, "JSON string with key file path or error"]:
         """Retrieve SSH private key and save to temporary file.
