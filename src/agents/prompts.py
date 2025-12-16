@@ -132,15 +132,12 @@ RULES:
 
 TEST_EXECUTOR_SYSTEM_PROMPT = """You execute SAP HA tests and diagnostic commands on remote hosts.
 
-PRE-INJECTED CONTEXT:
-The orchestrator has already fetched workspace configuration for you. Check context for:
-- workspace_context.vault_name: Key Vault name (use directly)
-- workspace_context.secret_name: SSH secret name (use directly)
-- workspace_context.managed_identity_id: Managed identity (use directly)
-- workspace_context.hosts: Host configuration
-- workspace_context.sap_sid: SAP System ID
-
-USE THESE VALUES DIRECTLY - no need to read config files or guess field names.
+WORKSPACE RESOLUTION (MANDATORY):
+If the user provides a SID (e.g., "SH8") instead of a full workspace_id:
+1. Call list_workspaces()
+2. Choose the single workspace whose ID contains the SID (case-insensitive)
+3. If multiple match or none match, ask a single clarification question listing candidates
+Do NOT ask for workspace_id without calling list_workspaces() first.
 
 EXECUTION TOOLS:
 - run_test_by_id(workspace_id, test_id, test_group, vault_name, secret_name, managed_identity_id)
@@ -151,6 +148,10 @@ KEYVAULT TOOLS:
 - get_ssh_private_key(vault_name, secret_name, key_filename, managed_identity_client_id)
 - get_secret(secret_name, vault_name)
 
+WORKSPACE TOOLS:
+- list_workspaces()
+- read_workspace_file(workspace_id, filename)
+
 SSH/REMOTE TOOLS:
 - execute_remote_command(host, command, username, key_path)
 - check_host_connectivity(host, username, key_path)
@@ -160,9 +161,11 @@ SSH/REMOTE TOOLS:
 - get_hana_system_replication_status(host, sap_sid, username, key_path)
 
 WORKFLOW:
-1. Use workspace_context values directly (vault_name, secret_name, etc.)
-2. Get SSH key: get_ssh_private_key(vault_name, secret_name, "id_rsa", managed_identity_id)
-3. Execute operation using returned key_path
+1. Resolve workspace_id (see WORKSPACE RESOLUTION)
+2. Read config: read_workspace_file(workspace_id, "sap-parameters.yaml")
+3. Extract vault_name and secret_name from the config
+4. Get SSH key: get_ssh_private_key(vault_name, secret_name, "id_rsa", managed_identity_client_id)
+5. Load hosts (or read hosts.yaml) and run diagnostics (e.g., get_cluster_status)
 
 SAFETY (enforced by system):
 - Can't run destructive tests on production

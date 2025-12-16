@@ -23,6 +23,7 @@ from src.agents.models.test import TestPlan
 from src.agents.agents.base import Agent
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.plugins.execution import ExecutionPlugin
+from src.agents.plugins.workspace import WorkspacePlugin
 from src.agents.models.execution import ExecutionRequest, ExecutionResult
 from src.agents.models.reasoning import sanitize_snapshot
 from src.agents.execution import GuardLayer, GuardFilter
@@ -92,6 +93,11 @@ class TestExecutorAgent(Agent):
         self.kernel.add_plugin(
             plugin=execution_plugin,
             plugin_name="execution",
+        )
+
+        self.kernel.add_plugin(
+            plugin=WorkspacePlugin(workspace_store),
+            plugin_name="workspace",
         )
 
         guard_filter = GuardFilter(self.guard_layer)
