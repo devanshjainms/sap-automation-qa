@@ -372,7 +372,6 @@ class LoggerFactory:
         logger.setLevel(level)
         logger.handlers.clear()
 
-        # Console handler (stdout)
         handler = logging.StreamHandler(sys.stdout)
         handler.setLevel(level)
 
@@ -383,7 +382,6 @@ class LoggerFactory:
 
         logger.addHandler(handler)
 
-        # File handler - always JSON for easy parsing
         log_dir = Path(os.environ.get("LOG_DIR", "data/logs"))
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / "sap-qa-agents.log"
