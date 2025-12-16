@@ -76,12 +76,21 @@ class SSHPlugin:
 
         for pattern in SSH_BLOCKED_PATTERNS:
             pattern_lower = pattern.lower().strip()
-            if pattern_lower and pattern_lower[0].isalnum():
-                regex_pattern = r"(?:^|\s)" + re.escape(pattern_lower)
+            if not pattern_lower:
+                continue
+
+            is_regex_like = bool(re.search(r"[\\\\\[\]().?*+^$|]", pattern_lower))
+            if is_regex_like:
+                regex_pattern = pattern_lower
             else:
-                regex_pattern = re.escape(pattern_lower)
+                if pattern_lower[0].isalnum():
+                    regex_pattern = r"(?:^|\\s)" + re.escape(pattern_lower)
+                else:
+                    regex_pattern = re.escape(pattern_lower)
+
             if re.search(regex_pattern, command_lower):
                 return False, f"Command contains blocked pattern: '{pattern}'"
+
         if command.strip() in SSH_SAFE_COMMANDS:
             return True, "Command in safe list"
         for prefix in SSH_SAFE_COMMAND_PREFIXES:

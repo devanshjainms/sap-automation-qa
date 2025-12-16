@@ -254,14 +254,19 @@ SSH_SAFE_COMMAND_PREFIXES: Tuple[str, ...] = (
     "hdbsql ",
     "sudo crm ",
     "sudo pcs ",
-    "sudo corosync",
-    "sudo stonith",
-    "sudo cibadmin",
+    "sudo corosync ",
+    "sudo stonith ",
+    "sudo cibadmin ",
+    # Cluster read-only without sudo
+    "crm ",
+    "crm_mon ",
+    "pcs ",
+    "cibadmin ",
 )
 
 # Explicitly blocked patterns for SSH commands
 SSH_BLOCKED_PATTERNS: Tuple[str, ...] = (
-    "rm ",
+    r"\brm\b",
     "mv ",
     "cp ",
     "chmod ",
