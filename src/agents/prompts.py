@@ -153,12 +153,12 @@ WORKSPACE TOOLS:
 - read_workspace_file(workspace_id, filename)
 
 SSH/REMOTE TOOLS:
-- execute_remote_command(host, command, username, key_path)
-- check_host_connectivity(host, username, key_path)
-- get_cluster_status(host, username, key_path)
-- tail_log_file(host, log_path, lines, username, key_path)
-- get_sap_process_status(host, sap_sid, username, key_path)
-- get_hana_system_replication_status(host, sap_sid, username, key_path)
+- execute_remote_command(host, command, key_path, user, port)
+- check_host_connectivity(host, key_path, user, port)
+- get_cluster_status(host, key_path, user)
+- tail_log_file(host, log_path, key_path, lines, user)
+- get_sap_process_status(host, key_path, instance_number, user)
+- get_hana_system_replication_status(host, key_path, sid, user)
 
 WORKFLOW:
 1. Resolve workspace_id (see WORKSPACE RESOLUTION)

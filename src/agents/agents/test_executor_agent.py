@@ -24,6 +24,7 @@ from src.agents.agents.base import Agent
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.plugins.execution import ExecutionPlugin
 from src.agents.plugins.workspace import WorkspacePlugin
+from src.agents.plugins.ssh import SSHPlugin
 from src.agents.models.execution import ExecutionRequest, ExecutionResult
 from src.agents.models.reasoning import sanitize_snapshot
 from src.agents.execution import GuardLayer, GuardFilter
@@ -90,15 +91,11 @@ class TestExecutorAgent(Agent):
             workspace_store=workspace_store,
         )
 
-        self.kernel.add_plugin(
-            plugin=execution_plugin,
-            plugin_name="execution",
-        )
-
-        self.kernel.add_plugin(
-            plugin=WorkspacePlugin(workspace_store),
-            plugin_name="workspace",
-        )
+        self._safe_add_plugin(execution_plugin, "execution")
+        self._safe_add_plugin(WorkspacePlugin(workspace_store), "workspace")
+        self._safe_add_plugin(SSHPlugin(), "ssh")
+        if getattr(execution_plugin, "keyvault_plugin", None) is not None:
+            self._safe_add_plugin(execution_plugin.keyvault_plugin, "keyvault")
 
         guard_filter = GuardFilter(self.guard_layer)
         self.kernel.add_filter(
@@ -110,6 +107,20 @@ class TestExecutorAgent(Agent):
             f"TestExecutorAgent initialized with SK plugin and guard filter "
             f"(async_enabled={self._async_enabled})"
         )
+
+    def _safe_add_plugin(self, plugin: object, plugin_name: str) -> None:
+        """Add an SK plugin if not already present.
+
+        Semantic Kernel plugin registration can vary depending on how the runtime
+        constructs kernels/agents. This keeps agent capabilities consistent.
+        """
+        try:
+            self.kernel.add_plugin(
+                plugin=plugin,
+                plugin_name=plugin_name,
+            )
+        except Exception as e:
+            logger.info(f"Plugin '{plugin_name}' already registered or unavailable: {e}")
 
     async def execute(
         self, test_plan: TestPlan, request: ExecutionRequest
