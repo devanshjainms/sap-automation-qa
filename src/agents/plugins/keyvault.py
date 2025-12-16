@@ -420,8 +420,17 @@ class KeyVaultPlugin:
             with open(params_path, "r") as f:
                 params = yaml.safe_load(f)
 
-            vault_name = params.get("kv_name") or params.get("keyvault_name")
-            ssh_secret_name = params.get("sshkey_secret_name", "sshkey")
+            # Support multiple field name conventions
+            vault_name = (
+                params.get("kv_name")
+                or params.get("keyvault_name")
+                or params.get("key_vault_name")
+            )
+            ssh_secret_name = (
+                params.get("sshkey_secret_name")
+                or params.get("ssh_key_secret_name")
+                or "sshkey"
+            )
             managed_identity_client_id = params.get("user_assigned_identity_client_id")
 
             if not vault_name:
