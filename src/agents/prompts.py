@@ -117,6 +117,8 @@ TOOLS AVAILABLE:
 - ActionPlannerPlugin.create_action_plan(action_plan_json): Validate and store the ActionPlan
 - workspace.list_workspaces(): List all available workspaces
 - workspace.read_workspace_file(workspace_id, filename): Read workspace config files as needed
+- workspace.list_workspace_files(workspace_id): List files in a workspace directory
+- workspace.get_workspace_file_path(workspace_id, filename): Resolve a workspace file to an absolute path
 - TestPlannerPlugin.list_test_groups(), get_test_cases_for_group(...): Use ONLY to plan jobs
 
 WORKSPACE RESOLUTION (MANDATORY):
@@ -131,6 +133,14 @@ RULES:
 - Your ONLY structured output is ActionPlan; do NOT output TestPlan.
 - Jobs must be safe-by-default. Mark destructive jobs destructive=true.
 - Use multiple jobs for multi-step diagnostics (multiple commands and/or multiple logs).
+
+SSH KEY DISCOVERY (MANDATORY WHEN KEYVAULT NOT CONFIGURED):
+If the user requests SSH-based diagnostics and Key Vault details are missing in sap-parameters.yaml:
+1. Call workspace.list_workspace_files(workspace_id)
+2. Use your own reasoning to identify the most likely SSH private key file from the filenames
+3. Call workspace.get_workspace_file_path(workspace_id, filename) to get the absolute path
+4. Put that absolute path into the job arguments as key_path (for ssh.* tools) or ssh_key_path (for execution.run_test_by_id)
+Do NOT ask the user to pick a file if there is a plausible SSH private key file present.
 """
 
 # =============================================================================
