@@ -346,6 +346,11 @@ class ExecutionPlugin:
         workspace_id: Annotated[str, "Workspace ID"],
         role: Annotated[str, "Host role (db, app, scs, ers, all)"],
         command: Annotated[str, "Read-only command to execute"],
+        ssh_key_path: Annotated[
+            str,
+            "Absolute path to an SSH private key file to use for this command. "
+            "If omitted, Ansible/hosts.yaml defaults are used.",
+        ] = "",
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
         """Run a validated read-only command on workspace hosts.
 
@@ -388,11 +393,25 @@ class ExecutionPlugin:
                 f"Running validated read-only command on {role} hosts "
                 f"(pattern: {host_pattern}): {command}"
             )
+
+            extra_vars: dict[str, str] = {}
+            if ssh_key_path:
+                key_path_obj = Path(ssh_key_path)
+                if not key_path_obj.exists():
+                    return json.dumps(
+                        {
+                            "error": f"SSH key file not found at ssh_key_path: {ssh_key_path}",
+                            "workspace_id": workspace_id,
+                        }
+                    )
+                extra_vars["ansible_ssh_private_key_file"] = str(key_path_obj)
+
             result = self.ansible.run_ad_hoc(
                 inventory=inventory_path,
                 host_pattern=host_pattern,
                 module="shell",
                 args=command,
+                extra_vars=extra_vars if extra_vars else None,
             )
 
             finished_at = datetime.utcnow()

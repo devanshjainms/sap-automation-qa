@@ -110,6 +110,7 @@ class AnsibleRunner:
         host_pattern: str,
         module: str,
         args: str,
+        extra_vars: Optional[dict[str, Any]] = None,
         become: bool = False,
     ) -> dict[str, Any]:
         """Execute ansible ad-hoc command for diagnostics.
@@ -137,6 +138,9 @@ class AnsibleRunner:
             "-a",
             args,
         ]
+
+        if extra_vars:
+            cmd.extend(["--extra-vars", json.dumps(extra_vars)])
 
         if become:
             cmd.append("--become")
