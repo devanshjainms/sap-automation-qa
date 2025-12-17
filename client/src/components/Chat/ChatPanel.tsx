@@ -88,19 +88,21 @@ export const ChatPanel: React.FC = () => {
 
               return (
                 <div key={index}>
-                  {showThinkingBeforeThis && (
-                    <ThinkingIndicator
-                      isThinking={false}
-                      steps={state.thinkingSteps}
-                    />
-                  )}
-                  <ChatMessageComponent message={message} />
-                  {message.role === "assistant" &&
-                    message.metadata?.reasoning_trace && (
-                      <ReasoningTraceViewer
-                        trace={message.metadata.reasoning_trace as any}
+                  <>
+                    {showThinkingBeforeThis && (
+                      <ThinkingIndicator
+                        isThinking={false}
+                        steps={state.thinkingSteps}
                       />
                     )}
+                    <ChatMessageComponent message={message} />
+                    {message.role === "assistant" &&
+                      message.metadata?.reasoning_trace && (
+                        <ReasoningTraceViewer
+                          trace={message.metadata.reasoning_trace as any}
+                        />
+                      )}
+                  </>
                 </div>
               );
             })}
