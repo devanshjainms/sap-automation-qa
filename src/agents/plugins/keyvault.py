@@ -44,20 +44,16 @@ class KeyVaultPlugin:
 
     def __init__(
         self,
-        default_vault_name: Optional[str] = None,
         temp_key_dir: Optional[str] = None,
         managed_identity_client_id: Optional[str] = None,
     ) -> None:
         """Initialize KeyVaultPlugin.
 
-        :param default_vault_name: Default Key Vault name (can be overridden per call)
-        :type default_vault_name: Optional[str]
         :param temp_key_dir: Directory for temporary key files (defaults to system temp)
         :type temp_key_dir: Optional[str]
         :param managed_identity_client_id: Client ID for user-assigned managed identity
         :type managed_identity_client_id: Optional[str]
         """
-        self.default_vault_name = default_vault_name or os.getenv("AZURE_KEYVAULT_NAME")
         self.temp_key_dir = Path(temp_key_dir) if temp_key_dir else Path(tempfile.gettempdir())
         self.default_managed_identity_client_id = managed_identity_client_id or os.getenv(
             "AZURE_CLIENT_ID"
@@ -66,7 +62,7 @@ class KeyVaultPlugin:
         self._clients: dict = {}
 
         logger.info(
-            f"KeyVaultPlugin initialized with default_vault: {self.default_vault_name}, "
+            f"KeyVaultPlugin initialized with "
             f"temp_key_dir: {self.temp_key_dir}, "
             f"default_managed_identity: {self.default_managed_identity_client_id or 'None (will use DefaultAzureCredential)'}"
         )
@@ -211,16 +207,13 @@ class KeyVaultPlugin:
         Example output (error):
             {"error": "Secret not found", "secret_name": "my-secret"}
         """
-        effective_vault = vault_name.strip() if vault_name else self.default_vault_name
+        effective_vault = vault_name.strip() if vault_name else None
         effective_identity = (
             managed_identity_client_id.strip() if managed_identity_client_id else None
         )
 
         if not effective_vault:
-            error_msg = (
-                "No Key Vault specified. Provide vault_name or set AZURE_KEYVAULT_NAME "
-                "environment variable."
-            )
+            error_msg = "No Key Vault specified. Provide vault_name."
             logger.error(error_msg)
             return json.dumps({"error": error_msg})
 
@@ -307,15 +300,14 @@ class KeyVaultPlugin:
         Example output (error):
             {"error": "Failed to retrieve SSH key", "secret_name": "sshkey"}
         """
-        effective_vault = vault_name.strip() if vault_name else self.default_vault_name
+        effective_vault = vault_name.strip() if vault_name else None
         effective_identity = (
             managed_identity_client_id.strip() if managed_identity_client_id else None
         )
 
         if not effective_vault:
             error_msg = (
-                "No Key Vault specified. Provide vault_name or set AZURE_KEYVAULT_NAME "
-                "environment variable."
+                "No Key Vault specified. Provide vault_name."
             )
             logger.error(error_msg)
             return json.dumps({"error": error_msg})
@@ -369,7 +361,8 @@ class KeyVaultPlugin:
         name="get_ssh_key_for_workspace",
         description="Retrieve SSH private key for a specific SAP workspace. This function "
         + "reads the workspace's sap-parameters.yaml to determine the Key Vault name and "
-        + "SSH key secret name, then fetches and saves the key.",
+        + "SSH key secret name, then fetches and saves the key. If the key vault name and "
+        + "secret name are not found in the config, it looks for local key files as a fallback.",
     )
     def get_ssh_key_for_workspace(
         self,
@@ -421,18 +414,24 @@ class KeyVaultPlugin:
                 params = yaml.safe_load(f)
 
             vault_name = params.get("kv_name") or params.get("keyvault_name")
-            ssh_secret_name = params.get("sshkey_secret_name", "sshkey")
+            ssh_secret_name = params.get("sshkey_secret_name")
             managed_identity_client_id = params.get("user_assigned_identity_client_id")
 
             if not vault_name:
-                vault_name = self.default_vault_name
-                if not vault_name:
-                    error_msg = (
-                        f"Key Vault name not found in sap-parameters.yaml for workspace "
-                        f"'{workspace_id}' and no default vault configured"
-                    )
-                    logger.error(error_msg)
-                    return json.dumps({"error": error_msg, "workspace_id": workspace_id})
+                error_msg = (
+                    f"Key Vault name not found in sap-parameters.yaml for workspace "
+                    f"'{workspace_id}'."
+                )
+                logger.error(error_msg)
+                return json.dumps({"error": error_msg, "workspace_id": workspace_id})
+
+            if not ssh_secret_name:
+                error_msg = (
+                    f"SSH key secret name not found in sap-parameters.yaml for workspace "
+                    f"'{workspace_id}'."
+                )
+                logger.error(error_msg)
+                return json.dumps({"error": error_msg, "workspace_id": workspace_id})
 
             identity_info = (
                 f", identity: {managed_identity_client_id}" if managed_identity_client_id else ""
@@ -490,15 +489,14 @@ class KeyVaultPlugin:
         Example output:
             {"vault": "my-vault", "secrets": ["sshkey", "db-password", "api-key"], "count": 3}
         """
-        effective_vault = vault_name.strip() if vault_name else self.default_vault_name
+        effective_vault = vault_name.strip() if vault_name else None
         effective_identity = (
             managed_identity_client_id.strip() if managed_identity_client_id else None
         )
 
         if not effective_vault:
             error_msg = (
-                "No Key Vault specified. Provide vault_name or set AZURE_KEYVAULT_NAME "
-                "environment variable."
+                "No Key Vault specified. Provide vault_name."
             )
             logger.error(error_msg)
             return json.dumps({"error": error_msg})

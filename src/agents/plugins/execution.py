@@ -136,7 +136,9 @@ class ExecutionPlugin:
         name="run_test_by_id",
         description="Run a specific SAP QA test by ID and test_group using Ansible "
         + "playbooks. IMPORTANT: Before calling this, read sap-parameters.yaml to find "
-        + "the Key Vault name and SSH secret name, then pass them explicitly.",
+        + "the Key Vault name and SSH secret name, then pass them explicitly. "
+        + "If Key Vault details are not configured, pass ssh_key_path pointing to a private key "
+        + "file inside the workspace.",
     )
     def run_test_by_id(
         self,
@@ -153,6 +155,11 @@ class ExecutionPlugin:
         ] = "",
         managed_identity_id: Annotated[
             str, "Managed identity client ID if specified in sap-parameters.yaml"
+        ] = "",
+        ssh_key_path: Annotated[
+            str,
+            "Absolute path to an SSH private key file (typically discovered by listing workspace files). "
+            "Use this when Key Vault name/secret name are not defined.",
         ] = "",
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
         """Run a test by ID and group via Ansible.
@@ -202,13 +209,25 @@ class ExecutionPlugin:
             else:
                 logger.warning(f"sap-parameters.yaml not found at {sap_params_path}")
 
-            if self.keyvault_plugin and vault_name:
+            if ssh_key_path:
+                key_path_obj = Path(ssh_key_path)
+                if not key_path_obj.exists():
+                    return json.dumps(
+                        {
+                            "error": f"SSH key file not found at ssh_key_path: {ssh_key_path}",
+                            "workspace_id": workspace_id,
+                        }
+                    )
+                extra_vars["ansible_ssh_private_key_file"] = str(key_path_obj)
+                logger.info(f"SSH key set from ssh_key_path: {ssh_key_path}")
+
+            if self.keyvault_plugin and vault_name and secret_name:
                 logger.info(
                     f"Fetching SSH key from Key Vault '{vault_name}' for workspace {workspace_id}"
                 )
                 key_result_json = self.keyvault_plugin.get_ssh_private_key(
                     vault_name=vault_name,
-                    secret_name=secret_name or "sshkey",
+                    secret_name=secret_name,
                     key_filename=f"{workspace_id}_id_rsa",
                     managed_identity_client_id=managed_identity_id or "",
                 )
@@ -222,9 +241,10 @@ class ExecutionPlugin:
                 else:
                     extra_vars["ansible_ssh_private_key_file"] = key_result["key_path"]
                     logger.info(f"SSH key set from Key Vault: {key_result['key_path']}")
-            elif self.keyvault_plugin:
+            elif self.keyvault_plugin and (vault_name or secret_name):
                 logger.info(
-                    "No vault_name provided. Read sap-parameters.yaml and pass vault_name explicitly."
+                    "Incomplete Key Vault configuration. Provide BOTH vault_name and secret_name, "
+                    "or use ssh_key_path for a workspace-local private key."
                 )
 
             logger.info(f"Running test {test_id} for workspace {workspace_id}")

@@ -115,8 +115,16 @@ ACTION_PLANNER_AGENT_SYSTEM_PROMPT = """You produce a machine-readable ActionPla
 
 TOOLS AVAILABLE:
 - ActionPlannerPlugin.create_action_plan(action_plan_json): Validate and store the ActionPlan
+- workspace.list_workspaces(): List all available workspaces
 - workspace.read_workspace_file(workspace_id, filename): Read workspace config files as needed
 - TestPlannerPlugin.list_test_groups(), get_test_cases_for_group(...): Use ONLY to plan jobs
+
+WORKSPACE RESOLUTION (MANDATORY):
+If the user provides a SID (e.g., "SH8") instead of a full workspace_id:
+1. Call workspace.list_workspaces()
+2. Choose the single workspace whose ID contains the SID (case-insensitive)
+3. If multiple match or none match, ask a single clarification question listing candidates
+Do NOT guess workspace_id. Do NOT use "UNKNOWN".
 
 RULES:
 - You MUST call ActionPlannerPlugin.create_action_plan with a JSON ActionPlan.
@@ -159,7 +167,7 @@ If the user provides a SID (e.g., "SH8") instead of a full workspace_id:
 Do NOT ask for workspace_id without calling list_workspaces() first.
 
 EXECUTION TOOLS:
-- run_test_by_id(workspace_id, test_id, test_group, vault_name, secret_name, managed_identity_id)
+- run_test_by_id(workspace_id, test_id, test_group, vault_name, secret_name, managed_identity_id, ssh_key_path)
 - load_hosts_for_workspace(workspace_id)
 - resolve_test_execution(test_id, test_group)
 
@@ -170,6 +178,8 @@ KEYVAULT TOOLS:
 WORKSPACE TOOLS:
 - list_workspaces()
 - read_workspace_file(workspace_id, filename)
+- list_workspace_files(workspace_id)
+- get_workspace_file_path(workspace_id, filename)
 
 SSH/REMOTE TOOLS:
 - execute_remote_command(host, command, key_path, user, port)
@@ -182,9 +192,12 @@ SSH/REMOTE TOOLS:
 WORKFLOW:
 1. Resolve workspace_id (see WORKSPACE RESOLUTION)
 2. Read config: read_workspace_file(workspace_id, "sap-parameters.yaml")
-3. Extract vault_name and secret_name from the config
-4. Get SSH key: get_ssh_private_key(vault_name, secret_name, "id_rsa", managed_identity_client_id)
-5. Load hosts (or read hosts.yaml) and run diagnostics (e.g., get_cluster_status)
+3. If Key Vault is configured: extract vault_name AND secret_name from the config
+4. If Key Vault is NOT fully configured (vault_name or secret_name missing):
+  - Call list_workspace_files(workspace_id)
+  - Identify the SSH private key file by reasoning over filenames (e.g., id_rsa, *.pem, *key*)
+  - Call get_workspace_file_path(workspace_id, filename) to get the absolute path
+5. Run diagnostics using execute_remote_command(...) with key_path OR run tests with run_test_by_id(..., ssh_key_path=...)
 
 SAFETY (enforced by system):
 - Can't run destructive tests on production

@@ -35,9 +35,7 @@ class ThinkingStep(BaseModel):
     agent: str = Field(..., description="Agent performing this step")
     action: str = Field(..., description="Short action description for UI")
     detail: Optional[str] = Field(None, description="Optional detail text")
-    status: Literal["pending", "in_progress", "complete", "error"] = Field(
-        default="in_progress"
-    )
+    status: Literal["pending", "in_progress", "complete", "error"] = Field(default="in_progress")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     duration_ms: Optional[int] = Field(None, description="Duration if complete")
 

@@ -54,6 +54,76 @@ class WorkspacePlugin:
         return json.dumps({"workspace_id": workspace_id, "files": files})
 
     @kernel_function(
+        name="get_workspace_file_path",
+        description="Get the absolute filesystem path for a file inside a workspace. "
+        "Use this after list_workspace_files to pass a real path to SSH/Ansible.",
+    )
+    def get_workspace_file_path(
+        self,
+        workspace_id: Annotated[str, "Workspace name/ID"],
+        filename: Annotated[str, "Workspace filename (must be a single file name, not a path)"],
+    ) -> str:
+        """Resolve a workspace file to an absolute path.
+
+        This intentionally only accepts a single filename (no subdirectories) to
+        avoid path traversal and to keep the tool behavior predictable for the LLM.
+        """
+        if not filename or filename.strip() == "":
+            return json.dumps({"error": "filename is required", "workspace_id": workspace_id})
+
+        candidate = Path(filename)
+        if (
+            candidate.name != filename
+            or ".." in candidate.parts
+            or "/" in filename
+            or "\\" in filename
+        ):
+            return json.dumps(
+                {
+                    "error": "Invalid filename. Provide a single file name (no directories).",
+                    "workspace_id": workspace_id,
+                    "filename": filename,
+                }
+            )
+
+        workspace_path = self.store.get_workspace_path(workspace_id)
+        file_path = (workspace_path / filename).resolve()
+
+        if not workspace_path.exists():
+            return json.dumps(
+                {"error": f"Workspace not found: {workspace_id}", "workspace_id": workspace_id}
+            )
+
+        try:
+            file_path.relative_to(workspace_path.resolve())
+        except ValueError:
+            return json.dumps(
+                {
+                    "error": "Resolved path is outside workspace (blocked)",
+                    "workspace_id": workspace_id,
+                    "filename": filename,
+                }
+            )
+
+        if not file_path.exists():
+            return json.dumps(
+                {
+                    "error": f"File not found: {filename}",
+                    "workspace_id": workspace_id,
+                    "filename": filename,
+                    "path": str(file_path),
+                }
+            )
+
+        return json.dumps(
+            {
+                "workspace_id": workspace_id,
+                "filename": filename,
+                "path": str(file_path),
+            }
+        )
+
+    @kernel_function(
         name="read_workspace_file",
         description="Read any file from a workspace. Use this to see examples of hosts.yaml, "
         "sap-parameters.yaml, or any other configuration file.",

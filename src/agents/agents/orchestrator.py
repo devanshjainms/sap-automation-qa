@@ -316,5 +316,3 @@ class OrchestratorSK:
             execution_response.reasoning_trace = orch_trace
 
         return execution_response
-
-
