@@ -10,6 +10,7 @@ import { ChatMessage, ChatResponse } from "../types";
 
 export interface ThinkingStep {
   id: string;
+  parent_step_id?: string;
   agent: string;
   action: string;
   detail?: string;

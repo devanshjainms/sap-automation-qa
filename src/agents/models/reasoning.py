@@ -40,6 +40,9 @@ class ReasoningStep(BaseModel):
     """
 
     id: str = Field(default_factory=lambda: str(uuid4()))
+    parent_step_id: Optional[str] = Field(
+        None, description="ID of the parent step for nested reasoning"
+    )
     agent: str = Field(..., description="Name of the agent that created this step")
     phase: TracingPhase = Field(..., description="Phase of agent workflow this step belongs to")
     kind: Literal["tool_call", "inference", "decision"] = Field(
@@ -88,21 +91,10 @@ class ReasoningTrace(BaseModel):
     def add_step(
         self,
         agent: str,
-        phase: Literal[
-            "input_understanding",
-            "workspace_resolution",
-            "system_capabilities",
-            "test_selection",
-            "execution_planning",
-            "execution_run",
-            "execution_async",
-            "diagnostics",
-            "routing",
-            "documentation_retrieval",
-            "response_generation",
-        ],
+        phase: TracingPhase,
         kind: Literal["tool_call", "inference", "decision"],
         description: str,
+        parent_step_id: Optional[str] = None,
         input_snapshot: Optional[dict[str, Any]] = None,
         output_snapshot: Optional[dict[str, Any]] = None,
         error: Optional[str] = None,
@@ -113,11 +105,13 @@ class ReasoningTrace(BaseModel):
         :param agent: Name of the agent creating this step
         :type agent: str
         :param phase: Workflow phase this step belongs to
-        :type phase: Literal
+        :type phase: TracingPhase
         :param kind: Type of step (tool_call, inference, decision)
         :type kind: Literal
         :param description: Human-readable description of the step
         :type description: str
+        :param parent_step_id: Optional ID of parent step
+        :type parent_step_id: Optional[str]
         :param input_snapshot: Small summary of inputs (optional)
         :type input_snapshot: Optional[dict[str, Any]]
         :param output_snapshot: Small summary of outputs (optional)
@@ -143,6 +137,7 @@ class ReasoningTrace(BaseModel):
             phase=phase,
             kind=kind,
             description=description,
+            parent_step_id=parent_step_id,
             input_snapshot=input_snapshot or {},
             output_snapshot=output_snapshot or {},
             error=error,
@@ -351,22 +346,11 @@ class ReasoningTracer:
 
     def step(
         self,
-        phase: Literal[
-            "input_understanding",
-            "workspace_resolution",
-            "system_capabilities",
-            "test_selection",
-            "execution_planning",
-            "execution_run",
-            "execution_async",
-            "diagnostics",
-            "routing",
-            "documentation_retrieval",
-            "response_generation",
-        ],
+        phase: TracingPhase,
         kind: Literal["tool_call", "inference", "decision"],
         description: str,
         agent: Optional[str] = None,
+        parent_step_id: Optional[str] = None,
         input_snapshot: Optional[dict[str, Any]] = None,
         output_snapshot: Optional[dict[str, Any]] = None,
         error: Optional[str] = None,
@@ -375,13 +359,15 @@ class ReasoningTracer:
         Add a reasoning step to the trace.
 
         :param phase: Workflow phase
-        :type phase: Literal
+        :type phase: TracingPhase
         :param kind: Type of step
         :type kind: Literal
         :param description: Human-readable description
         :type description: str
         :param agent: Agent name (uses trace agent_name if not provided)
         :type agent: Optional[str]
+        :param parent_step_id: Optional ID of parent step
+        :type parent_step_id: Optional[str]
         :param input_snapshot: Small summary of inputs
         :type input_snapshot: Optional[dict[str, Any]]
         :param output_snapshot: Small summary of outputs
@@ -396,6 +382,7 @@ class ReasoningTracer:
             phase=phase,
             kind=kind,
             description=description,
+            parent_step_id=parent_step_id,
             input_snapshot=input_snapshot,
             output_snapshot=output_snapshot,
             error=error,
@@ -428,21 +415,11 @@ def get_current_tracer() -> Optional[ReasoningTracer]:
 
 
 def trace_step(
-    phase: Literal[
-        "input_understanding",
-        "workspace_resolution",
-        "system_capabilities",
-        "test_selection",
-        "execution_planning",
-        "execution_run",
-        "diagnostics",
-        "routing",
-        "documentation_retrieval",
-        "response_generation",
-    ],
+    phase: TracingPhase,
     kind: Literal["tool_call", "inference", "decision"],
     description: str,
     agent: Optional[str] = None,
+    parent_step_id: Optional[str] = None,
     input_snapshot: Optional[dict[str, Any]] = None,
     output_snapshot: Optional[dict[str, Any]] = None,
     error: Optional[str] = None,
@@ -454,13 +431,15 @@ def trace_step(
     without explicitly passing the tracer around.
 
     :param phase: Workflow phase
-    :type phase: Literal
+    :type phase: TracingPhase
     :param kind: Type of step
     :type kind: Literal
     :param description: Human-readable description
     :type description: str
     :param agent: Agent name
     :type agent: Optional[str]
+    :param parent_step_id: Optional ID of parent step
+    :type parent_step_id: Optional[str]
     :param input_snapshot: Small summary of inputs
     :type input_snapshot: Optional[dict[str, Any]]
     :param output_snapshot: Small summary of outputs
@@ -477,6 +456,7 @@ def trace_step(
             kind=kind,
             description=description,
             agent=agent,
+            parent_step_id=parent_step_id,
             input_snapshot=input_snapshot,
             output_snapshot=output_snapshot,
             error=error,

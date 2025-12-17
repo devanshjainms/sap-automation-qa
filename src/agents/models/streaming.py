@@ -32,6 +32,9 @@ class ThinkingStep(BaseModel):
     """A single thinking step to display to the user."""
 
     id: str = Field(default_factory=lambda: str(uuid4()))
+    parent_step_id: Optional[str] = Field(
+        None, description="ID of the parent step for nested thinking"
+    )
     agent: str = Field(..., description="Agent performing this step")
     action: str = Field(..., description="Short action description for UI")
     detail: Optional[str] = Field(None, description="Optional detail text")
@@ -66,11 +69,13 @@ class StreamEvent(BaseModel):
         detail: Optional[str] = None,
         status: Literal["pending", "in_progress", "complete", "error"] = "in_progress",
         step_id: Optional[str] = None,
+        parent_step_id: Optional[str] = None,
         duration_ms: Optional[int] = None,
     ) -> "StreamEvent":
         """Create a thinking_step event."""
         step = ThinkingStep(
             id=step_id or str(uuid4()),
+            parent_step_id=parent_step_id,
             agent=agent,
             action=action,
             detail=detail,
@@ -149,6 +154,7 @@ async def emit_thinking_step(
     detail: Optional[str] = None,
     status: Literal["pending", "in_progress", "complete", "error"] = "in_progress",
     step_id: Optional[str] = None,
+    parent_step_id: Optional[str] = None,
     duration_ms: Optional[int] = None,
 ) -> Optional[str]:
     """Emit a thinking step if a stream callback is set.
@@ -158,6 +164,7 @@ async def emit_thinking_step(
     :param detail: Optional detail
     :param status: Step status
     :param step_id: Optional step ID for updates
+    :param parent_step_id: Optional parent step ID for nesting
     :param duration_ms: Duration if complete
     :returns: Step ID for later updates, or None if no callback
     """
@@ -169,6 +176,7 @@ async def emit_thinking_step(
             detail=detail,
             status=status,
             step_id=step_id,
+            parent_step_id=parent_step_id,
             duration_ms=duration_ms,
         )
         await callback(event)

@@ -12,6 +12,7 @@ import { BotSparkleRegular } from "@fluentui/react-icons";
 import { ChatMessageComponent } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { ThinkingIndicator } from "./ThinkingIndicator";
+import { ReasoningTraceViewer } from "../ReasoningTrace";
 import { useChat, useWorkspace } from "../../context";
 import { APP_STRINGS, APP_CONFIG } from "../../constants";
 import { useChatPanelStyles as useStyles } from "../../styles";
@@ -94,6 +95,12 @@ export const ChatPanel: React.FC = () => {
                     />
                   )}
                   <ChatMessageComponent message={message} />
+                  {message.role === "assistant" &&
+                    message.metadata?.reasoning_trace && (
+                      <ReasoningTraceViewer
+                        trace={message.metadata.reasoning_trace as any}
+                      />
+                    )}
                 </React.Fragment>
               );
             })}

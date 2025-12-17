@@ -88,6 +88,11 @@ export const useStyles = makeStyles({
     fontSize: tokens.fontSizeBase100,
     marginLeft: tokens.spacingHorizontalS,
   },
+  stepNested: {
+    marginLeft: tokens.spacingHorizontalL,
+    borderLeft: `1px solid ${tokens.colorNeutralStroke2}`,
+    paddingLeft: tokens.spacingHorizontalS,
+  },
   hidden: {
     display: "none",
   },

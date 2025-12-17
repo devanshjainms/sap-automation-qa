@@ -9,10 +9,12 @@
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ReasoningStep {
   id: string;
+  parent_step_id?: string;
   agent: string;
   phase: string;
   kind: "routing" | "tool_call" | "inference" | "decision" | "error";
@@ -47,6 +49,7 @@ export interface TestPlan {
 
 export interface ChatResponse {
   messages: ChatMessage[];
+  agent_chain?: string[];
   test_plan: TestPlan | null;
   correlation_id: string;
   reasoning_trace: ReasoningTrace | null;

@@ -19,6 +19,7 @@ import { useThinkingIndicatorStyles as useStyles } from "../../styles";
 
 export interface ThinkingStep {
   id: string;
+  parent_step_id?: string;
   agent: string;
   action: string;
   detail?: string;
@@ -109,7 +110,13 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({
         )}
       >
         {steps.map((step) => (
-          <div key={step.id} className={styles.step}>
+          <div
+            key={step.id}
+            className={mergeClasses(
+              styles.step,
+              step.parent_step_id ? styles.stepNested : undefined
+            )}
+          >
             {getStepIcon(step.status)}
             <div className={styles.stepContent}>
               <Text className={styles.stepAction}>{step.action}</Text>

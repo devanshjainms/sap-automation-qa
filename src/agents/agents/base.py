@@ -12,6 +12,7 @@ This module provides:
 
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Optional
 import time
 from typing import Optional, Literal, Any
 
@@ -19,7 +20,12 @@ from semantic_kernel import Kernel
 from semantic_kernel.contents import ChatHistory
 
 from src.agents.models.chat import ChatMessage, ChatResponse
-from src.agents.models.reasoning import ReasoningTracer, TracingPhase, sanitize_snapshot
+from src.agents.models.reasoning import (
+    ReasoningTracer,
+    TracingPhase,
+    ReasoningStep,
+    sanitize_snapshot,
+)
 from src.agents.observability import (
     get_logger,
     AgentContext,
@@ -57,51 +63,46 @@ class AgentTracer:
 
     def step(
         self,
-        phase: Literal[
-            "input_understanding",
-            "workspace_resolution",
-            "system_capabilities",
-            "test_selection",
-            "execution_planning",
-            "execution_run",
-            "execution_async",
-            "diagnostics",
-            "routing",
-            "documentation_retrieval",
-            "response_generation",
-        ],
+        phase: TracingPhase,
         kind: Literal["tool_call", "inference", "decision"],
         description: str,
+        parent_step_id: Optional[str] = None,
         input_snapshot: Optional[dict[str, Any]] = None,
         output_snapshot: Optional[dict[str, Any]] = None,
         error: Optional[str] = None,
-    ) -> None:
+    ) -> Optional[ReasoningStep]:
         """
         Add a reasoning step to the current trace.
 
         :param phase: Workflow phase this step belongs to
-        :type phase: Literal
+        :type phase: TracingPhase
         :param kind: Type of step (tool_call, inference, decision)
         :type kind: Literal
         :param description: Human-readable description of the step
         :type description: str
+        :param parent_step_id: Optional ID of parent step
+        :type parent_step_id: Optional[str]
         :param input_snapshot: Small summary of inputs
         :type input_snapshot: Optional[dict[str, Any]]
         :param output_snapshot: Small summary of outputs
         :type output_snapshot: Optional[dict[str, Any]]
         :param error: Error message if step failed
         :type error: Optional[str]
+        :return: The created ReasoningStep or None
+        :rtype: Optional[ReasoningStep]
         """
         if self._tracer:
-            self._tracer.step(
+            return self._tracer.step(
                 phase,
                 kind,
                 description,
                 agent=self.agent_name,
+                parent_step_id=parent_step_id,
                 input_snapshot=input_snapshot,
                 output_snapshot=output_snapshot,
                 error=error,
             )
+        return None
 
     def get_trace(self) -> Optional[dict]:
         """
@@ -421,7 +422,7 @@ class AgentRegistry:
         return name in self._agents
 
 
-def create_default_agent_registry() -> "AgentRegistry":
+def create_default_agent_registry(kernel: Optional[Kernel] = None) -> "AgentRegistry":
     """
     Create and populate default agent registry.
     All agents now use Semantic Kernel for function calling.
@@ -441,7 +442,7 @@ def create_default_agent_registry() -> "AgentRegistry":
     from src.agents.ansible_runner import AnsibleRunner
     from src.agents.sk_kernel import create_kernel
 
-    kernel = create_kernel()
+    kernel = kernel or create_kernel()
     workspace_root = Path(__file__).parent.parent.parent.parent / "WORKSPACES" / "SYSTEM"
     workspace_store = WorkspaceStore(workspace_root)
     src_dir = Path(__file__).parent.parent.parent

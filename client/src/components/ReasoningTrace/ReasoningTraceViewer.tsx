@@ -16,6 +16,7 @@ import {
   AccordionHeader,
   AccordionPanel,
   Badge,
+  mergeClasses,
 } from "@fluentui/react-components";
 import {
   ChevronDownRegular,
@@ -100,6 +101,10 @@ const useStyles = makeStyles({
   errorStep: {
     color: tokens.colorPaletteRedForeground1,
   },
+  stepNested: {
+    marginLeft: tokens.spacingHorizontalL,
+    borderLeft: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
 });
 
 const getStepIcon = (kind: string) => {
@@ -172,7 +177,10 @@ export const ReasoningTraceViewer: React.FC<ReasoningTraceViewerProps> = ({
               <AccordionItem
                 key={step.id}
                 value={step.id}
-                className={styles.stepItem}
+                className={mergeClasses(
+                  styles.stepItem,
+                  step.parent_step_id ? styles.stepNested : undefined
+                )}
               >
                 <AccordionHeader expandIconPosition="start">
                   <div className={styles.stepHeader}>

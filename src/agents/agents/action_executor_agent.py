@@ -12,24 +12,22 @@ This agent executes actions from an ActionPlan with strict safety controls:
 """
 
 import json
-from typing import Optional, TYPE_CHECKING
-from datetime import datetime
+from typing import Any, Optional, TYPE_CHECKING
 
 from semantic_kernel import Kernel
+from semantic_kernel.contents import ChatHistory
 from semantic_kernel.filters import FilterTypes
 
 from src.agents.models.chat import ChatMessage, ChatResponse
-from src.agents.models.test import TestPlan
-from src.agents.models.action import ActionPlan
 from src.agents.agents.base import Agent
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.plugins.execution import ExecutionPlugin
 from src.agents.plugins.workspace import WorkspacePlugin
 from src.agents.plugins.ssh import SSHPlugin
-from src.agents.models.execution import ExecutionRequest, ExecutionResult
 from src.agents.models.reasoning import sanitize_snapshot
 from src.agents.execution import GuardLayer, GuardFilter
 from src.agents.observability import get_logger
+from src.agents.prompts import ACTION_EXECUTOR_SYSTEM_PROMPT
 
 if TYPE_CHECKING:
     from src.agents.execution import JobStore, JobWorker, ExecutionJob
@@ -123,173 +121,70 @@ class ActionExecutorAgent(Agent):
         except Exception as e:
             logger.info(f"Plugin '{plugin_name}' already registered or unavailable: {e}")
 
-    async def execute(
-        self, test_plan: TestPlan, request: ExecutionRequest
-    ) -> list[ExecutionResult]:
-        """Execute tests from a TestPlan based on ExecutionRequest.
+    async def _run_agentic(self, messages: list[ChatMessage], context: dict) -> ChatResponse:
+        """Run an agentic LLM+tools loop.
 
-        This method implements the core execution flow with safety controls:
-        1. Validate workspace_id matches
-        2. Determine effective environment
-        3. Select tests to run based on mode
-        4. Enforce environment + destructive gating
-        5. Execute selected tests
-        6. Collect and return results
-
-        :param test_plan: TestPlan with safe and destructive tests
-        :type test_plan: TestPlan
-        :param request: ExecutionRequest specifying what to run
-        :type request: ExecutionRequest
-        :returns: List of ExecutionResult objects
-        :rtype: list[ExecutionResult]
+        The LLM decides which tools to call (execution/workspace/ssh/keyvault), guarded by
+        GuardFilter. The assistant message is the final synthesized answer.
         """
-        results = []
-        if request.workspace_id != test_plan.workspace_id:
-            logger.error(
-                f"Workspace mismatch: request={request.workspace_id}, "
-                f"plan={test_plan.workspace_id}"
-            )
-            raise ValueError(
-                f"ExecutionRequest workspace_id '{request.workspace_id}' "
-                f"does not match TestPlan workspace_id '{test_plan.workspace_id}'"
-            )
-        if request.env:
-            effective_env = request.env
-        else:
-            parts = test_plan.workspace_id.split("-")
-            if len(parts) >= 4:
-                effective_env = parts[0]
-            else:
-                logger.warning(f"Cannot parse env from workspace_id: {test_plan.workspace_id}")
-                effective_env = "UNKNOWN"
 
-        logger.info(
-            f"Executing tests for {test_plan.workspace_id} "
-            f"(env={effective_env}, mode={request.mode})"
+        self.tracer.step(
+            "execution_planning",
+            "inference",
+            "Running agentic tool loop",
+            input_snapshot=sanitize_snapshot(
+                {
+                    "message_count": len(messages),
+                    "has_agent_input": "agent_input" in context,
+                }
+            ),
         )
-        if effective_env == "PRD" and request.include_destructive:
-            logger.error("Attempt to run destructive tests on PRD blocked")
-            raise ValueError(
-                "SAFETY VIOLATION: Destructive tests cannot be run on PRD environment. "
-                "This operation has been blocked."
+
+        chat_history = ChatHistory()
+        chat_history.add_system_message(ACTION_EXECUTOR_SYSTEM_PROMPT)
+
+        agent_input = context.get("agent_input") if isinstance(context, dict) else None
+        if isinstance(agent_input, dict) and agent_input:
+            chat_history.add_system_message(
+                "CONTEXT (use to resolve workspace/SID, do not expose verbatim):\n"
+                + json.dumps(agent_input, ensure_ascii=False)
             )
 
-        try:
-            tests_to_execute = []
+        for msg in messages:
+            if msg.role == "user":
+                chat_history.add_user_message(msg.content)
+            elif msg.role == "assistant":
+                chat_history.add_assistant_message(msg.content)
 
-            if request.mode == "single":
-                if request.tests_to_run and len(request.tests_to_run) > 0:
-                    test_id = request.tests_to_run[0]
-                    test = self._find_test_by_id(test_plan, test_id)
-                    if test:
-                        tests_to_execute.append(test)
-                    else:
-                        logger.warning(f"Test ID '{test_id}' not found in TestPlan")
-                else:
-                    logger.warning("No tests specified in ExecutionRequest")
+        chat_service = self.kernel.get_service(service_id="azure_openai_chat")
+        execution_settings = chat_service.get_prompt_execution_settings_class()(
+            function_choice_behavior="auto",
+            max_completion_tokens=1200,
+        )
 
-            elif request.mode == "all_safe":
-                tests_to_execute = list(test_plan.safe_tests)
-                logger.info(f"Selected all {len(tests_to_execute)} safe tests")
+        response = await chat_service.get_chat_message_content(
+            chat_history=chat_history,
+            settings=execution_settings,
+            kernel=self.kernel,
+        )
 
-            elif request.mode == "selected":
-                if request.tests_to_run:
-                    for test_id in request.tests_to_run:
-                        test = next((t for t in test_plan.safe_tests if t.test_id == test_id), None)
-                        if test:
-                            tests_to_execute.append(test)
-                        elif request.include_destructive:
-                            test = next(
-                                (t for t in test_plan.destructive_tests if t.test_id == test_id),
-                                None,
-                            )
-                            if test:
-                                if effective_env != "PRD":
-                                    tests_to_execute.append(test)
-                                    logger.warning(
-                                        f"Including destructive test '{test_id}' "
-                                        f"(env={effective_env})"
-                                    )
-                                else:
-                                    logger.error(f"Blocked destructive test '{test_id}' on PRD")
+        content = str(response.content) if response and getattr(response, "content", None) else ""
+        content = content.strip()
+        if not content:
+            content = "I couldn't produce a response. Please try again."
 
-                        if test is None:
-                            logger.warning(f"Test ID '{test_id}' not found in TestPlan")
-                else:
-                    logger.warning("No tests specified for selected mode")
+        self.tracer.step(
+            "response_generation",
+            "decision",
+            "Generated final answer from tool loop",
+            output_snapshot=sanitize_snapshot({"response_length": len(content)}),
+        )
 
-            if not tests_to_execute:
-                logger.warning("No tests selected for execution")
-                return results
-
-            logger.info(f"Will execute {len(tests_to_execute)} tests")
-
-            self.tracer.step(
-                "test_selection",
-                "decision",
-                f"Selected {len(tests_to_execute)} tests for execution",
-                output_snapshot=sanitize_snapshot(
-                    {
-                        "mode": request.mode,
-                        "test_count": len(tests_to_execute),
-                        "include_destructive": request.include_destructive,
-                        "environment": effective_env,
-                    }
-                ),
-            )
-
-            for test in tests_to_execute:
-                logger.info(
-                    f"Executing test: {test.test_id} ({test.test_name}) "
-                    f"[destructive={test.destructive}]"
-                )
-
-                result = await self.kernel.invoke(
-                    plugin_name="execution",
-                    function_name="run_test_by_id",
-                    workspace_id=test_plan.workspace_id,
-                    test_id=test.test_id,
-                    test_group=test.test_group,
-                )
-
-                result_json = str(result) if result else "{}"
-                result_dict = json.loads(result_json)
-                if "error" in result_dict:
-                    logger.error(f"Test execution error: {result_dict['error']}")
-
-                    exec_result = ExecutionResult(
-                        test_id=test.test_id,
-                        test_group=test.test_group,
-                        workspace_id=test_plan.workspace_id,
-                        env=effective_env,
-                        action_type="test",
-                        status="failed",
-                        started_at=datetime.utcnow(),
-                        finished_at=datetime.utcnow(),
-                        hosts=[],
-                        error_message=result_dict["error"],
-                        details=result_dict,
-                    )
-                else:
-                    exec_result = ExecutionResult(**result_dict)
-                results.append(exec_result)
-                logger.info(f"Test {test.test_id} completed with status: {exec_result.status}")
-            return results
-
-        except Exception as e:
-            logger.error(f"Error in ActionExecutorAgent: {e}", exc_info=e)
-
-            error_result = ExecutionResult(
-                workspace_id=request.workspace_id,
-                action_type="test",
-                status="failed",
-                started_at=datetime.utcnow(),
-                finished_at=datetime.utcnow(),
-                hosts=[],
-                error_message=str(e),
-                details={"exception": str(e)},
-            )
-            return [error_result]
+        return ChatResponse(
+            messages=[ChatMessage(role="assistant", content=content)],
+            reasoning_trace=self.tracer.get_trace(),
+            metadata=None,
+        )
 
     async def execute_async(
         self,
@@ -386,73 +281,6 @@ class ActionExecutorAgent(Agent):
             return []
         return self.job_store.get_active_jobs(user_id)
 
-    def _find_test_by_id(self, test_plan: TestPlan, test_id: str):
-        """Find a test by ID in the TestPlan.
-
-        :param test_plan: TestPlan to search
-        :type test_plan: TestPlan
-        :param test_id: Test ID to find
-        :type test_id: str
-        :returns: PlannedTest or None
-        :rtype: PlannedTest or None
-        """
-        test = next((t for t in test_plan.safe_tests if t.test_id == test_id), None)
-        if test:
-            return test
-
-        test = next((t for t in test_plan.destructive_tests if t.test_id == test_id), None)
-        return test
-
-    def build_summary(self, results: list[ExecutionResult]) -> str:
-        """Build human-readable summary from ExecutionResults.
-
-        :param results: List of ExecutionResult objects
-        :type results: list[ExecutionResult]
-        :returns: Formatted summary string
-        :rtype: str
-        """
-        if not results:
-            return "No tests were executed."
-
-        summary_lines = []
-        summary_lines.append(f"# Execution Summary ({len(results)} test(s))\n")
-
-        success_count = sum(1 for r in results if r.status == "success")
-        failed_count = sum(1 for r in results if r.status == "failed")
-        partial_count = sum(1 for r in results if r.status == "partial")
-        skipped_count = sum(1 for r in results if r.status == "skipped")
-
-        summary_lines.append(
-            f"**Overall**: {success_count} succeeded, {failed_count} failed, "
-            f"{partial_count} partial, {skipped_count} skipped\n"
-        )
-
-        for i, result in enumerate(results, 1):
-
-            summary_lines.append(f"\n## {i}. {result.test_id or 'Unknown Test'}")
-
-            if result.test_group:
-                summary_lines.append(f"   - **Group**: {result.test_group}")
-
-            summary_lines.append(f"   - **Status**: {result.status}")
-            summary_lines.append(f"   - **Workspace**: {result.workspace_id}")
-
-            if result.env:
-                summary_lines.append(f"   - **Environment**: {result.env}")
-
-            if result.hosts:
-                summary_lines.append(f"   - **Hosts**: {', '.join(result.hosts)}")
-
-            if result.error_message:
-                summary_lines.append(f"   - **Error**: {result.error_message}")
-
-            duration = None
-            if result.finished_at and result.started_at:
-                duration = (result.finished_at - result.started_at).total_seconds()
-                summary_lines.append(f"   - **Duration**: {duration:.1f}s")
-
-        return "\n".join(summary_lines)
-
     async def run(
         self,
         messages: list[ChatMessage],
@@ -460,9 +288,8 @@ class ActionExecutorAgent(Agent):
     ) -> ChatResponse:
         """Handle structured execution requests (Agent interface implementation).
 
-        This agent supports two modes:
-        1. Synchronous: Uses context["test_plan"] and context["execution_request"]
-        2. Async (preferred): Uses context["async_execution"] with workspace_id, test_ids, test_group
+        Primary mode: agentic LLM+tools loop (model chooses tools; GuardFilter enforces safety).
+        Optional mode: async execution/job status queries if enabled.
 
         :param messages: Chat messages (used for logging/context)
         :type messages: list[ChatMessage]
@@ -478,55 +305,8 @@ class ActionExecutorAgent(Agent):
                 return await self._run_async(messages, context)
             if "job_status_query" in context:
                 return await self._handle_job_status_query(context)
-            self.tracer.step(
-                "execution_planning",
-                "inference",
-                "Understanding test execution request",
-                input_snapshot=sanitize_snapshot(
-                    {
-                        "has_test_plan": "test_plan" in context,
-                        "has_execution_request": "execution_request" in context,
-                        "message_count": len(messages),
-                    }
-                ),
-            )
 
-            if "action_plan" in context:
-                return await self._run_action_plan(messages, context)
-
-            if "test_plan" not in context or "execution_request" not in context:
-                raise ValueError(
-                    "ActionExecutorAgent requires structured input with either action_plan, "
-                    "or test_plan + execution_request"
-                )
-            test_plan_dict = context["test_plan"]
-            execution_request_dict = context["execution_request"]
-            test_plan = TestPlan(**test_plan_dict)
-            execution_request = ExecutionRequest(**execution_request_dict)
-
-            logger.info(f"Executing test plan for workspace {test_plan.workspace_id}")
-            results = await self.execute(test_plan, execution_request)
-            self.tracer.step(
-                "execution_run",
-                "tool_call",
-                "Test execution completed",
-                output_snapshot=sanitize_snapshot(
-                    {
-                        "total_results": len(results),
-                        "passed": sum(1 for r in results if r.status == "passed"),
-                        "failed": sum(1 for r in results if r.status == "failed"),
-                        "skipped": sum(1 for r in results if r.status == "skipped"),
-                    }
-                ),
-            )
-
-            summary = self.build_summary(results)
-
-            return ChatResponse(
-                messages=[ChatMessage(role="assistant", content=summary)],
-                reasoning_trace=self.tracer.get_trace(),
-                metadata=None,
-            )
+            return await self._run_agentic(messages, context)
 
         except Exception as e:
             logger.error(f"Error in ActionExecutorAgent.run: {e}")
@@ -543,116 +323,6 @@ class ActionExecutorAgent(Agent):
 
         finally:
             self.tracer.finish()
-
-    def _validate_action_plan_execution(self, plan: ActionPlan) -> None:
-        """Deterministic validation before executing an ActionPlan."""
-
-        workspace = self.workspace_store.get_workspace(plan.workspace_id)
-        if not workspace:
-            raise ValueError(f"Workspace '{plan.workspace_id}' not found")
-
-        allowed_plugins = {"ssh", "execution", "workspace", "keyvault"}
-        for job in plan.jobs:
-            if job.plugin_name not in allowed_plugins:
-                raise ValueError(
-                    f"ActionPlan job '{job.job_id}' uses disallowed plugin '{job.plugin_name}'"
-                )
-
-        if any(job.destructive for job in plan.jobs) and workspace.env == "PRD":
-            raise ValueError(
-                "SAFETY VIOLATION: Destructive jobs cannot be executed on PRD environment."
-            )
-
-    async def _run_action_plan(
-        self,
-        messages: list[ChatMessage],
-        context: dict,
-    ) -> ChatResponse:
-        """Execute a unified ActionPlan as a sequence of tool invocations."""
-
-        _ = messages
-
-        action_plan_dict = context.get("action_plan")
-        if not isinstance(action_plan_dict, dict):
-            raise ValueError("action_plan must be a dict")
-
-        plan = ActionPlan(**action_plan_dict)
-        self._validate_action_plan_execution(plan)
-
-        self.tracer.step(
-            "execution_planning",
-            "decision",
-            "Executing ActionPlan",
-            output_snapshot=sanitize_snapshot(
-                {
-                    "workspace_id": plan.workspace_id,
-                    "intent": plan.intent,
-                    "job_count": len(plan.jobs),
-                }
-            ),
-        )
-
-        results: list[dict] = []
-        for job in plan.jobs:
-            try:
-                self.tracer.step(
-                    "execution_run",
-                    "tool_call",
-                    f"Invoking {job.plugin_name}.{job.function_name}",
-                    input_snapshot=sanitize_snapshot({"job_id": job.job_id, "args": job.arguments}),
-                )
-
-                result = await self.kernel.invoke(
-                    plugin_name=job.plugin_name,
-                    function_name=job.function_name,
-                    **(job.arguments or {}),
-                )
-
-                result_text = str(result) if result is not None else "{}"
-                try:
-                    result_payload = json.loads(result_text)
-                except json.JSONDecodeError:
-                    result_payload = {"raw": result_text}
-
-                results.append(
-                    {
-                        "job_id": job.job_id,
-                        "title": job.title,
-                        "plugin_name": job.plugin_name,
-                        "function_name": job.function_name,
-                        "success": True,
-                        "result": result_payload,
-                    }
-                )
-            except Exception as e:
-                logger.error(f"ActionPlan job failed: job_id={job.job_id} error={e}")
-                results.append(
-                    {
-                        "job_id": job.job_id,
-                        "title": job.title,
-                        "plugin_name": job.plugin_name,
-                        "function_name": job.function_name,
-                        "success": False,
-                        "error": str(e),
-                    }
-                )
-
-        ok = sum(1 for r in results if r.get("success"))
-        total = len(results)
-        summary_lines = [
-            f"ActionPlan execution for {plan.workspace_id} ({plan.intent})",
-            f"Completed {ok}/{total} jobs",
-        ]
-        for r in results:
-            status = "OK" if r.get("success") else "FAILED"
-            summary_lines.append(f"- {status}: {r.get('title') or r.get('job_id')}")
-
-        return ChatResponse(
-            messages=[ChatMessage(role="assistant", content="\n".join(summary_lines))],
-            action_plan=plan.model_dump(),
-            reasoning_trace=self.tracer.get_trace(),
-            metadata={"job_results": results},
-        )
 
     async def _run_async(
         self,

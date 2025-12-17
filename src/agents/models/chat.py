@@ -73,6 +73,9 @@ class ChatResponse(BaseModel):
     test_plan: Optional[dict] = None
     action_plan: Optional[dict] = None
     correlation_id: Optional[str] = None
+    agent_chain: list[str] = Field(
+        default_factory=list, description="List of agents that processed this request"
+    )
     reasoning_trace: Optional[dict] = Field(
         None, description="Reasoning trace showing agent's chain-of-thought"
     )

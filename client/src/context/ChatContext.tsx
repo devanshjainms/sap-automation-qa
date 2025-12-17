@@ -41,6 +41,10 @@ type ChatAction =
   | { type: "SET_MESSAGES"; payload: ChatMessage[] }
   | { type: "ADD_MESSAGE"; payload: ChatMessage }
   | { type: "UPDATE_LAST_MESSAGE"; payload: string }
+  | {
+      type: "FINALIZE_LAST_MESSAGE";
+      payload: { content: string; metadata?: Record<string, unknown> };
+    }
   | { type: "SET_LOADING"; payload: boolean }
   | { type: "SET_STREAMING"; payload: boolean }
   | { type: "SET_THINKING"; payload: boolean }
@@ -89,6 +93,16 @@ const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
         };
       }
       return { ...state, messages: updatedMessages };
+    case "FINALIZE_LAST_MESSAGE":
+      const finalizedMessages = [...state.messages];
+      if (finalizedMessages.length > 0) {
+        finalizedMessages[finalizedMessages.length - 1] = {
+          ...finalizedMessages[finalizedMessages.length - 1],
+          content: action.payload.content,
+          metadata: action.payload.metadata,
+        };
+      }
+      return { ...state, messages: finalizedMessages };
     case "SET_LOADING":
       return { ...state, isLoading: action.payload };
     case "SET_STREAMING":
@@ -241,6 +255,18 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
             onComplete: (response) => {
               conversationIdFromResponse = response.metadata?.conversation_id || null;
 
+              dispatch({
+                type: "FINALIZE_LAST_MESSAGE",
+                payload: {
+                  content: response.messages[0].content,
+                  metadata: {
+                    ...response.metadata,
+                    agent_chain: response.agent_chain,
+                    reasoning_trace: response.reasoning_trace,
+                  },
+                },
+              });
+
               if (conversationIdFromResponse && !state.conversationId) {
                 dispatch({
                   type: "SET_CONVERSATION_ID",
@@ -299,6 +325,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
         (m: Message) => ({
           role: m.role,
           content: m.content,
+          metadata: m.metadata,
         }),
       );
 

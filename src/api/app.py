@@ -47,9 +47,20 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown."""
     logger.info("Initializing application...")
 
-    kernel = create_kernel()
-    agent_registry = create_default_agent_registry()
-    orchestrator = OrchestratorSK(registry=agent_registry, kernel=kernel)
+    kernel = None
+    try:
+        kernel = create_kernel()
+    except ValueError as e:
+        logger.error(
+            "Azure OpenAI is not configured; AI chat endpoints will be unavailable.",
+            extra={"error": str(e)},
+        )
+
+    agent_registry = None
+    orchestrator = None
+    if kernel is not None:
+        agent_registry = create_default_agent_registry(kernel=kernel)
+        orchestrator = OrchestratorSK(registry=agent_registry, kernel=kernel)
 
     db_path = Path("data/sap_qa.db")
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -58,15 +69,11 @@ async def lifespan(app: FastAPI):
 
     from src.agents.agents.action_executor_agent import ActionExecutorAgent
 
-    action_executor_base = agent_registry.get("action_executor")
-    print(
-        f"DEBUG: action_executor_base from registry: {action_executor_base}, type: {type(action_executor_base)}"
-    )
     job_store: JobStore | None = None
     job_worker: JobWorker | None = None
 
+    action_executor_base = agent_registry.get("action_executor") if agent_registry else None
     if action_executor_base and isinstance(action_executor_base, ActionExecutorAgent):
-        print("DEBUG: Entering ActionExecutorAgent configuration block")
         action_executor: ActionExecutorAgent = action_executor_base
         job_store = JobStore(db_path=db_path)
         job_worker = JobWorker(
@@ -77,15 +84,13 @@ async def lifespan(app: FastAPI):
         action_executor.job_worker = job_worker
         action_executor._async_enabled = True
         action_executor.guard_layer.job_store = job_store
-
-        print(
-            f"DEBUG: Async enabled. guard_layer.job_store is None: {action_executor.guard_layer.job_store is None}"
-        )
     else:
         logger.warning("Action executor not found - async job execution disabled")
 
-    set_agent_registry(agent_registry)
-    set_orchestrator(orchestrator)
+    if agent_registry is not None:
+        set_agent_registry(agent_registry)
+    if orchestrator is not None:
+        set_orchestrator(orchestrator)
     set_conversation_manager(conversation_manager)
     set_chat_conversation_manager(conversation_manager)
     set_chat_kernel(kernel)

@@ -5,6 +5,7 @@
 
 import asyncio
 import json
+import os
 from typing import AsyncGenerator, Optional
 
 from fastapi import APIRouter, Query, Request
@@ -68,7 +69,7 @@ def set_chat_conversation_manager(manager: ConversationManager) -> None:
     _conversation_manager = manager
 
 
-def set_chat_kernel(kernel: Kernel) -> None:
+def set_chat_kernel(kernel: Optional[Kernel]) -> None:
     """Set the global kernel instance for AI operations.
 
     :param kernel: Kernel instance to use
@@ -172,8 +173,20 @@ async def chat(
     :rtype: ChatResponse
     """
     if _orchestrator is None or _conversation_manager is None:
+        missing = []
+        for key in ("AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT"):
+            if not os.getenv(key):
+                missing.append(key)
+
+        hint = ""
+        if missing:
+            hint = (
+                " Azure OpenAI is not configured. Missing: "
+                + ", ".join(missing)
+                + ". Configure these env vars and restart the backend."
+            )
         return ChatResponse(
-            messages=[ChatMessage(role="assistant", content="Service not initialized")],
+            messages=[ChatMessage(role="assistant", content="Service not initialized." + hint)],
             correlation_id=request.correlation_id,
             reasoning_trace=None,
             metadata=None,
@@ -353,8 +366,10 @@ async def chat_stream(
         async def run_orchestrator() -> ChatResponse:
             """Run orchestrator in background task."""
             try:
+                if not _orchestrator:
+                    raise ValueError("Orchestrator not initialized")
                 return await _orchestrator.handle_chat(
-                    current_request,
+                    request=current_request,
                     context={
                         "conversation_id": active_conversation_id,
                         "workspace_ids": request.workspace_ids or [],
@@ -362,7 +377,7 @@ async def chat_stream(
                 )
             finally:
                 set_stream_callback(None)
-                await event_queue.put(None)
+                await event_queue.put(StreamEvent.done())
 
         orchestrator_task = asyncio.create_task(run_orchestrator())
 

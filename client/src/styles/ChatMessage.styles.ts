@@ -57,6 +57,20 @@ export const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground3,
     color: tokens.colorNeutralForeground1,
   },
+  agentChain: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalXS,
+    marginBottom: tokens.spacingVerticalXS,
+    fontSize: tokens.fontSizeBase100,
+    color: tokens.colorNeutralForeground3,
+  },
+  agentBadge: {
+    backgroundColor: tokens.colorNeutralBackground4,
+    padding: "1px 6px",
+    borderRadius: tokens.borderRadiusSmall,
+    fontWeight: tokens.fontWeightSemibold,
+  },
   actions: {
     display: "flex",
     gap: tokens.spacingHorizontalXS,
