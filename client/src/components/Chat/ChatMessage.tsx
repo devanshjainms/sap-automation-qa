@@ -67,12 +67,12 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           {!isUser && !!message.metadata?.agent_chain && (
             <div className={styles.agentChain}>
               {(message.metadata.agent_chain as string[]).map((agent: string, i: number) => (
-                <React.Fragment key={i}>
+                <span key={i} style={{ display: "contents" }}>
                   <span className={styles.agentBadge}>{agent}</span>
                   {i < (message.metadata!.agent_chain as string[]).length - 1 && (
                     <ArrowRightRegular style={{ fontSize: "12px" }} />
                   )}
-                </React.Fragment>
+                </span>
               ))}
             </div>
           )}

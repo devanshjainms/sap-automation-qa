@@ -87,7 +87,7 @@ export const ChatPanel: React.FC = () => {
                 isLastAssistantMessage && state.thinkingSteps.length > 0;
 
               return (
-                <React.Fragment key={index}>
+                <div key={index}>
                   {showThinkingBeforeThis && (
                     <ThinkingIndicator
                       isThinking={false}
@@ -101,7 +101,7 @@ export const ChatPanel: React.FC = () => {
                         trace={message.metadata.reasoning_trace as any}
                       />
                     )}
-                </React.Fragment>
+                </div>
               );
             })}
             {state.isThinking && (
