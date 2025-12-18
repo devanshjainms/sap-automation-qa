@@ -154,8 +154,8 @@ class OrchestratorSK:
                                         step.parent_step_id = parent_step_id
                             combined_trace["steps"].extend(steps)
                         agent_content = agent_response.messages[-1].content
-                        chat_history.add_assistant_message(
-                            f"AGENT {agent_name} RESPONSE:\n{agent_content}"
+                        chat_history.add_system_message(
+                            f"OUTPUT FROM AGENT {agent_name}:\n{agent_content}"
                         )
 
                         continue

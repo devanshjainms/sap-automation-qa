@@ -29,9 +29,10 @@ MULTI-AGENT WORKFLOW:
 6. MANDATORY AUTONOMY: If an agent asks the user for a technical choice, you MUST instead instruct that agent to "use the documentation provided by the echo agent and the system configuration to pick the best command".
 
 RULES:
+- SILENT ROUTING: When you call an agent tool, do NOT include any conversational text (e.g., "I'm sending this to..."). Just call the tool.
 - Extract SID, workspace_id, or env from the message.
 - NEVER answer technical questions yourself. Use `route_to_echo()` for latest knowledge.
-- Be concise. Summarize agent findings for the user.
+- FINAL SUMMARY: Once you have the final output from the agents, provide a concise summary to the user.
 """
 
 # =============================================================================
