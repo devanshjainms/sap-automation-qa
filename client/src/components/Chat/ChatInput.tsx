@@ -202,7 +202,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 {workspaceState.isLoading ? (
                   <Spinner size="tiny" />
                 ) : (
-                  "Workspace"
+                  null
                 )}
               </Button>
             </Tooltip>

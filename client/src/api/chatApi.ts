@@ -132,10 +132,11 @@ export const chatApi = {
                   break;
                 case "done":
                   const chatResponse: ChatResponse = {
-                    messages: [],
-                    test_plan: null,
+                    messages: parsed.messages || [],
+                    test_plan: parsed.test_plan || null,
                     correlation_id: parsed.correlation_id || correlationId,
                     reasoning_trace: parsed.reasoning_trace || null,
+                    agent_chain: parsed.agent_chain || [],
                     metadata: {
                       conversation_id: parsed.conversation_id,
                     },

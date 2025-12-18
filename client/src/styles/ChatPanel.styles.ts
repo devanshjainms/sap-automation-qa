@@ -13,12 +13,15 @@ export const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     height: "100%",
-    backgroundColor: tokens.colorNeutralBackground2,
+    backgroundColor: tokens.colorNeutralBackground1,
   },
   messagesContainer: {
     flex: 1,
     overflowY: "auto",
-    padding: tokens.spacingVerticalL,
+    padding: `0 ${tokens.spacingHorizontalL}`,
+    paddingTop: tokens.spacingVerticalL,
+    display: "flex",
+    flexDirection: "column",
   },
   emptyState: {
     display: "flex",
@@ -29,6 +32,8 @@ export const useStyles = makeStyles({
     gap: tokens.spacingVerticalL,
     padding: tokens.spacingHorizontalXXL,
     textAlign: "center" as const,
+    maxWidth: "900px",
+    margin: "0 auto",
   },
   emptyStateIcon: {
     fontSize: "64px",

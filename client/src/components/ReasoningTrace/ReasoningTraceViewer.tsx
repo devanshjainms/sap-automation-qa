@@ -32,78 +32,171 @@ import { APP_STRINGS } from "../../constants";
 
 const useStyles = makeStyles({
   container: {
-    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
-    backgroundColor: tokens.colorNeutralBackground3,
+    maxWidth: "900px",
+    margin: "0 auto",
+    padding: `${tokens.spacingVerticalM} 0`,
+    width: "100%",
+    overflow: "hidden",
   },
   header: {
     display: "flex",
     alignItems: "center",
     gap: tokens.spacingHorizontalS,
-    padding: tokens.spacingVerticalS + " " + tokens.spacingHorizontalM,
+    padding: `4px 12px`,
     cursor: "pointer",
+    borderRadius: tokens.borderRadiusCircular,
+    backgroundColor: tokens.colorNeutralBackground3,
+    width: "fit-content",
+    transition: "all 0.2s ease",
     ":hover": {
       backgroundColor: tokens.colorNeutralBackground3Hover,
     },
   },
   headerIcon: {
     color: tokens.colorBrandForeground1,
+    fontSize: "14px",
   },
   headerText: {
-    flex: 1,
-    fontWeight: tokens.fontWeightSemibold,
-    fontSize: tokens.fontSizeBase200,
+    fontSize: tokens.fontSizeBase100,
+    color: tokens.colorNeutralForeground2,
+    fontWeight: tokens.fontWeightMedium,
   },
   stepCount: {
     fontSize: tokens.fontSizeBase100,
-    color: tokens.colorNeutralForeground3,
+    color: tokens.colorNeutralForeground4,
+    marginLeft: tokens.spacingHorizontalXS,
   },
   content: {
-    padding: tokens.spacingVerticalS + " " + tokens.spacingHorizontalM,
-    paddingTop: 0,
+    padding: tokens.spacingVerticalM,
+    marginTop: tokens.spacingVerticalS,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    backgroundColor: tokens.colorNeutralBackground2,
+  },
+  accordion: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalXS,
   },
   stepItem: {
-    marginBottom: tokens.spacingVerticalXS,
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderRadius: tokens.borderRadiusSmall,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    transition: "all 0.2s ease",
+    ":hover": {
+      border: `1px solid ${tokens.colorBrandStroke1}`,
+    },
+  },
+  stepNested: {
+    marginLeft: "20px",
+    position: "relative",
+    ":before": {
+      content: '""',
+      position: "absolute",
+      left: "-12px",
+      top: "0",
+      bottom: "0",
+      width: "2px",
+      backgroundColor: tokens.colorNeutralStroke2,
+    },
   },
   stepHeader: {
     display: "flex",
     alignItems: "center",
     gap: tokens.spacingHorizontalS,
-    fontSize: tokens.fontSizeBase200,
+    width: "100%",
+    paddingRight: tokens.spacingHorizontalM,
   },
   stepIcon: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "24px",
+    height: "24px",
     fontSize: "16px",
+    color: tokens.colorBrandForeground1,
+  },
+  stepInfo: {
+    display: "flex",
+    flexDirection: "column",
+    flex: 1,
+  },
+  stepTitle: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalXS,
   },
   stepAgent: {
-    fontWeight: tokens.fontWeightSemibold,
+    fontWeight: tokens.fontWeightBold,
+    fontSize: tokens.fontSizeBase200,
   },
   stepPhase: {
     color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase100,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+  },
+  stepMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
+    marginLeft: "auto",
+  },
+  duration: {
+    fontSize: tokens.fontSizeBase100,
+    color: tokens.colorNeutralForeground4,
+    fontFamily: "monospace",
   },
   stepDescription: {
     fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground2,
-    paddingLeft: "24px",
-    marginTop: tokens.spacingVerticalXS,
+    marginBottom: tokens.spacingVerticalS,
+    display: "block",
+    lineHeight: tokens.lineHeightBase300,
   },
-  stepDetails: {
-    fontSize: tokens.fontSizeBase100,
-    color: tokens.colorNeutralForeground3,
-    paddingLeft: "24px",
-    marginTop: tokens.spacingVerticalXS,
-    fontFamily: "monospace",
-    whiteSpace: "pre-wrap",
-    backgroundColor: tokens.colorNeutralBackground1,
-    padding: tokens.spacingVerticalXS + " " + tokens.spacingHorizontalS,
+  snapshotContainer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: tokens.spacingVerticalS,
+    marginTop: tokens.spacingVerticalS,
+  },
+  snapshotBox: {
+    backgroundColor: tokens.colorNeutralBackground3,
     borderRadius: tokens.borderRadiusSmall,
-    maxHeight: "200px",
-    overflowY: "auto",
+    padding: tokens.spacingVerticalS,
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
+  snapshotTitle: {
+    fontSize: tokens.fontSizeBase100,
+    fontWeight: tokens.fontWeightBold,
+    color: tokens.colorBrandForeground1,
+    marginBottom: tokens.spacingVerticalXS,
+    display: "block",
+    textTransform: "uppercase",
+    letterSpacing: "1px",
+  },
+  snapshotCode: {
+    fontSize: tokens.fontSizeBase100,
+    fontFamily: "Consolas, 'Courier New', monospace",
+    whiteSpace: "pre-wrap",
+    color: tokens.colorNeutralForeground1,
+    margin: 0,
+    lineHeight: "1.4",
+  },
+  panel: {
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    paddingLeft: "48px",
   },
   errorStep: {
     color: tokens.colorPaletteRedForeground1,
-  },
-  stepNested: {
-    marginLeft: tokens.spacingHorizontalL,
-    borderLeft: `1px solid ${tokens.colorNeutralStroke2}`,
+    backgroundColor: tokens.colorPaletteRedBackground1,
+    padding: tokens.spacingVerticalXS,
+    borderRadius: tokens.borderRadiusSmall,
+    marginTop: tokens.spacingVerticalS,
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalXS,
+    fontSize: tokens.fontSizeBase200,
   },
 });
 
@@ -145,6 +238,12 @@ const getStepBadge = (kind: string) => {
   return colorMap[kind] || "subtle";
 };
 
+const formatDuration = (ms?: number) => {
+  if (ms === undefined || ms === null) return null;
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+};
+
 interface ReasoningTraceViewerProps {
   trace: ReasoningTrace | null;
 }
@@ -167,13 +266,13 @@ export const ReasoningTraceViewer: React.FC<ReasoningTraceViewerProps> = ({
         <Text className={styles.headerText}>
           {isExpanded ? APP_STRINGS.TRACE_COLLAPSE : APP_STRINGS.TRACE_EXPAND}
         </Text>
-        <Text className={styles.stepCount}>{trace.steps.length} steps</Text>
+        <div className={styles.stepCount}>{trace.steps.length} steps</div>
       </div>
 
       {isExpanded && (
         <div className={styles.content}>
-          <Accordion multiple collapsible>
-            {trace.steps.map((step, index) => (
+          <Accordion multiple collapsible className={styles.accordion}>
+            {trace.steps.map((step) => (
               <AccordionItem
                 key={step.id}
                 value={step.id}
@@ -187,48 +286,61 @@ export const ReasoningTraceViewer: React.FC<ReasoningTraceViewerProps> = ({
                     <span className={styles.stepIcon}>
                       {getStepIcon(step.kind)}
                     </span>
-                    <Badge
-                      appearance="filled"
-                      color={getStepBadge(step.kind)}
-                      size="small"
-                    >
-                      {step.kind}
-                    </Badge>
-                    <Text className={styles.stepAgent}>{step.agent}</Text>
-                    <Text className={styles.stepPhase}>• {step.phase}</Text>
-                    {step.error && (
-                      <ErrorCircleRegular className={styles.errorStep} />
-                    )}
+                    <div className={styles.stepInfo}>
+                      <div className={styles.stepTitle}>
+                        <Text className={styles.stepAgent}>{step.agent}</Text>
+                        <Badge
+                          appearance="tint"
+                          color={getStepBadge(step.kind)}
+                          size="tiny"
+                        >
+                          {step.kind}
+                        </Badge>
+                      </div>
+                      <Text className={styles.stepPhase}>{step.phase}</Text>
+                    </div>
+                    <div className={styles.stepMeta}>
+                      {step.duration_ms !== undefined && (
+                        <Text className={styles.duration}>
+                          {formatDuration(step.duration_ms)}
+                        </Text>
+                      )}
+                      {step.error && (
+                        <ErrorCircleRegular className={styles.errorStep} />
+                      )}
+                    </div>
                   </div>
                 </AccordionHeader>
-                <AccordionPanel>
+                <AccordionPanel className={styles.panel}>
                   <Text className={styles.stepDescription}>
                     {step.description}
                   </Text>
-                  {(Object.keys(step.input_snapshot).length > 0 ||
-                    Object.keys(step.output_snapshot).length > 0) && (
-                    <div className={styles.stepDetails}>
-                      {Object.keys(step.input_snapshot).length > 0 && (
-                        <>
-                          <strong>Input:</strong>
-                          {"\n"}
+                  
+                  <div className={styles.snapshotContainer}>
+                    {Object.keys(step.input_snapshot).length > 0 && (
+                      <div className={styles.snapshotBox}>
+                        <Text className={styles.snapshotTitle}>Input Snapshot</Text>
+                        <pre className={styles.snapshotCode}>
                           {JSON.stringify(step.input_snapshot, null, 2)}
-                        </>
-                      )}
-                      {Object.keys(step.output_snapshot).length > 0 && (
-                        <>
-                          {"\n\n"}
-                          <strong>Output:</strong>
-                          {"\n"}
+                        </pre>
+                      </div>
+                    )}
+                    
+                    {Object.keys(step.output_snapshot).length > 0 && (
+                      <div className={styles.snapshotBox}>
+                        <Text className={styles.snapshotTitle}>Output Snapshot</Text>
+                        <pre className={styles.snapshotCode}>
                           {JSON.stringify(step.output_snapshot, null, 2)}
-                        </>
-                      )}
-                    </div>
-                  )}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+
                   {step.error && (
-                    <Text className={styles.errorStep}>
-                      Error: {step.error}
-                    </Text>
+                    <div className={styles.errorStep}>
+                      <ErrorCircleRegular />
+                      <Text>Error: {step.error}</Text>
+                    </div>
                   )}
                 </AccordionPanel>
               </AccordionItem>

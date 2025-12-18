@@ -59,6 +59,7 @@ export const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
+    backgroundColor: tokens.colorNeutralBackground1,
   },
   tabContent: {
     flex: 1,

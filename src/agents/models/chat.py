@@ -14,6 +14,9 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
+from src.agents.models.action import ActionPlan
+from src.agents.models.test import TestPlan
+
 
 class MessageRole(str, Enum):
     """Role of the message sender.
@@ -70,8 +73,8 @@ class ChatResponse(BaseModel):
     """Chat response containing a list of messages."""
 
     messages: list[ChatMessage]
-    test_plan: Optional[dict] = None
-    action_plan: Optional[dict] = None
+    test_plan: Optional[TestPlan] = None
+    action_plan: Optional[ActionPlan] = None
     correlation_id: Optional[str] = None
     agent_chain: list[str] = Field(
         default_factory=list, description="List of agents that processed this request"

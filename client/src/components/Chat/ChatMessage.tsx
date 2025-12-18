@@ -64,18 +64,6 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           {isUser ? <PersonRegular /> : <BotSparkleRegular />}
         </div>
         <div className={styles.messageContent}>
-          {!isUser && !!message.metadata?.agent_chain && (
-            <div className={styles.agentChain}>
-              {(message.metadata.agent_chain as string[]).map((agent: string, i: number) => (
-                <span key={i} style={{ display: "contents" }}>
-                  <span className={styles.agentBadge}>{agent}</span>
-                  {i < (message.metadata!.agent_chain as string[]).length - 1 && (
-                    <ArrowRightRegular style={{ fontSize: "12px" }} />
-                  )}
-                </span>
-              ))}
-            </div>
-          )}
           <div
             className={mergeClasses(
               styles.messageBubble,

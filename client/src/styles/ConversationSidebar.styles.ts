@@ -13,7 +13,7 @@ export const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     height: "100%",
-    backgroundColor: tokens.colorNeutralBackground3,
+    backgroundColor: tokens.colorNeutralBackground2,
     borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
   },
   header: {

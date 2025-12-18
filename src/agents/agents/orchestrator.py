@@ -62,6 +62,10 @@ class OrchestratorSK:
         :returns: ChatResponse from the selected agent(s)
         :rtype: ChatResponse
         """
+        from src.agents.models.streaming import emit_thinking_start
+
+        await emit_thinking_start()
+
         self.tracer.start()
         agent_chain = ["orchestrator"]
 
@@ -91,6 +95,7 @@ class OrchestratorSK:
         max_iterations = 10
         final_content = ""
         iteration_count = 0
+        last_history_len = len(chat_history.messages)
 
         for i in range(max_iterations):
             iteration_count = i + 1
@@ -102,7 +107,9 @@ class OrchestratorSK:
                 kernel=self.kernel,
             )
 
-            routing_decision = self._extract_routing_decision(response, chat_history)
+            new_messages = chat_history.messages[last_history_len:]
+            routing_decision = self._extract_routing_decision(response, new_messages)
+            last_history_len = len(chat_history.messages)
 
             if routing_decision:
                 agent_name = routing_decision.get("agent_name")
@@ -184,9 +191,11 @@ class OrchestratorSK:
             metadata={"iterations": iteration_count},
         )
 
-    def _extract_routing_decision(self, response, chat_history) -> Optional[dict]:
-        """Helper to extract routing JSON from SK response or history."""
+    def _extract_routing_decision(self, response, new_messages) -> Optional[dict]:
+        """Helper to extract routing JSON from SK response or new messages."""
         routing_json = None
+
+        logger.info("Extracting routing decision from response and new messages")
 
         if response and hasattr(response, "items"):
             for item in response.items:
@@ -195,21 +204,41 @@ class OrchestratorSK:
                     result_str = str(item.result) if hasattr(item, "result") else str(item)
                     if "agent_name" in result_str:
                         routing_json = result_str
+                        logger.info(f"Found routing JSON in response item: {routing_json}")
                         break
 
         if not routing_json:
-            for msg in reversed(chat_history.messages):
+            for msg in reversed(new_messages):
+                if hasattr(msg, "items"):
+                    for item in msg.items:
+                        item_type = type(item).__name__
+                        if item_type == "FunctionResultContent":
+                            result_str = str(item.result) if hasattr(item, "result") else str(item)
+                            if "agent_name" in result_str:
+                                routing_json = result_str
+                                logger.info(
+                                    f"Found routing JSON in new message item: {routing_json}"
+                                )
+                                break
+                    if routing_json:
+                        break
+
                 msg_str = str(msg)
                 if "agent_name" in msg_str and "{" in msg_str:
                     start = msg_str.find("{")
                     end = msg_str.rfind("}") + 1
                     if start >= 0 and end > start:
                         routing_json = msg_str[start:end]
+                        logger.info(f"Found routing JSON in new message string: {routing_json}")
                         break
 
         if routing_json:
             try:
-                return json.loads(routing_json)
-            except Exception:
-                pass
+                decision = json.loads(routing_json)
+                if isinstance(decision, dict) and "agent_name" in decision:
+                    logger.info(f"Successfully extracted routing decision: {decision}")
+                    return decision
+            except Exception as e:
+                logger.error(f"Failed to parse routing JSON: {e}")
+
         return None

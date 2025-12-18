@@ -84,7 +84,9 @@ export const ChatPanel: React.FC = () => {
                 message.role === "assistant" &&
                 index === state.messages.length - 1;
               const showThinkingBeforeThis =
-                isLastAssistantMessage && state.thinkingSteps.length > 0;
+                isLastAssistantMessage &&
+                state.thinkingSteps.length > 0 &&
+                !message.metadata?.reasoning_trace;
 
               return (
                 <div key={index}>
@@ -95,13 +97,13 @@ export const ChatPanel: React.FC = () => {
                         steps={state.thinkingSteps}
                       />
                     )}
-                    <ChatMessageComponent message={message} />
                     {message.role === "assistant" &&
                       message.metadata?.reasoning_trace && (
                         <ReasoningTraceViewer
                           trace={message.metadata.reasoning_trace as any}
                         />
                       )}
+                    <ChatMessageComponent message={message} />
                   </>
                 </div>
               );

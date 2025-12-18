@@ -87,18 +87,19 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({
   return (
     <div className={styles.container}>
       <div className={styles.header} onClick={() => setIsExpanded(!isExpanded)}>
-        {isExpanded ? <ChevronDownRegular /> : <ChevronRightRegular />}
         <BrainCircuitRegular className={styles.headerIcon} />
         <Text className={styles.headerText}>
-          {isThinking ? "Thinking..." : `Thought for ${steps.length} steps`}
+          {isThinking ? "Thinking..." : `Reasoning`}
         </Text>
-        {isThinking && (
-          <Spinner size="extra-tiny" className={styles.headerSpinner} />
-        )}
-        {!isThinking && steps.length > 0 && (
-          <Text className={styles.stepDuration}>
-            ({completedCount}/{steps.length} complete)
+        {!isThinking && (
+          <Text className={styles.stepCount}>
+            {steps.length} steps
           </Text>
+        )}
+        {isThinking ? (
+          <Spinner size="extra-tiny" className={styles.headerSpinner} />
+        ) : (
+          isExpanded ? <ChevronDownRegular fontSize={12} /> : <ChevronRightRegular fontSize={12} />
         )}
       </div>
 

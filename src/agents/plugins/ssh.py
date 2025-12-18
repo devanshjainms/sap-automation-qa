@@ -233,3 +233,16 @@ class SSHPlugin:
             logger.error(error_msg)
             return json.dumps({"error": error_msg, "host": host, "command": command})
 
+    @kernel_function(
+        name="check_host_connectivity",
+        description="Check if a remote host is reachable via SSH using the provided key.",
+    )
+    def check_host_connectivity(
+        self,
+        host: Annotated[str, "Target hostname or IP address"],
+        key_path: Annotated[str, "Path to the SSH private key file"],
+        user: Annotated[str, "SSH username (default: azureadm)"] = "",
+        port: Annotated[int, "SSH port (default: 22)"] = 22,
+    ) -> Annotated[str, "JSON string with connectivity status"]:
+        """Check SSH connectivity."""
+        return self.execute_remote_command(host, "exit", key_path, user, port)

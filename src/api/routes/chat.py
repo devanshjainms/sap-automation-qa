@@ -6,6 +6,7 @@
 import asyncio
 import json
 import os
+from datetime import datetime
 from typing import AsyncGenerator, Optional
 
 from fastapi import APIRouter, Query, Request
@@ -286,7 +287,14 @@ async def _format_sse(event_type: str, data: dict) -> str:
     :param data: Data to send
     :returns: Formatted SSE string
     """
-    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+    def json_serial(obj):
+        """JSON serializer for objects not serializable by default json code"""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        raise TypeError(f"Type {type(obj)} not serializable")
+
+    return f"event: {event_type}\ndata: {json.dumps(data, default=json_serial)}\n\n"
 
 
 @router.post("/chat/stream")
@@ -392,7 +400,7 @@ async def chat_stream(
                 except asyncio.TimeoutError:
                     continue
 
-                if event is None:
+                if event is None or event.type == StreamEventType.DONE:
                     break
 
                 yield await _format_sse(
@@ -427,6 +435,13 @@ async def chat_stream(
                 {
                     "correlation_id": correlation_id,
                     "conversation_id": active_conversation_id,
+                    "agent_chain": response.agent_chain,
+                    "test_plan": response.test_plan.model_dump() if response.test_plan else None,
+                    "action_plan": (
+                        response.action_plan.model_dump() if response.action_plan else None
+                    ),
+                    "reasoning_trace": response.reasoning_trace,
+                    "messages": [msg.model_dump() for msg in response.messages],
                 },
             )
 

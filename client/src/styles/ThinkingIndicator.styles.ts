@@ -10,36 +10,50 @@ import { makeStyles, tokens } from "@fluentui/react-components";
 
 export const useStyles = makeStyles({
   container: {
-    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    padding: `${tokens.spacingVerticalM} 0`,
     maxWidth: "900px",
     margin: "0 auto",
+    width: "100%",
   },
   header: {
     display: "flex",
     alignItems: "center",
     gap: tokens.spacingHorizontalS,
     cursor: "pointer",
-    padding: tokens.spacingVerticalXS,
-    borderRadius: tokens.borderRadiusSmall,
+    padding: `4px 12px`,
+    borderRadius: tokens.borderRadiusCircular,
+    backgroundColor: tokens.colorNeutralBackground3,
+    width: "fit-content",
+    transition: "all 0.2s ease",
     ":hover": {
       backgroundColor: tokens.colorNeutralBackground3Hover,
     },
   },
   headerIcon: {
     color: tokens.colorBrandForeground1,
-    fontSize: "16px",
+    fontSize: "14px",
   },
   headerText: {
-    fontSize: tokens.fontSizeBase200,
+    fontSize: tokens.fontSizeBase100,
     color: tokens.colorNeutralForeground2,
-    fontWeight: tokens.fontWeightSemibold,
+    fontWeight: tokens.fontWeightMedium,
+    textTransform: "none",
+    letterSpacing: "normal",
+  },
+  stepCount: {
+    fontSize: tokens.fontSizeBase100,
+    color: tokens.colorNeutralForeground4,
+    marginLeft: tokens.spacingHorizontalXS,
+    marginRight: tokens.spacingHorizontalS,
   },
   headerSpinner: {
     marginLeft: tokens.spacingHorizontalXS,
   },
   stepsList: {
-    marginTop: tokens.spacingVerticalXS,
-    paddingLeft: "24px",
+    marginTop: tokens.spacingVerticalS,
+    paddingLeft: "16px",
+    borderLeft: `1px solid ${tokens.colorNeutralStroke2}`,
+    marginLeft: "20px",
     overflow: "hidden",
     transition: "max-height 0.3s ease-out",
   },

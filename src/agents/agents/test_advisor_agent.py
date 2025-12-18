@@ -52,10 +52,11 @@ class TestAdvisorAgentSK(BaseSKAgent):
         response_content: str,
         context: Optional[dict] = None,
     ) -> ChatResponse:
-        test_plan_dict = None
+        test_plan = None
 
         if self.test_planner_plugin._last_generated_plan:
-            test_plan_dict = self.test_planner_plugin._last_generated_plan.model_dump()
+            test_plan = self.test_planner_plugin._last_generated_plan
+            test_plan_dict = test_plan.model_dump()
             self.tracer.step(
                 "test_selection",
                 "decision",
@@ -73,7 +74,7 @@ class TestAdvisorAgentSK(BaseSKAgent):
 
         return ChatResponse(
             messages=[ChatMessage(role="assistant", content=response_content)],
-            test_plan=test_plan_dict,
+            test_plan=test_plan,
             reasoning_trace=self.tracer.get_trace(),
             metadata=None,
         )

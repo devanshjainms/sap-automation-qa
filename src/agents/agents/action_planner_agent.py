@@ -75,10 +75,11 @@ class ActionPlannerAgentSK(BaseSKAgent):
         response_content: str,
         context: Optional[dict] = None,
     ) -> ChatResponse:
-        action_plan_dict = None
+        action_plan = None
 
         if self.action_planner_plugin._last_generated_plan:
-            action_plan_dict = self.action_planner_plugin._last_generated_plan.model_dump()
+            action_plan = self.action_planner_plugin._last_generated_plan
+            action_plan_dict = action_plan.model_dump()
             self.tracer.step(
                 "execution_planning",
                 "decision",
@@ -95,7 +96,7 @@ class ActionPlannerAgentSK(BaseSKAgent):
 
         return ChatResponse(
             messages=[ChatMessage(role="assistant", content=response_content)],
-            action_plan=action_plan_dict,
+            action_plan=action_plan,
             reasoning_trace=self.tracer.get_trace(),
             metadata=None,
         )

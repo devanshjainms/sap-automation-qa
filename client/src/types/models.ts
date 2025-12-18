@@ -22,6 +22,7 @@ export interface ReasoningStep {
   input_snapshot: Record<string, unknown>;
   output_snapshot: Record<string, unknown>;
   timestamp: string;
+  duration_ms?: number;
   error: string | null;
 }
 
