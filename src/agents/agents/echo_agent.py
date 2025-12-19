@@ -9,7 +9,7 @@ documentation-based help using function calling.
 
 from semantic_kernel import Kernel
 
-from src.agents.agents.base import BaseSKAgent, TracingPhase
+from src.agents.agents.base import SAPAutomationAgent
 from src.agents.plugins.documentation import DocumentationPlugin
 from src.agents.prompts import ECHO_AGENT_SK_SYSTEM_PROMPT
 from src.agents.observability import get_logger
@@ -17,7 +17,7 @@ from src.agents.observability import get_logger
 logger = get_logger(__name__)
 
 
-class EchoAgentSK(BaseSKAgent):
+class EchoAgentSK(SAPAutomationAgent):
     """Agent for providing documentation-based help using Semantic Kernel.
 
     This agent uses SK's native function calling to interact with documentation,
@@ -30,6 +30,7 @@ class EchoAgentSK(BaseSKAgent):
         :param kernel: Configured Semantic Kernel instance
         :type kernel: Kernel
         """
+        documentation_plugin = DocumentationPlugin()
         super().__init__(
             name="echo",
             description=(
@@ -38,14 +39,8 @@ class EchoAgentSK(BaseSKAgent):
                 "NEVER use this agent for executing tests or running commands."
             ),
             kernel=kernel,
-            system_prompt=ECHO_AGENT_SK_SYSTEM_PROMPT,
+            instructions=ECHO_AGENT_SK_SYSTEM_PROMPT,
+            plugins=[documentation_plugin],
         )
 
-        documentation_plugin = DocumentationPlugin()
-        self.kernel.add_plugin(plugin=documentation_plugin, plugin_name="Documentation")
-
         logger.info("EchoAgentSK initialized with Documentation plugin")
-
-    def _get_tracing_phase(self) -> TracingPhase:
-        """Return documentation_retrieval as the primary tracing phase."""
-        return "documentation_retrieval"
