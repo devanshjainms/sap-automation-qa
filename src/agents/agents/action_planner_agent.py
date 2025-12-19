@@ -16,9 +16,7 @@ from typing import Optional
 
 from semantic_kernel import Kernel
 
-from src.agents.agents.base import BaseSKAgent, TracingPhase
-from src.agents.models.chat import ChatMessage, ChatResponse
-from src.agents.models.reasoning import sanitize_snapshot
+from src.agents.agents.base import SAPAutomationAgent
 from src.agents.observability import get_logger
 from src.agents.plugins.action_planner import ActionPlannerPlugin
 from src.agents.plugins.test import TestPlannerPlugin
@@ -29,7 +27,7 @@ from src.agents.prompts import ACTION_PLANNER_AGENT_SYSTEM_PROMPT
 logger = get_logger(__name__)
 
 
-class ActionPlannerAgentSK(BaseSKAgent):
+class ActionPlannerAgentSK(SAPAutomationAgent):
     """Plans work as an ActionPlan (jobs)."""
 
     def __init__(
@@ -39,6 +37,11 @@ class ActionPlannerAgentSK(BaseSKAgent):
         action_planner_plugin: Optional[ActionPlannerPlugin] = None,
         test_planner_plugin: Optional[TestPlannerPlugin] = None,
     ) -> None:
+        self.workspace_store = workspace_store
+
+        self.action_planner_plugin = action_planner_plugin or ActionPlannerPlugin()
+        self.test_planner_plugin = test_planner_plugin or TestPlannerPlugin()
+        workspace_plugin = WorkspacePlugin(workspace_store)
         super().__init__(
             name="action_planner",
             description=(
@@ -46,57 +49,8 @@ class ActionPlannerAgentSK(BaseSKAgent):
                 "Produces jobs but does not execute them."
             ),
             kernel=kernel,
-            system_prompt=ACTION_PLANNER_AGENT_SYSTEM_PROMPT,
+            instructions=ACTION_PLANNER_AGENT_SYSTEM_PROMPT,
+            plugins=[self.action_planner_plugin, self.test_planner_plugin, workspace_plugin],
         )
-
-        self.workspace_store = workspace_store
-
-        self.action_planner_plugin = action_planner_plugin or ActionPlannerPlugin()
-        self._safe_add_plugin(self.action_planner_plugin, "ActionPlannerPlugin")
-
-        self.test_planner_plugin = test_planner_plugin or TestPlannerPlugin()
-        self._safe_add_plugin(self.test_planner_plugin, "TestPlannerPlugin")
-
-        self._safe_add_plugin(WorkspacePlugin(workspace_store), "workspace")
 
         logger.info("ActionPlannerAgentSK initialized")
-
-    def _safe_add_plugin(self, plugin: object, plugin_name: str) -> None:
-        try:
-            self.kernel.add_plugin(plugin=plugin, plugin_name=plugin_name)
-        except Exception as e:
-            logger.info(f"Plugin '{plugin_name}' already registered or unavailable: {e}")
-
-    def _get_tracing_phase(self) -> TracingPhase:
-        return "execution_planning"
-
-    def _process_response(
-        self,
-        response_content: str,
-        context: Optional[dict] = None,
-    ) -> ChatResponse:
-        action_plan = None
-
-        if self.action_planner_plugin._last_generated_plan:
-            action_plan = self.action_planner_plugin._last_generated_plan
-            action_plan_dict = action_plan.model_dump()
-            self.tracer.step(
-                "execution_planning",
-                "decision",
-                "ActionPlan generated",
-                output_snapshot=sanitize_snapshot(
-                    {
-                        "workspace_id": action_plan_dict.get("workspace_id"),
-                        "intent": action_plan_dict.get("intent"),
-                        "jobs": len(action_plan_dict.get("jobs", [])),
-                    }
-                ),
-            )
-            self.action_planner_plugin._last_generated_plan = None
-
-        return ChatResponse(
-            messages=[ChatMessage(role="assistant", content=response_content)],
-            action_plan=action_plan,
-            reasoning_trace=self.tracer.get_trace(),
-            metadata=None,
-        )

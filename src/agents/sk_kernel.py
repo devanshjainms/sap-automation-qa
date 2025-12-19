@@ -13,8 +13,10 @@ from typing import Optional
 
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
+from semantic_kernel.filters import FilterTypes
 
 from src.agents.observability import get_logger
+from src.agents.filters import ApprovalFilter
 
 logger = get_logger(__name__)
 
@@ -63,6 +65,13 @@ def create_kernel(
             api_key=api_key,
         )
     )
+
+    approval_filter = ApprovalFilter()
+    kernel.add_filter(
+        filter_type=FilterTypes.FUNCTION_INVOCATION,
+        filter=approval_filter.on_function_invocation,
+    )
+    logger.info("Registered kernel approval filter for execution safety")
 
     logger.info("Semantic Kernel created successfully with Azure OpenAI service")
 

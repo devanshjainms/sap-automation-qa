@@ -9,7 +9,7 @@ with function calling, replacing the custom tool loop.
 
 from semantic_kernel import Kernel
 
-from src.agents.agents.base import BaseSKAgent, TracingPhase
+from src.agents.agents.base import SAPAutomationAgent
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.plugins.workspace import WorkspacePlugin
 from src.agents.prompts import SYSTEM_CONTEXT_AGENT_SYSTEM_PROMPT
@@ -18,7 +18,7 @@ from src.agents.observability import get_logger
 logger = get_logger(__name__)
 
 
-class SystemContextAgentSK(BaseSKAgent):
+class SystemContextAgentSK(SAPAutomationAgent):
     """Agent for managing SAP QA system workspaces using Semantic Kernel.
 
     This agent uses SK's native function calling to interact with workspaces,
@@ -33,6 +33,8 @@ class SystemContextAgentSK(BaseSKAgent):
         :param workspace_store: WorkspaceStore instance for managing workspaces
         :type workspace_store: WorkspaceStore
         """
+        self.workspace_store = workspace_store
+        workspace_plugin = WorkspacePlugin(workspace_store)
         super().__init__(
             name="system_context",
             description=(
@@ -41,15 +43,8 @@ class SystemContextAgentSK(BaseSKAgent):
                 "get workspace details, or create a new workspace for testing."
             ),
             kernel=kernel,
-            system_prompt=SYSTEM_CONTEXT_AGENT_SYSTEM_PROMPT,
+            instructions=SYSTEM_CONTEXT_AGENT_SYSTEM_PROMPT,
+            plugins=[workspace_plugin],
         )
 
-        self.workspace_store = workspace_store
-        workspace_plugin = WorkspacePlugin(workspace_store)
-        self.kernel.add_plugin(plugin=workspace_plugin, plugin_name="Workspace")
-
         logger.info("SystemContextAgentSK initialized with Workspace plugin")
-
-    def _get_tracing_phase(self) -> TracingPhase:
-        """Return workspace_resolution as the primary tracing phase."""
-        return "workspace_resolution"
