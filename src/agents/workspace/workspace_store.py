@@ -130,3 +130,8 @@ class WorkspaceStore:
             for ws in all_workspaces
             if query_upper in ws.workspace_id.upper() or query_upper in ws.sid.upper()
         ]
+
+    def find_workspaces_by_sid(self, sid: str) -> list[str]:
+        """Return workspace IDs that match the provided SID."""
+        matches = self.find_by_sid_env(sid)
+        return [ws.workspace_id for ws in matches]

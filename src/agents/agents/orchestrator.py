@@ -18,6 +18,10 @@ from semantic_kernel.contents import ChatHistory, AuthorRole
 from src.agents.models.chat import ChatRequest, ChatResponse, ChatMessage
 from src.agents.agents.base import AgentRegistry
 from src.agents.models.streaming import emit_thinking_start, emit_thinking_step, emit_thinking_end
+from src.agents.observability import get_logger
+
+
+logger = get_logger(__name__)
 
 
 class OrchestratorSK:
@@ -58,6 +62,7 @@ class OrchestratorSK:
             function_name="select_next_agent",
             prompt=prompt,
             description="Select the next agent to respond based on conversation history.",
+            prompt_kwargs={"allow_dangerously_set_content": True},
         )
 
         def _parse_selection_result(result) -> str:

@@ -65,18 +65,7 @@ class ActionExecutorAgent(SAPAutomationAgent):
         :param job_worker: Optional JobWorker for background execution
         :type job_worker: Optional[JobWorker]
         """
-        self.kernel = kernel
-        self.workspace_store = workspace_store
-        self.execution_plugin = execution_plugin
-        self.job_store = job_store
-        self.job_worker = job_worker
-        self._async_enabled = job_store is not None and job_worker is not None
-
-        self.guard_layer = GuardLayer(
-            job_store=job_store,
-            workspace_store=workspace_store,
-        )
-
+        # Prepare plugin list before initializing the pydantic-backed base class
         plugins: list[object] = [
             execution_plugin,
             WorkspacePlugin(workspace_store),
@@ -84,6 +73,9 @@ class ActionExecutorAgent(SAPAutomationAgent):
         ]
         if getattr(execution_plugin, "keyvault_plugin", None) is not None:
             plugins.append(execution_plugin.keyvault_plugin)
+
+        # Initialize the base SAPAutomationAgent (pydantic-managed). Avoid assigning
+        # attributes that pydantic manages before base init to prevent AttributeError.
         super().__init__(
             name="action_executor",
             description="Executes SAP QA actions, runs playbooks, performs configuration checks, "
@@ -92,6 +84,21 @@ class ActionExecutorAgent(SAPAutomationAgent):
             kernel=kernel,
             instructions=ACTION_EXECUTOR_SYSTEM_PROMPT,
             plugins=plugins,
+        )
+
+        # Attach runtime-only attributes after base initialization. Use object.__setattr__ to
+        # bypass pydantic's __setattr__ hooks for attributes that are not pydantic fields.
+        object.__setattr__(self, "kernel", kernel)
+        object.__setattr__(self, "workspace_store", workspace_store)
+        object.__setattr__(self, "execution_plugin", execution_plugin)
+        object.__setattr__(self, "job_store", job_store)
+        object.__setattr__(self, "job_worker", job_worker)
+        object.__setattr__(self, "_async_enabled", job_store is not None and job_worker is not None)
+
+        object.__setattr__(
+            self,
+            "guard_layer",
+            GuardLayer(job_store=job_store, workspace_store=workspace_store),
         )
 
         logger.info(
@@ -106,6 +113,7 @@ class ActionExecutorAgent(SAPAutomationAgent):
         test_group: str,
         conversation_id: Optional[str] = None,
         user_id: Optional[str] = None,
+        confirmed: bool = False,
     ) -> "ExecutionJob":
         """Start async test execution and return job for tracking.
 
@@ -126,10 +134,18 @@ class ActionExecutorAgent(SAPAutomationAgent):
         :rtype: ExecutionJob
         :raises RuntimeError: If async execution not enabled
         """
+        # Determine if any of the requested tests are destructive via guard checks
+        is_destructive = self.guard_layer.is_destructive(test_ids=test_ids)
+        if is_destructive and not confirmed:
+            # Deny execution; require explicit user confirmation
+            raise RuntimeError(
+                "Destructive action detected. Call execute_async with confirmed=True to proceed."
+            )
+
         guard_result = self.guard_layer.check_execution(
             workspace_id=workspace_id,
             test_ids=test_ids,
-            is_destructive=False,
+            is_destructive=is_destructive,
         )
         if not guard_result.allowed:
             raise RuntimeError(self.guard_layer.format_denial_message(guard_result))

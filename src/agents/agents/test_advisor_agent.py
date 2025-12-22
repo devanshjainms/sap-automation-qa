@@ -23,9 +23,8 @@ class TestAdvisorAgentSK(SAPAutomationAgent):
     """Recommends tests and generates TestPlan (no execution jobs)."""
 
     def __init__(self, kernel: Kernel, workspace_store: WorkspaceStore):
-        self.workspace_store = workspace_store
-
-        self.test_planner_plugin = TestPlannerPlugin()
+        # Create plugin instance locally, initialize base, then attach attributes
+        plugin = TestPlannerPlugin()
         super().__init__(
             name="test_advisor",
             description=(
@@ -34,7 +33,12 @@ class TestAdvisorAgentSK(SAPAutomationAgent):
             ),
             kernel=kernel,
             instructions=TEST_ADVISOR_AGENT_SYSTEM_PROMPT,
-            plugins=[self.test_planner_plugin],
+            plugins=[plugin],
         )
+
+        # Assign workspace store and plugin using object.__setattr__ to bypass
+        # pydantic/ChatCompletionAgent __setattr__ hooks during runtime assignment.
+        object.__setattr__(self, "workspace_store", workspace_store)
+        object.__setattr__(self, "test_planner_plugin", plugin)
 
         logger.info("TestAdvisorAgentSK initialized")

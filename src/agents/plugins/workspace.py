@@ -196,6 +196,54 @@ class WorkspacePlugin:
         return json.dumps({"error": "No example sap-parameters.yaml found"})
 
     @kernel_function(
+        name="get_system_configuration",
+        description=(
+            "Read sap-parameters.yaml and hosts.yaml for a workspace and return a structured "
+            "JSON with platform, HA flags, hosts list, and source file paths."
+        ),
+    )
+    def get_system_configuration(self, workspace_id: Annotated[str, "Workspace name/ID"]) -> str:
+        """Return system configuration for a workspace as JSON string.
+
+        This function reads 'sap-parameters.yaml' and 'hosts.yaml' if present.
+        """
+        import yaml
+
+        result = {
+            "workspace_id": workspace_id,
+            "platform": None,
+            "database_high_availability": None,
+            "scs_high_availability": None,
+            "hosts": [],
+            "sources": [],
+        }
+
+        # Read sap-parameters.yaml
+        sap_params = self.store.read_file(workspace_id, "sap-parameters.yaml")
+        if sap_params:
+            try:
+                parsed = yaml.safe_load(sap_params)
+                result["platform"] = parsed.get("platform") if isinstance(parsed, dict) else None
+                result["database_high_availability"] = parsed.get("database_high_availability") if isinstance(parsed, dict) else None
+                result["scs_high_availability"] = parsed.get("scs_high_availability") if isinstance(parsed, dict) else None
+                result["sources"].append({"file": "sap-parameters.yaml", "path": str(self.store.get_workspace_path(workspace_id) / "sap-parameters.yaml")})
+            except Exception:
+                result["sources"].append({"file": "sap-parameters.yaml", "error": "parse_error"})
+
+        # Read hosts.yaml
+        hosts_raw = self.store.read_file(workspace_id, "hosts.yaml")
+        if hosts_raw:
+            try:
+                hosts_parsed = yaml.safe_load(hosts_raw)
+                # Expecting host groups or list
+                result["hosts"] = hosts_parsed if hosts_parsed else []
+                result["sources"].append({"file": "hosts.yaml", "path": str(self.store.get_workspace_path(workspace_id) / "hosts.yaml")})
+            except Exception:
+                result["sources"].append({"file": "hosts.yaml", "error": "parse_error"})
+
+        return json.dumps(result)
+
+    @kernel_function(
         name="create_workspace",
         description="Create a new workspace directory. Just creates the folder.",
     )

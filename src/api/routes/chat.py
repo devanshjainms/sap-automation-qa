@@ -23,6 +23,10 @@ from src.agents.models.streaming import (
 from src.agents.agents.orchestrator import OrchestratorSK
 from src.agents.persistence import ConversationManager
 from src.agents.observability import get_logger, set_correlation_id, get_correlation_id
+from uuid import uuid4
+from typing import Dict, Any
+
+_pending_confirmations: Dict[str, Dict[str, Any]] = {}
 
 logger = get_logger(__name__)
 
@@ -240,6 +244,122 @@ async def chat(
         },
     )
 
+    # If the orchestrator returned an ActionPlan with destructive jobs, require confirmation
+    try:
+        action_plan = getattr(response, "action_plan", None)
+
+        # Fallback: if agents returned a plain assistant message that contains a JSON
+        # ActionPlan, try to normalize it using the action_planner agent so we can
+        # trigger confirmation/execution flows with a validated ActionPlan model.
+        if action_plan is None and response.messages:
+            last_msg = response.messages[-1].content or ""
+            parsed = None
+            try:
+                parsed = json.loads(last_msg)
+            except Exception:
+                # Keep parsed as None; we'll try to ask the ActionPlanner agent to
+                # normalize the raw assistant text if it looks like JSON-ish content.
+                parsed = None
+
+            # If we have a dict with jobs already, normalize via ActionPlannerAgent
+            if isinstance(parsed, dict) and parsed.get("jobs"):
+                # Attempt to normalize using the registered action_planner agent
+                orchestrator_local = get_orchestrator()
+                action_planner_agent = None
+                if orchestrator_local:
+                    registry = getattr(orchestrator_local, "registry", None)
+                    if registry:
+                        action_planner_agent = registry.get("action_planner")
+
+                if action_planner_agent and hasattr(action_planner_agent, "normalize_action_plan"):
+                    try:
+                        action_plan = action_planner_agent.normalize_action_plan(parsed)
+                    except Exception:
+                        action_plan = parsed
+                else:
+                    action_plan = parsed
+
+        if action_plan and getattr(action_plan, "jobs", None):
+            # Normalize to dict if pydantic model
+            plan_obj = (
+                action_plan.model_dump() if hasattr(action_plan, "model_dump") else action_plan
+            )
+            destructive_jobs = [j for j in plan_obj.get("jobs", []) if j.get("destructive")]
+            if destructive_jobs:
+                # Create confirmation token and stash action plan
+                confirmation_id = str(uuid4())
+                _pending_confirmations[confirmation_id] = {
+                    "action_plan": plan_obj,
+                    "conversation_id": active_conversation_id,
+                    "correlation_id": correlation_id,
+                }
+                # Return a confirmation prompt instead of executing
+                return ChatResponse(
+                    messages=[
+                        ChatMessage(
+                            role="assistant",
+                            content=(
+                                "I generated an action plan that contains destructive steps. "
+                                "Please confirm to proceed by calling the confirmation endpoint with id: "
+                                + confirmation_id
+                            ),
+                        )
+                    ],
+                    correlation_id=correlation_id,
+                    metadata={"confirmation_id": confirmation_id},
+                )
+            else:
+                # No destructive jobs: attempt to locate ActionExecutorAgent and start execution
+                try:
+                    from src.agents.agents.action_executor_agent import ActionExecutorAgent
+
+                    orchestrator_local = get_orchestrator()
+                    if orchestrator_local:
+                        registry = getattr(orchestrator_local, "registry", None)
+                    else:
+                        registry = None
+
+                    action_executor = None
+                    if registry:
+                        action_executor = registry.get("action_executor")
+
+                    if action_executor and isinstance(action_executor, ActionExecutorAgent):
+                        # Prepare execution parameters
+                        workspace_id = plan_obj.get("workspace_id")
+                        sap_sid = plan_obj.get("sap_sid")
+                        test_ids = [j.get("job_id") for j in plan_obj.get("jobs", [])]
+                        # Start execution asynchronously (fire-and-forget)
+                        try:
+                            await action_executor.execute_async(
+                                workspace_id=workspace_id,
+                                test_ids=test_ids,
+                                test_group=plan_obj.get("intent", "manual"),
+                                conversation_id=active_conversation_id,
+                                user_id=None,
+                                confirmed=True,
+                            )
+                            return ChatResponse(
+                                messages=[
+                                    ChatMessage(
+                                        role="assistant",
+                                        content=(
+                                            "Started non-destructive ActionPlan execution. "
+                                            "You can monitor the job status in the conversation history."
+                                        ),
+                                    )
+                                ],
+                                correlation_id=correlation_id,
+                                metadata={"execution_started": True},
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to start ActionExecutor: {e}")
+                except Exception:
+                    # If anything goes wrong locating or calling executor, continue returning original response
+                    pass
+    except Exception:
+        # If anything goes wrong in confirmation logic, continue returning original response
+        pass
+
     if active_conversation_id:
         _conversation_manager.process_chat_response(
             conversation_id=active_conversation_id,
@@ -278,6 +398,99 @@ def _extract_last_user_message(messages: list[ChatMessage]) -> str:
         if msg.role == "user":
             return msg.content
     return ""
+
+
+@router.post("/chat/confirm_execute")
+async def confirm_execute(confirmation_id: str, confirm: bool = True) -> dict:
+    """Confirm or cancel execution of a previously generated destructive ActionPlan.
+
+    :param confirmation_id: ID returned in the prior confirmation prompt
+    :param confirm: True to proceed with execution
+    :returns: status dict
+    """
+    pending = _pending_confirmations.get(confirmation_id)
+    if not pending:
+        return {"status": "not_found", "confirmation_id": confirmation_id}
+
+    if not confirm:
+        del _pending_confirmations[confirmation_id]
+        return {"status": "cancelled", "confirmation_id": confirmation_id}
+
+    # Proceed with execution: find action_executor agent and call execute_async
+    from src.agents.agents.action_executor_agent import ActionExecutorAgent
+
+    # Use the local get_orchestrator() defined above in this module
+    orchestrator_local = get_orchestrator()
+    if orchestrator_local is None:
+        # Try global registry stored by app
+        return {"status": "error", "message": "Orchestrator not available"}
+
+    # The registry is accessible from orchestrator via registry attribute
+    registry = getattr(orchestrator_local, "registry", None)
+    if not registry:
+        return {"status": "error", "message": "Agent registry not available"}
+
+    action_executor = registry.get("action_executor")
+    if not action_executor or not isinstance(action_executor, ActionExecutorAgent):
+        return {"status": "error", "message": "ActionExecutor not available"}
+
+    plan = pending["action_plan"]
+    workspace_id = plan.get("workspace_id")
+    sap_sid = plan.get("sap_sid")
+    test_ids = [job.get("job_id") for job in plan.get("jobs", [])]
+    # Fire off execution asynchronously; require confirmation flag
+    try:
+        await action_executor.execute_async(
+            workspace_id=workspace_id,
+            test_ids=test_ids,
+            test_group=plan.get("intent", "manual"),
+            conversation_id=pending.get("conversation_id"),
+            user_id=None,
+            confirmed=True,
+        )
+        del _pending_confirmations[confirmation_id]
+        return {"status": "started", "confirmation_id": confirmation_id}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@router.post("/chat/debug_inject_destructive")
+async def debug_inject_destructive(workspace_id: str = "DEV-WEEU-SAP01-X00") -> dict:
+    """Debug-only: inject a destructive ActionPlan into pending confirmations.
+
+    This endpoint is only enabled when the env var `DEBUG_ALLOW_DESTRUCTIVE_TEST`
+    is set to a truthy value. It returns a confirmation_id which can be used
+    with `/chat/confirm_execute` to exercise the destructive execution flow.
+    """
+    if not os.getenv("DEBUG_ALLOW_DESTRUCTIVE_TEST"):
+        return {"status": "disabled"}
+
+    from src.agents.models.action import ActionPlan
+    import uuid as _uuid
+
+    plan = ActionPlan(
+        workspace_id=workspace_id,
+        intent="destructive_test",
+        jobs=[
+            {
+                "job_id": "failover-1",
+                "title": "Simulate failover",
+                "plugin_name": "execution",
+                "function_name": "trigger_failover",
+                "arguments": {"target": "node1"},
+                "destructive": True,
+            }
+        ],
+    )
+
+    confirmation_id = str(_uuid.uuid4())
+    _pending_confirmations[confirmation_id] = {
+        "action_plan": plan.model_dump(),
+        "conversation_id": None,
+        "correlation_id": None,
+    }
+
+    return {"status": "injected", "confirmation_id": confirmation_id}
 
 
 async def _format_sse(event_type: str, data: dict) -> str:
