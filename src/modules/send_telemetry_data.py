@@ -40,7 +40,7 @@ options:
         description:
             - Dictionary containing the telemetry data to be sent
             - Should include TestGroupInvocationId and other test metadata
-        type: dict
+            type: raw
         required: true
     telemetry_data_destination:
         description:
@@ -242,10 +242,15 @@ class TelemetryDataSender(SapAutomationQA):
         """
         import pandas as pd
 
-        telemetry_json_dict = json.loads(telemetry_json_data)
-        data_frame = pd.DataFrame(
-            [telemetry_json_dict.values()], columns=telemetry_json_dict.keys()
-        )
+        telemetry_json_obj = json.loads(telemetry_json_data)
+        if isinstance(telemetry_json_obj, list):
+            data_frame = pd.DataFrame(telemetry_json_obj)
+        elif isinstance(telemetry_json_obj, dict):
+            data_frame = pd.DataFrame(
+                [telemetry_json_obj.values()], columns=telemetry_json_obj.keys()
+            )
+        else:
+            raise ValueError("Unsupported telemetry payload for ADX ingestion")
         ingestion_properties = IngestionProperties(
             database=self.module_params["adx_database_name"],
             table=self.module_params["telemetry_table_name"],
@@ -336,10 +341,15 @@ class TelemetryDataSender(SapAutomationQA):
         try:
             log_folder = os.path.join(self.module_params["workspace_directory"], "logs")
             os.makedirs(log_folder, exist_ok=True)
-            log_file_path = os.path.join(
-                log_folder,
-                f"{self.result['telemetry_data']['TestGroupInvocationId']}.log",
-            )
+            tg_id = None
+            td = self.result.get("telemetry_data")
+            if isinstance(td, dict):
+                tg_id = td.get("TestGroupInvocationId")
+            elif isinstance(td, list) and len(td) > 0 and isinstance(td[0], dict):
+                tg_id = td[0].get("TestGroupInvocationId")
+            if not tg_id:
+                tg_id = datetime.now().strftime("%Y%m%d%H%M%S")
+            log_file_path = os.path.join(log_folder, f"{tg_id}.log")
             with open(log_file_path, "a", encoding="utf-8") as log_file:
                 log_file.write(json.dumps(self.result["telemetry_data"]))
                 log_file.write("\n")
@@ -415,7 +425,7 @@ def run_module() -> None:
     Sets up and runs the telemetry data sending module with the specified arguments.
     """
     module_args = dict(
-        test_group_json_data=dict(type="dict", required=True),
+        test_group_json_data=dict(type="raw", required=True),
         telemetry_data_destination=dict(type="str", required=True),
         laws_workspace_id=dict(type="str", required=False),
         laws_shared_key=dict(type="str", required=False),

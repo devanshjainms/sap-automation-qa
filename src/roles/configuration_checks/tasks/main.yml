@@ -252,3 +252,19 @@
   ansible.builtin.set_fact:
     "{{ check_type.results_var }}": "{{ combined_results }}"
     "{{ check_type.results_var }}_metadata": "{{ execution_summary }}"
+
+- name:                             "{{ check_type.name }} - Send telemetry per configuration check to telemetry backend"
+  when:                             combined_results is defined and combined_results | length > 0
+  delegate_to:                      localhost
+  failed_when:                      false
+  vars:
+    _telemetry_default_table:       "{{ telemetry_table_name | default('ConfigurationChecks') }}"
+  block:
+    - name:                         "Prepare and send telemetry for each check"
+      ansible.builtin.include_tasks:
+        file:                       send-per-check-telemetry.yml
+      loop:                         "{{ combined_results }}"
+      loop_control:
+        loop_var:                   check_result
+      vars:
+        telemetry_table_name:       "{{ _telemetry_default_table }}"

@@ -57,6 +57,37 @@ class TestTelemetryDataSender:
         }
 
     @pytest.fixture
+    def module_params_list(self):
+        """
+        Fixture providing a list payload for batched telemetry.
+
+        :return: Sample module parameters with list payload.
+        :rtype: dict
+        """
+        return {
+            "test_group_json_data": [
+                {
+                    "TestGroupInvocationId": "12345",
+                    "TestCaseInvocationId": "c1",
+                    "TestCaseName": "check1",
+                },
+                {
+                    "TestGroupInvocationId": "12345",
+                    "TestCaseInvocationId": "c2",
+                    "TestCaseName": "check2",
+                },
+            ],
+            "telemetry_data_destination": "azureloganalytics",
+            "laws_workspace_id": "workspace_id",
+            "laws_shared_key": base64.b64encode(b"shared_key").decode("utf-8"),
+            "telemetry_table_name": "telemetry_table",
+            "adx_database_name": "adx_database",
+            "adx_cluster_fqdn": "adx_cluster",
+            "adx_client_id": "adx_client",
+            "workspace_directory": "/tmp",
+        }
+
+    @pytest.fixture
     def telemetry_data_sender(self, module_params):
         """
         Fixture for creating a TelemetryDataSender instance.
@@ -144,6 +175,36 @@ class TestTelemetryDataSender:
         mock_open = mocker.patch("builtins.open", mocker.mock_open())
         telemetry_data_sender.write_log_file()
         mock_open.assert_called_once_with("/tmp/logs/12345.log", "a", encoding="utf-8")
+
+    def test_write_log_file_with_list_payload(self, mocker, module_params_list):
+        """
+        Ensure write_log_file handles list payloads and uses the first element's TestGroupInvocationId.
+        """
+        sender = TelemetryDataSender(module_params_list)
+        mock_open = mocker.patch("builtins.open", mocker.mock_open())
+        mocker.patch("os.makedirs")
+        sender.write_log_file()
+        mock_open.assert_called_once_with("/tmp/logs/12345.log", "a", encoding="utf-8")
+
+    def test_validate_params_accepts_list_payload(self, module_params_list):
+        """
+        validate_params should return True for list payloads when required params exist.
+        """
+        sender = TelemetryDataSender(module_params_list)
+        assert sender.validate_params() is True
+
+    def test_send_telemetry_data_with_list_calls_laws(self, mocker, module_params_list):
+        """
+        When provided a list payload and LAWS destination, ensure the module calls requests.post.
+        """
+        sender = TelemetryDataSender(module_params_list)
+        mock_validate = mocker.patch.object(sender, "validate_params")
+        mock_validate.return_value = True
+        mock_post = mocker.patch("requests.post")
+        mock_post.return_value.status_code = 200
+
+        sender.send_telemetry_data()
+        assert mock_post.call_count == 1
 
     def test_send_telemetry_data(self, mocker, telemetry_data_sender):
         """
