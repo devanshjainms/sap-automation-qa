@@ -384,6 +384,35 @@ RESOURCE_DEFAULTS:
             value:                  ["0", "0s"]
             required:               false
 
+    filesystem:
+      required:                     false
+      operations:
+        monitor:
+          interval:
+            value:                  ["20", "20s"]
+            required:               false
+          timeout:
+            ANF:
+              value:                ["105", "105s"]
+              required:             false
+            AFS:
+              value:                ["40", "40s"]
+              required:             false
+        start:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["60", "60s"]
+            required:               false
+        stop:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["60", "60s"]
+            required:               false
+
   REDHAT:
     fence_agent:
       instance_attributes:
@@ -677,6 +706,34 @@ RESOURCE_DEFAULTS:
             value:                  ["10", "10s"]
             required:               false
 
+    filesystem:
+      required:                     false
+      operations:
+        monitor:
+          interval:
+            value:                  ["20", "20s"]
+            required:               false
+          timeout:
+            ANF:
+              value:                ["105", "105s"]
+              required:             false
+            AFS:
+              value:                ["40", "40s"]
+              required:             false
+        start:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["60", "60s"]
+            required:               false
+        stop:
+          interval:
+            value:                  ["0", "0s"]
+            required:               false
+          timeout:
+            value:                  ["120", "120s"]
+            required:               false
 
 # === OS Parameters ===
 # Run command as root. Format of command is: "parent_key child_key"

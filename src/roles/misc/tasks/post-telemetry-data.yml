@@ -29,10 +29,24 @@
                                           "OsVersion": "{{ target_os_family | default(ansible_distribution | default('') ~ ' ' ~ ansible_distribution_version | default('')) }}",
                                           "TestCaseMessage": "{{ test_case_message | default('') }}",
                                           "TestCaseDetails": "{{ test_case_details | default('') }}",
-                                          "DurationSeconds": "{{
-                                              ((test_execution_end_time | default(now(utc=true, fmt='%Y-%m-%d %H:%M:%S')) | to_datetime)
-                                              - (test_execution_start_time | default(test_case_start_time_epoch) | to_datetime))
-                                          }}",
+                                            "DurationSeconds": "{{
+                                              (
+                                                (
+                                                  (test_execution_end_time
+                                                   | default(now(utc=true, fmt='%Y-%m-%d %H:%M:%S'))
+                                                  )
+                                                  | to_datetime('%Y-%m-%d %H:%M:%S')
+                                                ).timestamp()
+                                                -
+                                                (
+                                                  (test_execution_start_time
+                                                   | default(test_case_start_time_epoch
+                                                             | default(now(utc=true, fmt='%Y-%m-%d %H:%M:%S')))
+                                                  )
+                                                  | to_datetime('%Y-%m-%d %H:%M:%S')
+                                                ).timestamp()
+                                              ) | int
+                                            }}",
                                           "DbFencingType": "{{ database_cluster_type if (database_high_availability | default(false)) else 'DB not HA' }}",
                                           "ScsFencingType": "{{ scs_cluster_type if (scs_high_availability | default(false)) else 'SCS not HA' }}",
                                           "StorageType": "{{ NFS_provider | default('unknown') }}",

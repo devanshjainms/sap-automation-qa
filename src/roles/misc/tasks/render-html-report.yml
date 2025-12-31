@@ -22,7 +22,27 @@
     - name:                             "Read the log file and create a HTML report"
       render_html_report:
         test_group_invocation_id:       "{{ test_group_invocation_id }}"
-        test_group_name:                "{{ report_file_name | default(test_group_name + '_' + ansible_os_family | upper) }}"
+        test_group_name:                "{{
+                                          report_file_name
+                                          | default(
+                                              (
+                                                (test_group_name
+                                                 if (test_group_name is defined)
+                                                 else 'TESTS')
+                                                ~ '_'
+                                                ~ (
+                                                  (target_os_family
+                                                   if (target_os_family is defined)
+                                                   else (
+                                                     (ansible_os_family
+                                                      if (ansible_os_family is defined)
+                                                      else 'UNKNOWN')
+                                                   ))
+                                                  | upper
+                                                )
+                                              )
+                                          )
+                                        }}"
         report_template:                "{{ html_report_template }}"
         workspace_directory:            "{{ _workspace_directory }}"
         test_case_results:              "{{ all_results | default([]) }}"
