@@ -9,16 +9,16 @@
   delegate_to:                          localhost
   send_telemetry_data:
     telemetry_data_destination:         "{{ telemetry_data_destination | default('none') | lower }}"
-    laws_workspace_id:                  "{{ laws_workspace_id | default('') }}"
-    laws_shared_key:                    "{{ laws_shared_key | default('') }}"
-    laws_subscription_id:               "{{ laws_subscription_id | default('') }}"
-    laws_resource_group:                "{{ laws_resource_group | default('') }}"
-    laws_workspace_name:                "{{ laws_workspace_name | default('') }}"
-    user_assigned_identity_client_id:   "{{ user_assigned_identity_client_id | default('') }}"
-    adx_database_name:                  "{{ adx_database_name | default('') }}"
-    adx_cluster_fqdn:                   "{{ adx_cluster_fqdn | default('') }}"
-    adx_client_id:                      "{{ adx_client_id | default('') }}"
-    telemetry_table_name:               "{{ telemetry_table_name | default('') }}"
+    laws_workspace_id:                  "{{ laws_workspace_id if laws_workspace_id is defined and laws_workspace_id else '' }}"
+    laws_shared_key:                    "{{ laws_shared_key if laws_shared_key is defined and laws_shared_key else '' }}"
+    laws_subscription_id:               "{{ laws_subscription_id if laws_subscription_id is defined and laws_subscription_id else '' }}"
+    laws_resource_group:                "{{ laws_resource_group if laws_resource_group is defined and laws_resource_group else '' }}"
+    laws_workspace_name:                "{{ laws_workspace_name if laws_workspace_name is defined and laws_workspace_name else '' }}"
+    user_assigned_identity_client_id:   "{{ user_assigned_identity_client_id if user_assigned_identity_client_id is defined and user_assigned_identity_client_id else '' }}"
+    adx_database_name:                  "{{ adx_database_name if adx_database_name is defined and adx_database_name else '' }}"
+    adx_cluster_fqdn:                   "{{ adx_cluster_fqdn if adx_cluster_fqdn is defined and adx_cluster_fqdn else '' }}"
+    adx_client_id:                      "{{ adx_client_id if adx_client_id is defined and adx_client_id else '' }}"
+    telemetry_table_name:               "{{ telemetry_table_name if telemetry_table_name is defined and telemetry_table_name else '' }}"
     workspace_directory:                "{{ _workspace_directory }}"
     test_group_json_data:               "{{ test_group_json_data if (test_group_json_data is defined and test_group_json_data is iterable and test_group_json_data is not string) else {
                                           'TestCaseInvocationId': (test_case_invocation_id | default('')),
