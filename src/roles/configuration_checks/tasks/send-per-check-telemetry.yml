@@ -14,7 +14,7 @@
         _telemetry_batch:           []
 
     - name:                         "Build telemetry batch for parameters"
-      when:                         "(check_result.details is defined and check_result.details.parameters is defined and (check_result.details.parameters | length) > 0)"
+      when:                         "(check_result.details is defined and check_result.details is not none and check_result.details.parameters is defined and check_result.details.parameters is not none and (check_result.details.parameters | length) > 0)"
       loop:                         "{{ check_result.details.parameters }}"
       loop_control:
         loop_var:                   param
@@ -31,7 +31,7 @@
                                       'TestGroupStartTime': lookup('vars', 'group_start_time', default=''),
                                       'TestGroupName': lookup('vars', 'group_name', default='ConfigurationChecks'),
                                       'OsVersion': (system_context.os_type | default(system_context.os_version | default(''))),
-                                      'TestCaseMessage': ('Actual=' + (param.value | default('')) + ' Expected=' + (param.expected_value | default(''))),
+                                      'TestCaseMessage': ('Actual=' + ((param.value | default('')) | string) + ' Expected=' + ((param.expected_value | default('')) | string)),
                                       'TestCaseDetails': (param | to_json),
                                       'DurationSeconds': 0,
                                       'StorageType': (system_context.storage_type | default('unknown')),
@@ -52,7 +52,7 @@
         test_group_json_data:       "{{ _telemetry_batch }}"
 
     - name:                         "No parameters: send check-level telemetry"
-      when:                         "not (check_result.details is defined and check_result.details.parameters is defined and (check_result.details.parameters | length) > 0)"
+      when:                         "not (check_result.details is defined and check_result.details is not none and check_result.details.parameters is defined and check_result.details.parameters is not none and (check_result.details.parameters | length) > 0)"
       include_role:
         name:                       misc
         tasks_from:                 post-telemetry-data.yml
@@ -68,7 +68,7 @@
                                       'TestGroupStartTime': lookup('vars', 'group_start_time', default=''),
                                       'TestGroupName': lookup('vars', 'group_name', default='ConfigurationChecks'),
                                       'OsVersion': (system_context.os_type | default(system_context.os_version | default(''))),
-                                      'TestCaseMessage': ('Actual=' + (check_result.actual_value | default(check_result.value | default(''))) + ' Expected=' + (check_result.expected_value | default(''))),
+                                      'TestCaseMessage': ('Actual=' + ((check_result.actual_value | default('')) | string) + ' Expected=' + ((check_result.expected_value | default('')) | string)),
                                       'TestCaseDetails': (check_result.details | default('')),
                                       'DurationSeconds': 0,
                                       'StorageType': (system_context.storage_type | default('unknown')),
