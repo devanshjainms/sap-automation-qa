@@ -7,17 +7,18 @@
 
 - name:                             "Send telemetry for configuration check {{ check_result.id | default(check_result.check.id | default('')) }}"
   delegate_to:                      localhost
+  when:                             "check_result.status | default('') not in ['SKIPPED']"
   block:
-    - name:                         "When parameters present - build telemetry batch list"
-      when:                         "(check_result.details is defined and check_result.details.parameters is defined and (check_result.details.parameters | length) > 0)"
+    - name:                         "Clear previous batch variable"
       set_fact:
-        _telemetry_batch:           "[]"
+        _telemetry_batch:           []
 
-    - name:                         "Append parameter entries to telemetry batch"
+    - name:                         "Build telemetry batch for parameters"
       when:                         "(check_result.details is defined and check_result.details.parameters is defined and (check_result.details.parameters | length) > 0)"
       loop:                         "{{ check_result.details.parameters }}"
       loop_control:
         loop_var:                   param
+      when:                         "param.status | default('') not in ['SKIPPED']"
       set_fact:
         _telemetry_batch:           "{{ _telemetry_batch + [ {
                                       'TestCaseInvocationId': (param.id | default(param.name | default(''))),
@@ -67,7 +68,7 @@
                                       'TestGroupStartTime': lookup('vars', 'group_start_time', default=''),
                                       'TestGroupName': lookup('vars', 'group_name', default='ConfigurationChecks'),
                                       'OsVersion': (system_context.os_type | default(system_context.os_version | default(''))),
-                                      'TestCaseMessage': (check_result.details | default('')),
+                                      'TestCaseMessage': ('Actual=' + (check_result.actual_value | default(check_result.value | default(''))) + ' Expected=' + (check_result.expected_value | default(''))),
                                       'TestCaseDetails': (check_result.details | default('')),
                                       'DurationSeconds': 0,
                                       'StorageType': (system_context.storage_type | default('unknown')),
