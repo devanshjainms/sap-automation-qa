@@ -2,18 +2,21 @@
 # Licensed under the MIT License.
 
 # /*---------------------------------------------------------------------------8
-# |                           Post                               |
+# |           Build single telemetry batch from all check results             |
 # +------------------------------------4--------------------------------------*/
 
-- name:                             "Send telemetry for configuration check {{ check_result.id | default(check_result.check.id | default('')) }}"
-  delegate_to:                      localhost
+- name:                             "Initialize telemetry batch"
+  ansible.builtin.set_fact:
+    _telemetry_batch_all:           []
+
+- name:                             "Build telemetry batch from all check results"
+  no_log:                           true
+  loop:                             "{{ combined_results }}"
+  loop_control:
+    loop_var:                       check_result
   when:                             "check_result.status | default('') not in ['SKIPPED']"
   block:
-    - name:                         "Clear previous batch variable"
-      set_fact:
-        _telemetry_batch:           []
-
-    - name:                         "Build telemetry batch for parameters"
+    - name:                         "Add parameter-level entries to batch"
       when:                         "(check_result.details is defined and 
                                       check_result.details is not none and
                                       check_result.details.parameters is defined and
@@ -23,8 +26,8 @@
       loop_control:
         loop_var:                   param
       when:                         "param.status | default('') not in ['SKIPPED']"
-      set_fact:
-        _telemetry_batch:           "{{ _telemetry_batch + [ {
+      ansible.builtin.set_fact:
+        _telemetry_batch_all:       "{{ _telemetry_batch_all + [ {
                                       'TestCaseInvocationId': (param.id | default(param.name | default(''))),
                                       'TestCaseStartTime': (check_result.timestamp | default(now())),
                                       'TestCaseEndTime': (check_result.timestamp | default(now())),
@@ -47,21 +50,10 @@
                                       'TestCaseLogMessagesFromSap': (check_result.details | default(''))
                                     } ] }}"
 
-    - name:                         "If batch exists, send batch in single call"
-      when:                         "_telemetry_batch is defined and (_telemetry_batch | length) > 0"
-      include_role:
-        name:                       misc
-        tasks_from:                 post-telemetry-data.yml
-      vars:
-        test_group_json_data:       "{{ _telemetry_batch }}"
-
-    - name:                         "No parameters: send check-level telemetry"
+    - name:                         "Add check-level entry when no parameters"
       when:                         "not (check_result.details is defined and check_result.details is not none and check_result.details.parameters is defined and check_result.details.parameters is not none and (check_result.details.parameters | length) > 0)"
-      include_role:
-        name:                       misc
-        tasks_from:                 post-telemetry-data.yml
-      vars:
-        test_group_json_data:       "{{ [{
+      ansible.builtin.set_fact:
+        _telemetry_batch_all:       "{{ _telemetry_batch_all + [ {
                                       'TestCaseInvocationId': (check_result.id | default(check_result.check.id | default(''))),
                                       'TestCaseStartTime': (check_result.timestamp | default(now())),
                                       'TestCaseEndTime': (check_result.timestamp | default(now())),
@@ -83,3 +75,11 @@
                                       'TestCaseHostname': (check_result.hostname | default(system_context.hostname | default(''))),
                                       'TestCaseLogMessagesFromSap': (check_result.details | default(''))
                                     } ] }}"
+
+- name:                             "Send all telemetry in single call"
+  when:                             "_telemetry_batch_all is defined and (_telemetry_batch_all | length) > 0"
+  include_role:
+    name:                           misc
+    tasks_from:                     post-telemetry-data.yml
+  vars:
+    test_group_json_data:           "{{ _telemetry_batch_all }}"
