@@ -256,7 +256,6 @@
 - name:                             "{{ check_type.name }} - Send telemetry per configuration check to telemetry backend"
   when:                             combined_results is defined and combined_results | length > 0
   delegate_to:                      localhost
-  failed_when:                      false
   vars:
     _telemetry_default_table:       "{{ telemetry_table_name | default('ConfigurationChecks') }}"
   block:
