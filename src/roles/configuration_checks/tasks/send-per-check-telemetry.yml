@@ -7,7 +7,6 @@
 
 - name:                             "Send telemetry for configuration check {{ check_result.id | default(check_result.check.id | default('')) }}"
   delegate_to:                      localhost
-  failed_when:                      false
   block:
     - name:                         "When parameters present - build telemetry batch list"
       when:                         "(check_result.details is defined and check_result.details.parameters is defined and (check_result.details.parameters | length) > 0)"
@@ -50,14 +49,6 @@
         tasks_from:                 post-telemetry-data.yml
       vars:
         test_group_json_data:       "{{ _telemetry_batch }}"
-        telemetry_data_destination: "{{ telemetry_data_destination | default('none') | lower }}"
-        laws_workspace_id:          "{{ laws_workspace_id | default('') }}"
-        laws_shared_key:            "{{ laws_shared_key | default('') }}"
-        adx_database_name:          "{{ adx_database_name | default('') }}"
-        adx_cluster_fqdn:           "{{ adx_cluster_fqdn | default('') }}"
-        adx_client_id:              "{{ adx_client_id | default('') }}"
-        telemetry_table_name:       "{{ telemetry_table_name | default('ConfigurationChecks') }}"
-        _workspace_directory:       "{{ _workspace_directory }}"
 
     - name:                         "No parameters: send check-level telemetry"
       when:                         "not (check_result.details is defined and check_result.details.parameters is defined and (check_result.details.parameters | length) > 0)"
