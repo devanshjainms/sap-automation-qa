@@ -206,6 +206,252 @@ class TestTelemetryDataSender:
         sender.send_telemetry_data()
         assert mock_post.call_count == 1
 
+    def test_fetch_laws_shared_key_success(self, mocker, telemetry_data_sender):
+        """
+        Test successful shared key retrieval using Azure SDK per Microsoft documentation.
+        """
+        telemetry_data_sender.module_params["laws_subscription_id"] = "sub123"
+        telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
+        telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
+
+        mock_credential = mocker.patch("src.modules.send_telemetry_data.DefaultAzureCredential")
+        mock_credential.return_value = mocker.Mock()
+        mock_client_class = mocker.patch(
+            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+        )
+        mock_client = mocker.Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_response = mocker.Mock()
+        mock_response.primary_shared_key = "fetched_key_abc"
+        mock_client.shared_keys.get_shared_keys.return_value = mock_response
+
+        key = telemetry_data_sender._fetch_laws_shared_key()
+        assert key == "fetched_key_abc"
+        mock_client.shared_keys.get_shared_keys.assert_called_once_with(
+            resource_group_name="rg-test", workspace_name="ws-test"
+        )
+
+    def test_fetch_laws_shared_key_missing_subscription_id(self, mocker, telemetry_data_sender):
+        """
+        Test that missing subscription_id raises ValueError.
+        """
+        telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
+        telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
+
+        with pytest.raises(ValueError, match="laws_subscription_id"):
+            telemetry_data_sender._fetch_laws_shared_key()
+
+    def test_fetch_laws_shared_key_missing_resource_group(self, mocker, telemetry_data_sender):
+        """
+        Test that missing resource_group raises ValueError.
+        """
+        telemetry_data_sender.module_params["laws_subscription_id"] = "sub123"
+        telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
+
+        with pytest.raises(ValueError, match="laws_resource_group"):
+            telemetry_data_sender._fetch_laws_shared_key()
+
+    def test_fetch_laws_shared_key_missing_workspace_name(self, mocker, telemetry_data_sender):
+        """
+        Test that missing workspace_name raises ValueError.
+        """
+        telemetry_data_sender.module_params["laws_subscription_id"] = "sub123"
+        telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
+
+        with pytest.raises(ValueError, match="laws_workspace_name"):
+            telemetry_data_sender._fetch_laws_shared_key()
+
+    def test_fetch_laws_shared_key_credential_failure(self, mocker, telemetry_data_sender):
+        """
+        Test that DefaultAzureCredential failure is handled properly.
+        """
+        telemetry_data_sender.module_params["laws_subscription_id"] = "sub123"
+        telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
+        telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
+
+        mock_credential = mocker.patch("src.modules.send_telemetry_data.DefaultAzureCredential")
+        mock_credential.side_effect = Exception("Credential acquisition failed")
+
+        with pytest.raises(Exception, match="Credential acquisition failed"):
+            telemetry_data_sender._fetch_laws_shared_key()
+
+    def test_fetch_laws_shared_key_api_call_failure(self, mocker, telemetry_data_sender):
+        """
+        Test that API call failure is handled properly.
+        """
+        telemetry_data_sender.module_params["laws_subscription_id"] = "sub123"
+        telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
+        telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
+
+        mock_credential = mocker.patch("src.modules.send_telemetry_data.DefaultAzureCredential")
+        mock_credential.return_value = mocker.Mock()
+
+        mock_client_class = mocker.patch(
+            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+        )
+        mock_client = mocker.Mock()
+        mock_client_class.return_value = mock_client
+        mock_client.shared_keys.get_shared_keys.side_effect = Exception("API call failed")
+
+        with pytest.raises(Exception, match="API call failed"):
+            telemetry_data_sender._fetch_laws_shared_key()
+
+    def test_fetch_laws_shared_key_no_primary_key_in_response(self, mocker, telemetry_data_sender):
+        """
+        Test that missing primary_shared_key in response raises ValueError.
+        """
+        telemetry_data_sender.module_params["laws_subscription_id"] = "sub123"
+        telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
+        telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
+
+        mock_credential = mocker.patch("src.modules.send_telemetry_data.DefaultAzureCredential")
+        mock_credential.return_value = mocker.Mock()
+
+        mock_client_class = mocker.patch(
+            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+        )
+        mock_client = mocker.Mock()
+        mock_client_class.return_value = mock_client
+        mock_response = mocker.Mock()
+        mock_response.primary_shared_key = None
+        mock_client.shared_keys.get_shared_keys.return_value = mock_response
+
+        with pytest.raises(ValueError, match="Primary shared key not found"):
+            telemetry_data_sender._fetch_laws_shared_key()
+
+    def test_fetch_laws_shared_key_empty_key_in_response(self, mocker, telemetry_data_sender):
+        """
+        Test that empty primary_shared_key in response raises ValueError.
+        """
+        telemetry_data_sender.module_params["laws_subscription_id"] = "sub123"
+        telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
+        telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
+
+        mock_credential = mocker.patch("src.modules.send_telemetry_data.DefaultAzureCredential")
+        mock_credential.return_value = mocker.Mock()
+
+        mock_client_class = mocker.patch(
+            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+        )
+        mock_client = mocker.Mock()
+        mock_client_class.return_value = mock_client
+        mock_response = mocker.Mock()
+        mock_response.primary_shared_key = ""
+        mock_client.shared_keys.get_shared_keys.return_value = mock_response
+
+        with pytest.raises(ValueError, match="Primary shared key not found"):
+            telemetry_data_sender._fetch_laws_shared_key()
+
+    def test_fetch_laws_shared_key_with_user_assigned_identity(self, mocker, telemetry_data_sender):
+        """
+        Test that user-assigned managed identity is used when client_id is provided.
+        """
+        telemetry_data_sender.module_params["laws_subscription_id"] = "sub123"
+        telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
+        telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
+        telemetry_data_sender.module_params["user_assigned_identity_client_id"] = (
+            "user-mi-client-id"
+        )
+
+        mock_mi_credential = mocker.patch(
+            "src.modules.send_telemetry_data.ManagedIdentityCredential"
+        )
+        mock_mi_credential.return_value = mocker.Mock()
+        mock_client_class = mocker.patch(
+            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+        )
+        mock_client = mocker.Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_response = mocker.Mock()
+        mock_response.primary_shared_key = "fetched_key_with_user_mi"
+        mock_client.shared_keys.get_shared_keys.return_value = mock_response
+
+        key = telemetry_data_sender._fetch_laws_shared_key()
+        mock_mi_credential.assert_called_once_with(client_id="user-mi-client-id")
+        assert key == "fetched_key_with_user_mi"
+
+    def test_fetch_laws_shared_key_empty_user_assigned_identity_uses_default(
+        self, mocker, telemetry_data_sender
+    ):
+        """
+        Test that DefaultAzureCredential is used when user_assigned_identity_client_id is empty string.
+        """
+        telemetry_data_sender.module_params["laws_subscription_id"] = "sub123"
+        telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
+        telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
+        telemetry_data_sender.module_params["user_assigned_identity_client_id"] = ""
+        mock_default_credential = mocker.patch(
+            "src.modules.send_telemetry_data.DefaultAzureCredential"
+        )
+        mock_default_credential.return_value = mocker.Mock()
+        mock_client_class = mocker.patch(
+            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+        )
+        mock_client = mocker.Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_response = mocker.Mock()
+        mock_response.primary_shared_key = "fetched_key_default"
+        mock_client.shared_keys.get_shared_keys.return_value = mock_response
+
+        key = telemetry_data_sender._fetch_laws_shared_key()
+        mock_default_credential.assert_called_once()
+        assert key == "fetched_key_default"
+
+    def test_fetch_laws_shared_key_whitespace_user_assigned_identity_uses_default(
+        self, mocker, telemetry_data_sender
+    ):
+        """
+        Test that DefaultAzureCredential is used when user_assigned_identity_client_id is whitespace.
+        """
+        telemetry_data_sender.module_params["laws_subscription_id"] = "sub123"
+        telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
+        telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
+        telemetry_data_sender.module_params["user_assigned_identity_client_id"] = "   "
+        mock_default_credential = mocker.patch(
+            "src.modules.send_telemetry_data.DefaultAzureCredential"
+        )
+        mock_default_credential.return_value = mocker.Mock()
+        mock_client_class = mocker.patch(
+            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+        )
+        mock_client = mocker.Mock()
+        mock_client_class.return_value = mock_client
+
+        mock_response = mocker.Mock()
+        mock_response.primary_shared_key = "fetched_key_default"
+        mock_client.shared_keys.get_shared_keys.return_value = mock_response
+
+        key = telemetry_data_sender._fetch_laws_shared_key()
+        mock_default_credential.assert_called_once()
+        assert key == "fetched_key_default"
+
+    def test_validate_params_auto_fetches_shared_key(self, mocker):
+        """
+        Test that validate_params auto-fetches shared key when not provided.
+        """
+        params = {
+            "test_group_json_data": {"TestGroupInvocationId": "12345"},
+            "telemetry_data_destination": "azureloganalytics",
+            "laws_workspace_id": "workspace_id",
+            "laws_subscription_id": "sub123",
+            "laws_resource_group": "rg-test",
+            "laws_workspace_name": "ws-test",
+            "telemetry_table_name": "telemetry_table",
+            "workspace_directory": "/tmp",
+        }
+        sender = TelemetryDataSender(params)
+
+        mock_fetch = mocker.patch.object(sender, "_fetch_laws_shared_key")
+        mock_fetch.return_value = "auto_fetched_key"
+
+        result = sender.validate_params()
+        assert result is True
+        assert sender.module_params["laws_shared_key"] == "auto_fetched_key"
+        mock_fetch.assert_called_once()
+
     def test_send_telemetry_data(self, mocker, telemetry_data_sender):
         """
         Test the send_telemetry_data method.
