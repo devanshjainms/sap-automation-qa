@@ -447,10 +447,5 @@
         group_name:                     "{{ hostvars['localhost'].test_group_name }}"
         package_versions:               ""
         execution_tags:                 ""
-        system_context:
-          os_type:                      "{{ ansible_distribution | upper }}"
-          os_version:                   "{{ ansible_distribution_version }}"
-          storage_type:                 "{{ NFS_provider | default('unknown') }}"
-          hostname:                     "localhost"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/build-telemetry-batch.yml"
