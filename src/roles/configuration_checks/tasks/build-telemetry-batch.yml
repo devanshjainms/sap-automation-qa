@@ -18,6 +18,7 @@
     file:                           build-telemetry-entry.yml
 
 - name:                             "Send all telemetry in single call"
+  no_log:                           true
   when:                             "_telemetry_batch_all is defined and (_telemetry_batch_all | length) > 0"
   ansible.builtin.include_role:
     name:                           misc
