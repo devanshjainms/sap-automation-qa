@@ -6,7 +6,7 @@
 # +------------------------------------4--------------------------------------*/
 
 - name:                             "Add check-level entry (no parameters)"
-  no_log:                           true
+  no_log:                           false
   when:                             "not (check_result.details is defined and
                                     check_result.details is not none and
                                     check_result.details.parameters is defined and
