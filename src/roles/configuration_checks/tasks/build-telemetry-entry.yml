@@ -6,7 +6,7 @@
 # +------------------------------------4--------------------------------------*/
 
 - name:                             "Add check-level entry (no parameters)"
-  no_log:                           false
+  no_log:                           true
   when:                             "not (check_result.details is defined and
                                     check_result.details is not none and
                                     check_result.details.parameters is defined and
@@ -32,7 +32,7 @@
                                       'Tags': lookup('vars', 'execution_tags', default=''),
                                       'TestExecutionStartTime': (check_result.timestamp | default(now())),
                                       'TestExecutionEndTime': (check_result.timestamp | default(now())),
-                                      'TestCaseHostname': (check_result.hostname | default(''))),
+                                      'TestCaseHostname': (check_result.hostname | default('')),
                                       'TestCaseLogMessagesFromSap': (check_result.details | default(''))
                                     }] }}"
 
