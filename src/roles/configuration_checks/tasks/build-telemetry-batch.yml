@@ -14,8 +14,11 @@
   loop:                             "{{ combined_results | selectattr('status', 'ne', 'SKIPPED') | list }}"
   loop_control:
     loop_var:                       check_result
+    label:                          ""
   ansible.builtin.include_tasks:
     file:                           build-telemetry-entry.yml
+    apply:
+      no_log:                       true
 
 - name:                             "Send all telemetry in single call"
   no_log:                           true
