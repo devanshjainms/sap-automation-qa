@@ -712,25 +712,11 @@ class ConfigurationCheckModule(SapAutomationQA):
             execution_time = time.time() - start_time
             if check.severity == TestSeverity.INFO:
                 details = None
-                if check.id.startswith("HA-"):
-                    self.log(
-                        logging.INFO,
-                        f"Check {check.id}: collected_data type={type(collected_data).__name__}, "
-                        f"is_dict={isinstance(collected_data, dict)}, "
-                        f"has_details={'details' in collected_data if isinstance(collected_data, dict) else False}, "
-                        f"details_value={collected_data.get('details') if isinstance(collected_data, dict) and 'details' in collected_data else 'N/A'}",
-                    )
-                if (
-                    check.collector_type == "module"
-                    and isinstance(collected_data, dict)
-                    and "details" in collected_data
-                ):
-                    details = collected_data.get("details")
-                    if check.id.startswith("HA-"):
-                        self.log(
-                            logging.INFO,
-                            f"Check {check.id}: Extracted details type={type(details).__name__}, value={details}",
-                        )
+                if check.collector_type == "module":
+                    if isinstance(collected_data, dict) and "details" in collected_data:
+                        details = collected_data.get("details")
+                    elif isinstance(collected_data, list):
+                        details = {"parameters": collected_data}
                 return create_result(TestStatus.INFO, actual_value=collected_data, details=details)
             validation_result = self.validate_result(check, collected_data)
             return create_result(
