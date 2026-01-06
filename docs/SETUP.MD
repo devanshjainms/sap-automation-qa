@@ -287,6 +287,7 @@ db_sid: "your-db-sid"
 # Boolean indicating if the SCS and database is configured as highly available.
 scs_high_availability: true
 database_high_availability: true
+database_scale_out : false  # true if database high availability is configured as scale-out
 
 # The high availability configuration of the SCS and DB instance. Supported values are:
 # - AFA (for Azure Fencing Agent)

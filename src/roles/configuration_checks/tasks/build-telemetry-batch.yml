@@ -24,7 +24,6 @@
   no_log:                           true
   when:                             "_telemetry_batch_all is defined and (_telemetry_batch_all | length) > 0"
   ansible.builtin.include_role:
-    name:                           misc
     tasks_from:                     post-telemetry-data.yml
   vars:
     test_group_json_data:           "{{ _telemetry_batch_all }}"

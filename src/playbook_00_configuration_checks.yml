@@ -415,19 +415,6 @@
           db_sid:                       "{{ db_sid | upper }}"
           db_type:                      "{{ platform | upper }}"
           storage_type:                 "{{ NFS_provider | default(['Premium_LRS']) }}"
-          high_availability:            >-
-                                        "{{ (database_high_availability | default(false) | bool) or
-                                        (scs_high_availability | default(false) | bool) }}"
-          high_availability_agent:      >-
-                                        "{{ database_cluster_type
-                                        | default('AFA')
-                                        if database_high_availability
-                                        | default(false) | bool
-                                        else  scs_cluster_type
-                                        | default('AFA')
-                                        if scs_high_availability
-                                        | default(false) | bool
-                                        else 'N/A' }}"
           hostnames:                    "{{ (groups[sap_sid | upper + '_SCS']|default([]) +
                                           groups[sap_sid | upper + '_ERS']|default([]) +
                                           groups[sap_sid | upper + '_DB']|default([]) +
