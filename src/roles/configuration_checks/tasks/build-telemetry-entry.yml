@@ -5,6 +5,12 @@
 # |     Build telemetry entry for a single check (with or without params)     |
 # +------------------------------------4--------------------------------------*/
 
+- name:                             "Debug check_result structure"
+  no_log:                           false
+  ansible.builtin.debug:
+    msg:                            "Check {{ check_result.id }}: has_details={{ check_result.details is defined }}, is_dict={{ check_result.details is mapping }}, has_params={{ check_result.details.parameters is defined if (check_result.details is mapping) else 'N/A' }}, param_count={{ check_result.details.parameters | length if ((check_result.details is mapping) and (check_result.details.parameters is defined)) else 0 }}"
+  when:                             check_result.id is defined
+
 - name:                             "Add check-level entry (no parameters)"
   no_log:                           true
   when:                             "not ((check_result.details is mapping) and
