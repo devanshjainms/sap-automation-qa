@@ -712,12 +712,25 @@ class ConfigurationCheckModule(SapAutomationQA):
             execution_time = time.time() - start_time
             if check.severity == TestSeverity.INFO:
                 details = None
+                if check.id.startswith("HA-"):
+                    self.log(
+                        logging.INFO,
+                        f"Check {check.id}: collected_data type={type(collected_data).__name__}, "
+                        f"is_dict={isinstance(collected_data, dict)}, "
+                        f"has_details={'details' in collected_data if isinstance(collected_data, dict) else False}, "
+                        f"details_value={collected_data.get('details') if isinstance(collected_data, dict) and 'details' in collected_data else 'N/A'}",
+                    )
                 if (
                     check.collector_type == "module"
                     and isinstance(collected_data, dict)
                     and "details" in collected_data
                 ):
                     details = collected_data.get("details")
+                    if check.id.startswith("HA-"):
+                        self.log(
+                            logging.INFO,
+                            f"Check {check.id}: Extracted details type={type(details).__name__}, value={details}",
+                        )
                 return create_result(TestStatus.INFO, actual_value=collected_data, details=details)
             validation_result = self.validate_result(check, collected_data)
             return create_result(
@@ -923,11 +936,7 @@ class ConfigurationCheckModule(SapAutomationQA):
                     if hasattr(check_result.timestamp, "isoformat")
                     else str(check_result.timestamp)
                 ),
-                "details": (
-                    json.loads(json.dumps(check_result.details))
-                    if check_result.details is not None and isinstance(check_result.details, dict)
-                    else check_result.details if check_result.details is not None else ""
-                ),
+                "details": check_result.details,
             }
             serialized_results.append(result_dict)
         self.result["check_results"] = serialized_results
