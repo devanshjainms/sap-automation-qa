@@ -49,7 +49,7 @@
                                     - check_type.file_name == "high_availability"
                                     - role in ['SCS', 'ERS', 'DB']
 
-- name:                             "{{ check_type.name }} - Prepare system context information"
+- name:                             "{{ check_type.name }} -Prepare system context information"
   no_log:                           true
   ansible.builtin.set_fact:
     system_context:
