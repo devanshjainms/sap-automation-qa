@@ -40,8 +40,8 @@ description:
 options:
     test_group_json_data:
         description:
-            - Dictionary containing the telemetry data to be sent
-            - Should include TestGroupInvocationId and other test metadata
+            - Telemetry data to be sent as a dictionary or a list of dictionaries for batch uploads
+            - Each telemetry record should include TestGroupInvocationId and other test metadata
             type: raw
         required: true
     telemetry_data_destination:
@@ -240,10 +240,17 @@ class TelemetryDataSender(SapAutomationQA):
         resource_group = self.module_params.get("laws_resource_group", "")
         workspace_name = self.module_params.get("laws_workspace_name", "")
 
-        if not all([subscription_id, resource_group, workspace_name]):
+        required_params = [
+            ("laws_subscription_id", subscription_id),
+            ("laws_resource_group", resource_group),
+            ("laws_workspace_name", workspace_name),
+        ]
+        missing_params = [name for name, value in required_params if not str(value).strip()]
+        if missing_params:
+            missing_str = ", ".join(missing_params)
             raise ValueError(
-                "laws_subscription_id, laws_resource_group, and laws_workspace_name "
-                "are required to auto-fetch shared key"
+                f"The following parameters are required to auto-fetch shared key "
+                f"but were missing or empty: {missing_str}"
             )
 
         try:
@@ -329,7 +336,7 @@ class TelemetryDataSender(SapAutomationQA):
             raise ValueError("Unsupported telemetry payload for ADX ingestion")
         ingestion_properties = IngestionProperties(
             database=self.module_params["adx_database_name"],
-            table=self.module_params["telemetry_table_name"],
+            table=self.module_params.get("telemetry_table_name", "SAP_AUTOMATION_QA"),
             data_format=DataFormat.JSON,
             report_level=ReportLevel.FailuresAndSuccesses,
         )
@@ -393,7 +400,10 @@ class TelemetryDataSender(SapAutomationQA):
         telemetry_data_destination = self.module_params.get("telemetry_data_destination")
 
         if telemetry_data_destination == TelemetryDataDestination.LOG_ANALYTICS.value:
-            if "laws_workspace_id" not in self.module_params:
+            if (
+                "laws_workspace_id" not in self.module_params
+                or not str(self.module_params["laws_workspace_id"]).strip()
+            ):
                 self.log(logging.ERROR, "laws_workspace_id is required for Log Analytics")
                 return False
             if (
