@@ -43,7 +43,7 @@
                                     - "param.status | default('') not in ['SKIPPED']"
   loop:                             "{{ check_result.details.parameters | default([]) }}"
   loop_control:
-    loop_var:                       param                             
+    loop_var:                       param
   ansible.builtin.set_fact:
     _telemetry_batch_all:           "{{ _telemetry_batch_all + [{
                                       'TestCaseInvocationId': (param.id | default(param.name | default(''))),
