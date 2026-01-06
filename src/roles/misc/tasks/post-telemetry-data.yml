@@ -18,7 +18,7 @@
     adx_database_name:                  "{{ lookup('vars', 'adx_database_name', default='') }}"
     adx_cluster_fqdn:                   "{{ lookup('vars', 'adx_cluster_fqdn', default='') }}"
     adx_client_id:                      "{{ lookup('vars', 'adx_client_id', default='') }}"
-    telemetry_table_name:               "{{ lookup('vars', 'telemetry_table_name', default='') }}"
+    telemetry_table_name:               "{{ lookup('vars', 'telemetry_table_name', default='ConfigurationChecks') }}"
     workspace_directory:                "{{ _workspace_directory }}"
     test_group_json_data:               "{{ test_group_json_data if (test_group_json_data is defined and test_group_json_data is iterable and test_group_json_data is not string) else {
                                           'TestCaseInvocationId': lookup('vars', 'test_case_invocation_id', default=''),

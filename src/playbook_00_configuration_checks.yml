@@ -454,8 +454,6 @@
     - name:                             "Send all configuration check telemetry in single batch"
       when:                             all_results is defined and all_results | length > 0
       vars:
-        _telemetry_default_table:       "{{ telemetry_table_name | default('ConfigurationChecks') }}"
-        telemetry_table_name:           "{{ _telemetry_default_table }}"
         combined_results:               "{{ all_results }}"
         test_group_invocation_id:       "{{ hostvars['localhost'].test_group_invocation_id }}"
         group_start_time:               "{{ hostvars['localhost'].test_group_start_time }}"
