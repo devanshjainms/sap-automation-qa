@@ -68,6 +68,6 @@
                                       'Tags': lookup('vars', 'execution_tags', default=''),
                                       'TestExecutionStartTime': (check_result.timestamp | default(now())),
                                       'TestExecutionEndTime': (check_result.timestamp | default(now())),
-                                      'TestCaseHostname': (check_result.hostname | default(''))),
+                                      'TestCaseHostname': (check_result.hostname | default('')),
                                       'TestCaseLogMessagesFromSap': (check_result.details | default(''))
                                     }] }}"
