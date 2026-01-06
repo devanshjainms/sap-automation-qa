@@ -240,6 +240,22 @@
     msg:                            "{{ module_check_results.logs }}"
     verbosity:                      1
 
+- name:                             "{{ check_type.name }} - Debug module check_results for HA checks"
+  when:
+                                    - module_check_results is defined
+                                    - module_check_results.check_results is defined
+  ansible.builtin.debug:
+    msg:                            
+      - "Check: {{ item.check.id }}"
+      - "Details type: {{ item.details | type_debug }}"
+      - "Details is none: {{ item.details is none }}"
+      - "Details is mapping: {{ item.details is mapping }}"
+      - "Details value: {{ item.details }}"
+      - "Details keys: {{ item.details.keys() | list if (item.details is mapping) else 'N/A' }}"
+  loop:                             "{{ module_check_results.check_results | selectattr('check.id', 'match', '^HA-.*') | list }}"
+  loop_control:
+    label:                          "{{ item.check.id }}"
+
 - name:                             "{{ check_type.name }} - Merge check results with error handling"
   ansible.builtin.set_fact:
     combined_results:               "{{ (command_check_results.check_results | default([])) +

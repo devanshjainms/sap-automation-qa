@@ -5,13 +5,6 @@
 # |     Build telemetry entry for a single check (with or without params)     |
 # +------------------------------------4--------------------------------------*/
 
-- name:                             "Debug check_result.details type and content"
-  no_log:                           false
-  ansible.builtin.debug:
-    msg:                            "Check {{ check_result.id | default(check_result.check.id | default('UNKNOWN')) }}: details_type={{ check_result.details | type_debug }}, is_mapping={{ check_result.details is mapping }}, details_keys={{ check_result.details.keys() | list if (check_result.details is mapping) else 'N/A' }}"
-  when:                             
-    - check_result.id is defined or check_result.check.id is defined
-    - check_result.details is defined
 
 - name:                             "Add check-level entry (no parameters)"
   no_log:                           true

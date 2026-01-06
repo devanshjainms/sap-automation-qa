@@ -719,7 +719,7 @@ class ConfigurationCheckModule(SapAutomationQA):
                 ):
                     details = collected_data.get("details")
                 return create_result(
-                    TestStatus.INFO.value, actual_value=collected_data, details=details
+                    TestStatus.INFO, actual_value=collected_data, details=details
                 )
             validation_result = self.validate_result(check, collected_data)
             return create_result(
@@ -925,7 +925,7 @@ class ConfigurationCheckModule(SapAutomationQA):
                     if hasattr(check_result.timestamp, "isoformat")
                     else str(check_result.timestamp)
                 ),
-                "details": check_result.details,
+                "details": check_result.details if check_result.details is not None else "",
             }
             serialized_results.append(result_dict)
         self.result["check_results"] = serialized_results

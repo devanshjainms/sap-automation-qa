@@ -18,7 +18,7 @@
   ansible.builtin.include_tasks:
     file:                           build-telemetry-entry.yml
     apply:
-      no_log:                       false
+      no_log:                       true
 
 - name:                             "Send all telemetry in single call"
   no_log:                           true
