@@ -450,3 +450,22 @@
     - name:                             "Debug the file name of the report generated"
       ansible.builtin.debug:
         msg:                            "Report file CONFIG_{{ sap_sid | upper }}_{{ platform | upper }}_{{ test_group_invocation_id }} generated."
+
+    - name:                             "Send all configuration check telemetry in single batch"
+      when:                             all_results is defined and all_results | length > 0
+      vars:
+        _telemetry_default_table:       "{{ telemetry_table_name | default('ConfigurationChecks') }}"
+        telemetry_table_name:           "{{ _telemetry_default_table }}"
+        combined_results:               "{{ all_results }}"
+        test_group_invocation_id:       "{{ hostvars['localhost'].test_group_invocation_id }}"
+        group_start_time:               "{{ hostvars['localhost'].test_group_start_time }}"
+        group_name:                     "{{ hostvars['localhost'].test_group_name }}"
+        package_versions:               ""
+        execution_tags:                 ""
+        system_context:
+          os_type:                      "{{ ansible_distribution | upper }}"
+          os_version:                   "{{ ansible_distribution_version }}"
+          storage_type:                 "{{ NFS_provider | default('unknown') }}"
+          hostname:                     "localhost"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/build-telemetry-batch.yml"

@@ -14,6 +14,8 @@ import hashlib
 import hmac
 import json
 import requests
+from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
+from azure.mgmt.loganalytics import LogAnalyticsManagementClient
 from azure.kusto.data import KustoConnectionStringBuilder
 from azure.kusto.data.data_format import DataFormat
 from azure.kusto.ingest import QueuedIngestClient, IngestionProperties, ReportLevel
@@ -40,7 +42,7 @@ options:
         description:
             - Dictionary containing the telemetry data to be sent
             - Should include TestGroupInvocationId and other test metadata
-        type: dict
+            type: raw
         required: true
     telemetry_data_destination:
         description:
@@ -58,7 +60,33 @@ options:
     laws_shared_key:
         description:
             - Log Analytics workspace shared key
-            - Required when telemetry_data_destination is "azureloganalytics"
+            - Optional - will be auto-fetched from Azure if not provided
+            - Requires laws_subscription_id, laws_resource_group, and laws_workspace_name if not provided
+        type: str
+        required: false
+    laws_subscription_id:
+        description:
+            - Azure subscription ID containing the Log Analytics workspace
+            - Required when auto-fetching shared key (laws_shared_key not provided)
+        type: str
+        required: false
+    laws_resource_group:
+        description:
+            - Resource group containing the Log Analytics workspace
+            - Required when auto-fetching shared key (laws_shared_key not provided)
+        type: str
+        required: false
+    laws_workspace_name:
+        description:
+            - Log Analytics workspace name
+            - Required when auto-fetching shared key (laws_shared_key not provided)
+        type: str
+        required: false
+    user_assigned_identity_client_id:
+        description:
+            - Client ID of user-assigned managed identity
+            - Optional - if provided, uses user-assigned MI instead of system-assigned
+            - Used for authentication when fetching shared keys
         type: str
         required: false
     telemetry_table_name:
@@ -99,6 +127,8 @@ notes:
     - Always writes a local log file regardless of telemetry destination
 requirements:
     - python >= 3.6
+    - azure-identity
+    - azure-mgmt-loganalytics
     - azure-kusto-data
     - azure-kusto-ingest
     - requests
@@ -197,6 +227,52 @@ class TelemetryDataSender(SapAutomationQA):
             }
         )
 
+    def _fetch_laws_shared_key(self) -> str:
+        """
+        Fetches the Log Analytics workspace shared key using Azure SDK.
+        Uses DefaultAzureCredential (managed identity) as per Microsoft documentation.
+
+        :return: Primary shared key for the workspace.
+        :rtype: str
+        :raises: Exception if key retrieval fails.
+        """
+        subscription_id = self.module_params.get("laws_subscription_id", "")
+        resource_group = self.module_params.get("laws_resource_group", "")
+        workspace_name = self.module_params.get("laws_workspace_name", "")
+
+        if not all([subscription_id, resource_group, workspace_name]):
+            raise ValueError(
+                "laws_subscription_id, laws_resource_group, and laws_workspace_name "
+                "are required to auto-fetch shared key"
+            )
+
+        try:
+            user_assigned_client_id = self.module_params.get("user_assigned_identity_client_id", "")
+            if user_assigned_client_id and user_assigned_client_id.strip():
+                self.log(
+                    logging.INFO, f"Using user-assigned managed identity: {user_assigned_client_id}"
+                )
+                credential = ManagedIdentityCredential(client_id=user_assigned_client_id)
+            else:
+                self.log(logging.INFO, "Using DefaultAzureCredential (system-assigned MI or other)")
+                credential = DefaultAzureCredential()
+
+            client = LogAnalyticsManagementClient(
+                credential=credential, subscription_id=subscription_id
+            )
+            response = client.shared_keys.get_shared_keys(
+                resource_group_name=resource_group, workspace_name=workspace_name
+            )
+            primary_key = response.primary_shared_key
+            if not primary_key:
+                raise ValueError("Primary shared key not found in Azure response")
+
+            self.log(logging.INFO, "Successfully fetched Log Analytics shared key from Azure")
+            return primary_key
+        except Exception as ex:
+            self.log(logging.ERROR, f"Failed to fetch shared key from Azure: {ex}")
+            raise
+
     def _get_authorization_for_log_analytics(
         self,
         workspace_id: str,
@@ -242,10 +318,15 @@ class TelemetryDataSender(SapAutomationQA):
         """
         import pandas as pd
 
-        telemetry_json_dict = json.loads(telemetry_json_data)
-        data_frame = pd.DataFrame(
-            [telemetry_json_dict.values()], columns=telemetry_json_dict.keys()
-        )
+        telemetry_json_obj = json.loads(telemetry_json_data)
+        if isinstance(telemetry_json_obj, list):
+            data_frame = pd.DataFrame(telemetry_json_obj)
+        elif isinstance(telemetry_json_obj, dict):
+            data_frame = pd.DataFrame(
+                [list(telemetry_json_obj.values())], columns=list(telemetry_json_obj.keys())
+            )
+        else:
+            raise ValueError("Unsupported telemetry payload for ADX ingestion")
         ingestion_properties = IngestionProperties(
             database=self.module_params["adx_database_name"],
             table=self.module_params["telemetry_table_name"],
@@ -290,7 +371,7 @@ class TelemetryDataSender(SapAutomationQA):
             headers={
                 "content-type": LAWS_CONTENT_TYPE,
                 "Authorization": authorization_header,
-                "Log-Type": self.module_params["telemetry_table_name"],
+                "Log-Type": self.module_params.get("telemetry_table_name", "SAP_AUTOMATION_QA"),
                 "x-ms-date": utc_datetime,
             },
             timeout=30,
@@ -304,6 +385,7 @@ class TelemetryDataSender(SapAutomationQA):
     def validate_params(self) -> bool:
         """
         Validate the telemetry data destination parameters.
+        Auto-fetches Log Analytics shared key if not provided.
 
         :return: True if the parameters are valid, False otherwise.
         :rtype: bool
@@ -311,12 +393,23 @@ class TelemetryDataSender(SapAutomationQA):
         telemetry_data_destination = self.module_params.get("telemetry_data_destination")
 
         if telemetry_data_destination == TelemetryDataDestination.LOG_ANALYTICS.value:
-            if (
-                "laws_workspace_id" not in self.module_params
-                or "laws_shared_key" not in self.module_params
-                or "telemetry_table_name" not in self.module_params
-            ):
+            if "laws_workspace_id" not in self.module_params:
+                self.log(logging.ERROR, "laws_workspace_id is required for Log Analytics")
                 return False
+            if (
+                "laws_shared_key" not in self.module_params
+                or not self.module_params["laws_shared_key"]
+            ):
+                try:
+                    self.log(logging.INFO, "Shared key not provided, fetching from Azure...")
+                    shared_key = self._fetch_laws_shared_key()
+                    self.module_params["laws_shared_key"] = shared_key
+                except Exception as ex:
+                    self.log(
+                        logging.ERROR,
+                        f"Failed to auto-fetch shared key and none was provided: {ex}",
+                    )
+                    return False
         elif telemetry_data_destination == TelemetryDataDestination.KUSTO.value:
             required_params = [
                 "adx_database_name",
@@ -336,10 +429,15 @@ class TelemetryDataSender(SapAutomationQA):
         try:
             log_folder = os.path.join(self.module_params["workspace_directory"], "logs")
             os.makedirs(log_folder, exist_ok=True)
-            log_file_path = os.path.join(
-                log_folder,
-                f"{self.result['telemetry_data']['TestGroupInvocationId']}.log",
-            )
+            tg_id = None
+            td = self.result.get("telemetry_data")
+            if isinstance(td, dict):
+                tg_id = td.get("TestGroupInvocationId")
+            elif isinstance(td, list) and len(td) > 0 and isinstance(td[0], dict):
+                tg_id = td[0].get("TestGroupInvocationId")
+            if not tg_id:
+                tg_id = datetime.now().strftime("%Y%m%d%H%M%S")
+            log_file_path = os.path.join(log_folder, f"{tg_id}.log")
             with open(log_file_path, "a", encoding="utf-8") as log_file:
                 log_file.write(json.dumps(self.result["telemetry_data"]))
                 log_file.write("\n")
@@ -415,10 +513,14 @@ def run_module() -> None:
     Sets up and runs the telemetry data sending module with the specified arguments.
     """
     module_args = dict(
-        test_group_json_data=dict(type="dict", required=True),
+        test_group_json_data=dict(type="raw", required=True),
         telemetry_data_destination=dict(type="str", required=True),
         laws_workspace_id=dict(type="str", required=False),
-        laws_shared_key=dict(type="str", required=False),
+        laws_shared_key=dict(type="str", required=False, no_log=True),
+        laws_subscription_id=dict(type="str", required=False),
+        laws_resource_group=dict(type="str", required=False),
+        laws_workspace_name=dict(type="str", required=False),
+        user_assigned_identity_client_id=dict(type="str", required=False),
         telemetry_table_name=dict(type="str", required=False),
         adx_database_name=dict(type="str", required=False),
         adx_cluster_fqdn=dict(type="str", required=False),
