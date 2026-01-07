@@ -717,7 +717,9 @@ class ConfigurationCheckModule(SapAutomationQA):
                         details = collected_data.get("details")
                     elif isinstance(collected_data, list):
                         details = {"parameters": collected_data}
-                return create_result(TestStatus.INFO.value, actual_value=collected_data, details=details)
+                return create_result(
+                    TestStatus.INFO.value, actual_value=collected_data, details=details
+                )
             validation_result = self.validate_result(check, collected_data)
             return create_result(
                 status=validation_result["status"],

@@ -20,6 +20,8 @@
     adx_client_id:                      "{{ lookup('vars', 'adx_client_id', default='') }}"
     telemetry_table_name:               "{{ lookup('vars', 'telemetry_table_name', default='SAP_AUTOMATION_QA') }}"
     workspace_directory:                "{{ _workspace_directory }}"
+    common_vars:                        "{{ common_vars | default({}) }}"
+    system_context_map:                 "{{ system_context_map | default({}) }}"
     test_group_json_data:               "{{ test_group_json_data if (test_group_json_data is defined and test_group_json_data is iterable and test_group_json_data is not string) else {
                                           'TestCaseInvocationId': lookup('vars', 'test_case_invocation_id', default=''),
                                           'TestCaseStartTime': lookup('vars', 'test_case_start_time_epoch', default=''),

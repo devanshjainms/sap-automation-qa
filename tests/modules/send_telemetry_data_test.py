@@ -818,3 +818,176 @@ class TestTelemetryDataSender:
         for i, expanded in enumerate(result):
             assert expanded["TestCaseName"] == f"param{i}"
             assert "CATEGORY" in expanded["TestCaseInvocationId"]
+
+    def test_is_check_results_format_true(self, module_params_simple):
+        """Test detection of check results format."""
+        check_results = [
+            {
+                "id": "check_001",
+                "name": "Test Check",
+                "check": {"id": "check_001", "name": "Test Check"},
+                "status": "PASSED",
+                "hostname": "host01",
+                "timestamp": "2024-01-01 10:00:00",
+            }
+        ]
+
+        sender = TelemetryDataSender(module_params_simple)
+        assert sender._is_check_results_format(check_results) is True
+
+    def test_is_check_results_format_false_telemetry(self, module_params_simple):
+        """Test detection rejects telemetry format."""
+        telemetry_data = [
+            {
+                "TestCaseInvocationId": "check_001",
+                "TestCaseStatus": "PASSED",
+                "TestGroupName": "ConfigurationChecks",
+            }
+        ]
+
+        sender = TelemetryDataSender(module_params_simple)
+        assert sender._is_check_results_format(telemetry_data) is False
+
+    def test_is_check_results_format_invalid_data(self, module_params_simple):
+        """Test detection with invalid data."""
+        sender = TelemetryDataSender(module_params_simple)
+        assert sender._is_check_results_format("not a list or dict") is False
+        assert sender._is_check_results_format([]) is False
+        assert sender._is_check_results_format([123, 456]) is False
+
+    def test_build_telemetry_batch_from_results(self):
+        """Test building telemetry batch from check results."""
+        check_results = [
+            {
+                "id": "check_001",
+                "name": "HA Config Check",
+                "check": {
+                    "id": "check_001",
+                    "name": "HA Config Check",
+                    "description": "Verify HA configuration",
+                },
+                "status": "PASSED",
+                "hostname": "host01",
+                "timestamp": "2024-01-01 10:00:00",
+                "actual_value": "true",
+                "expected_value": "true",
+                "execution_time": 5,
+                "details": {"info": "check passed"},
+            },
+            {
+                "id": "check_002",
+                "name": "Network Check",
+                "check": {"id": "check_002", "name": "Network Check"},
+                "status": "SKIPPED",
+                "hostname": "host02",
+                "timestamp": "2024-01-01 10:01:00",
+            },
+        ]
+
+        module_params = {
+            "test_group_json_data": check_results,
+            "telemetry_data_destination": "none",
+            "workspace_directory": "/tmp",
+            "common_vars": {
+                "test_group_invocation_id": "group123",
+                "group_start_time": "2024-01-01 09:00:00",
+                "group_name": "ConfigurationChecks",
+                "NFS_provider": "ANF",
+                "package_versions": "v1.0",
+                "execution_tags": "prod",
+            },
+            "system_context_map": {
+                "host01": {
+                    "os_type": "SLES",
+                    "os_version": "15.4",
+                    "database_type": "HANA",
+                    "database_sid": "HDB",
+                    "sap_sid": "S4H",
+                    "high_availability_agent": "fence_azure_arm",
+                    "role": "Database",
+                }
+            },
+        }
+
+        sender = TelemetryDataSender(module_params)
+        result = sender.result["telemetry_data"]
+        assert len(result) == 1
+
+        entry = result[0]
+        assert entry["TestCaseInvocationId"] == "check_001"
+        assert entry["TestCaseStatus"] == "PASSED"
+        assert entry["TestCaseName"] == "HA Config Check"
+        assert entry["TestCaseDescription"] == "Verify HA configuration"
+        assert entry["TestGroupInvocationId"] == "group123"
+        assert entry["TestGroupName"] == "ConfigurationChecks"
+        assert entry["OsVersion"] == "SLES 15.4"
+        assert "Actual=true" in entry["TestCaseMessage"]
+        assert "Expected=true" in entry["TestCaseMessage"]
+        assert entry["DurationSeconds"] == 5
+        assert entry["StorageType"] == "ANF"
+        assert entry["TestCaseHostname"] == "host01"
+        assert entry["DBType"] == "HANA"
+        assert entry["DbSid"] == "HDB"
+        assert entry["SapSid"] == "S4H"
+        assert entry["DbFencingType"] == "fence_azure_arm"
+        assert entry["ScsFencingType"] == "fence_azure_arm"
+
+    def test_build_telemetry_batch_with_parameters(self):
+        """Test building telemetry batch from check results with parameters."""
+        check_results = [
+            {
+                "id": "check_ha_params",
+                "name": "HA Parameters",
+                "check": {"id": "check_ha_params", "name": "HA Parameters"},
+                "status": "INFO",
+                "hostname": "host01",
+                "timestamp": "2024-01-01 10:00:00",
+                "details": {
+                    "parameters": [
+                        {
+                            "name": "stonith-enabled",
+                            "category": "STONITH",
+                            "value": "true",
+                            "expected_value": "true",
+                            "status": "PASSED",
+                        },
+                        {
+                            "name": "stonith-timeout",
+                            "category": "STONITH",
+                            "value": "900",
+                            "expected_value": "900",
+                            "status": "PASSED",
+                        },
+                    ]
+                },
+            }
+        ]
+
+        module_params = {
+            "test_group_json_data": check_results,
+            "telemetry_data_destination": "none",
+            "workspace_directory": "/tmp",
+            "common_vars": {
+                "test_group_invocation_id": "group123",
+                "group_start_time": "2024-01-01 09:00:00",
+                "group_name": "ConfigurationChecks",
+            },
+            "system_context_map": {
+                "host01": {
+                    "os_type": "SLES",
+                    "os_version": "15.4",
+                }
+            },
+        }
+
+        sender = TelemetryDataSender(module_params)
+        result = sender.result["telemetry_data"]
+        assert len(result) == 2
+        assert result[0]["TestCaseName"] == "stonith-enabled"
+        assert "STONITH" in result[0]["TestCaseInvocationId"]
+        assert result[0]["TestCaseStatus"] == "PASSED"
+        assert "Actual=true" in result[0]["TestCaseMessage"]
+        assert result[1]["TestCaseName"] == "stonith-timeout"
+        assert "STONITH" in result[1]["TestCaseInvocationId"]
+        assert result[1]["TestCaseStatus"] == "PASSED"
+        assert "Actual=900" in result[1]["TestCaseMessage"]

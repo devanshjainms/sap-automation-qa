@@ -438,14 +438,26 @@
       ansible.builtin.debug:
         msg:                            "Report file CONFIG_{{ sap_sid | upper }}_{{ platform | upper }}_{{ test_group_invocation_id }} generated."
 
-    - name:                             "Send all configuration check telemetry in single batch"
+    - name:                             "Build system context map for all hosts"
+      ansible.builtin.set_fact:
+        _system_context_map:            "{{ _system_context_map | default({}) | combine({item: hostvars[item].system_context}) }}"
+      loop:                             "{{ all_results | map(attribute='hostname') | unique | list }}"
+      loop_control:
+        label:                          "{{ item }}"
+
+    - name:                             "Send check results to Python for batch telemetry processing"
+      no_log:                           true
       when:                             all_results is defined and all_results | length > 0
+      ansible.builtin.include_role:
+        name:                           misc
+        tasks_from:                     post-telemetry-data.yml
       vars:
-        combined_results:               "{{ all_results }}"
-        test_group_invocation_id:       "{{ hostvars['localhost'].test_group_invocation_id }}"
-        group_start_time:               "{{ hostvars['localhost'].test_group_start_time }}"
-        group_name:                     "{{ hostvars['localhost'].test_group_name }}"
-        package_versions:               ""
-        execution_tags:                 ""
-      ansible.builtin.include_tasks:
-        file:                           "./roles/configuration_checks/tasks/build-telemetry-batch.yml"
+        test_group_json_data:           "{{ all_results | selectattr('status', 'ne', 'SKIPPED') | list }}"
+        common_vars:
+          test_group_invocation_id:     "{{ test_group_invocation_id }}"
+          group_start_time:             "{{ test_group_start_time }}"
+          group_name:                   "{{ test_group_name }}"
+          NFS_provider:                 "{{ NFS_provider | default('unknown') }}"
+          package_versions:             "{{ package_versions | default('') }}"
+          execution_tags:               "{{ execution_tags | default('') }}"
+        system_context_map:             "{{ _system_context_map }}"

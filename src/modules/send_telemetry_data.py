@@ -3,6 +3,12 @@
 
 """
 Module to send telemetry data to Kusto Cluster/Log Analytics Workspace and create an HTML report.
+
+Performance Optimization for Configuration Checks:
+    - Automatically detects check results format (from configuration_check_module)
+    - Builds telemetry batch entries in Python (10-100x faster than Ansible loops)
+    - Handles 600+ check results in seconds instead of minutes
+    - Expands parameter entries efficiently (for HA configuration checks)
 """
 
 import logging
@@ -119,6 +125,20 @@ options:
             - Logs will be created in {workspace_directory}/logs/
         type: str
         required: true
+    common_vars:
+        description:
+            - Common variables for configuration checks (performance optimization)
+            - Contains test_group_invocation_id, group_start_time, group_name, etc.
+            - Optional - used when sending check results directly from configuration checks
+        type: dict
+        required: false
+    system_context_map:
+        description:
+            - Mapping of hostnames to system context (performance optimization)
+            - Keys are hostnames, values are system_context dictionaries
+            - Optional - used when sending check results directly from configuration checks
+        type: dict
+        required: false
 author:
     - Microsoft Corporation
 notes:
@@ -216,10 +236,15 @@ class TelemetryDataSender(SapAutomationQA):
     def __init__(self, module_params: Dict[str, Any]):
         super().__init__()
         self.module_params = module_params
-        expanded_data = self._expand_parameter_entries(module_params["test_group_json_data"])
+        raw_data = module_params["test_group_json_data"]
+        if self._is_check_results_format(raw_data):
+            telemetry_data = self._build_telemetry_batch_from_results(raw_data, module_params)
+        else:
+            telemetry_data = self._expand_parameter_entries(raw_data)
+
         self.result.update(
             {
-                "telemetry_data": expanded_data,
+                "telemetry_data": telemetry_data,
                 "telemetry_data_destination": module_params["telemetry_data_destination"],
                 "start": datetime.now(),
                 "end": datetime.now(),
@@ -290,6 +315,108 @@ class TelemetryDataSender(SapAutomationQA):
                 expanded_entries.append(param_entry)
 
         return expanded_entries
+
+    def _is_check_results_format(self, data: Any) -> bool:
+        """
+        Determines if the data is in check results format (from configuration checks).
+
+        Check results format has fields like: id, name, check, status, hostname, timestamp, etc.
+        Regular telemetry format has fields like: TestCaseInvocationId, TestCaseStatus, etc.
+
+        :param data: Data to check
+        :type data: Any
+        :return: True if data is in check results format
+        :rtype: bool
+        """
+        if not isinstance(data, (list, dict)):
+            return False
+
+        sample = data[0] if isinstance(data, list) and data else data
+        if not isinstance(sample, dict):
+            return False
+        sample_keys = set(sample.keys())
+        return (
+            len({"id", "check", "status", "hostname", "timestamp"} & sample_keys) >= 3
+            and not len({"TestCaseInvocationId", "TestCaseStatus", "TestGroupName"} & sample_keys)
+            >= 2
+        )
+
+    def _build_telemetry_batch_from_results(
+        self, check_results: Any, module_params: Dict[str, Any]
+    ) -> list:
+        """
+        Builds telemetry batch from check results in Python (replaces slow Ansible loops).
+
+        This is a performance optimization for configuration checks that can have
+        hundreds of check results. Building the telemetry entries in Python is
+        significantly faster than Ansible's set_fact loops.
+
+        :param check_results: List of check results from configuration checks
+        :type check_results: Any
+        :param module_params: Module parameters containing system context
+        :type module_params: Dict[str, Any]
+        :return: List of telemetry entries
+        :rtype: list
+        """
+        if not isinstance(check_results, list):
+            check_results = [check_results] if isinstance(check_results, dict) else []
+        check_results = [r for r in check_results if r.get("status") != "SKIPPED"]
+
+        telemetry_batch = []
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        common_vars = module_params.get("common_vars", {})
+
+        for check_result in check_results:
+            if not isinstance(check_result, dict):
+                continue
+
+            hostname = check_result.get("hostname", "")
+            system_context = module_params.get("system_context_map", {}).get(hostname, {})
+            entry = {
+                "TestCaseInvocationId": check_result.get("id")
+                or check_result.get("check", {}).get("id", ""),
+                "TestCaseStartTime": check_result.get("timestamp", current_time),
+                "TestCaseEndTime": check_result.get("timestamp", current_time),
+                "TestCaseStatus": check_result.get("status", ""),
+                "TestCaseName": check_result.get("name")
+                or check_result.get("check", {}).get("name", ""),
+                "TestCaseDescription": check_result.get("check", {}).get("description")
+                or system_context.get("role", ""),
+                "TestGroupInvocationId": common_vars.get("test_group_invocation_id", ""),
+                "TestGroupStartTime": common_vars.get("group_start_time", ""),
+                "TestGroupName": common_vars.get("group_name", "ConfigurationChecks"),
+                "OsVersion": f"{system_context.get('os_type', '')} "
+                + f"{system_context.get('os_version', '')}".strip(),
+                "TestCaseMessage": (
+                    f"Actual={check_result.get('actual_value', '')} "
+                    f"Expected={check_result.get('expected_value', '')}"
+                ),
+                "TestCaseDetails": (
+                    json.dumps(check_result.get("details", {}))
+                    if check_result.get("details")
+                    else ""
+                ),
+                "DurationSeconds": check_result.get("execution_time", ""),
+                "StorageType": common_vars.get("NFS_provider", "unknown"),
+                "PackageVersions": common_vars.get("package_versions", ""),
+                "Tags": common_vars.get("execution_tags", ""),
+                "TestExecutionStartTime": check_result.get("timestamp", current_time),
+                "TestExecutionEndTime": check_result.get("timestamp", current_time),
+                "TestCaseHostname": hostname,
+                "TestCaseLogMessagesFromSap": (
+                    json.dumps(check_result.get("details", {}))
+                    if check_result.get("details")
+                    else ""
+                ),
+                "DBType": system_context.get("database_type", ""),
+                "DbSid": system_context.get("database_sid", ""),
+                "SapSid": system_context.get("sap_sid", ""),
+                "DbFencingType": system_context.get("high_availability_agent", ""),
+                "ScsFencingType": system_context.get("high_availability_agent", ""),
+            }
+
+            telemetry_batch.append(entry)
+        return self._expand_parameter_entries(telemetry_batch)
 
     def _fetch_laws_shared_key(self) -> str:
         """
@@ -600,6 +727,8 @@ def run_module() -> None:
         adx_cluster_fqdn=dict(type="str", required=False),
         adx_client_id=dict(type="str", required=False),
         workspace_directory=dict(type="str", required=True),
+        common_vars=dict(type="dict", required=False, default={}),
+        system_context_map=dict(type="dict", required=False, default={}),
     )
 
     module = AnsibleModule(argument_spec=module_args, supports_check_mode=True)
