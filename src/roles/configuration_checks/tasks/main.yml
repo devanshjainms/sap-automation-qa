@@ -259,6 +259,13 @@
       execution_warnings:           "{{ execution_warnings | default([]) }}"
       execution_errors:             "{{ execution_errors | default([]) }}"
 
+- name:                             "{{ check_type.name }} - Enrich results with system context and ensure correct hostname"
+  ansible.builtin.set_fact:
+    combined_results:               "{{ combined_results | map('combine', {
+                                      'system_context': system_context,
+                                      'hostname': inventory_hostname
+                                    }) | list }}"
+
 - name:                             "{{ check_type.name }} - Set dynamic result variable with metadata"
   no_log:                           true
   ansible.builtin.set_fact:
