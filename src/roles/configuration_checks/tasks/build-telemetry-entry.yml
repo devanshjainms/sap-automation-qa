@@ -47,7 +47,7 @@
     loop_var:                       param
   ansible.builtin.set_fact:
     _telemetry_batch_all:           "{{ _telemetry_batch_all + [{
-                                      'TestCaseInvocationId': (param.id | default(param.name | default(''))),
+                                      'TestCaseInvocationId': ((check_result.id | default(check_result.check.id | default(''))) + ' ' + (param.category | default(param.name | default('')))),
                                       'TestCaseStartTime': (check_result.timestamp | default(now())),
                                       'TestCaseEndTime': (check_result.timestamp | default(now())),
                                       'TestCaseStatus': (param.status | default(check_result.status | default(''))),
