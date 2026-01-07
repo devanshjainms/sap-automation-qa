@@ -15,7 +15,7 @@
                                       'TestCaseEndTime': (check_result.timestamp | default(now())),
                                       'TestCaseStatus': (check_result.status | default('')),
                                       'TestCaseName': (check_result.name | default(check_result.check.name | default(''))),
-                                      'TestCaseDescription': (check_result.check.description | default('')),
+                                      'TestCaseDescription': (check_result.check.description | default(hostvars[check_result.hostname].system_context.role | default(''))),
                                       'TestGroupInvocationId': lookup('vars', 'test_group_invocation_id', default=''),
                                       'TestGroupStartTime': lookup('vars', 'group_start_time', default=''),
                                       'TestGroupName': lookup('vars', 'group_name', default='ConfigurationChecks'),
@@ -29,5 +29,10 @@
                                       'TestExecutionStartTime': (check_result.timestamp | default(now())),
                                       'TestExecutionEndTime': (check_result.timestamp | default(now())),
                                       'TestCaseHostname': (check_result.hostname | default('')),
-                                      'TestCaseLogMessagesFromSap': (check_result.details | default('') | to_json)
+                                      'TestCaseLogMessagesFromSap': (check_result.details | default('') | to_json),
+                                      'DBType': (hostvars[check_result.hostname].system_context.database_type | default('')),
+                                      'DbSid': (hostvars[check_result.hostname].system_context.database_sid | default('')),
+                                      'SapSid': (hostvars[check_result.hostname].system_context.sap_sid | default('')),
+                                      'DbFencingType': (hostvars[check_result.hostname].system_context.high_availability_agent | default('')),
+                                      'ScsFencingType': (hostvars[check_result.hostname].system_context.high_availability_agent | default(''))
                                     }] }}"
