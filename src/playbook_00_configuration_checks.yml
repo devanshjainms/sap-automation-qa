@@ -438,12 +438,18 @@
       ansible.builtin.debug:
         msg:                            "Report file CONFIG_{{ sap_sid | upper }}_{{ platform | upper }}_{{ test_group_invocation_id }} generated."
 
+    - name:                             "Debug system_context map building"
+      ansible.builtin.debug:
+        msg:                            "Building system context map for hosts: {{ all_results | map(attribute='hostname') | unique | list }}"
+      run_once:                         true
+
     - name:                             "Build system context map for all hosts"
       ansible.builtin.set_fact:
-        _system_context_map:            "{{ _system_context_map | default({}) | combine({item: hostvars[item].system_context}) }}"
+        _system_context_map:            "{{ _system_context_map | default({}) | combine({item: hostvars[item].system_context | default({})}) }}"
       loop:                             "{{ all_results | map(attribute='hostname') | unique | list }}"
       loop_control:
         label:                          "{{ item }}"
+      when:                             item in hostvars
 
     - name:                             "Send check results to Python for batch telemetry processing"
       no_log:                           true

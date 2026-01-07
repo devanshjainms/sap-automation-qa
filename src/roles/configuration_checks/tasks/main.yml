@@ -153,7 +153,7 @@
         workspace_directory:        "{{ _workspace_directory }}"
         test_group_invocation_id:   "{{ test_group_invocation_id }}"
         test_group_name:            "ConfigurationChecks"
-        hostname:                   "{{ ansible_hostname }}"
+        hostname:                   "{{ inventory_hostname }}"
         parallel_execution:         true
         max_workers:                1
         enable_retry:               true
@@ -188,7 +188,7 @@
         workspace_directory:        "{{ _workspace_directory }}"
         test_group_invocation_id:   "{{ test_group_invocation_id }}"
         test_group_name:            "ConfigurationChecks"
-        hostname:                   "{{ ansible_hostname }}"
+        hostname:                   "{{ inventory_hostname }}"
         parallel_execution:         true
         max_workers:                1
         enable_retry:               true
@@ -222,7 +222,7 @@
         workspace_directory:        "{{ _workspace_directory }}"
         test_group_invocation_id:   "{{ test_group_invocation_id }}"
         test_group_name:            "ConfigurationChecks"
-        hostname:                   "{{ ansible_hostname }}"
+        hostname:                   "{{ inventory_hostname }}"
         parallel_execution:         true
         max_workers:                1
         enable_retry:               true
