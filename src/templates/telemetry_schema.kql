@@ -23,5 +23,6 @@
     Tags:string,
     TestExecutionStartTime:datetime,
     TestExecutionEndTime:datetime,
-    StorageType:string
+    StorageType:string,
+    TestCaseHostname:string
 )
