@@ -524,3 +524,297 @@ class TestTelemetryDataSender:
         main()
 
         assert mock_result["status"] == "PASSED"
+
+    @pytest.fixture
+    def base_entry(self):
+        """Sample base telemetry entry for parameter expansion tests."""
+        return {
+            "TestCaseInvocationId": "HA-HANA-001",
+            "TestCaseStartTime": "2026-01-07T10:00:00",
+            "TestCaseEndTime": "2026-01-07T10:00:01",
+            "TestCaseStatus": "INFO",
+            "TestCaseName": "HANA Cluster Configuration",
+            "TestCaseDescription": "Check HANA cluster parameters",
+            "TestGroupInvocationId": "group-123",
+            "TestGroupStartTime": "2026-01-07T09:00:00",
+            "TestGroupName": "ConfigurationChecks",
+            "OsVersion": "SUSE 15.4",
+            "TestCaseMessage": "Actual=config Expected=",
+            "DurationSeconds": "1",
+            "StorageType": "ANF",
+            "PackageVersions": "{}",
+            "Tags": "ha,db",
+            "TestExecutionStartTime": "2026-01-07T10:00:00",
+            "TestExecutionEndTime": "2026-01-07T10:00:01",
+            "TestCaseHostname": "host01",
+            "TestCaseLogMessagesFromSap": "{}",
+        }
+
+    @pytest.fixture
+    def module_params_simple(self):
+        """Simple module params for parameter expansion tests."""
+        return {
+            "test_group_json_data": [],
+            "telemetry_data_destination": "azureloganalytics",
+            "workspace_directory": "/tmp",
+        }
+
+    def test_expand_no_parameters(self, module_params_simple, base_entry):
+        """Test that entries without parameters are kept as-is."""
+        entry_no_params = base_entry.copy()
+        entry_no_params["TestCaseDetails"] = json.dumps({"message": "No params"})
+
+        module_params_simple["test_group_json_data"] = [entry_no_params]
+        sender = TelemetryDataSender(module_params_simple)
+
+        result = sender.result["telemetry_data"]
+        assert len(result) == 1
+        assert result[0]["TestCaseInvocationId"] == "HA-HANA-001"
+
+    def test_expand_with_parameters(self, module_params_simple, base_entry):
+        """Test that entries with parameters are expanded correctly."""
+        details = {
+            "parameters": [
+                {
+                    "name": "stonith-enabled",
+                    "category": "CRM_CONFIG",
+                    "value": "true",
+                    "expected_value": "true",
+                    "status": "PASSED",
+                },
+                {
+                    "name": "migration-threshold",
+                    "category": "RSC_DEFAULTS",
+                    "value": "5000",
+                    "expected_value": "5000",
+                    "status": "PASSED",
+                },
+            ]
+        }
+
+        entry_with_params = base_entry.copy()
+        entry_with_params["TestCaseDetails"] = json.dumps(details)
+
+        module_params_simple["test_group_json_data"] = [entry_with_params]
+        sender = TelemetryDataSender(module_params_simple)
+
+        result = sender.result["telemetry_data"]
+        assert len(result) == 2
+        assert result[0]["TestCaseInvocationId"] == "HA-HANA-001-CRM_CONFIG"
+        assert result[0]["TestCaseName"] == "stonith-enabled"
+        assert result[0]["TestCaseStatus"] == "PASSED"
+        assert result[0]["TestCaseMessage"] == "Actual=true Expected=true"
+
+        assert result[1]["TestCaseInvocationId"] == "HA-HANA-001-RSC_DEFAULTS"
+        assert result[1]["TestCaseName"] == "migration-threshold"
+
+    def test_expand_skipped_parameters_filtered(self, module_params_simple, base_entry):
+        """Test that SKIPPED parameters are filtered out."""
+        details = {
+            "parameters": [
+                {
+                    "name": "param1",
+                    "category": "CRM_CONFIG",
+                    "value": "val1",
+                    "expected_value": "val1",
+                    "status": "PASSED",
+                },
+                {
+                    "name": "param2",
+                    "category": "CRM_CONFIG",
+                    "value": "val2",
+                    "expected_value": "val2",
+                    "status": "SKIPPED",
+                },
+                {
+                    "name": "param3",
+                    "category": "RSC_DEFAULTS",
+                    "value": "val3",
+                    "expected_value": "val3",
+                    "status": "WARNING",
+                },
+            ]
+        }
+
+        entry_with_params = base_entry.copy()
+        entry_with_params["TestCaseDetails"] = json.dumps(details)
+
+        module_params_simple["test_group_json_data"] = [entry_with_params]
+        sender = TelemetryDataSender(module_params_simple)
+
+        result = sender.result["telemetry_data"]
+        assert len(result) == 2
+        assert result[0]["TestCaseName"] == "param1"
+        assert result[1]["TestCaseName"] == "param3"
+        assert all(r["TestCaseName"] != "param2" for r in result)
+
+    def test_expand_empty_parameters_list(self, module_params_simple, base_entry):
+        """Test that entries with empty parameters list are kept as-is."""
+        details = {"parameters": []}
+
+        entry_empty_params = base_entry.copy()
+        entry_empty_params["TestCaseDetails"] = json.dumps(details)
+
+        module_params_simple["test_group_json_data"] = [entry_empty_params]
+        sender = TelemetryDataSender(module_params_simple)
+
+        result = sender.result["telemetry_data"]
+        assert len(result) == 1
+        assert result[0]["TestCaseInvocationId"] == "HA-HANA-001"
+
+    def test_expand_mixed_entries(self, module_params_simple, base_entry):
+        """Test batch with mixed parameter and non-parameter entries."""
+        entry1 = base_entry.copy()
+        entry1["TestCaseInvocationId"] = "CHECK-001"
+        entry1["TestCaseDetails"] = json.dumps({"message": "Simple check"})
+
+        entry2 = base_entry.copy()
+        entry2["TestCaseInvocationId"] = "HA-HANA-001"
+        entry2["TestCaseDetails"] = json.dumps(
+            {
+                "parameters": [
+                    {
+                        "name": "param1",
+                        "category": "CRM_CONFIG",
+                        "value": "val1",
+                        "expected_value": "val1",
+                        "status": "PASSED",
+                    },
+                    {
+                        "name": "param2",
+                        "category": "RSC_DEFAULTS",
+                        "value": "val2",
+                        "expected_value": "val2",
+                        "status": "WARNING",
+                    },
+                ]
+            }
+        )
+
+        entry3 = base_entry.copy()
+        entry3["TestCaseInvocationId"] = "CHECK-002"
+        entry3["TestCaseDetails"] = json.dumps({"another": "check"})
+
+        module_params_simple["test_group_json_data"] = [entry1, entry2, entry3]
+        sender = TelemetryDataSender(module_params_simple)
+
+        result = sender.result["telemetry_data"]
+        assert len(result) == 4
+        assert result[0]["TestCaseInvocationId"] == "CHECK-001"
+        assert result[1]["TestCaseInvocationId"] == "HA-HANA-001-CRM_CONFIG"
+        assert result[2]["TestCaseInvocationId"] == "HA-HANA-001-RSC_DEFAULTS"
+        assert result[3]["TestCaseInvocationId"] == "CHECK-002"
+
+    def test_expand_single_dict_entry(self, module_params_simple, base_entry):
+        """Test that single dict (non-list) is handled correctly."""
+        details = {
+            "parameters": [
+                {
+                    "name": "test-param",
+                    "category": "TEST",
+                    "value": "value",
+                    "expected_value": "value",
+                    "status": "PASSED",
+                }
+            ]
+        }
+
+        entry_with_params = base_entry.copy()
+        entry_with_params["TestCaseDetails"] = json.dumps(details)
+        module_params_simple["test_group_json_data"] = entry_with_params
+        sender = TelemetryDataSender(module_params_simple)
+
+        result = sender.result["telemetry_data"]
+        assert len(result) == 1
+        assert result[0]["TestCaseInvocationId"] == "HA-HANA-001-TEST"
+        assert result[0]["TestCaseName"] == "test-param"
+
+    def test_expand_parameter_without_status(self, module_params_simple, base_entry):
+        """Test parameters without status field are included."""
+        details = {
+            "parameters": [
+                {
+                    "name": "param-no-status",
+                    "category": "CRM_CONFIG",
+                    "value": "value",
+                    "expected_value": "value",
+                }
+            ]
+        }
+
+        entry_with_params = base_entry.copy()
+        entry_with_params["TestCaseDetails"] = json.dumps(details)
+
+        module_params_simple["test_group_json_data"] = [entry_with_params]
+        sender = TelemetryDataSender(module_params_simple)
+        result = sender.result["telemetry_data"]
+        assert len(result) == 1
+        assert result[0]["TestCaseName"] == "param-no-status"
+        assert result[0]["TestCaseStatus"] == "INFO"
+
+    def test_expand_preserves_common_fields(self, module_params_simple, base_entry):
+        """Test that common fields are preserved in expanded entries."""
+        details = {
+            "parameters": [
+                {
+                    "name": "param1",
+                    "category": "CRM_CONFIG",
+                    "value": "val1",
+                    "expected_value": "val1",
+                    "status": "PASSED",
+                }
+            ]
+        }
+
+        entry_with_params = base_entry.copy()
+        entry_with_params["TestCaseDetails"] = json.dumps(details)
+
+        module_params_simple["test_group_json_data"] = [entry_with_params]
+        sender = TelemetryDataSender(module_params_simple)
+
+        result = sender.result["telemetry_data"]
+        expanded = result[0]
+        assert expanded["TestGroupInvocationId"] == "group-123"
+        assert expanded["TestGroupName"] == "ConfigurationChecks"
+        assert expanded["OsVersion"] == "SUSE 15.4"
+        assert expanded["TestCaseHostname"] == "host01"
+        assert expanded["StorageType"] == "ANF"
+        assert expanded["DurationSeconds"] == "1"
+
+    def test_expand_invalid_json_details(self, module_params_simple, base_entry):
+        """Test that invalid JSON in TestCaseDetails is handled gracefully."""
+        entry_invalid_json = base_entry.copy()
+        entry_invalid_json["TestCaseDetails"] = "not valid json {{"
+
+        module_params_simple["test_group_json_data"] = [entry_invalid_json]
+        sender = TelemetryDataSender(module_params_simple)
+
+        result = sender.result["telemetry_data"]
+        assert len(result) == 1
+        assert result[0]["TestCaseInvocationId"] == "HA-HANA-001"
+
+    def test_expand_large_parameter_list(self, module_params_simple, base_entry):
+        """Test expansion with large number of parameters."""
+        parameters = [
+            {
+                "name": f"param{i}",
+                "category": f"CATEGORY{i % 3}",
+                "value": f"val{i}",
+                "expected_value": f"val{i}",
+                "status": "PASSED" if i % 2 == 0 else "WARNING",
+            }
+            for i in range(50)
+        ]
+
+        details = {"parameters": parameters}
+        entry_with_params = base_entry.copy()
+        entry_with_params["TestCaseDetails"] = json.dumps(details)
+
+        module_params_simple["test_group_json_data"] = [entry_with_params]
+        sender = TelemetryDataSender(module_params_simple)
+
+        result = sender.result["telemetry_data"]
+        assert len(result) == 50
+        for i, expanded in enumerate(result):
+            assert expanded["TestCaseName"] == f"param{i}"
+            assert "CATEGORY" in expanded["TestCaseInvocationId"]

@@ -216,9 +216,10 @@ class TelemetryDataSender(SapAutomationQA):
     def __init__(self, module_params: Dict[str, Any]):
         super().__init__()
         self.module_params = module_params
+        expanded_data = self._expand_parameter_entries(module_params["test_group_json_data"])
         self.result.update(
             {
-                "telemetry_data": module_params["test_group_json_data"],
+                "telemetry_data": expanded_data,
                 "telemetry_data_destination": module_params["telemetry_data_destination"],
                 "start": datetime.now(),
                 "end": datetime.now(),
@@ -226,6 +227,69 @@ class TelemetryDataSender(SapAutomationQA):
                 "data_logged": False,
             }
         )
+
+    def _expand_parameter_entries(self, telemetry_data: Any) -> Any:
+        """
+        Expands telemetry entries that have 'details.parameters' into individual entries.
+
+        For configuration checks with multiple parameters (e.g., HA checks), this creates
+        a separate telemetry entry for each parameter while preserving non-parameter entries.
+
+        :param telemetry_data: Raw telemetry data (dict or list of dicts)
+        :type telemetry_data: Any
+        :return: Expanded telemetry data with parameter entries
+        :rtype: Any
+        """
+        if not isinstance(telemetry_data, list):
+            telemetry_data = [telemetry_data] if isinstance(telemetry_data, dict) else []
+
+        expanded_entries = []
+
+        for entry in telemetry_data:
+            if not isinstance(entry, dict):
+                expanded_entries.append(entry)
+                continue
+            details = entry.get("TestCaseDetails")
+            if isinstance(details, str):
+                try:
+                    details = json.loads(details)
+                except (json.JSONDecodeError, ValueError):
+                    details = None
+            if not isinstance(details, dict):
+                expanded_entries.append(entry)
+                continue
+            parameters = details.get("parameters")
+
+            if not parameters or not isinstance(parameters, list):
+                expanded_entries.append(entry)
+                continue
+            base_id = entry.get("TestCaseInvocationId", "")
+            for param in parameters:
+                if not isinstance(param, dict) or param.get("status") in ["SKIPPED"]:
+                    continue
+                param_entry = entry.copy()
+
+                param_entry.update(
+                    {
+                        "TestCaseInvocationId": f"{base_id}-"
+                        + f"{param.get('category', param.get('name', ''))}",
+                        "TestCaseStatus": param.get("status", entry.get("TestCaseStatus", "")),
+                        "TestCaseName": param.get("name", param.get("id", "")),
+                        "TestCaseDescription": (
+                            f"Parameter {param.get('name', param.get('id', ''))} "
+                            f"in category {param.get('category', '')}"
+                        ),
+                        "TestCaseMessage": (
+                            f"Actual={param.get('value', '')} "
+                            f"Expected={param.get('expected_value', '')}"
+                        ),
+                        "TestCaseDetails": json.dumps(param),
+                    }
+                )
+
+                expanded_entries.append(param_entry)
+
+        return expanded_entries
 
     def _fetch_laws_shared_key(self) -> str:
         """
