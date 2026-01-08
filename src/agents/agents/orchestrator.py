@@ -303,6 +303,7 @@ class OrchestratorSK:
                 ),
             ),
         )
+        
         self.kernel.add_function(plugin_name="agent_selection", function=selection_function)
 
         def _parse_selection_result(result) -> str:
