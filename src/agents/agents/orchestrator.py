@@ -291,8 +291,15 @@ class OrchestratorSK:
                     input_variables=[
                         InputVariable(
                             name="input", description="The user's request", is_required=True
-                        )
+                        ),
+                        InputVariable(
+                            name="_history_",
+                            description="Conversation history (injected by SK)",
+                            is_required=False,
+                            allow_dangerously_set_content=True,
+                        ),
                     ],
+                    allow_dangerously_set_content=True,
                 ),
             ),
         )
