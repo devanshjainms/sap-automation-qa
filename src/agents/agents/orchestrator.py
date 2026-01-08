@@ -303,7 +303,7 @@ class OrchestratorSK:
                 ),
             ),
         )
-        
+
         self.kernel.add_function(plugin_name="agent_selection", function=selection_function)
 
         def _parse_selection_result(result) -> str:
@@ -363,8 +363,22 @@ class OrchestratorSK:
 
         detected_sid = self._detect_sid_in_message(latest_user_msg)
         if detected_sid:
+            old_sid = conv_context.get("resolved_sid")
+            old_workspace = conv_context.get("resolved_workspace")
             conv_context.set("resolved_sid", detected_sid)
             logger.info(f"Detected SID in message: {detected_sid}")
+            
+            should_clear_workspace = False
+            if old_sid and old_sid != detected_sid:
+                should_clear_workspace = True
+                logger.info(f"SID changed from {old_sid} to {detected_sid}")
+            elif old_workspace and detected_sid not in old_workspace:
+                should_clear_workspace = True
+                logger.info(f"Workspace {old_workspace} doesn't match SID {detected_sid}")
+            
+            if should_clear_workspace:
+                conv_context.set("resolved_workspace", None)
+                logger.info(f"Cleared workspace context for new SID {detected_sid}")
 
         preserved_sid = conv_context.get("resolved_sid")
         preserved_workspace = conv_context.get("resolved_workspace")
@@ -449,25 +463,15 @@ class OrchestratorSK:
     def _extract_context_from_response(
         self, response: str, conv_context: ConversationContext
     ) -> None:
-        """Extract useful context from agent response for future use.
-
-        Important: Only updates context if not already set to preserve
-        user-established context across turns.
+        """Extract OS type from agent response.
+        
+        NOTE: We intentionally DON'T extract workspace/SID from responses.
+        That led to pollution when listing workspaces. Context should come from:
+        1. User's message (SID detection in handle_chat)
+        2. Agent explicitly resolving via tools (resolve_user_reference, etc.)
+        
+        We only extract OS type here since it's unambiguous and useful.
         """
-        if not conv_context.get("resolved_workspace"):
-            full_pattern = r"((?:DEV|QA|PROD)-[A-Z]{4}-SAP\d{2}-[A-Z][A-Z0-9]{2})"
-            full_matches = re.findall(full_pattern, response.upper())
-            if full_matches and len(set(full_matches)) == 1:
-                conv_context.set("resolved_workspace", full_matches[0])
-                logger.info(f"Extracted workspace from response: {full_matches[0]}")
-
-        if not conv_context.get("resolved_sid") and conv_context.get("resolved_workspace"):
-            workspace = conv_context.get("resolved_workspace")
-            sid_match = re.search(r"-([A-Z][A-Z0-9]{2})$", workspace)
-            if sid_match:
-                conv_context.set("resolved_sid", sid_match.group(1))
-                logger.info(f"Extracted SID from workspace: {sid_match.group(1)}")
-
         if not conv_context.get("os_type"):
             response_lower = response.lower()
             if "sles" in response_lower or "suse" in response_lower:

@@ -342,6 +342,42 @@ show_logs() {
     docker compose logs -f
 }
 
+# Update backend only (faster, no frontend rebuild)
+update_backend_only() {
+    log_info "Pulling latest code..."
+    cd "$PROJECT_DIR"
+    git pull
+    
+    log_info "Rebuilding backend with no cache..."
+    cd "$DEPLOY_DIR"
+    docker compose build --no-cache backend
+    
+    log_info "Restarting backend service..."
+    docker compose up -d backend
+    
+    log_info "Waiting for backend to be healthy..."
+    sleep 3
+    
+    # Check backend health
+    RETRIES=20
+    while [ $RETRIES -gt 0 ]; do
+        if docker exec sap-qa-backend curl -sf http://localhost:8000/healthz &>/dev/null; then
+            log_success "Backend is healthy"
+            break
+        fi
+        RETRIES=$((RETRIES-1))
+        sleep 2
+    done
+    
+    if [ $RETRIES -eq 0 ]; then
+        log_error "Backend failed to start. Check logs with: docker logs sap-qa-backend"
+        exit 1
+    fi
+    
+    log_success "Backend update complete!"
+    log_info "View logs: docker logs -f sap-qa-backend"
+}
+
 # Update and rebuild (pull latest code)
 update_and_rebuild() {
     log_info "Pulling latest code..."
@@ -373,27 +409,29 @@ show_menu() {
     echo "What would you like to do?"
     echo ""
     echo "  1) Full setup (recommended for first time)"
-    echo "  2) Update & rebuild (pull code + rebuild)"
-    echo "  3) Reconfigure environment (.env)"
-    echo "  4) Rebuild frontend only"
-    echo "  5) Restart services"
-    echo "  6) View logs"
-    echo "  7) Check status"
-    echo "  8) Stop services"
-    echo "  9) Exit"
+    echo "  2) Update & rebuild (pull code + rebuild all)"
+    echo "  3) Update backend only (faster, no frontend)"
+    echo "  4) Reconfigure environment (.env)"
+    echo "  5) Rebuild frontend only"
+    echo "  6) Restart services"
+    echo "  7) View logs"
+    echo "  8) Check status"
+    echo "  9) Stop services"
+    echo " 10) Exit"
     echo ""
-    read -p "Select option [1-9]: " choice
+    read -p "Select option [1-10]: " choice
     
     case $choice in
         1) full_setup ;;
         2) update_and_rebuild ;;
-        3) setup_environment ;;
-        4) build_frontend && docker compose -f "$DEPLOY_DIR/docker-compose.yml" restart nginx ;;
-        5) start_services && verify_deployment ;;
-        6) show_logs ;;
-        7) verify_deployment ;;
-        8) cd "$DEPLOY_DIR" && docker compose down && log_success "Services stopped" ;;
-        9) exit 0 ;;
+        3) update_backend_only ;;
+        4) setup_environment ;;
+        5) build_frontend && docker compose -f "$DEPLOY_DIR/docker-compose.yml" restart nginx ;;
+        6) start_services && verify_deployment ;;
+        7) show_logs ;;
+        8) verify_deployment ;;
+        9) cd "$DEPLOY_DIR" && docker compose down && log_success "Services stopped" ;;
+        10) exit 0 ;;
         *) log_error "Invalid option" && show_menu ;;
     esac
 }
@@ -427,6 +465,9 @@ main() {
         --update)
             update_and_rebuild
             ;;
+        --update-backend)
+            update_backend_only
+            ;;
         --configure)
             setup_environment
             ;;
@@ -454,15 +495,16 @@ main() {
             echo "Usage: $0 [OPTION]"
             echo ""
             echo "Options:"
-            echo "  --full, --install   Run complete setup"
-            echo "  --update            Pull latest code and rebuild"
-            echo "  --configure         Configure environment only"
-            echo "  --build             Build frontend only"
-            echo "  --start             Start services"
-            echo "  --status            Check deployment status"
-            echo "  --logs              View service logs"
-            echo "  --stop              Stop all services"
-            echo "  --help, -h          Show this help"
+            echo "  --full, --install    Run complete setup"
+            echo "  --update             Pull latest code and rebuild all"
+            echo "  --update-backend     Pull code and rebuild backend only (faster)"
+            echo "  --configure          Configure environment only"
+            echo "  --build              Build frontend only"
+            echo "  --start              Start services"
+            echo "  --status             Check deployment status"
+            echo "  --logs               View service logs"
+            echo "  --stop               Stop all services"
+            echo "  --help, -h           Show this help"
             echo ""
             echo "Without options, shows interactive menu."
             ;;
