@@ -10,7 +10,7 @@ and multi-agent coordination with:
 - Automatic SID/workspace resolution
 """
 
-from typing import Optional, Any, cast
+from typing import Optional, Any, cast, Callable
 import asyncio
 import json
 import re
@@ -21,7 +21,7 @@ from semantic_kernel.agents.strategies.selection import kernel_function_selectio
 from semantic_kernel.agents.strategies.termination.kernel_function_termination_strategy import (
     KernelFunctionTerminationStrategy,
 )
-from semantic_kernel.contents import ChatHistory, AuthorRole
+from semantic_kernel.contents import ChatHistory, AuthorRole, ChatMessageContent
 from semantic_kernel.functions import KernelFunction
 from semantic_kernel.functions.kernel_function_from_prompt import KernelFunctionFromPrompt
 from semantic_kernel.prompt_template import PromptTemplateConfig, InputVariable
@@ -287,7 +287,6 @@ class OrchestratorSK:
                 function_name="select_next_agent",
                 prompt=AGENT_SELECTION_PROMPT,
                 description="Select the next agent based on user intent and domain context.",
-                prompt_kwargs={"allow_dangerously_set_content": True},
             ),
         )
 
@@ -321,8 +320,7 @@ class OrchestratorSK:
             kernel=self.kernel,
             function=selection_function,
             result_parser=_parse_selection_result,
-            history_variable_name="history",
-            agent_variable_name="agent",
+            history_variable_name=None,  # Don't pass history to avoid encoding issues
         )
 
     async def handle_chat(
