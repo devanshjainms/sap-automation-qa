@@ -268,25 +268,17 @@ AVAILABLE AGENTS:
 - action_planner: Planning execution steps, creating action plans
 - action_executor: Running tests, SSH commands, executing actions
 
-CONVERSATION CONTEXT (CRITICAL):
-Look at the PREVIOUS messages. If the previous assistant message:
-- Recommended tests, and user says "run", "run for db", "yes", "do it" → action_executor
-- Asked about tests, and user says a test name like "ha-config", "failover" → action_executor
-- Offered options, and user picks one → action_executor
-
 SELECTION RULES (follow in priority order):
 
-1. "action_executor" - FIRST CHECK: Is user responding to a previous recommendation with "run", "yes", "do it", or a test name? Route here.
+1. "action_executor" - Run/execute requests, SSH commands, test execution, or user responding with "run", "yes", "do it"
 2. "echo" - Greetings, help, documentation, "what can you do"
 3. "system_context" - Workspace queries, SID resolution (X01, P01 etc.), list/create workspaces
 4. "test_advisor" - Test recommendations, "what tests", test planning
 5. "action_planner" - Create action plans, prepare execution steps
-6. "action_executor" - Explicit run/execute requests, SSH commands
 
-CONVERSATION SO FAR:
-{{$history}}
+USER REQUEST: {{$input}}
 
-Based on the user's latest message, return ONLY the best agent name. One word only."""
+Based on the user's request, return ONLY the best agent name. One word only."""
 
 
 # =============================================================================
