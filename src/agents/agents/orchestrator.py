@@ -282,13 +282,21 @@ class OrchestratorSK:
 
         selection_function = cast(
             KernelFunction,
-            self.kernel.add_function(
-                plugin_name="agent_selection",
+            KernelFunctionFromPrompt(
                 function_name="select_next_agent",
-                prompt=AGENT_SELECTION_PROMPT,
-                description="Select the next agent based on user intent and domain context.",
+                plugin_name="agent_selection",
+                prompt_template_config=PromptTemplateConfig(
+                    template=AGENT_SELECTION_PROMPT,
+                    description="Select the next agent based on user intent and domain context.",
+                    input_variables=[
+                        InputVariable(
+                            name="input", description="The user's request", is_required=True
+                        )
+                    ],
+                ),
             ),
         )
+        self.kernel.add_function(plugin_name="agent_selection", function=selection_function)
 
         def _parse_selection_result(result) -> str:
             """Parse selection result with fallback logic."""
@@ -320,7 +328,6 @@ class OrchestratorSK:
             kernel=self.kernel,
             function=selection_function,
             result_parser=_parse_selection_result,
-            history_variable_name=None,  # Don't pass history to avoid encoding issues
         )
 
     async def handle_chat(
