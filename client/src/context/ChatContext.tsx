@@ -306,9 +306,9 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
           payload:
             error instanceof Error ? error.message : "Failed to send message",
         });
+        dispatch({ type: "SET_THINKING", payload: false });
       } finally {
         dispatch({ type: "SET_LOADING", payload: false });
-        dispatch({ type: "SET_THINKING", payload: false });
       }
     },
     [state.conversationId, state.messages],

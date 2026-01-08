@@ -509,7 +509,7 @@ class ConversationManager:
         metadata: dict[str, Any] = {}
         if response.test_plan:
             metadata["has_test_plan"] = True
-            metadata["test_count"] = response.test_plan.get("total_tests", 0)
+            metadata["test_count"] = response.test_plan.total_tests
         message = self.add_assistant_message(
             conversation_id=conversation_id,
             content=assistant_content,

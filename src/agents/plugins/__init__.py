@@ -11,6 +11,8 @@ from src.agents.plugins.keyvault import KeyVaultPlugin
 from src.agents.plugins.ssh import SSHPlugin
 from src.agents.plugins.test import TestPlannerPlugin
 from src.agents.plugins.workspace import WorkspacePlugin
+from src.agents.plugins.job_management import JobManagementPlugin
+from src.agents.plugins.memory import MemoryPlugin
 
 __all__ = [
     "ALLOWED_BINARIES",
@@ -22,4 +24,6 @@ __all__ = [
     "SSHPlugin",
     "TestPlannerPlugin",
     "WorkspacePlugin",
+    "JobManagementPlugin",
+    "MemoryPlugin",
 ]

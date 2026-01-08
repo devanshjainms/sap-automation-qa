@@ -18,6 +18,8 @@ Guards handle:
 """
 
 from typing import Callable, Optional, TYPE_CHECKING, Any
+from pathlib import Path
+import yaml
 
 from semantic_kernel.filters.functions.function_invocation_context import (
     FunctionInvocationContext,
@@ -47,14 +49,65 @@ class GuardLayer:
         self,
         job_store: Optional["JobStore"] = None,
         workspace_store: Optional["WorkspaceStore"] = None,
+        test_catalog_path: str = "src/vars/input-api.yaml",
     ) -> None:
         """Initialize the guard layer.
 
         :param job_store: Job store for workspace locking checks
         :param workspace_store: Workspace store for environment checks
+        :param test_catalog_path: Path to test catalog YAML
         """
         self.job_store = job_store
         self.workspace_store = workspace_store
+        self.test_catalog = self._load_test_catalog(test_catalog_path)
+
+    def _load_test_catalog(self, test_catalog_path: str) -> dict[str, dict[str, dict[str, bool]]]:
+        """Load test catalog to determine which tests are destructive.
+
+        :param test_catalog_path: Path to input-api.yaml
+        :returns: Catalog mapping group -> test_id -> metadata
+        """
+        catalog_file = Path(test_catalog_path)
+        if not catalog_file.exists():
+            logger.warning(f"Test catalog not found at {test_catalog_path}")
+            return {}
+
+        try:
+            with open(catalog_file, "r") as f:
+                config = yaml.safe_load(f) or {}
+        except Exception as e:
+            logger.warning(f"Failed to load test catalog: {e}")
+            return {}
+
+        catalog: dict[str, dict[str, dict[str, bool]]] = {}
+        for group in config.get("test_groups", []):
+            group_name = group.get("name")
+            if not group_name:
+                continue
+            tests = {}
+            for test_case in group.get("test_cases", []):
+                task_name = test_case.get("task_name")
+                if not task_name or not test_case.get("enabled", False):
+                    continue
+                tests[task_name] = {
+                    "destructive": bool(test_case.get("destructive", False)),
+                }
+            if tests:
+                catalog[group_name] = tests
+        return catalog
+
+    def is_destructive(self, test_ids: list[str]) -> bool:
+        """Check if any of the given test IDs are destructive.
+
+        :param test_ids: List of test IDs to check
+        :returns: True if any test is destructive
+        """
+        for test_id in test_ids:
+            for group_tests in self.test_catalog.values():
+                if test_id in group_tests:
+                    if group_tests[test_id].get("destructive", False):
+                        return True
+        return False
 
     def check_execution(
         self,

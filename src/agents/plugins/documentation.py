@@ -5,9 +5,14 @@ Provides kernel functions to access and search framework documentation.
 Used by EchoAgentSK to answer questions about the SAP Testing Automation Framework.
 """
 
+import json
 import logging
+import os
+import urllib.request
+import urllib.parse
+import urllib.error
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from semantic_kernel.functions import kernel_function
 
@@ -37,8 +42,220 @@ class DocumentationPlugin:
         if not self.src_dir.is_absolute():
             self.src_dir = project_root / src_dir
 
+        self.bing_api_key = os.environ.get("BING_SEARCH_API_KEY")
+        self.bing_endpoint = os.environ.get(
+            "BING_SEARCH_ENDPOINT", "https://api.bing.microsoft.com/v7.0/search"
+        )
+
         logger.info(
-            f"DocumentationPlugin initialized with docs_dir: {self.docs_dir}, src_dir: {self.src_dir}"
+            f"DocumentationPlugin initialized with docs_dir: {self.docs_dir}, "
+            f"src_dir: {self.src_dir}, web_search_enabled={self.bing_api_key is not None}"
+        )
+
+    @kernel_function(
+        name="web_search",
+        description="Search the internet for SAP, Azure, Pacemaker, or Linux documentation. "
+        "Use this for OS-specific commands, latest best practices, or when local docs don't have the answer. "
+        "Automatically focuses on Microsoft Learn, SAP Help, and SUSE/Red Hat documentation.",
+    )
+    def web_search(
+        self,
+        query: Annotated[
+            str,
+            "The search query (e.g., 'pacemaker cluster status RHEL 9', 'SAP HANA system replication')",
+        ],
+        site_filter: Annotated[
+            Optional[str],
+            "Optional site filter: 'microsoft', 'sap', 'suse', 'redhat', or None for all",
+        ] = None,
+    ) -> Annotated[str, "JSON with search results including titles, snippets, and URLs"]:
+        """
+        Search the web for SAP/Azure/Linux documentation.
+
+        Falls back to curated knowledge base if Bing API is not configured.
+
+        :param query: Search query
+        :param site_filter: Optional site restriction
+        :return: JSON string with search results
+        """
+        logger.info(f"Web search: '{query}' (site_filter={site_filter})")
+        site_queries = {
+            "microsoft": "site:learn.microsoft.com OR site:docs.microsoft.com",
+            "sap": "site:help.sap.com OR site:community.sap.com",
+            "suse": "site:documentation.suse.com",
+            "redhat": "site:access.redhat.com OR site:docs.redhat.com",
+        }
+
+        full_query = query
+        if site_filter and site_filter.lower() in site_queries:
+            full_query = f"{query} {site_queries[site_filter.lower()]}"
+        else:
+            full_query = f"{query} (site:learn.microsoft.com OR site:help.sap.com OR site:documentation.suse.com OR site:access.redhat.com)"
+
+        if self.bing_api_key:
+            try:
+                return self._bing_search(full_query)
+            except Exception as e:
+                logger.warning(f"Bing search failed: {e}, falling back to curated knowledge")
+        return self._curated_knowledge_search(query)
+
+    def _bing_search(self, query: str) -> str:
+        """Execute Bing Web Search API request."""
+        params = urllib.parse.urlencode(
+            {
+                "q": query,
+                "count": 5,
+                "responseFilter": "Webpages",
+                "textDecorations": False,
+                "textFormat": "Raw",
+            }
+        )
+
+        url = f"{self.bing_endpoint}?{params}"
+        headers = {"Ocp-Apim-Subscription-Key": self.bing_api_key or ""}
+
+        request = urllib.request.Request(url, headers=headers)
+
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:
+                data = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            logger.error(f"Bing API error: {e.code} {e.reason}")
+            return json.dumps({"error": f"Search API error: {e.code}", "fallback": True})
+        except urllib.error.URLError as e:
+            logger.error(f"Bing API connection error: {e.reason}")
+            return json.dumps({"error": "Search API unavailable", "fallback": True})
+
+        results = []
+        for page in data.get("webPages", {}).get("value", []):
+            results.append(
+                {
+                    "title": page.get("name", ""),
+                    "url": page.get("url", ""),
+                    "snippet": page.get("snippet", ""),
+                }
+            )
+
+        return json.dumps(
+            {
+                "query": query,
+                "results": results,
+                "source": "bing_api",
+            },
+            indent=2,
+        )
+
+    def _curated_knowledge_search(self, query: str) -> str:
+        """Return curated knowledge for common SAP/Azure/cluster queries."""
+        query_lower = query.lower()
+
+        knowledge_base = {
+            "cluster status": {
+                "topic": "Checking Pacemaker Cluster Status",
+                "content": {
+                    "SLES (SUSE)": [
+                        "crm status - Show cluster status overview",
+                        "crm_mon -1 - One-shot cluster monitor",
+                        "crm_mon -r - Show inactive resources",
+                        "SAPHanaSR-showAttr - Show HANA SR attributes",
+                        "cs_clusterstate - Show cluster state summary",
+                    ],
+                    "RHEL (Red Hat)": [
+                        "pcs status - Show cluster status",
+                        "pcs status --full - Detailed status",
+                        "pcs resource show - List resources",
+                        "pcs stonith show - Show fencing devices",
+                        "pcs constraint show - Show constraints",
+                    ],
+                },
+                "references": [
+                    "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-suse-pacemaker",
+                    "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-rhel-pacemaker",
+                ],
+            },
+            "hana system replication": {
+                "topic": "SAP HANA System Replication",
+                "content": {
+                    "Check replication status": [
+                        "hdbnsutil -sr_state - Show SR state on current node",
+                        "python /usr/sap/<SID>/HDB<NR>/exe/python_support/systemReplicationStatus.py",
+                        "SAPHanaSR-showAttr - Show SR attributes in cluster",
+                    ],
+                    "Replication modes": [
+                        "sync - Synchronous (zero data loss)",
+                        "syncmem - Synchronous in-memory",
+                        "async - Asynchronous (minimal latency impact)",
+                    ],
+                },
+                "references": [
+                    "https://help.sap.com/docs/SAP_HANA_PLATFORM/6b94445c94ae495c83a19646e7c3fd56/676844172c2442f0bf6c8b080db05ae7.html",
+                ],
+            },
+            "stonith": {
+                "topic": "STONITH/Fencing in Azure",
+                "content": {
+                    "Azure Fence Agent": [
+                        "fence_azure_arm - Azure Resource Manager fence agent",
+                        "Requires managed identity or service principal",
+                        "crm resource show stonith-sbd - Check SBD status (SLES)",
+                        "pcs stonith show - Check fencing (RHEL)",
+                    ],
+                    "SBD (STONITH Block Device)": [
+                        "sbd -d /dev/disk/by-id/<device> list - List SBD nodes",
+                        "sbd -d /dev/disk/by-id/<device> dump - Dump SBD header",
+                        "systemctl status sbd - Check SBD service",
+                    ],
+                },
+                "references": [
+                    "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-suse-pacemaker#create-a-fencing-device",
+                ],
+            },
+            "azure load balancer": {
+                "topic": "Azure Load Balancer for SAP HA",
+                "content": {
+                    "Health probe configuration": [
+                        "Default port: 62500 (HANA), 62000 (SCS)",
+                        "socat creates the health probe listener",
+                        "nc -l -k <port> - Alternative listener",
+                    ],
+                    "Verify health probe": [
+                        "ss -tlnp | grep <probe_port>",
+                        "netstat -tlnp | grep <probe_port>",
+                    ],
+                },
+                "references": [
+                    "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-standard-load-balancer-outbound-connections",
+                ],
+            },
+        }
+        for key, knowledge in knowledge_base.items():
+            if key in query_lower or any(word in query_lower for word in key.split()):
+                return json.dumps(
+                    {
+                        "query": query,
+                        "source": "curated_knowledge",
+                        "note": "Based on curated SAP/Azure documentation. For latest info, configure BING_SEARCH_API_KEY.",
+                        **knowledge,
+                    },
+                    indent=2,
+                )
+        return json.dumps(
+            {
+                "query": query,
+                "source": "curated_knowledge",
+                "message": "No curated knowledge found for this query.",
+                "suggestions": [
+                    "Try searching local documentation with search_documentation()",
+                    "Check specific terms with lookup_term() from glossary",
+                    "Configure BING_SEARCH_API_KEY for live web search",
+                ],
+                "useful_references": [
+                    "https://learn.microsoft.com/en-us/azure/sap/workloads/",
+                    "https://help.sap.com/docs/SAP_HANA_PLATFORM",
+                    "https://documentation.suse.com/sles-sap/",
+                ],
+            },
+            indent=2,
         )
 
     @kernel_function(

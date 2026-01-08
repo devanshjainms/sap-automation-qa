@@ -300,7 +300,7 @@ export const ReasoningTraceViewer: React.FC<ReasoningTraceViewerProps> = ({
                       <Text className={styles.stepPhase}>{step.phase}</Text>
                     </div>
                     <div className={styles.stepMeta}>
-                      {step.duration_ms !== undefined && (
+                      {step.duration_ms != null && (
                         <Text className={styles.duration}>
                           {formatDuration(step.duration_ms)}
                         </Text>

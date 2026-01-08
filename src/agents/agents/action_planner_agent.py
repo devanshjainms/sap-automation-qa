@@ -8,6 +8,10 @@ It does NOT execute actions.
 It is the single planner for:
 - operational diagnostics (multi-command / multi-log workflows)
 - test/validation execution (jobs that call execution.* tools)
+
+NOTE: This agent has NO hardcoded methods - all planning operations
+are performed by the LLM autonomously calling plugin tools.
+Validation/normalization is handled by src.agents.utils.action_plan_utils.
 """
 
 from __future__ import annotations
@@ -23,15 +27,24 @@ from src.agents.plugins.test import TestPlannerPlugin
 from src.agents.plugins.workspace import WorkspacePlugin
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.prompts import ACTION_PLANNER_AGENT_SYSTEM_PROMPT
-from src.agents.models.action import ActionPlan, ActionJob
-import json
-import uuid
 
 logger = get_logger(__name__)
 
 
 class ActionPlannerAgentSK(SAPAutomationAgent):
-    """Plans work as an ActionPlan (jobs)."""
+    """Plans work as an ActionPlan (jobs).
+
+    This agent uses SK's native function calling to create action plans,
+    allowing the LLM to autonomously decide what jobs to include.
+
+    All planning operations are handled via plugins:
+    - ActionPlannerPlugin: Create and validate action plans
+    - TestPlannerPlugin: Query available tests and groups
+    - WorkspacePlugin: Access workspace configuration (hosts.yaml, sap-parameters.yaml)
+
+    Post-processing validation is handled by:
+    - src.agents.utils.normalize_action_plan() - called by orchestrator, not agent
+    """
 
     def __init__(
         self,
@@ -55,63 +68,8 @@ class ActionPlannerAgentSK(SAPAutomationAgent):
             plugins=[action_planner, test_planner, workspace_plugin],
         )
 
-        object.__setattr__(self, "workspace_store", workspace_store)
-        object.__setattr__(self, "action_planner_plugin", action_planner)
-        object.__setattr__(self, "test_planner_plugin", test_planner)
+        self.workspace_store: WorkspaceStore = workspace_store
+        self.action_planner_plugin: ActionPlannerPlugin = action_planner
+        self.test_planner_plugin: TestPlannerPlugin = test_planner
 
         logger.info("ActionPlannerAgentSK initialized")
-
-    def normalize_action_plan(self, raw: str | dict) -> ActionPlan:
-        """Normalize and validate a raw ActionPlan JSON or dict into ActionPlan model.
-
-        This fills missing required fields (job_id, title, destructive) with
-        sensible defaults so downstream systems receive a well-formed plan.
-        """
-        if isinstance(raw, str):
-            try:
-                data = json.loads(raw)
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON for ActionPlan: {e}") from e
-        else:
-            data = raw
-
-        jobs = data.get("jobs", []) or []
-        normalized_jobs: list[dict] = []
-        for idx, j in enumerate(jobs):
-            if not isinstance(j, dict):
-                raise ValueError(f"ActionPlan job must be an object, got: {type(j)}")
-            job = dict(j)  # shallow copy
-            if "job_id" not in job or not job.get("job_id"):
-                job["job_id"] = f"job-{idx+1}-{uuid.uuid4().hex[:6]}"
-            if "title" not in job or not job.get("title"):
-                plugin = job.get("plugin_name") or job.get("plugin") or "unknown"
-                func = job.get("function_name") or job.get("function") or "action"
-                job["title"] = f"{plugin}.{func}"
-            if "function_name" not in job and "function" in job:
-                job["function_name"] = job.pop("function")
-            if "plugin_name" not in job and "plugin" in job:
-                job["plugin_name"] = job.pop("plugin")
-            if "arguments" not in job or job["arguments"] is None:
-                job["arguments"] = {}
-            if "destructive" not in job:
-                job["destructive"] = False
-            normalized_jobs.append(job)
-
-        normalized: dict = dict(data)
-        normalized["jobs"] = normalized_jobs
-
-        try:
-            plan = ActionPlan(**normalized)
-        except Exception as e:
-            logger.error(f"Failed to validate normalized ActionPlan: {e}")
-            raise
-
-        # store the last generated plan in plugin if available
-        try:
-            if hasattr(self, "action_planner_plugin") and getattr(self.action_planner_plugin, "_last_generated_plan", None) is None:
-                object.__setattr__(self.action_planner_plugin, "_last_generated_plan", plan)
-        except Exception:
-            # non-fatal; plugin storage is a convenience
-            logger.debug("Could not store last_generated_plan on plugin")
-
-        return plan

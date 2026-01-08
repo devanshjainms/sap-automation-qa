@@ -20,6 +20,7 @@ from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.plugins.execution import ExecutionPlugin
 from src.agents.plugins.workspace import WorkspacePlugin
 from src.agents.plugins.ssh import SSHPlugin
+from src.agents.plugins.job_management import JobManagementPlugin
 from src.agents.execution import GuardLayer
 from src.agents.observability import get_logger
 from src.agents.prompts import ACTION_EXECUTOR_SYSTEM_PROMPT
@@ -35,7 +36,13 @@ class ActionExecutorAgent(SAPAutomationAgent):
 
     Uses Semantic Kernel with:
     - ExecutionPlugin: Provides test execution tools as SK functions
+    - JobManagementPlugin: Query job status, history (LLM-callable)
+    - WorkspacePlugin: Access workspace configuration
+    - SSHPlugin: Run diagnostic commands on hosts
     - Kernel-level approval filters for safety constraints
+
+    All job queries go through JobManagementPlugin tools, letting the LLM
+    autonomously decide when to check job status.
 
     Supports two execution modes:
     1. Synchronous (blocking): For quick tests or when streaming not needed
@@ -52,7 +59,7 @@ class ActionExecutorAgent(SAPAutomationAgent):
     ):
         """Initialize ActionExecutorAgent.
 
-        Registers ExecutionPlugin with Semantic Kernel agents.
+        Registers ExecutionPlugin and JobManagementPlugin with Semantic Kernel.
 
         :param kernel: Semantic Kernel instance
         :type kernel: Kernel
@@ -65,40 +72,32 @@ class ActionExecutorAgent(SAPAutomationAgent):
         :param job_worker: Optional JobWorker for background execution
         :type job_worker: Optional[JobWorker]
         """
-        # Prepare plugin list before initializing the pydantic-backed base class
         plugins: list[object] = [
             execution_plugin,
             WorkspacePlugin(workspace_store),
             SSHPlugin(),
+            JobManagementPlugin(job_store=job_store),
         ]
         if getattr(execution_plugin, "keyvault_plugin", None) is not None:
             plugins.append(execution_plugin.keyvault_plugin)
 
-        # Initialize the base SAPAutomationAgent (pydantic-managed). Avoid assigning
-        # attributes that pydantic manages before base init to prevent AttributeError.
         super().__init__(
             name="action_executor",
             description="Executes SAP QA actions, runs playbooks, performs configuration checks, "
             + "and runs functional tests (HA, crash, failover) using Ansible. "
-            + "Use this agent whenever the user asks to 'run', 'execute', 'perform', or 'start' a test or action.",
+            + "Use this agent whenever the user asks to 'run', 'execute', 'perform', "
+            + "or 'start' a test or action.",
             kernel=kernel,
             instructions=ACTION_EXECUTOR_SYSTEM_PROMPT,
             plugins=plugins,
         )
-
-        # Attach runtime-only attributes after base initialization. Use object.__setattr__ to
-        # bypass pydantic's __setattr__ hooks for attributes that are not pydantic fields.
-        object.__setattr__(self, "kernel", kernel)
-        object.__setattr__(self, "workspace_store", workspace_store)
-        object.__setattr__(self, "execution_plugin", execution_plugin)
-        object.__setattr__(self, "job_store", job_store)
-        object.__setattr__(self, "job_worker", job_worker)
-        object.__setattr__(self, "_async_enabled", job_store is not None and job_worker is not None)
-
-        object.__setattr__(
-            self,
-            "guard_layer",
-            GuardLayer(job_store=job_store, workspace_store=workspace_store),
+        self.workspace_store: WorkspaceStore = workspace_store
+        self.execution_plugin: ExecutionPlugin = execution_plugin
+        self.job_store: Optional[JobStore] = job_store
+        self.job_worker: Optional[JobWorker] = job_worker
+        self._async_enabled: bool = job_store is not None and job_worker is not None
+        self.guard_layer: GuardLayer = GuardLayer(
+            job_store=job_store, workspace_store=workspace_store
         )
 
         logger.info(
@@ -117,8 +116,9 @@ class ActionExecutorAgent(SAPAutomationAgent):
     ) -> "ExecutionJob":
         """Start async test execution and return job for tracking.
 
-        This method creates a job and starts execution in the background.
-        The caller can then stream job events for real-time updates.
+        NOTE: This is an API/infrastructure method, not an LLM bypass.
+        It's called by the orchestrator/API layer to start background execution,
+        not by the agent during LLM reasoning.
 
         :param workspace_id: Workspace to run tests against
         :type workspace_id: str
@@ -130,14 +130,14 @@ class ActionExecutorAgent(SAPAutomationAgent):
         :type conversation_id: Optional[str]
         :param user_id: User who initiated execution
         :type user_id: Optional[str]
+        :param confirmed: Whether destructive action is confirmed
+        :type confirmed: bool
         :returns: ExecutionJob for tracking
         :rtype: ExecutionJob
-        :raises RuntimeError: If async execution not enabled
+        :raises RuntimeError: If async execution not enabled or not confirmed
         """
-        # Determine if any of the requested tests are destructive via guard checks
         is_destructive = self.guard_layer.is_destructive(test_ids=test_ids)
         if is_destructive and not confirmed:
-            # Deny execution; require explicit user confirmation
             raise RuntimeError(
                 "Destructive action detected. Call execute_async with confirmed=True to proceed."
             )
@@ -173,39 +173,3 @@ class ActionExecutorAgent(SAPAutomationAgent):
         )
         await self.job_worker.submit_job(job)
         return job
-
-    def get_active_job_for_workspace(self, workspace_id: str) -> Optional["ExecutionJob"]:
-        """Get the active job for a workspace, if any.
-
-        :param workspace_id: Workspace ID to check
-        :type workspace_id: str
-        :returns: Active job or None
-        :rtype: Optional[ExecutionJob]
-        """
-        if not self.job_store:
-            return None
-        return self.job_store.get_active_job_for_workspace(workspace_id)
-
-    def get_job_status(self, job_id: str) -> Optional["ExecutionJob"]:
-        """Get status of a running or completed job.
-
-        :param job_id: Job ID to check
-        :type job_id: str
-        :returns: Job if found
-        :rtype: Optional[ExecutionJob]
-        """
-        if not self.job_store:
-            return None
-        return self.job_store.get_job(job_id)
-
-    def get_active_jobs_for_user(self, user_id: str) -> list["ExecutionJob"]:
-        """Get active jobs for a user.
-
-        :param user_id: User ID
-        :type user_id: str
-        :returns: List of active jobs
-        :rtype: list[ExecutionJob]
-        """
-        if not self.job_store:
-            return []
-        return self.job_store.get_active_jobs(user_id)

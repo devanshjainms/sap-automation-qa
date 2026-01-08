@@ -39,8 +39,22 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({
   defaultExpanded = true,
 }) => {
   const styles = useStyles();
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded, setIsExpanded] = useState(isThinking);
   const listRef = useRef<HTMLDivElement>(null);
+  const wasThinking = useRef(isThinking);
+
+  useEffect(() => {
+    if (wasThinking.current && !isThinking) {
+      setIsExpanded(false);
+    }
+    wasThinking.current = isThinking;
+  }, [isThinking]);
+
+  useEffect(() => {
+    if (isThinking) {
+      setIsExpanded(true);
+    }
+  }, [isThinking]);
 
   useEffect(() => {
     if (listRef.current && isExpanded) {
@@ -124,7 +138,7 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({
               {step.detail && (
                 <Text className={styles.stepDetail}> — {step.detail}</Text>
               )}
-              {step.duration_ms !== undefined && step.status === "complete" && (
+              {step.duration_ms != null && step.status === "complete" && (
                 <Text className={styles.stepDuration}>
                   {formatDuration(step.duration_ms)}
                 </Text>

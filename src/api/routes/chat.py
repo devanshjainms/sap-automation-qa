@@ -23,6 +23,7 @@ from src.agents.models.streaming import (
 from src.agents.agents.orchestrator import OrchestratorSK
 from src.agents.persistence import ConversationManager
 from src.agents.observability import get_logger, set_correlation_id, get_correlation_id
+from src.agents.utils import normalize_action_plan
 from uuid import uuid4
 from typing import Dict, Any
 
@@ -261,22 +262,11 @@ async def chat(
                 # normalize the raw assistant text if it looks like JSON-ish content.
                 parsed = None
 
-            # If we have a dict with jobs already, normalize via ActionPlannerAgent
+            # If we have a dict with jobs already, normalize using utility function
             if isinstance(parsed, dict) and parsed.get("jobs"):
-                # Attempt to normalize using the registered action_planner agent
-                orchestrator_local = get_orchestrator()
-                action_planner_agent = None
-                if orchestrator_local:
-                    registry = getattr(orchestrator_local, "registry", None)
-                    if registry:
-                        action_planner_agent = registry.get("action_planner")
-
-                if action_planner_agent and hasattr(action_planner_agent, "normalize_action_plan"):
-                    try:
-                        action_plan = action_planner_agent.normalize_action_plan(parsed)
-                    except Exception:
-                        action_plan = parsed
-                else:
+                try:
+                    action_plan = normalize_action_plan(parsed)
+                except Exception:
                     action_plan = parsed
 
         if action_plan and getattr(action_plan, "jobs", None):

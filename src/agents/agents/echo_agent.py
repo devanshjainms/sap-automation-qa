@@ -44,14 +44,3 @@ class EchoAgentSK(SAPAutomationAgent):
         )
 
         logger.info("EchoAgentSK initialized with Documentation plugin")
-
-    def answer_documentation_query(self, query: str) -> dict:
-        """Answer documentation queries using DocumentationPlugin but do not
-        fabricate configuration claims. Return structured response with optional source.
-        """
-        # The documentation plugin is available to the SK run; for now use a
-        # simple documented response wrapper that points to docs when possible.
-        # In production, call the DocumentationPlugin functions via SK.
-        doc_ref = "docs/HIGH_AVAILABILITY.md"
-        content = f"I searched the documentation and found references in {doc_ref}.\n\n{query}"
-        return {"content": content, "metadata": {"sources": [{"file": doc_ref}]}}

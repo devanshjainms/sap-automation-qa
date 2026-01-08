@@ -12,11 +12,15 @@ This module provides:
 from pathlib import Path
 from typing import Optional, Literal, Any
 
+from pydantic import ConfigDict
 from semantic_kernel import Kernel
 from semantic_kernel.agents import Agent, ChatCompletionAgent
+from semantic_kernel.connectors.ai.function_choice_behavior import FunctionChoiceBehavior
 
 from src.agents.models.reasoning import ReasoningTracer, ReasoningStep, TracingPhase
 from src.agents.observability import get_logger
+from src.agents.plugins.glossary import GlossaryPlugin
+from src.agents.plugins.memory import MemoryPlugin
 
 logger = get_logger(__name__)
 
@@ -106,7 +110,19 @@ class AgentTracer:
 
 
 class SAPAutomationAgent(ChatCompletionAgent):
-    """Base class for SAP automation agents using Semantic Kernel's ChatCompletionAgent."""
+    """Base class for SAP automation agents using Semantic Kernel's ChatCompletionAgent.
+
+    All agents automatically have:
+    - FunctionChoiceBehavior.Auto() for autonomous tool calling
+    - GlossaryPlugin for SAP terminology understanding
+    - MemoryPlugin for LLM-controlled explicit memory within a conversation
+
+    Pydantic Configuration:
+    - extra='allow': Permits subclasses to add instance attributes without declaring them as fields
+    - arbitrary_types_allowed: Allows non-Pydantic types (WorkspaceStore, plugins, etc.)
+    """
+
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
     def __init__(
         self,
@@ -116,15 +132,34 @@ class SAPAutomationAgent(ChatCompletionAgent):
         kernel: Kernel,
         instructions: str,
         plugins: Optional[list[object]] = None,
+        enable_auto_function_calling: bool = True,
     ) -> None:
+        all_plugins = list(plugins) if plugins else []
+        has_glossary = any(isinstance(p, GlossaryPlugin) for p in all_plugins)
+        if not has_glossary:
+            all_plugins.append(GlossaryPlugin())
+        has_memory = any(isinstance(p, MemoryPlugin) for p in all_plugins)
+        if not has_memory:
+            all_plugins.append(MemoryPlugin())
+
+        function_choice = (
+            FunctionChoiceBehavior.Auto(auto_invoke_kernel_functions=True)
+            if enable_auto_function_calling
+            else None
+        )
+
         super().__init__(
             name=name,
             description=description,
             kernel=kernel,
             instructions=instructions,
-            plugins=plugins,
+            plugins=all_plugins,
+            function_choice_behavior=function_choice,
         )
-        logger.info(f"{self.__class__.__name__} initialized with Semantic Kernel agents framework")
+        logger.info(
+            f"{self.__class__.__name__} initialized with Semantic Kernel agents framework "
+            f"(auto_function_calling={enable_auto_function_calling}, plugins={len(all_plugins)})"
+        )
 
 
 class AgentRegistry:
@@ -158,7 +193,7 @@ class AgentRegistry:
         :returns: List of dicts with agent name and description
         """
         return [
-            {"name": agent.name, "description": agent.description}
+            {"name": agent.name, "description": agent.description or ""}
             for agent in self._agents.values()
         ]
 

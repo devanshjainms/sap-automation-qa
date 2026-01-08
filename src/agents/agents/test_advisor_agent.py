@@ -13,6 +13,7 @@ from semantic_kernel import Kernel
 from src.agents.agents.base import SAPAutomationAgent
 from src.agents.observability import get_logger
 from src.agents.plugins.test import TestPlannerPlugin
+from src.agents.plugins.workspace import WorkspacePlugin
 from src.agents.prompts import TEST_ADVISOR_AGENT_SYSTEM_PROMPT
 from src.agents.workspace.workspace_store import WorkspaceStore
 
@@ -20,11 +21,17 @@ logger = get_logger(__name__)
 
 
 class TestAdvisorAgentSK(SAPAutomationAgent):
-    """Recommends tests and generates TestPlan (no execution jobs)."""
+    """Recommends tests and generates TestPlan (no execution jobs).
+
+    Uses:
+    - TestPlannerPlugin: Query test groups and generate test plans
+    - WorkspacePlugin: Resolve SIDs, read workspace configuration (hosts.yaml, sap-parameters.yaml)
+    """
 
     def __init__(self, kernel: Kernel, workspace_store: WorkspaceStore):
-        # Create plugin instance locally, initialize base, then attach attributes
-        plugin = TestPlannerPlugin()
+        test_plugin = TestPlannerPlugin()
+        workspace_plugin = WorkspacePlugin(workspace_store)
+
         super().__init__(
             name="test_advisor",
             description=(
@@ -33,12 +40,10 @@ class TestAdvisorAgentSK(SAPAutomationAgent):
             ),
             kernel=kernel,
             instructions=TEST_ADVISOR_AGENT_SYSTEM_PROMPT,
-            plugins=[plugin],
+            plugins=[test_plugin, workspace_plugin],
         )
 
-        # Assign workspace store and plugin using object.__setattr__ to bypass
-        # pydantic/ChatCompletionAgent __setattr__ hooks during runtime assignment.
-        object.__setattr__(self, "workspace_store", workspace_store)
-        object.__setattr__(self, "test_planner_plugin", plugin)
+        self.workspace_store: WorkspaceStore = workspace_store
+        self.test_planner_plugin: TestPlannerPlugin = test_plugin
 
         logger.info("TestAdvisorAgentSK initialized")
