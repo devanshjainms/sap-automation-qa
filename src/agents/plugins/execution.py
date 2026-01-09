@@ -30,6 +30,7 @@ from src.agents.observability import get_logger
 
 if TYPE_CHECKING:
     from src.agents.plugins.keyvault import KeyVaultPlugin
+    from src.agents.plugins.workspace import WorkspacePlugin
 
 logger = get_logger(__name__)
 
@@ -41,6 +42,7 @@ class ExecutionPlugin:
         self,
         workspace_store: WorkspaceStore,
         ansible_runner: AnsibleRunner,
+        workspace_plugin: Optional["WorkspacePlugin"] = None,
         keyvault_plugin: Optional["KeyVaultPlugin"] = None,
     ):
         """Initialize ExecutionPlugin.
@@ -49,13 +51,31 @@ class ExecutionPlugin:
         :type workspace_store: WorkspaceStore
         :param ansible_runner: AnsibleRunner for Ansible execution
         :type ansible_runner: AnsibleRunner
+        :param workspace_plugin: WorkspacePlugin for unified context resolution
+        :type workspace_plugin: Optional[WorkspacePlugin]
         :param keyvault_plugin: Optional KeyVaultPlugin for SSH key retrieval
         :type keyvault_plugin: Optional[KeyVaultPlugin]
         """
         self.workspace_store = workspace_store
         self.ansible = ansible_runner
+        self.workspace_plugin = workspace_plugin
         self.keyvault_plugin = keyvault_plugin
-        logger.info(f"ExecutionPlugin initialized (keyvault_enabled={keyvault_plugin is not None})")
+        logger.info(
+            f"ExecutionPlugin initialized "
+            f"(workspace_plugin={workspace_plugin is not None}, "
+            f"keyvault_enabled={keyvault_plugin is not None})"
+        )
+
+    def _get_execution_context(self, workspace_id: str) -> dict:
+        """Get execution context from WorkspacePlugin - SINGLE SOURCE OF TRUTH.
+
+        Returns dict with: inventory_path, sap_parameters, ssh_key_path, etc.
+        """
+        if self.workspace_plugin:
+            ctx_json = self.workspace_plugin.get_execution_context(workspace_id)
+            return json.loads(ctx_json)
+        logger.warning("WorkspacePlugin not available")
+        return {}
 
     @kernel_function(
         name="resolve_test_execution",
@@ -99,68 +119,15 @@ class ExecutionPlugin:
             return json.dumps({"error": str(e)})
 
     @kernel_function(
-        name="load_hosts_for_workspace",
-        description="Load hosts.yaml for a workspace to see available hosts and their roles",
-    )
-    def load_hosts_for_workspace(
-        self, workspace_id: Annotated[str, "Workspace ID (e.g., DEV-WEEU-SAP01-X00)"]
-    ) -> Annotated[str, "JSON string with hosts configuration"]:
-        """Load hosts.yaml for a workspace.
-
-        :param workspace_id: Workspace identifier
-        :type workspace_id: str
-        :returns: JSON string with hosts dict or error
-        :rtype: str
-        """
-        try:
-            workspace = self.workspace_store.get_workspace(workspace_id)
-            if not workspace:
-                return json.dumps({"error": f"Workspace '{workspace_id}' not found"})
-            hosts_path = Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id / "hosts.yaml"
-
-            if not hosts_path.exists():
-                return json.dumps({"error": f"hosts.yaml not found at {hosts_path}"})
-            with open(hosts_path, "r") as f:
-                hosts_dict = yaml.safe_load(f)
-            logger.info(f"Loaded hosts for workspace {workspace_id}")
-            return json.dumps(
-                {"workspace_id": workspace_id, "hosts": hosts_dict, "hosts_file": str(hosts_path)},
-                indent=2,
-            )
-
-        except Exception as e:
-            logger.error(f"Error loading hosts for {workspace_id}: {e}")
-            return json.dumps({"error": str(e)})
-
-    @kernel_function(
         name="run_test_by_id",
-        description="Run a specific SAP QA test by ID and test_group using Ansible "
-        + "playbooks. IMPORTANT: Before calling this, read sap-parameters.yaml to find "
-        + "the Key Vault name and SSH secret name, then pass them explicitly. "
-        + "If Key Vault details are not configured, pass ssh_key_path pointing to a private key "
-        + "file inside the workspace.",
+        description="Run a specific SAP QA test by ID and test_group using Ansible playbooks. "
+        + "Automatically resolves SSH key and parameters from workspace - no need to pass them.",
     )
     def run_test_by_id(
         self,
         workspace_id: Annotated[str, "Workspace ID"],
         test_id: Annotated[str, "Test ID (e.g., 'ha-config', 'azure-lb')"],
         test_group: Annotated[str, "Test group (HA_DB_HANA, HA_SCS, HA_OFFLINE, CONFIG_CHECKS)"],
-        vault_name: Annotated[
-            str,
-            "Key Vault name from sap-parameters.yaml (look for fields containing 'vault' or 'kv')",
-        ] = "",
-        secret_name: Annotated[
-            str,
-            "SSH key secret name from sap-parameters.yaml (look for fields containing 'secret' and 'ssh'/'key')",
-        ] = "",
-        managed_identity_id: Annotated[
-            str, "Managed identity client ID if specified in sap-parameters.yaml"
-        ] = "",
-        ssh_key_path: Annotated[
-            str,
-            "Absolute path to an SSH private key file (typically discovered by listing workspace files). "
-            "Use this when Key Vault name/secret name are not defined.",
-        ] = "",
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
         """Run a test by ID and group via Ansible.
 
@@ -176,76 +143,33 @@ class ExecutionPlugin:
         started_at = datetime.utcnow()
 
         try:
+            ctx = self._get_execution_context(workspace_id)
+            if "error" in ctx:
+                return json.dumps(ctx)
+
             workspace = self.workspace_store.get_workspace(workspace_id)
             if not workspace:
                 return json.dumps({"error": f"Workspace '{workspace_id}' not found"})
             test_config_json = self.resolve_test_execution(test_id, test_group)
             test_config = json.loads(test_config_json)
-
             if "error" in test_config:
                 return test_config_json
 
             playbook_path = self.ansible.base_dir / test_config["playbook"]
             tags = test_config["tags"]
-            inventory_path = Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id / "hosts.yaml"
-
-            if not inventory_path.exists():
-                return json.dumps({"error": f"Inventory not found at {inventory_path}"})
+            inventory_path = Path(ctx["inventory_path"]) if ctx.get("inventory_path") else None
+            if not inventory_path or not inventory_path.exists():
+                return json.dumps({"error": f"Inventory not found: {ctx.get('inventory_path')}"})
 
             if not playbook_path.exists():
                 return json.dumps({"error": f"Playbook not found at {playbook_path}"})
 
-            sap_params_path = (
-                Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id / "sap-parameters.yaml"
-            )
-            extra_vars = {}
-            if sap_params_path.exists():
-                try:
-                    with open(sap_params_path, "r") as f:
-                        extra_vars = yaml.safe_load(f) or {}
-                    logger.info(f"Loaded sap-parameters from {sap_params_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to load sap-parameters.yaml: {e}")
+            extra_vars = ctx.get("sap_parameters", {}) or {}
+            if ctx.get("ssh_key_path"):
+                extra_vars["ansible_ssh_private_key_file"] = ctx["ssh_key_path"]
+                logger.info(f"SSH key from workspace context: {ctx['ssh_key_path']}")
             else:
-                logger.warning(f"sap-parameters.yaml not found at {sap_params_path}")
-
-            if ssh_key_path:
-                key_path_obj = Path(ssh_key_path)
-                if not key_path_obj.exists():
-                    return json.dumps(
-                        {
-                            "error": f"SSH key file not found at ssh_key_path: {ssh_key_path}",
-                            "workspace_id": workspace_id,
-                        }
-                    )
-                extra_vars["ansible_ssh_private_key_file"] = str(key_path_obj)
-                logger.info(f"SSH key set from ssh_key_path: {ssh_key_path}")
-
-            if self.keyvault_plugin and vault_name and secret_name:
-                logger.info(
-                    f"Fetching SSH key from Key Vault '{vault_name}' for workspace {workspace_id}"
-                )
-                key_result_json = self.keyvault_plugin.get_ssh_private_key(
-                    vault_name=vault_name,
-                    secret_name=secret_name,
-                    key_filename=f"{workspace_id}_id_rsa",
-                    managed_identity_client_id=managed_identity_id or "",
-                )
-                key_result = json.loads(key_result_json)
-
-                if "error" in key_result:
-                    logger.warning(
-                        f"Failed to get SSH key from Key Vault: {key_result['error']}. "
-                        "Proceeding without Key Vault SSH key."
-                    )
-                else:
-                    extra_vars["ansible_ssh_private_key_file"] = key_result["key_path"]
-                    logger.info(f"SSH key set from Key Vault: {key_result['key_path']}")
-            elif self.keyvault_plugin and (vault_name or secret_name):
-                logger.info(
-                    "Incomplete Key Vault configuration. Provide BOTH vault_name and secret_name, "
-                    "or use ssh_key_path for a workspace-local private key."
-                )
+                logger.warning(f"No SSH key found in workspace context for {workspace_id}")
 
             logger.info(f"Running test {test_id} for workspace {workspace_id}")
             result = self.ansible.run_playbook(
@@ -340,19 +264,17 @@ class ExecutionPlugin:
         name="run_readonly_command",
         description="Run a read-only diagnostic command (ls, cat, tail, sysctl, df, "
         + "free, ps, journalctl, etc.) on hosts. Commands that modify state are REJECTED. "
-        + "SSH key is auto-discovered from workspace files if not provided.",
+        + "SSH key is auto-resolved from workspace.",
     )
     def run_readonly_command(
         self,
         workspace_id: Annotated[str, "Workspace ID"],
         role: Annotated[str, "Host role (db, app, scs, ers, all)"],
         command: Annotated[str, "Read-only command to execute"],
-        ssh_key_path: Annotated[
-            str,
-            "Absolute path to SSH private key. Auto-discovered from workspace if omitted.",
-        ] = "",
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
         """Run a validated read-only command on workspace hosts.
+
+        SSH key is automatically resolved from workspace context.
 
         :param workspace_id: Workspace identifier
         :type workspace_id: str
@@ -381,47 +303,30 @@ class ExecutionPlugin:
                     details={"validation_error": str(e), "command": command},
                 )
                 return json.dumps(exec_result.model_dump(), default=str, indent=2)
+            ctx = self._get_execution_context(workspace_id)
+            if "error" in ctx:
+                return json.dumps(ctx)
+
             workspace = self.workspace_store.get_workspace(workspace_id)
             if not workspace:
                 return json.dumps({"error": f"Workspace '{workspace_id}' not found"})
-            inventory_path = Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id / "hosts.yaml"
-            if not inventory_path.exists():
-                return json.dumps({"error": f"Inventory not found at {inventory_path}"})
+            inventory_path = Path(ctx["inventory_path"]) if ctx.get("inventory_path") else None
+            if not inventory_path or not inventory_path.exists():
+                return json.dumps({"error": f"Inventory not found: {ctx.get('inventory_path')}"})
 
             host_pattern = self._map_role_to_inventory_group(role, workspace.sid)
             logger.info(
                 f"Running validated read-only command on {role} hosts "
                 f"(pattern: {host_pattern}): {command}"
             )
-
-            effective_key_path = ssh_key_path
-            if not effective_key_path:
-                workspace_dir = Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id
-                key_patterns = ["*.pem", "*.ppk", "ssh_key*", "id_rsa*", "*_key"]
-                for pattern in key_patterns:
-                    for key_file in workspace_dir.glob(pattern):
-                        if key_file.is_file() and not key_file.suffix == ".pub":
-                            effective_key_path = str(key_file)
-                            logger.info(f"Auto-discovered SSH key: {effective_key_path}")
-                            break
-                    if effective_key_path:
-                        break
-
             extra_vars: dict[str, str] = {}
-            if effective_key_path:
-                key_path_obj = Path(effective_key_path)
-                if not key_path_obj.exists():
-                    return json.dumps(
-                        {
-                            "error": f"SSH key file not found at ssh_key_path: {effective_key_path}",
-                            "workspace_id": workspace_id,
-                        }
-                    )
-                extra_vars["ansible_ssh_private_key_file"] = str(key_path_obj)
-                logger.info(f"Using SSH key: {effective_key_path}")
+            if ctx.get("ssh_key_path"):
+                extra_vars["ansible_ssh_private_key_file"] = ctx["ssh_key_path"]
+                logger.info(f"SSH key from workspace context: {ctx['ssh_key_path']}")
             else:
                 logger.warning(
-                    f"No SSH key found for workspace {workspace_id}, using Ansible defaults"
+                    f"No SSH key found in workspace context for {workspace_id}, "
+                    "using Ansible defaults"
                 )
 
             result = self.ansible.run_ad_hoc(

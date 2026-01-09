@@ -224,9 +224,20 @@ class WorkspacePlugin:
             try:
                 parsed = yaml.safe_load(sap_params)
                 result["platform"] = parsed.get("platform") if isinstance(parsed, dict) else None
-                result["database_high_availability"] = parsed.get("database_high_availability") if isinstance(parsed, dict) else None
-                result["scs_high_availability"] = parsed.get("scs_high_availability") if isinstance(parsed, dict) else None
-                result["sources"].append({"file": "sap-parameters.yaml", "path": str(self.store.get_workspace_path(workspace_id) / "sap-parameters.yaml")})
+                result["database_high_availability"] = (
+                    parsed.get("database_high_availability") if isinstance(parsed, dict) else None
+                )
+                result["scs_high_availability"] = (
+                    parsed.get("scs_high_availability") if isinstance(parsed, dict) else None
+                )
+                result["sources"].append(
+                    {
+                        "file": "sap-parameters.yaml",
+                        "path": str(
+                            self.store.get_workspace_path(workspace_id) / "sap-parameters.yaml"
+                        ),
+                    }
+                )
             except Exception:
                 result["sources"].append({"file": "sap-parameters.yaml", "error": "parse_error"})
 
@@ -237,7 +248,12 @@ class WorkspacePlugin:
                 hosts_parsed = yaml.safe_load(hosts_raw)
                 # Expecting host groups or list
                 result["hosts"] = hosts_parsed if hosts_parsed else []
-                result["sources"].append({"file": "hosts.yaml", "path": str(self.store.get_workspace_path(workspace_id) / "hosts.yaml")})
+                result["sources"].append(
+                    {
+                        "file": "hosts.yaml",
+                        "path": str(self.store.get_workspace_path(workspace_id) / "hosts.yaml"),
+                    }
+                )
             except Exception:
                 result["sources"].append({"file": "hosts.yaml", "error": "parse_error"})
 
@@ -315,3 +331,133 @@ class WorkspacePlugin:
                 "ready_for_testing": has_hosts and has_params,
             }
         )
+
+    @kernel_function(
+        name="resolve_ssh_key",
+        description="Find the SSH key for a workspace. Checks: 1) Local files (.pem, .ppk), "
+        "2) Returns the absolute path to the key file. Use this before any SSH operation.",
+    )
+    def resolve_ssh_key(self, workspace_id: Annotated[str, "Workspace name/ID"]) -> str:
+        """Find SSH key for a workspace - single source of truth for SSH key discovery.
+
+        Priority:
+        1. Look for key files in workspace (.pem, .ppk, ssh_key*, id_rsa*)
+        2. Return error if no key found
+        """
+        if not self.store.workspace_exists(workspace_id):
+            return json.dumps({"error": "Workspace not found", "workspace_id": workspace_id})
+
+        workspace_path = self.store.get_workspace_path(workspace_id)
+        files = self.store.list_files(workspace_id)
+        key_patterns = [".pem", ".ppk", "ssh_key", "id_rsa", "_key"]
+        for filename in files:
+            filename_lower = filename.lower()
+            if any(pattern in filename_lower for pattern in key_patterns):
+                if not filename.endswith(".pub"):  # Skip public keys
+                    key_path = workspace_path / filename
+                    if key_path.exists():
+                        logger.info(f"Resolved SSH key: {key_path}")
+                        return json.dumps(
+                            {
+                                "workspace_id": workspace_id,
+                                "key_path": str(key_path),
+                                "key_file": filename,
+                                "found": True,
+                            }
+                        )
+
+        return json.dumps(
+            {
+                "workspace_id": workspace_id,
+                "found": False,
+                "error": "No SSH key file found in workspace",
+                "hint": "Add an SSH key file (.pem or .ppk) to the workspace directory",
+                "files_checked": files,
+            }
+        )
+
+    @kernel_function(
+        name="get_execution_context",
+        description="Get EVERYTHING needed to execute tests or commands on a workspace. "
+        "Returns: hosts.yaml path, sap-parameters (as dict), SSH key path, inventory path. "
+        "Call this ONCE before any execution - no need to resolve SSH keys separately.",
+    )
+    def get_execution_context(self, workspace_id: Annotated[str, "Workspace name/ID"]) -> str:
+        """Get complete execution context for a workspace - SINGLE SOURCE OF TRUTH.
+
+        Returns all data needed by ExecutionPlugin:
+        - inventory_path: Path to hosts.yaml for Ansible
+        - sap_parameters: Parsed sap-parameters.yaml as dict (for extra_vars)
+        - ssh_key_path: Resolved SSH key path (or null if not found)
+        - hosts: Parsed hosts.yaml content
+        - workspace_path: Absolute path to workspace directory
+
+        This eliminates the need for ExecutionPlugin to:
+        - Load hosts.yaml separately
+        - Load sap-parameters.yaml separately
+        - Discover SSH keys separately
+        """
+        import yaml
+
+        if not self.store.workspace_exists(workspace_id):
+            return json.dumps({"error": "Workspace not found", "workspace_id": workspace_id})
+
+        workspace_path = self.store.get_workspace_path(workspace_id)
+        files = self.store.list_files(workspace_id)
+
+        # Build result
+        result = {
+            "workspace_id": workspace_id,
+            "workspace_path": str(workspace_path),
+            "inventory_path": None,
+            "hosts": None,
+            "sap_parameters": {},
+            "ssh_key_path": None,
+            "ssh_key_file": None,
+            "ready": False,
+            "missing": [],
+        }
+        hosts_path = workspace_path / "hosts.yaml"
+        if hosts_path.exists():
+            result["inventory_path"] = str(hosts_path)
+            try:
+                hosts_content = self.store.read_file(workspace_id, "hosts.yaml")
+                result["hosts"] = yaml.safe_load(hosts_content) if hosts_content else None
+            except Exception as e:
+                logger.warning(f"Failed to parse hosts.yaml: {e}")
+                result["hosts"] = None
+        else:
+            result["missing"].append("hosts.yaml")
+        params_content = self.store.read_file(workspace_id, "sap-parameters.yaml")
+        if params_content:
+            try:
+                result["sap_parameters"] = yaml.safe_load(params_content) or {}
+            except Exception as e:
+                logger.warning(f"Failed to parse sap-parameters.yaml: {e}")
+                result["sap_parameters"] = {}
+        else:
+            result["missing"].append("sap-parameters.yaml")
+        key_patterns = [".pem", ".ppk", "ssh_key", "id_rsa", "_key"]
+        for filename in files:
+            filename_lower = filename.lower()
+            if any(pattern in filename_lower for pattern in key_patterns):
+                if not filename.endswith(".pub"):  # Skip public keys
+                    key_path = workspace_path / filename
+                    if key_path.exists():
+                        result["ssh_key_path"] = str(key_path)
+                        result["ssh_key_file"] = filename
+                        logger.info(f"Resolved SSH key: {key_path}")
+                        break
+
+        if not result["ssh_key_path"]:
+            result["missing"].append("ssh_key")
+        result["ready"] = (
+            result["inventory_path"] is not None and result["ssh_key_path"] is not None
+        )
+
+        logger.info(
+            f"Execution context for {workspace_id}: ready={result['ready']}, "
+            f"missing={result['missing']}"
+        )
+
+        return json.dumps(result, indent=2)

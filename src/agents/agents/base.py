@@ -225,6 +225,7 @@ def create_default_agent_registry(kernel: Optional[Kernel] = None) -> "AgentRegi
     from src.agents.agents.action_executor_agent import ActionExecutorAgent
     from src.agents.workspace.workspace_store import WorkspaceStore
     from src.agents.plugins.execution import ExecutionPlugin
+    from src.agents.plugins.workspace import WorkspacePlugin
     from src.agents.plugins.keyvault import KeyVaultPlugin
     from src.agents.ansible_runner import AnsibleRunner
     from src.agents.sk_kernel import create_kernel
@@ -234,11 +235,12 @@ def create_default_agent_registry(kernel: Optional[Kernel] = None) -> "AgentRegi
     workspace_store = WorkspaceStore(workspace_root)
     src_dir = Path(__file__).parent.parent.parent
     ansible_runner = AnsibleRunner(base_dir=src_dir)
+    workspace_plugin = WorkspacePlugin(store=workspace_store)
     keyvault_plugin = KeyVaultPlugin()
-
     execution_plugin = ExecutionPlugin(
         workspace_store=workspace_store,
         ansible_runner=ansible_runner,
+        workspace_plugin=workspace_plugin,
         keyvault_plugin=keyvault_plugin,
     )
 
