@@ -13,8 +13,10 @@ All commands are validated against a whitelist for safety.
 """
 
 import json
+import os
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Annotated, Optional, Tuple
 
@@ -24,7 +26,6 @@ from src.agents.constants import (
     SSH_SAFE_COMMANDS,
     SSH_SAFE_COMMAND_PREFIXES,
     SSH_BLOCKED_PATTERNS,
-    DEFAULT_SSH_USER,
     DEFAULT_SSH_TIMEOUT,
     DEFAULT_SSH_OPTIONS,
 )
@@ -43,26 +44,20 @@ class SSHPlugin:
 
     def __init__(
         self,
-        default_ssh_user: str = DEFAULT_SSH_USER,
         ssh_timeout: int = DEFAULT_SSH_TIMEOUT,
         ssh_options: Optional[list[str]] = None,
     ) -> None:
         """Initialize SSHPlugin.
 
-        :param default_ssh_user: Default SSH username for connections
-        :type default_ssh_user: str
         :param ssh_timeout: Connection timeout in seconds
         :type ssh_timeout: int
         :param ssh_options: Additional SSH options
         :type ssh_options: Optional[list[str]]
         """
-        self.default_ssh_user = default_ssh_user
         self.ssh_timeout = ssh_timeout
         self.ssh_options = ssh_options or list(DEFAULT_SSH_OPTIONS)
-        logger.info(
-            f"SSHPlugin initialized with default_user: {default_ssh_user}, "
-            f"timeout: {ssh_timeout}s"
-        )
+        self._converted_keys: dict[str, str] = {}  # Cache: ppk_path -> openssh_path
+        logger.info(f"SSHPlugin initialized with timeout: {ssh_timeout}s")
 
     def _validate_command(self, command: str) -> Tuple[bool, str]:
         """Validate command against safety rules.
@@ -107,7 +102,7 @@ class SSHPlugin:
         host: str,
         command: str,
         key_path: str,
-        user: Optional[str] = None,
+        user: str,
         port: int = 22,
     ) -> list[str]:
         """Build SSH command array.
@@ -118,14 +113,13 @@ class SSHPlugin:
         :type command: str
         :param key_path: Path to SSH private key
         :type key_path: str
-        :param user: SSH username (uses default if None)
-        :type user: Optional[str]
+        :param user: SSH username (from hosts.yaml)
+        :type user: str
         :param port: SSH port
         :type port: int
         :returns: SSH command as list of arguments
         :rtype: list[str]
         """
-        ssh_user = user or self.default_ssh_user
         ssh_cmd = [
             "ssh",
             "-i",
@@ -135,7 +129,7 @@ class SSHPlugin:
             f"-o ConnectTimeout={self.ssh_timeout}",
         ]
         ssh_cmd.extend(self.ssh_options)
-        ssh_cmd.append(f"{ssh_user}@{host}")
+        ssh_cmd.append(f"{user}@{host}")
         ssh_cmd.append(command)
         return ssh_cmd
 
@@ -151,7 +145,7 @@ class SSHPlugin:
         host: Annotated[str, "Target hostname or IP address of the SAP VM"],
         command: Annotated[str, "The diagnostic command to execute (must be read-only/safe)"],
         key_path: Annotated[str, "Path to the SSH private key file"],
-        user: Annotated[str, "SSH username (default: azureadm)"] = "",
+        user: Annotated[str, "SSH username from hosts.yaml (ansible_user field)"],
         port: Annotated[int, "SSH port (default: 22)"] = 22,
     ) -> Annotated[str, "JSON string with command output or error"]:
         """Execute a validated command on a remote host.
@@ -186,10 +180,10 @@ class SSHPlugin:
             error_msg = f"SSH key file not found: {key_path}"
             logger.error(error_msg)
             return json.dumps({"error": error_msg, "host": host})
-        ssh_user = user if user else None
-        ssh_cmd = self._build_ssh_command(host, command, key_path, ssh_user, port)
+        ssh_cmd = self._build_ssh_command(host, command, key_path, user, port)
 
         try:
+            logger.info(f"SSH command: {' '.join(ssh_cmd)}")
             result = subprocess.run(
                 ssh_cmd,
                 capture_output=True,
@@ -211,6 +205,7 @@ class SSHPlugin:
                 )
             else:
                 logger.warning(f"SSH command failed on {host}: exit code {result.returncode}")
+                logger.warning(f"SSH stderr: {result.stderr}")
                 return json.dumps(
                     {
                         "host": host,
@@ -219,6 +214,7 @@ class SSHPlugin:
                         "stderr": result.stderr,
                         "exit_code": result.returncode,
                         "success": False,
+                        "ssh_command_used": " ".join(ssh_cmd),  # Help debug
                     }
                 )
 
@@ -242,7 +238,7 @@ class SSHPlugin:
         self,
         host: Annotated[str, "Target hostname or IP address"],
         key_path: Annotated[str, "Path to the SSH private key file"],
-        user: Annotated[str, "SSH username (default: azureadm)"] = "",
+        user: Annotated[str, "SSH username from hosts.yaml (ansible_user field)"],
         port: Annotated[int, "SSH port (default: 22)"] = 22,
     ) -> Annotated[str, "JSON string with connectivity status"]:
         """Check SSH connectivity."""
