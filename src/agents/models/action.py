@@ -20,23 +20,35 @@ from pydantic import BaseModel, Field
 
 
 class ActionJob(BaseModel):
-    """A single executable job represented as a tool invocation."""
+    """A single executable job in an action plan."""
 
     job_id: str = Field(description="Unique job identifier within the plan")
     title: str = Field(description="Human-readable job title")
 
-    plugin_name: str = Field(description="Semantic Kernel plugin name (e.g., 'ssh', 'execution')")
-    function_name: str = Field(description="Semantic Kernel function name")
+    action_type: str = Field(
+        description="Type of action (e.g., 'ssh_command', 'run_test', 'diagnostics')"
+    )
+    action_name: str = Field(description="Specific action to perform")
 
     arguments: dict[str, Any] = Field(
         default_factory=dict,
-        description="Keyword arguments passed to the tool function",
+        description="Parameters for the action",
     )
 
     destructive: bool = Field(
         default=False,
         description="True if job may cause disruption (e.g., crash/failover simulations)",
     )
+
+    @property
+    def plugin_name(self) -> str:
+        """Backward compatibility alias for action_type."""
+        return self.action_type
+
+    @property
+    def function_name(self) -> str:
+        """Backward compatibility alias for action_name."""
+        return self.action_name
 
 
 class ActionPlan(BaseModel):

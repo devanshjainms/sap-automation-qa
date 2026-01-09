@@ -35,9 +35,8 @@ class ActionPlannerPlugin:
         name="create_action_plan",
         description=(
             "Create a machine-readable ActionPlan JSON for the current user request. "
-            "The ActionPlan is a list of jobs, each mapping to a tool invocation: "
-            "{plugin_name, function_name, arguments}. "
-            "Use plugin_name 'ssh' for remote diagnostics and 'execution' for running tests."
+            "The ActionPlan is a list of jobs, each specifying what action to take. "
+            "Use 'ssh' type for remote diagnostics and 'execution' type for running tests."
         ),
     )
     def create_action_plan(

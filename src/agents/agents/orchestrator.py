@@ -367,7 +367,7 @@ class OrchestratorSK:
             old_workspace = conv_context.get("resolved_workspace")
             conv_context.set("resolved_sid", detected_sid)
             logger.info(f"Detected SID in message: {detected_sid}")
-            
+
             should_clear_workspace = False
             if old_sid and old_sid != detected_sid:
                 should_clear_workspace = True
@@ -375,7 +375,7 @@ class OrchestratorSK:
             elif old_workspace and detected_sid not in old_workspace:
                 should_clear_workspace = True
                 logger.info(f"Workspace {old_workspace} doesn't match SID {detected_sid}")
-            
+
             if should_clear_workspace:
                 conv_context.set("resolved_workspace", None)
                 logger.info(f"Cleared workspace context for new SID {detected_sid}")
@@ -464,12 +464,12 @@ class OrchestratorSK:
         self, response: str, conv_context: ConversationContext
     ) -> None:
         """Extract OS type from agent response.
-        
+
         NOTE: We intentionally DON'T extract workspace/SID from responses.
         That led to pollution when listing workspaces. Context should come from:
         1. User's message (SID detection in handle_chat)
         2. Agent explicitly resolving via tools (resolve_user_reference, etc.)
-        
+
         We only extract OS type here since it's unambiguous and useful.
         """
         if not conv_context.get("os_type"):
