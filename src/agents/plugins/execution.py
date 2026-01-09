@@ -339,7 +339,8 @@ class ExecutionPlugin:
     @kernel_function(
         name="run_readonly_command",
         description="Run a read-only diagnostic command (ls, cat, tail, sysctl, df, "
-        + f"free, ps, journalctl, etc.) on hosts. Commands that modify state are REJECTED.",
+        + "free, ps, journalctl, etc.) on hosts. Commands that modify state are REJECTED. "
+        + "SSH key is auto-discovered from workspace files if not provided.",
     )
     def run_readonly_command(
         self,
@@ -348,8 +349,7 @@ class ExecutionPlugin:
         command: Annotated[str, "Read-only command to execute"],
         ssh_key_path: Annotated[
             str,
-            "Absolute path to an SSH private key file to use for this command. "
-            "If omitted, Ansible/hosts.yaml defaults are used.",
+            "Absolute path to SSH private key. Auto-discovered from workspace if omitted.",
         ] = "",
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
         """Run a validated read-only command on workspace hosts.
@@ -394,17 +394,35 @@ class ExecutionPlugin:
                 f"(pattern: {host_pattern}): {command}"
             )
 
+            effective_key_path = ssh_key_path
+            if not effective_key_path:
+                workspace_dir = Path.cwd() / "WORKSPACES/SYSTEM" / workspace_id
+                key_patterns = ["*.pem", "*.ppk", "ssh_key*", "id_rsa*", "*_key"]
+                for pattern in key_patterns:
+                    for key_file in workspace_dir.glob(pattern):
+                        if key_file.is_file() and not key_file.suffix == ".pub":
+                            effective_key_path = str(key_file)
+                            logger.info(f"Auto-discovered SSH key: {effective_key_path}")
+                            break
+                    if effective_key_path:
+                        break
+
             extra_vars: dict[str, str] = {}
-            if ssh_key_path:
-                key_path_obj = Path(ssh_key_path)
+            if effective_key_path:
+                key_path_obj = Path(effective_key_path)
                 if not key_path_obj.exists():
                     return json.dumps(
                         {
-                            "error": f"SSH key file not found at ssh_key_path: {ssh_key_path}",
+                            "error": f"SSH key file not found at ssh_key_path: {effective_key_path}",
                             "workspace_id": workspace_id,
                         }
                     )
                 extra_vars["ansible_ssh_private_key_file"] = str(key_path_obj)
+                logger.info(f"Using SSH key: {effective_key_path}")
+            else:
+                logger.warning(
+                    f"No SSH key found for workspace {workspace_id}, using Ansible defaults"
+                )
 
             result = self.ansible.run_ad_hoc(
                 inventory=inventory_path,
