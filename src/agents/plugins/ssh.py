@@ -142,8 +142,9 @@ class SSHPlugin:
     @kernel_function(
         name="execute_remote_command",
         description="Execute a read-only diagnostic command on a remote SAP VM via SSH. "
-        + "Commands are validated against a safety whitelist. Use this for system diagnostics, "
-        + "log viewing, and cluster status checks.",
+        + "Commands are validated against a safety whitelist. Use this for system diagnostics,"
+        "troubleshooting, log viewing, and cluster status checks, finding relevant information "
+        + "that may be necessary for other operations. ",
     )
     def execute_remote_command(
         self,
