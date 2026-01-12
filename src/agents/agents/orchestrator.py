@@ -32,6 +32,7 @@ from src.agents.agents.base import AgentRegistry
 from src.agents.models.streaming import emit_thinking_start, emit_thinking_step, emit_thinking_end
 from src.agents.observability import get_logger
 from src.agents.request_context import RequestContext
+from src.agents.approval_state import ApprovalStateManager
 from src.agents.prompts import AGENT_SELECTION_PROMPT, TERMINATION_PROMPT
 
 
@@ -377,6 +378,9 @@ class OrchestratorSK:
             user_id=user_id,
             correlation_id=correlation_id,
         )
+
+        if conversation_id:
+            ApprovalStateManager.get_or_create(conversation_id)
 
         conv_context = self._get_or_create_context(conversation_id)
         latest_user_msg = ""

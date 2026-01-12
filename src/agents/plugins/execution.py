@@ -649,15 +649,35 @@ class ExecutionPlugin:
 
             results = []
             for job in jobs:
+                command = ""
+                if job.test_id:
+                    command = job.test_id.split(":", 1)[1] if ":" in job.test_id else job.test_id
+                
+                result_summary = None
+                if job.result and isinstance(job.result, dict):
+                    result_summary = {
+                        "status": job.result.get("status"),
+                        "stdout_length": (
+                            len(job.result.get("stdout", "")) if job.result.get("stdout") else 0
+                        ),
+                        "stderr_length": (
+                            len(job.result.get("stderr", "")) if job.result.get("stderr") else 0
+                        ),
+                    }
+
                 results.append(
                     {
                         "job_id": str(job.id),
                         "workspace_id": job.workspace_id,
                         "test_id": job.test_id,
+                        "command": command,
                         "test_group": job.test_group,
                         "status": job.status.value,
+                        "target_node": job.target_node,
+                        "target_nodes": job.target_nodes,
                         "created_at": job.created_at.isoformat(),
                         "started_at": job.started_at.isoformat() if job.started_at else None,
+                        "result_summary": result_summary,
                         "metadata": job.metadata,
                     }
                 )

@@ -75,6 +75,10 @@ class ApprovalFilter:
         """Validate execution-related tool calls before invocation."""
         function_name = context.function.name
         plugin_name = context.function.plugin_name or ""
+        args_summary = dict(context.arguments) if context.arguments else {}
+        logger.info(
+            f"[TOOL INVOCATION] LLM calling {plugin_name}.{function_name} with args: {args_summary}"
+        )
 
         if plugin_name != "execution":
             await next(context)

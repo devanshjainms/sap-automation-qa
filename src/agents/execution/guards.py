@@ -297,6 +297,12 @@ class GuardFilter:
         function_name = context.function.name
         plugin_name = context.function.plugin_name or ""
 
+        if function_name in GUARDED_FUNCTIONS:
+            args_summary = dict(context.arguments) if context.arguments else {}
+            logger.info(
+                f"[GUARD CHECK] Function {plugin_name}.{function_name} with args: {args_summary}"
+            )
+
         if function_name not in GUARDED_FUNCTIONS:
             await next(context)
             return
