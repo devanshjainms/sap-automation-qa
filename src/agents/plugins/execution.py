@@ -129,7 +129,7 @@ class ExecutionPlugin:
                         job.started_at = job.started_at or datetime.utcnow()
                         job.completed_at = datetime.utcnow()
                         if result:
-                            job.result = result.model_dump()
+                            job.result = result.model_dump(mode='json')
 
                         self.job_store.update_job(job)
                         logger.info(f"Updated job {job_id} with execution result")
@@ -157,7 +157,7 @@ class ExecutionPlugin:
             job.started_at = datetime.utcnow()
             job.completed_at = datetime.utcnow()
             if result:
-                job.result = result.model_dump()
+                job.result = result.model_dump(mode='json')
             self.job_store.update_job(job)
 
             logger.info(
