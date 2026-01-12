@@ -109,9 +109,33 @@ class OrchestratorSK:
         self._conversation_contexts: dict[str, ConversationContext] = {}
         self.selection_strategy = self._build_selection_strategy()
         self.termination_strategy = self._build_termination_strategy()
+        self._valid_sids: set[str] = set()
+        self._refresh_valid_sids()
+
         logger.info(
-            "OrchestratorSK initialized with domain-aware selection and LLM-based termination"
+            f"OrchestratorSK initialized with {len(self._valid_sids)} valid SIDs from workspaces"
         )
+
+    def _refresh_valid_sids(self) -> None:
+        """Refresh the cache of valid SIDs from workspace store."""
+        try:
+            from src.agents.agents.action_executor_agent import ActionExecutorAgent
+
+            action_executor = self.registry.get("action_executor")
+            if isinstance(action_executor, ActionExecutorAgent) and action_executor.workspace_store:
+                workspaces = action_executor.workspace_store.list_workspace_ids()
+                self._valid_sids = set()
+                for ws_id in workspaces:
+                    parts = ws_id.upper().replace("-", "_").split("_")
+                    for part in parts:
+                        if len(part) == 3 and part[0].isalpha():
+                            self._valid_sids.add(part)
+                    self._valid_sids.add(ws_id.upper())
+                logger.info(
+                    f"Cached {len(self._valid_sids)} valid SIDs: {sorted(self._valid_sids)[:10]}..."
+                )
+        except Exception as e:
+            logger.warning(f"Could not refresh SID cache: {e}")
 
     def _get_or_create_context(self, conversation_id: Optional[str]) -> ConversationContext:
         """Get or create a conversation context."""
@@ -124,90 +148,29 @@ class OrchestratorSK:
         return self._conversation_contexts[conversation_id]
 
     def _detect_sid_in_message(self, message: str) -> Optional[str]:
-        """Detect if the message contains a SID pattern.
+        """Detect if the message contains a valid SID from known workspaces.
 
-        SAP SIDs are 3-character identifiers starting with a letter.
-        Common patterns: X00, PRD, DEV, QA1, NW1, etc.
+        This approach is resilient because it only matches SIDs that actually
+        exist in the workspace store. No exclusion lists needed - "pcs", "crm",
+        "the", etc. simply won't match because they aren't real workspaces.
+
+        :param message: User message to scan
+        :type message: str
+        :returns: Detected SID or None
+        :rtype: Optional[str]
         """
-        sid_pattern = r"\b([A-Z][A-Z0-9]{2})\b"
-        matches = re.findall(sid_pattern, message.upper())
-        excluded = {
-            # Articles, prepositions, conjunctions
-            "THE",
-            "AND",
-            "FOR",
-            "NOT",
-            "BUT",
-            "HOW",
-            "WHY",
-            "NOW",
-            "YET",
-            "OUT",
-            "OFF",
-            # Pronouns
-            "YOU",
-            "HER",
-            "HIS",
-            "ITS",
-            "OUR",
-            "WHO",
-            # Verbs
-            "CAN",
-            "HAS",
-            "HAD",
-            "WAS",
-            "ARE",
-            "RUN",
-            "GET",
-            "SET",
-            "PUT",
-            "LET",
-            "SAY",
-            "SEE",
-            "TRY",
-            "USE",
-            "ASK",
-            "ADD",
-            # Other common words
-            "ALL",
-            "ONE",
-            "TWO",
-            "NEW",
-            "OLD",
-            "ANY",
-            "MAY",
-            "DAY",
-            "WAY",
-            "TOP",
-            "END",
-            "BIG",
-            "LOW",
-            # SAP terms that aren't SIDs
-            "SAP",
-            "SCS",
-            "ERS",
-            "PAS",
-            "APP",
-            "VIP",
-            "SSH",
-            "SQL",
-            "CPU",
-            "RAM",
-            "SSD",
-            "LVM",
-            # Azure/Cloud terms
-            "VM1",
-            "VM2",
-            "NIC",
-            "DNS",
-            "VPN",
-            "API",
-            "URI",
-            "URL",
-        }
-        sids = [m for m in matches if m not in excluded]
+        if not self._valid_sids:
+            self._refresh_valid_sids()
+            if not self._valid_sids:
+                return None
+        sid_pattern = r"\b([A-Za-z][A-Za-z0-9]{2})\b"
+        candidates = re.findall(sid_pattern, message)
+        for candidate in candidates:
+            if candidate.upper() in self._valid_sids:
+                logger.info(f"Detected valid SID: {candidate.upper()}")
+                return candidate.upper()
 
-        return sids[0] if sids else None
+        return None
 
     def _build_termination_strategy(self) -> KernelFunctionTerminationStrategy:
         """Build LLM-based termination strategy that evaluates conversation completion.
@@ -365,20 +328,14 @@ class OrchestratorSK:
         if detected_sid:
             old_sid = conv_context.get("resolved_sid")
             old_workspace = conv_context.get("resolved_workspace")
-            conv_context.set("resolved_sid", detected_sid)
-            logger.info(f"Detected SID in message: {detected_sid}")
-
-            should_clear_workspace = False
-            if old_sid and old_sid != detected_sid:
-                should_clear_workspace = True
-                logger.info(f"SID changed from {old_sid} to {detected_sid}")
-            elif old_workspace and detected_sid not in old_workspace:
-                should_clear_workspace = True
-                logger.info(f"Workspace {old_workspace} doesn't match SID {detected_sid}")
-
-            if should_clear_workspace:
-                conv_context.set("resolved_workspace", None)
-                logger.info(f"Cleared workspace context for new SID {detected_sid}")
+            if old_sid != detected_sid:
+                conv_context.set("resolved_sid", detected_sid)
+                logger.info(f"Updated SID: {old_sid} -> {detected_sid}")
+                if old_workspace and detected_sid not in old_workspace.upper():
+                    conv_context.set("resolved_workspace", None)
+                    logger.info(
+                        f"Cleared workspace {old_workspace} (doesn't match new SID {detected_sid})"
+                    )
 
         preserved_sid = conv_context.get("resolved_sid")
         preserved_workspace = conv_context.get("resolved_workspace")
