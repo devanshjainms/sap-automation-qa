@@ -18,7 +18,7 @@ import yaml
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Optional, TYPE_CHECKING
-
+from uuid import UUID
 from semantic_kernel.functions import kernel_function
 
 from src.agents.constants import TEST_GROUP_PLAYBOOKS, LOG_WHITELIST
@@ -28,6 +28,7 @@ from src.agents.plugins.command_validator import validate_readonly_command
 from src.agents.models.execution import ExecutionResult
 from src.agents.execution.store import JobStore
 from src.agents.observability import get_logger
+from src.agents.models.job import JobStatus
 
 if TYPE_CHECKING:
     from src.agents.plugins.keyvault import KeyVaultPlugin
@@ -90,6 +91,7 @@ class ExecutionPlugin:
         command: str,
         conversation_id: str = "",
         result: Optional[ExecutionResult] = None,
+        job_id: str = "",
     ) -> None:
         """Store command execution to database for query history.
 
@@ -103,10 +105,31 @@ class ExecutionPlugin:
         :type conversation_id: str
         :param result: Execution result
         :type result: Optional[ExecutionResult]
+        :param job_id: Existing job ID to update (optional)
+        :type job_id: str
         """
         try:
-            from src.agents.models.job import JobStatus
-            from uuid import uuid4
+
+            if job_id:
+                try:
+                    job = self.job_store.get_job(UUID(job_id))
+                    if job:
+                        final_status = (
+                            JobStatus.COMPLETED
+                            if result and result.status == "success"
+                            else JobStatus.FAILED
+                        )
+                        job.status = final_status
+                        job.started_at = job.started_at or datetime.utcnow()
+                        job.completed_at = datetime.utcnow()
+                        if result:
+                            job.result = result.model_dump()
+
+                        self.job_store.update_job(job)
+                        logger.info(f"Updated job {job_id} with execution result")
+                        return
+                except (ValueError, AttributeError) as e:
+                    logger.warning(f"Invalid job_id {job_id}: {e}, creating new job")
 
             job = self.job_store.create_job(
                 workspace_id=workspace_id,
@@ -128,13 +151,18 @@ class ExecutionPlugin:
             job.completed_at = datetime.utcnow()
             if result:
                 job.result = result.model_dump()
-
             self.job_store.update_job(job)
 
-            logger.info(f"Stored command execution: {job.id}")
+            logger.info(
+                f"Stored command execution: {job.id}, status={job.status.value}, "
+                f"workspace={workspace_id}, role={role}, command={command.split()[0]}"
+            )
 
         except Exception as e:
-            logger.warning(f"Failed to store command execution: {e}")
+            logger.error(
+                f"Failed to store command execution: {e}",
+                extra={"error": str(e), "traceback": True},
+            )
 
     @kernel_function(
         name="resolve_test_execution",
@@ -187,6 +215,7 @@ class ExecutionPlugin:
         workspace_id: Annotated[str, "Workspace ID"],
         test_id: Annotated[str, "Test ID (e.g., 'ha-config', 'azure-lb')"],
         test_group: Annotated[str, "Test group (HA_DB_HANA, HA_SCS, HA_OFFLINE, CONFIG_CHECKS)"],
+        job_id: Annotated[str, "Optional job ID to update (for tracking)"] = "",
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
         """Run a test by ID and group via Ansible.
 
@@ -332,6 +361,7 @@ class ExecutionPlugin:
         command: Annotated[str, "Read-only command to execute"],
         become: Annotated[bool, "Use sudo/become for privileged commands (default: False)"] = False,
         conversation_id: Annotated[str, "Conversation ID (auto-injected)"] = "",
+        job_id: Annotated[str, "Optional job ID to update (for tracking)"] = "",
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
         """Run a validated read-only command on workspace hosts.
 
@@ -436,6 +466,7 @@ class ExecutionPlugin:
                 command=command,
                 conversation_id=conversation_id,
                 result=exec_result,
+                job_id=job_id,
             )
 
             return json.dumps(exec_result.model_dump(), default=str, indent=2)

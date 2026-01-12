@@ -82,6 +82,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             job_store=job_store, execution_plugin=action_executor.execution_plugin
         )
 
+        object.__setattr__(action_executor.execution_plugin, "job_store", job_store)
         object.__setattr__(action_executor, "job_store", job_store)
         object.__setattr__(action_executor, "job_worker", job_worker)
         object.__setattr__(action_executor, "_async_enabled", True)
