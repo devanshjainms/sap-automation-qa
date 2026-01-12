@@ -26,6 +26,7 @@ from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.ansible_runner import AnsibleRunner
 from src.agents.plugins.command_validator import validate_readonly_command
 from src.agents.models.execution import ExecutionResult
+from src.agents.execution.store import JobStore
 from src.agents.observability import get_logger
 
 if TYPE_CHECKING:
@@ -42,6 +43,7 @@ class ExecutionPlugin:
         self,
         workspace_store: WorkspaceStore,
         ansible_runner: AnsibleRunner,
+        job_store: Optional[JobStore] = None,
         workspace_plugin: Optional["WorkspacePlugin"] = None,
         keyvault_plugin: Optional["KeyVaultPlugin"] = None,
     ):
@@ -51,6 +53,8 @@ class ExecutionPlugin:
         :type workspace_store: WorkspaceStore
         :param ansible_runner: AnsibleRunner for Ansible execution
         :type ansible_runner: AnsibleRunner
+        :param job_store: JobStore for persisting execution history (optional)
+        :type job_store: Optional[JobStore]
         :param workspace_plugin: WorkspacePlugin for unified context resolution
         :type workspace_plugin: Optional[WorkspacePlugin]
         :param keyvault_plugin: Optional KeyVaultPlugin for SSH key retrieval
@@ -58,12 +62,14 @@ class ExecutionPlugin:
         """
         self.workspace_store = workspace_store
         self.ansible = ansible_runner
+        self.job_store = job_store or JobStore()
         self.workspace_plugin = workspace_plugin
         self.keyvault_plugin = keyvault_plugin
         logger.info(
             f"ExecutionPlugin initialized "
             f"(workspace_plugin={workspace_plugin is not None}, "
-            f"keyvault_enabled={keyvault_plugin is not None})"
+            f"keyvault_enabled={keyvault_plugin is not None}, "
+            f"job_store={job_store is not None})"
         )
 
     def _get_execution_context(self, workspace_id: str) -> dict:
@@ -76,6 +82,59 @@ class ExecutionPlugin:
             return json.loads(ctx_json)
         logger.warning("WorkspacePlugin not available")
         return {}
+
+    def _store_command_execution(
+        self,
+        workspace_id: str,
+        role: str,
+        command: str,
+        conversation_id: str = "",
+        result: Optional[ExecutionResult] = None,
+    ) -> None:
+        """Store command execution to database for query history.
+
+        :param workspace_id: Workspace ID
+        :type workspace_id: str
+        :param role: Host role targeted
+        :type role: str
+        :param command: Command executed
+        :type command: str
+        :param conversation_id: Conversation ID
+        :type conversation_id: str
+        :param result: Execution result
+        :type result: Optional[ExecutionResult]
+        """
+        try:
+            from src.agents.models.job import JobStatus
+            from uuid import uuid4
+
+            job = self.job_store.create_job(
+                workspace_id=workspace_id,
+                test_id=f"command:{command.split()[0]}",
+                test_group="adhoc_command",
+                test_ids=[],
+                conversation_id=conversation_id or None,
+                user_id=None,
+                metadata={
+                    "command": command,
+                    "role": role,
+                    "type": "readonly_command",
+                },
+            )
+            job.status = (
+                JobStatus.COMPLETED if result and result.status == "success" else JobStatus.FAILED
+            )
+            job.started_at = datetime.utcnow()
+            job.completed_at = datetime.utcnow()
+            if result:
+                job.result = result.model_dump()
+
+            self.job_store.update_job(job)
+
+            logger.info(f"Stored command execution: {job.id}")
+
+        except Exception as e:
+            logger.warning(f"Failed to store command execution: {e}")
 
     @kernel_function(
         name="resolve_test_execution",
@@ -272,6 +331,7 @@ class ExecutionPlugin:
         role: Annotated[str, "Host role (db, app, scs, ers, all)"],
         command: Annotated[str, "Read-only command to execute"],
         become: Annotated[bool, "Use sudo/become for privileged commands (default: False)"] = False,
+        conversation_id: Annotated[str, "Conversation ID (auto-injected)"] = "",
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
         """Run a validated read-only command on workspace hosts.
 
@@ -370,6 +430,13 @@ class ExecutionPlugin:
             )
 
             logger.info(f"Read-only command completed with status: {status}")
+            self._store_command_execution(
+                workspace_id=workspace_id,
+                role=role,
+                command=command,
+                conversation_id=conversation_id,
+                result=exec_result,
+            )
 
             return json.dumps(exec_result.model_dump(), default=str, indent=2)
 
@@ -444,3 +511,56 @@ class ExecutionPlugin:
             )
 
             return json.dumps(exec_result.model_dump(), default=str, indent=2)
+
+    @kernel_function(
+        name="get_recent_executions",
+        description="Get recent command executions and test runs for a conversation or workspace. "
+        "Use this to answer 'which node?', 'what did you just run?', or 'show execution history'.",
+    )
+    def get_recent_executions(
+        self,
+        conversation_id: Annotated[str, "Conversation ID (auto-injected)"] = "",
+        workspace_id: Annotated[str, "Optional: Filter by workspace"] = "",
+        limit: Annotated[int, "Max results to return"] = 10,
+    ) -> Annotated[str, "JSON list of recent executions"]:
+        """Query recent executions from database.
+
+        :param conversation_id: Conversation ID
+        :type conversation_id: str
+        :param workspace_id: Optional workspace filter
+        :type workspace_id: str
+        :param limit: Max results
+        :type limit: int
+        :returns: JSON with execution history
+        :rtype: str
+        """
+        try:
+            if conversation_id:
+                jobs = self.job_store.get_jobs_for_conversation(conversation_id, limit=limit)
+                if workspace_id:
+                    jobs = [j for j in jobs if j.workspace_id == workspace_id]
+            else:
+                jobs = self.job_store.get_job_history(
+                    user_id=None, workspace_id=workspace_id or None, limit=limit
+                )
+
+            results = []
+            for job in jobs:
+                results.append(
+                    {
+                        "job_id": str(job.id),
+                        "workspace_id": job.workspace_id,
+                        "test_id": job.test_id,
+                        "test_group": job.test_group,
+                        "status": job.status.value,
+                        "created_at": job.created_at.isoformat(),
+                        "started_at": job.started_at.isoformat() if job.started_at else None,
+                        "metadata": job.metadata,
+                    }
+                )
+
+            return json.dumps({"executions": results, "count": len(results)}, indent=2)
+
+        except Exception as e:
+            logger.error(f"Error querying executions: {e}")
+            return json.dumps({"error": str(e)})

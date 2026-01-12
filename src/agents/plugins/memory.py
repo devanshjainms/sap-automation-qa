@@ -94,9 +94,10 @@ class MemoryPlugin:
     @kernel_function(
         name="remember",
         description="Store a fact for later retrieval in this conversation. "
-        "Use this to remember important discoveries like SSH key paths, host IPs, "
-        "OS types, or any information you'll need later. "
-        "Categories: 'connection', 'system', 'workspace', 'execution', 'general'.",
+        "After executing commands/tests, store what you did (workspace, role, command, hosts) "
+        "so you can answer follow-up questions like 'which node?' or 'what did you just run?'. "
+        "Categories: 'execution' (commands/tests run), 'connection' (SSH keys, hosts), "
+        "'system' (OS, cluster type), 'workspace' (SIDs, paths), 'general' (other).",
     )
     def remember(
         self,
@@ -137,7 +138,8 @@ class MemoryPlugin:
     @kernel_function(
         name="recall",
         description="Retrieve a previously stored fact by its key. "
-        "Use this to look up information you stored earlier with remember().",
+        "Use this to answer follow-up questions about previous actions "
+        "(e.g., 'which node?', 'what did you run?') by recalling execution details.",
     )
     def recall(
         self,

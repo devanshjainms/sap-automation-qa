@@ -378,9 +378,9 @@ class WorkspacePlugin:
 
     @kernel_function(
         name="get_execution_context",
-        description="Get EVERYTHING needed to execute tests or commands on a workspace. "
-        "Returns: hosts.yaml path, sap-parameters (as dict), SSH key path, inventory path. "
-        "Call this ONCE before any execution - no need to resolve SSH keys separately.",
+        description="Get complete execution context for a workspace (hosts, parameters, SSH key, "
+        "inventory path). Returns all data needed for test execution or command runs. "
+        "Call this once before any execution - no need to resolve SSH keys separately.",
     )
     def get_execution_context(self, workspace_id: Annotated[str, "Workspace name/ID"]) -> str:
         """Get complete execution context for a workspace - SINGLE SOURCE OF TRUTH.
