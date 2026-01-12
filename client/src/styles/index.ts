@@ -13,4 +13,4 @@ export { useStyles as useChatInputStyles } from "./ChatInput.styles";
 export { useStyles as useThinkingIndicatorStyles } from "./ThinkingIndicator.styles";
 export { useStyles as useConversationSidebarStyles } from "./ConversationSidebar.styles";
 export { useStyles as useWorkspaceSelectorStyles } from "./WorkspaceSelector.styles";
-export { useStyles as useTestExecutionPanelStyles } from "./TestExecutionPanel.styles";
+export { useStyles as useJobExecutionPanelStyles } from "./JobExecutionPanel.styles";

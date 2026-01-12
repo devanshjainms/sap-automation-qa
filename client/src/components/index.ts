@@ -11,4 +11,4 @@ export { ChatInput } from "./Chat";
 export { ChatPanel } from "./Chat";
 export { ConversationSidebar } from "./Sidebar";
 export { WorkspaceSelector } from "./Workspace";
-export { TestExecutionPanel } from "./TestExecution";
+export { JobExecutionPanel } from "./JobExecution";

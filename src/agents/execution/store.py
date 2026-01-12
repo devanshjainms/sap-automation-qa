@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS execution_jobs (
     created_at TEXT NOT NULL,
     started_at TEXT,
     completed_at TEXT,
+    target_node TEXT,
+    target_nodes TEXT DEFAULT '[]',
+    raw_stdout TEXT,
+    raw_stderr TEXT,
     result TEXT,
     error_message TEXT,
     events TEXT DEFAULT '[]',
@@ -112,6 +116,8 @@ class JobStore(SQLiteBase):
         test_id: Optional[str] = None,
         test_group: Optional[str] = None,
         metadata: Optional[dict[str, Any]] = None,
+        target_node: Optional[str] = None,
+        target_nodes: Optional[list[str]] = None,
     ) -> ExecutionJob:
         """Create a new execution job.
 
@@ -129,6 +135,10 @@ class JobStore(SQLiteBase):
         :type test_group: Optional[str]
         :param metadata: Additional metadata
         :type metadata: Optional[dict[str, Any]]
+        :param target_node: Primary target node/host name
+        :type target_node: Optional[str]
+        :param target_nodes: List of target nodes/hosts
+        :type target_nodes: Optional[list[str]]
         :returns: Created job
         :rtype: ExecutionJob
         """
@@ -141,6 +151,8 @@ class JobStore(SQLiteBase):
             test_group=test_group,
             total_steps=len(test_ids),
             metadata=metadata or {},
+            target_node=target_node,
+            target_nodes=target_nodes or [],
         )
 
         self.execute(
@@ -148,9 +160,9 @@ class JobStore(SQLiteBase):
             INSERT INTO execution_jobs (
                 id, conversation_id, user_id, workspace_id, test_id, test_group,
                 test_ids, status, progress_percent, current_step, current_step_index,
-                total_steps, created_at, started_at, completed_at, result,
-                error_message, events, metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                total_steps, created_at, started_at, completed_at, target_node,
+                target_nodes, raw_stdout, raw_stderr, result, error_message, events, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(job.id),
@@ -166,6 +178,10 @@ class JobStore(SQLiteBase):
                 job.current_step_index,
                 job.total_steps,
                 job.created_at.isoformat(),
+                None,
+                None,
+                job.target_node,
+                json.dumps(job.target_nodes),
                 None,
                 None,
                 None,
@@ -301,6 +317,10 @@ class JobStore(SQLiteBase):
                 total_steps = ?,
                 started_at = ?,
                 completed_at = ?,
+                target_node = ?,
+                target_nodes = ?,
+                raw_stdout = ?,
+                raw_stderr = ?,
                 result = ?,
                 error_message = ?,
                 events = ?,
@@ -315,6 +335,10 @@ class JobStore(SQLiteBase):
                 job.total_steps,
                 job.started_at.isoformat() if job.started_at else None,
                 job.completed_at.isoformat() if job.completed_at else None,
+                job.target_node,
+                json.dumps(job.target_nodes),
+                job.raw_stdout,
+                job.raw_stderr,
                 json.dumps(job.result) if job.result else None,
                 job.error_message,
                 json.dumps([e.to_dict() for e in job.events]),
@@ -355,6 +379,11 @@ class JobStore(SQLiteBase):
 
     def _row_to_job(self, row: sqlite3.Row) -> ExecutionJob:
         """Convert a database row to an ExecutionJob."""
+        target_node = row["target_node"] if "target_node" in row.keys() else None
+        target_nodes_raw = row["target_nodes"] if "target_nodes" in row.keys() else "[]"
+        raw_stdout = row["raw_stdout"] if "raw_stdout" in row.keys() else None
+        raw_stderr = row["raw_stderr"] if "raw_stderr" in row.keys() else None
+
         data = {
             "id": row["id"],
             "conversation_id": row["conversation_id"],
@@ -371,6 +400,10 @@ class JobStore(SQLiteBase):
             "created_at": row["created_at"],
             "started_at": row["started_at"],
             "completed_at": row["completed_at"],
+            "target_node": target_node,
+            "target_nodes": json.loads(target_nodes_raw) if target_nodes_raw else [],
+            "raw_stdout": raw_stdout,
+            "raw_stderr": raw_stderr,
             "result": json.loads(row["result"]) if row["result"] else None,
             "error_message": row["error_message"],
             "events": json.loads(row["events"]) if row["events"] else [],

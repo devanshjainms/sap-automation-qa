@@ -137,6 +137,31 @@ export interface Job {
   completed_at?: string;
   result?: unknown;
   error?: string;
+  target_node?: string;
+  target_nodes?: string[];
+  raw_stdout?: string;
+  raw_stderr?: string;
+}
+
+export interface JobListItem {
+  job_id: string;
+  conversation_id: string;
+  status: JobStatus;
+  test_id: string;
+  workspace_id: string;
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  error?: string;
+  target_node?: string;
+  target_nodes?: string[];
+}
+
+export interface JobListResponse {
+  jobs: JobListItem[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ConversationListResponse {

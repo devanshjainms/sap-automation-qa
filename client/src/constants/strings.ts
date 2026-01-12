@@ -40,8 +40,8 @@ export const APP_STRINGS = {
   TEST_STATUS_RUNNING: "Running",
   TEST_STATUS_COMPLETED: "Completed",
   TEST_STATUS_FAILED: "Failed",
-  TEST_PANEL_TITLE: "Test Execution",
-  TEST_PANEL_EMPTY: "No active test executions",
+  JOB_PANEL_TITLE: "Job Execution",
+  JOB_PANEL_EMPTY: "No jobs found",
   ACTION_COPY: "Copy",
   ACTION_COPIED: "Copied!",
   ACTION_RETRY: "Retry",
@@ -61,7 +61,7 @@ export const APP_STRINGS = {
 
 export const LABELS = {
   CHAT: "Chat",
-  TEST_EXECUTION: "Test Execution",
+  JOB_EXECUTION: "Job Execution",
   WORKSPACES: "Workspaces",
   SETTINGS: "Settings",
 } as const;

@@ -105,6 +105,10 @@ class ExecutionPlugin:
         conversation_id: str = "",
         result: Optional[ExecutionResult] = None,
         job_id: str = "",
+        target_node: str = "",
+        target_nodes: Optional[list[str]] = None,
+        raw_stdout: Optional[str] = None,
+        raw_stderr: Optional[str] = None,
     ) -> None:
         """Store command execution to database for query history.
 
@@ -120,13 +124,21 @@ class ExecutionPlugin:
         :type result: Optional[ExecutionResult]
         :param job_id: Existing job ID to update (optional)
         :type job_id: str
+        :param target_node: Primary target node/host name
+        :type target_node: str
+        :param target_nodes: List of target nodes/hosts
+        :type target_nodes: Optional[list[str]]
+        :param raw_stdout: Full raw stdout (not truncated)
+        :type raw_stdout: Optional[str]
+        :param raw_stderr: Full raw stderr (not truncated)
+        :type raw_stderr: Optional[str]
         """
         resolved_conversation_id = self._get_conversation_id(conversation_id)
 
         logger.info(
             f"_store_command_execution called: job_id={job_id or 'NONE'}, "
             f"conversation_id={resolved_conversation_id or 'NONE'}, workspace_id={workspace_id}, "
-            f"command={command}"
+            f"command={command}, target_node={target_node or 'NONE'}"
         )
 
         try:
@@ -143,6 +155,10 @@ class ExecutionPlugin:
                         job.status = final_status
                         job.started_at = job.started_at or datetime.utcnow()
                         job.completed_at = datetime.utcnow()
+                        job.target_node = target_node or job.target_node
+                        job.target_nodes = target_nodes or job.target_nodes
+                        job.raw_stdout = raw_stdout
+                        job.raw_stderr = raw_stderr
                         if result:
                             job.result = result.model_dump(mode="json")
 
@@ -162,6 +178,8 @@ class ExecutionPlugin:
                 test_ids=[],
                 conversation_id=resolved_conversation_id,
                 user_id=RequestContext.get_user_id(),
+                target_node=target_node or None,
+                target_nodes=target_nodes,
                 metadata={
                     "command": command,
                     "role": role,
@@ -173,6 +191,8 @@ class ExecutionPlugin:
             )
             job.started_at = datetime.utcnow()
             job.completed_at = datetime.utcnow()
+            job.raw_stdout = raw_stdout
+            job.raw_stderr = raw_stderr
             if result:
                 job.result = result.model_dump(mode="json")
             self.job_store.update_job(job)
@@ -468,6 +488,9 @@ class ExecutionPlugin:
                 status = "partial"
                 error_message = f"Command completed with rc={result['rc']}"
 
+            target_nodes_list = result.get("hosts", []) or []
+            primary_target = target_nodes_list[0] if target_nodes_list else host_pattern
+
             exec_result = ExecutionResult(
                 workspace_id=workspace_id,
                 env=workspace.env,
@@ -475,7 +498,7 @@ class ExecutionPlugin:
                 status=status,
                 started_at=started_at,
                 finished_at=finished_at,
-                hosts=[role],
+                hosts=target_nodes_list or [role],
                 stdout=result["stdout"][:2000] if result["stdout"] else None,
                 stderr=result["stderr"][:2000] if result["stderr"] else None,
                 error_message=error_message,
@@ -483,6 +506,7 @@ class ExecutionPlugin:
                     "return_code": result["rc"],
                     "command": command,
                     "role": role,
+                    "host_pattern": host_pattern,
                     "full_stdout_length": len(result["stdout"]) if result["stdout"] else 0,
                 },
             )
@@ -494,6 +518,10 @@ class ExecutionPlugin:
                 command=command,
                 result=exec_result,
                 job_id=job_id,
+                target_node=primary_target,
+                target_nodes=target_nodes_list,
+                raw_stdout=result.get("stdout"),
+                raw_stderr=result.get("stderr"),
             )
 
             return json.dumps(exec_result.model_dump(), default=str, indent=2)
@@ -517,6 +545,8 @@ class ExecutionPlugin:
                 command=command,
                 result=exec_result,
                 job_id=job_id,
+                target_node=role,
+                raw_stderr=str(e),
             )
 
             return json.dumps(exec_result.model_dump(), default=str, indent=2)

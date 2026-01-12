@@ -90,6 +90,10 @@ class ExecutionJob:
     created_at: datetime = field(default_factory=datetime.utcnow)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    target_node: Optional[str] = None
+    target_nodes: list[str] = field(default_factory=list)
+    raw_stdout: Optional[str] = None
+    raw_stderr: Optional[str] = None
 
     result: Optional[dict[str, Any]] = None
     error_message: Optional[str] = None
@@ -263,6 +267,10 @@ class ExecutionJob:
             "created_at": self.created_at.isoformat(),
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "target_node": self.target_node,
+            "target_nodes": self.target_nodes,
+            "raw_stdout": self.raw_stdout,
+            "raw_stderr": self.raw_stderr,
             "result": self.result,
             "error_message": self.error_message,
             "events": [e.to_dict() for e in self.events],
@@ -296,6 +304,10 @@ class ExecutionJob:
             completed_at=(
                 datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None
             ),
+            target_node=data.get("target_node"),
+            target_nodes=data.get("target_nodes", []),
+            raw_stdout=data.get("raw_stdout"),
+            raw_stderr=data.get("raw_stderr"),
             result=data.get("result"),
             error_message=data.get("error_message"),
             metadata=data.get("metadata", {}),

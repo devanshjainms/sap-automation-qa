@@ -31,7 +31,7 @@ import { ChatProvider, WorkspaceProvider } from "./context";
 import {
   ChatPanel,
   ConversationSidebar,
-  TestExecutionPanel,
+  JobExecutionPanel,
 } from "./components";
 import { healthApi } from "./api";
 import { APP_STRINGS, LABELS } from "./constants";
@@ -120,7 +120,7 @@ const AppContent: React.FC<AppContentProps> = ({
               {LABELS.CHAT}
             </Tab>
             <Tab icon={<TestIcon />} value="tests">
-              {LABELS.TEST_EXECUTION}
+              {LABELS.JOB_EXECUTION}
             </Tab>
           </TabList>
           <Tooltip
@@ -150,7 +150,7 @@ const AppContent: React.FC<AppContentProps> = ({
         {/* Content Area */}
         <main className={styles.content}>
           <div className={styles.tabContent}>
-            {selectedTab === "chat" ? <ChatPanel /> : <TestExecutionPanel />}
+            {selectedTab === "chat" ? <ChatPanel /> : <JobExecutionPanel />}
           </div>
         </main>
       </div>

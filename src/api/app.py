@@ -28,12 +28,14 @@ from src.api.routes import (
     chat_router,
     conversations_router,
     health_router,
+    jobs_router,
     streaming_router,
     workspaces_router,
     set_agent_registry,
     set_chat_conversation_manager,
     set_chat_kernel,
     set_conversation_manager,
+    set_job_store,
     set_job_worker,
     set_orchestrator,
 )
@@ -105,6 +107,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     set_chat_kernel(kernel)
     if job_worker:
         set_job_worker(job_worker)
+    if job_store:
+        set_job_store(job_store)
 
     logger.info("Application initialized successfully")
 
@@ -143,6 +147,7 @@ app.include_router(health_router)
 app.include_router(agents_router)
 app.include_router(chat_router)
 app.include_router(conversations_router)
+app.include_router(jobs_router)
 app.include_router(streaming_router)
 app.include_router(workspaces_router)
 
