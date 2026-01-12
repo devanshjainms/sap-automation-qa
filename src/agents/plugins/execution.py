@@ -262,8 +262,8 @@ class ExecutionPlugin:
 
     @kernel_function(
         name="run_readonly_command",
-        description="Run a read-only diagnostic command (ls, cat, tail, sysctl, df, "
-        + "free, ps, journalctl, etc.) on hosts. Commands that modify state are REJECTED. "
+        description="Run a read-only diagnostic command on hosts via Ansible. "
+        + "Use become=True for commands requiring sudo (pcs status, crm status, etc.). "
         + "SSH key is auto-resolved from workspace.",
     )
     def run_readonly_command(
@@ -271,6 +271,7 @@ class ExecutionPlugin:
         workspace_id: Annotated[str, "Workspace ID"],
         role: Annotated[str, "Host role (db, app, scs, ers, all)"],
         command: Annotated[str, "Read-only command to execute"],
+        become: Annotated[bool, "Use sudo/become for privileged commands (default: False)"] = False,
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
         """Run a validated read-only command on workspace hosts.
 
@@ -335,6 +336,7 @@ class ExecutionPlugin:
                 module="shell",
                 args=command,
                 extra_vars=extra_vars if extra_vars else None,
+                become=become,
             )
 
             finished_at = datetime.utcnow()
