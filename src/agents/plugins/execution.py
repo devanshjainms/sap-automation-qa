@@ -108,9 +108,16 @@ class ExecutionPlugin:
         :param job_id: Existing job ID to update (optional)
         :type job_id: str
         """
+        logger.info(
+            f"_store_command_execution called: job_id={job_id or 'NONE'}, "
+            f"conversation_id={conversation_id or 'NONE'}, workspace_id={workspace_id}, "
+            f"command={command}"
+        )
+        
         try:
 
             if job_id:
+                logger.info(f"Attempting to update existing job: {job_id}")
                 try:
                     job = self.job_store.get_job(UUID(job_id))
                     if job:
@@ -131,6 +138,7 @@ class ExecutionPlugin:
                 except (ValueError, AttributeError) as e:
                     logger.warning(f"Invalid job_id {job_id}: {e}, creating new job")
 
+            logger.info(f"Creating new ad-hoc job: conversation_id={conversation_id or 'NONE'}")
             job = self.job_store.create_job(
                 workspace_id=workspace_id,
                 test_id=f"command:{command.split()[0]}",
