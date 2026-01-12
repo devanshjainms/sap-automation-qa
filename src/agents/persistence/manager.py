@@ -265,6 +265,66 @@ class ConversationManager:
         )
         return conversation
 
+    def update_conversation_context(
+        self,
+        conversation_id: UUID | str,
+        sid: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+    ) -> Optional[Conversation]:
+        """Update the conversation context (SID and workspace).
+
+        This persists the context to the database so it survives across
+        requests handled by different worker processes.
+
+        :param conversation_id: Conversation ID
+        :type conversation_id: UUID | str
+        :param sid: SAP System ID to store
+        :type sid: Optional[str]
+        :param workspace_id: Workspace ID to store
+        :type workspace_id: Optional[str]
+        :returns: Updated conversation or None if not found
+        :rtype: Optional[Conversation]
+        """
+        conversation = self._storage.get_conversation(conversation_id)
+        if not conversation:
+            return None
+
+        if sid is not None:
+            conversation.metadata["resolved_sid"] = sid
+        if workspace_id is not None:
+            conversation.active_workspace_id = workspace_id
+            conversation.metadata["resolved_workspace"] = workspace_id
+
+        self._storage.update_conversation(conversation)
+        logger.debug(
+            "Updated context for conversation %s: SID=%s, workspace=%s",
+            conversation_id,
+            sid,
+            workspace_id,
+        )
+        return conversation
+
+    def get_conversation_context(
+        self,
+        conversation_id: UUID | str,
+    ) -> dict[str, Any]:
+        """Get the persisted context for a conversation.
+
+        :param conversation_id: Conversation ID
+        :type conversation_id: UUID | str
+        :returns: Dict with resolved_sid, resolved_workspace, and any other context
+        :rtype: dict[str, Any]
+        """
+        conversation = self._storage.get_conversation(conversation_id)
+        if not conversation:
+            return {}
+
+        return {
+            "resolved_sid": conversation.metadata.get("resolved_sid"),
+            "resolved_workspace": conversation.active_workspace_id
+            or conversation.metadata.get("resolved_workspace"),
+        }
+
     def add_user_message(
         self,
         conversation_id: UUID | str,

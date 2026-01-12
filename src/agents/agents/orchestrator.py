@@ -8,6 +8,7 @@ and multi-agent coordination with:
 - Domain-aware agent selection
 - Shared context persistence across agent hops
 - Automatic SID/workspace resolution
+- Request-scoped context for plugins (conversation_id, user_id)
 """
 
 from typing import Optional, Any, cast, Callable
@@ -30,6 +31,7 @@ from src.agents.models.chat import ChatRequest, ChatResponse, ChatMessage
 from src.agents.agents.base import AgentRegistry
 from src.agents.models.streaming import emit_thinking_start, emit_thinking_step, emit_thinking_end
 from src.agents.observability import get_logger
+from src.agents.request_context import RequestContext
 from src.agents.prompts import AGENT_SELECTION_PROMPT, TERMINATION_PROMPT
 
 
@@ -92,20 +94,28 @@ class OrchestratorSK:
 
     Features:
     - Domain-aware selection with SAP terminology understanding
-    - Shared context persistence across agent hops
+    - Shared context persistence across agent hops (database-backed)
     - Automatic SID pattern detection
     """
 
-    def __init__(self, registry: AgentRegistry, kernel: Kernel) -> None:
+    def __init__(
+        self,
+        registry: AgentRegistry,
+        kernel: Kernel,
+        conversation_manager: Optional[Any] = None,
+    ) -> None:
         """Initialize orchestrator with agent registry and Semantic Kernel.
 
         :param registry: AgentRegistry containing available agents
         :type registry: AgentRegistry
         :param kernel: Configured Semantic Kernel instance
         :type kernel: Kernel
+        :param conversation_manager: ConversationManager for persistent context
+        :type conversation_manager: Optional[ConversationManager]
         """
         self.registry = registry
         self.kernel = kernel
+        self._conversation_manager = conversation_manager
         self._conversation_contexts: dict[str, ConversationContext] = {}
         self.selection_strategy = self._build_selection_strategy()
         self.termination_strategy = self._build_termination_strategy()
@@ -113,7 +123,8 @@ class OrchestratorSK:
         self._refresh_valid_sids()
 
         logger.info(
-            f"OrchestratorSK initialized with {len(self._valid_sids)} valid SIDs from workspaces"
+            f"OrchestratorSK initialized with {len(self._valid_sids)} valid SIDs, "
+            f"persistence={'enabled' if conversation_manager else 'disabled'}"
         )
 
     def _refresh_valid_sids(self) -> None:
@@ -138,14 +149,53 @@ class OrchestratorSK:
             logger.warning(f"Could not refresh SID cache: {e}")
 
     def _get_or_create_context(self, conversation_id: Optional[str]) -> ConversationContext:
-        """Get or create a conversation context."""
+        """Get or create a conversation context.
+
+        If conversation_manager is available, loads persisted context from
+        the database. Otherwise uses in-memory storage (not reliable with
+        multiple workers).
+        """
         if not conversation_id:
             return ConversationContext()
-
         if conversation_id not in self._conversation_contexts:
             self._conversation_contexts[conversation_id] = ConversationContext()
+            if self._conversation_manager:
+                try:
+                    persisted = self._conversation_manager.get_conversation_context(conversation_id)
+                    if persisted:
+                        ctx = self._conversation_contexts[conversation_id]
+                        if persisted.get("resolved_sid"):
+                            ctx.set("resolved_sid", persisted["resolved_sid"])
+                        if persisted.get("resolved_workspace"):
+                            ctx.set("resolved_workspace", persisted["resolved_workspace"])
+                        logger.info(
+                            f"Loaded persisted context for {conversation_id}: "
+                            f"SID={persisted.get('resolved_sid')}, "
+                            f"workspace={persisted.get('resolved_workspace')}"
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to load persisted context: {e}")
 
         return self._conversation_contexts[conversation_id]
+
+    def _persist_context(
+        self, conversation_id: Optional[str], context: ConversationContext
+    ) -> None:
+        """Persist context to database if conversation_manager is available."""
+        if not conversation_id or not self._conversation_manager:
+            return
+
+        try:
+            sid = context.get("resolved_sid")
+            workspace = context.get("resolved_workspace")
+            if sid or workspace:
+                self._conversation_manager.update_conversation_context(
+                    conversation_id=conversation_id,
+                    sid=sid,
+                    workspace_id=workspace,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to persist context: {e}")
 
     def _detect_sid_in_message(self, message: str) -> Optional[str]:
         """Detect if the message contains a valid SID from known workspaces.
@@ -308,6 +358,9 @@ class OrchestratorSK:
     ) -> ChatResponse:
         """Route chat request to appropriate agents and return response.
 
+        Sets RequestContext so plugins can access conversation_id, user_id, etc.
+        without parameter injection.
+
         :param request: ChatRequest with conversation history
         :type request: ChatRequest
         :param context: Optional metadata for agent execution
@@ -317,6 +370,14 @@ class OrchestratorSK:
         """
         await emit_thinking_start()
         conversation_id = context.get("conversation_id") if context else None
+        user_id = context.get("user_id") if context else None
+        correlation_id = request.correlation_id if hasattr(request, "correlation_id") else None
+        RequestContext.set(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            correlation_id=correlation_id,
+        )
+
         conv_context = self._get_or_create_context(conversation_id)
         latest_user_msg = ""
         for msg in reversed(request.messages):
@@ -339,6 +400,9 @@ class OrchestratorSK:
 
         preserved_sid = conv_context.get("resolved_sid")
         preserved_workspace = conv_context.get("resolved_workspace")
+        if preserved_sid or preserved_workspace:
+            RequestContext.update(sid=preserved_sid, workspace_id=preserved_workspace)
+
         logger.info(f"Context state - SID: {preserved_sid}, Workspace: {preserved_workspace}")
 
         agent_chain: list[str] = []
@@ -405,6 +469,8 @@ class OrchestratorSK:
 
             await asyncio.sleep(0.1)
         finally:
+            self._persist_context(conversation_id, conv_context)
+            RequestContext.clear()
             await emit_thinking_end()
 
         return ChatResponse(

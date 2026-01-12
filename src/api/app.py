@@ -58,16 +58,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             extra={"error": str(e)},
         )
 
+    db_path = Path("data/sap_qa.db")
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conversation_manager = ConversationManager(db_path=db_path)
+
     agent_registry = None
     orchestrator = None
     if kernel is not None:
         agent_registry = create_default_agent_registry(kernel=kernel)
-        orchestrator = OrchestratorSK(registry=agent_registry, kernel=kernel)
-
-    db_path = Path("data/sap_qa.db")
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    conversation_manager = ConversationManager(db_path=db_path)
+        orchestrator = OrchestratorSK(
+            registry=agent_registry,
+            kernel=kernel,
+            conversation_manager=conversation_manager,
+        )
 
     from src.agents.agents.action_executor_agent import ActionExecutorAgent
 

@@ -25,6 +25,7 @@ from src.agents.constants import TEST_GROUP_PLAYBOOKS, LOG_WHITELIST
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.ansible_runner import AnsibleRunner
 from src.agents.plugins.command_validator import validate_readonly_command
+from src.agents.request_context import RequestContext
 from src.agents.models.execution import ExecutionResult
 from src.agents.execution.store import JobStore
 from src.agents.observability import get_logger
@@ -84,6 +85,18 @@ class ExecutionPlugin:
         logger.warning("WorkspacePlugin not available")
         return {}
 
+    def _get_conversation_id(self, provided_id: str = "") -> Optional[str]:
+        """Get conversation ID from provided parameter or RequestContext.
+
+        :param provided_id: Explicitly provided conversation ID
+        :type provided_id: str
+        :returns: Conversation ID or None
+        :rtype: Optional[str]
+        """
+        if provided_id:
+            return provided_id
+        return RequestContext.get_conversation_id()
+
     def _store_command_execution(
         self,
         workspace_id: str,
@@ -101,16 +114,18 @@ class ExecutionPlugin:
         :type role: str
         :param command: Command executed
         :type command: str
-        :param conversation_id: Conversation ID
+        :param conversation_id: Conversation ID (falls back to RequestContext)
         :type conversation_id: str
         :param result: Execution result
         :type result: Optional[ExecutionResult]
         :param job_id: Existing job ID to update (optional)
         :type job_id: str
         """
+        resolved_conversation_id = self._get_conversation_id(conversation_id)
+
         logger.info(
             f"_store_command_execution called: job_id={job_id or 'NONE'}, "
-            f"conversation_id={conversation_id or 'NONE'}, workspace_id={workspace_id}, "
+            f"conversation_id={resolved_conversation_id or 'NONE'}, workspace_id={workspace_id}, "
             f"command={command}"
         )
 
@@ -129,7 +144,7 @@ class ExecutionPlugin:
                         job.started_at = job.started_at or datetime.utcnow()
                         job.completed_at = datetime.utcnow()
                         if result:
-                            job.result = result.model_dump(mode='json')
+                            job.result = result.model_dump(mode="json")
 
                         self.job_store.update_job(job)
                         logger.info(f"Updated job {job_id} with execution result")
@@ -137,14 +152,16 @@ class ExecutionPlugin:
                 except (ValueError, AttributeError) as e:
                     logger.warning(f"Invalid job_id {job_id}: {e}, creating new job")
 
-            logger.info(f"Creating new ad-hoc job: conversation_id={conversation_id or 'NONE'}")
+            logger.info(
+                f"Creating new ad-hoc job: conversation_id={resolved_conversation_id or 'NONE'}"
+            )
             job = self.job_store.create_job(
                 workspace_id=workspace_id,
                 test_id=f"command:{command.split()[0]}",
                 test_group="adhoc_command",
                 test_ids=[],
-                conversation_id=conversation_id or None,
-                user_id=None,
+                conversation_id=resolved_conversation_id,
+                user_id=RequestContext.get_user_id(),
                 metadata={
                     "command": command,
                     "role": role,
@@ -157,7 +174,7 @@ class ExecutionPlugin:
             job.started_at = datetime.utcnow()
             job.completed_at = datetime.utcnow()
             if result:
-                job.result = result.model_dump(mode='json')
+                job.result = result.model_dump(mode="json")
             self.job_store.update_job(job)
 
             logger.info(
@@ -367,12 +384,12 @@ class ExecutionPlugin:
         role: Annotated[str, "Host role (db, app, scs, ers, all)"],
         command: Annotated[str, "Read-only command to execute"],
         become: Annotated[bool, "Use sudo/become for privileged commands (default: False)"] = False,
-        conversation_id: Annotated[str, "Conversation ID (auto-injected)"] = "",
         job_id: Annotated[str, "Optional job ID to update (for tracking)"] = "",
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
         """Run a validated read-only command on workspace hosts.
 
         SSH key is automatically resolved from workspace context.
+        Conversation ID is obtained from RequestContext (set by orchestrator).
 
         :param workspace_id: Workspace identifier
         :type workspace_id: str
@@ -380,6 +397,10 @@ class ExecutionPlugin:
         :type role: str
         :param command: Command to execute (will be validated)
         :type command: str
+        :param become: Use sudo for privileged commands
+        :type become: bool
+        :param job_id: Optional job ID for tracking
+        :type job_id: str
         :returns: JSON string with ExecutionResult
         :rtype: str
         """
@@ -471,7 +492,6 @@ class ExecutionPlugin:
                 workspace_id=workspace_id,
                 role=role,
                 command=command,
-                conversation_id=conversation_id,
                 result=exec_result,
                 job_id=job_id,
             )
@@ -495,7 +515,6 @@ class ExecutionPlugin:
                 workspace_id=workspace_id,
                 role=role,
                 command=command,
-                conversation_id=conversation_id,
                 result=exec_result,
                 job_id=job_id,
             )
@@ -565,14 +584,13 @@ class ExecutionPlugin:
     )
     def get_recent_executions(
         self,
-        conversation_id: Annotated[str, "Conversation ID (auto-injected)"] = "",
         workspace_id: Annotated[str, "Optional: Filter by workspace"] = "",
         limit: Annotated[int, "Max results to return"] = 10,
     ) -> Annotated[str, "JSON list of recent executions"]:
         """Query recent executions from database.
 
-        :param conversation_id: Conversation ID
-        :type conversation_id: str
+        Uses RequestContext to get conversation_id automatically - no parameter injection needed.
+
         :param workspace_id: Optional workspace filter
         :type workspace_id: str
         :param limit: Max results
@@ -581,6 +599,7 @@ class ExecutionPlugin:
         :rtype: str
         """
         try:
+            conversation_id = RequestContext.get_conversation_id()
             logger.info(
                 f"get_recent_executions called: conversation_id={conversation_id or 'NONE'}, "
                 f"workspace_id={workspace_id or 'NONE'}, limit={limit}"
@@ -617,4 +636,51 @@ class ExecutionPlugin:
 
         except Exception as e:
             logger.error(f"Error querying executions: {e}")
+            return json.dumps({"error": str(e)})
+
+    @kernel_function(
+        name="get_job_output",
+        description=(
+            "Get the full output/result of a specific job by its ID. "
+            "Use this when the user asks 'show me the output' or 'what was the result' "
+            "of a command that was already executed. Requires the job_id from get_recent_executions."
+        ),
+    )
+    def get_job_output(
+        self,
+        job_id: Annotated[str, "The job ID to retrieve output for"],
+    ) -> Annotated[str, "JSON with job details and output"]:
+        """Get full output for a specific job.
+
+        :param job_id: Job ID to retrieve
+        :type job_id: str
+        :returns: JSON with job details including stdout/result
+        :rtype: str
+        """
+        try:
+            job = self.job_store.get_job(UUID(job_id))
+            if not job:
+                return json.dumps({"error": f"Job {job_id} not found"})
+
+            result = {
+                "job_id": str(job.id),
+                "workspace_id": job.workspace_id,
+                "test_id": job.test_id,
+                "status": job.status.value,
+                "created_at": job.created_at.isoformat(),
+                "started_at": job.started_at.isoformat() if job.started_at else None,
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                "metadata": job.metadata,
+            }
+            if job.result:
+                result["output"] = job.result
+
+            if job.error_message:
+                result["error_message"] = job.error_message
+
+            logger.info(f"Retrieved job output for {job_id}")
+            return json.dumps(result, indent=2, default=str)
+
+        except Exception as e:
+            logger.error(f"Error getting job output: {e}")
             return json.dumps({"error": str(e)})

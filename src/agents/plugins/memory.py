@@ -25,6 +25,7 @@ from datetime import datetime
 from typing import Annotated, Optional, Dict, Any, TYPE_CHECKING
 from semantic_kernel.functions import kernel_function
 from src.agents.observability import get_logger
+from src.agents.request_context import RequestContext
 
 logger = get_logger(__name__)
 
@@ -85,6 +86,10 @@ class MemoryPlugin:
         self._memories: Dict[str, ConversationMemory] = {}
         logger.info("MemoryPlugin initialized")
 
+    def _get_conversation_id(self) -> str:
+        """Get conversation ID from RequestContext or use default."""
+        return RequestContext.get_conversation_id() or "_default_"
+
     def _get_memory(self, conversation_id: str) -> ConversationMemory:
         """Get or create memory store for a conversation."""
         if conversation_id not in self._memories:
@@ -106,9 +111,10 @@ class MemoryPlugin:
         category: Annotated[
             str, "Category: 'connection', 'system', 'workspace', 'execution', or 'general'"
         ] = "general",
-        conversation_id: Annotated[str, "Conversation ID (injected by system)"] = "",
     ) -> Annotated[str, "JSON confirmation of stored memory"]:
         """Store a fact in conversation memory.
+
+        Conversation ID is obtained from RequestContext (set by orchestrator).
 
         :param key: Short descriptive key for the fact
         :type key: str
@@ -116,12 +122,11 @@ class MemoryPlugin:
         :type value: str
         :param category: Category for organization
         :type category: str
-        :param conversation_id: Conversation ID (injected)
-        :type conversation_id: str
         :returns: JSON confirmation
         :rtype: str
         """
-        memory = self._get_memory(conversation_id or "_default_")
+        conversation_id = self._get_conversation_id()
+        memory = self._get_memory(conversation_id)
         memory.store(key, value, category)
 
         logger.info(f"Memory stored: {key}={value[:50]}... (category={category})")
@@ -144,18 +149,18 @@ class MemoryPlugin:
     def recall(
         self,
         key: Annotated[str, "The key to look up (e.g., 'ssh_key_path')"],
-        conversation_id: Annotated[str, "Conversation ID (injected by system)"] = "",
     ) -> Annotated[str, "JSON with the retrieved value or error"]:
         """Retrieve a fact from conversation memory.
 
+        Conversation ID is obtained from RequestContext (set by orchestrator).
+
         :param key: Key to look up
         :type key: str
-        :param conversation_id: Conversation ID (injected)
-        :type conversation_id: str
         :returns: JSON with value or error
         :rtype: str
         """
-        memory = self._get_memory(conversation_id or "_default_")
+        conversation_id = self._get_conversation_id()
+        memory = self._get_memory(conversation_id)
         result = memory.retrieve(key)
 
         if result:
@@ -188,18 +193,18 @@ class MemoryPlugin:
             str,
             "Optional category filter ('connection', 'system', 'workspace', 'execution', 'general', or empty for all)",
         ] = "",
-        conversation_id: Annotated[str, "Conversation ID (injected by system)"] = "",
     ) -> Annotated[str, "JSON with all stored memories"]:
         """List all stored memories.
 
+        Conversation ID is obtained from RequestContext (set by orchestrator).
+
         :param category: Optional category filter
         :type category: str
-        :param conversation_id: Conversation ID (injected)
-        :type conversation_id: str
         :returns: JSON with memories
         :rtype: str
         """
-        memory = self._get_memory(conversation_id or "_default_")
+        conversation_id = self._get_conversation_id()
+        memory = self._get_memory(conversation_id)
 
         if category:
             memories = memory.list_by_category(category)
@@ -231,18 +236,18 @@ class MemoryPlugin:
     def forget(
         self,
         key: Annotated[str, "The key to forget"],
-        conversation_id: Annotated[str, "Conversation ID (injected by system)"] = "",
     ) -> Annotated[str, "JSON confirmation"]:
         """Remove a fact from memory.
 
+        Conversation ID is obtained from RequestContext (set by orchestrator).
+
         :param key: Key to remove
         :type key: str
-        :param conversation_id: Conversation ID (injected)
-        :type conversation_id: str
         :returns: JSON confirmation
         :rtype: str
         """
-        memory = self._get_memory(conversation_id or "_default_")
+        conversation_id = self._get_conversation_id()
+        memory = self._get_memory(conversation_id)
         removed = memory.forget(key)
 
         if removed:
