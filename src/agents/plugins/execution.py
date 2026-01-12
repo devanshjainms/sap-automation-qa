@@ -113,9 +113,8 @@ class ExecutionPlugin:
             f"conversation_id={conversation_id or 'NONE'}, workspace_id={workspace_id}, "
             f"command={command}"
         )
-        
-        try:
 
+        try:
             if job_id:
                 logger.info(f"Attempting to update existing job: {job_id}")
                 try:
@@ -492,6 +491,14 @@ class ExecutionPlugin:
                 error_message=str(e),
                 details={"exception": str(e), "command": command},
             )
+            self._store_command_execution(
+                workspace_id=workspace_id,
+                role=role,
+                command=command,
+                conversation_id=conversation_id,
+                result=exec_result,
+                job_id=job_id,
+            )
 
             return json.dumps(exec_result.model_dump(), default=str, indent=2)
 
@@ -578,7 +585,7 @@ class ExecutionPlugin:
                 f"get_recent_executions called: conversation_id={conversation_id or 'NONE'}, "
                 f"workspace_id={workspace_id or 'NONE'}, limit={limit}"
             )
-            
+
             if conversation_id:
                 jobs = self.job_store.get_jobs_for_conversation(conversation_id, limit=limit)
                 logger.info(f"Found {len(jobs)} jobs for conversation {conversation_id}")
