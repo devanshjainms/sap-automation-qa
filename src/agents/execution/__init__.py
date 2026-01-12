@@ -15,7 +15,6 @@ This package provides:
 from src.agents.models.job import ExecutionJob, JobStatus, JobEvent, JobEventType
 from src.agents.models.execution import GuardReason, GuardResult
 from src.agents.execution.store import JobStore
-from src.agents.execution.worker import JobWorker
 from src.agents.execution.exceptions import (
     ExecutionError,
     WorkspaceLockError,
@@ -33,7 +32,6 @@ __all__ = [
     "JobEvent",
     "JobEventType",
     "JobStore",
-    "JobWorker",
     "ExecutionError",
     "WorkspaceLockError",
     "JobNotFoundError",

@@ -20,7 +20,8 @@ from src.agents.observability import (
     add_observability_middleware,
 )
 from src.agents.persistence import ConversationManager
-from src.agents.execution import JobStore, JobWorker
+from src.agents.execution import JobStore
+from src.agents.execution.worker import JobWorker
 from src.api.routes import (
     agents_router,
     chat_router,
