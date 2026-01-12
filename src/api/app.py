@@ -86,11 +86,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         object.__setattr__(action_executor, "job_store", job_store)
         object.__setattr__(action_executor, "job_worker", job_worker)
         object.__setattr__(action_executor, "_async_enabled", True)
-        # guard_layer may be a normal object; set its job_store safely
         try:
             object.__setattr__(action_executor.guard_layer, "job_store", job_store)
         except Exception:
-            # Fallback to direct assignment if guard_layer is not pydantic-managed
             action_executor.guard_layer.job_store = job_store
     else:
         logger.warning("Action executor not found - async job execution disabled")

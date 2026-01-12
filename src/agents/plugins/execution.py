@@ -566,14 +566,22 @@ class ExecutionPlugin:
         :rtype: str
         """
         try:
+            logger.info(
+                f"get_recent_executions called: conversation_id={conversation_id or 'NONE'}, "
+                f"workspace_id={workspace_id or 'NONE'}, limit={limit}"
+            )
+            
             if conversation_id:
                 jobs = self.job_store.get_jobs_for_conversation(conversation_id, limit=limit)
+                logger.info(f"Found {len(jobs)} jobs for conversation {conversation_id}")
                 if workspace_id:
                     jobs = [j for j in jobs if j.workspace_id == workspace_id]
+                    logger.info(f"After workspace filter: {len(jobs)} jobs")
             else:
                 jobs = self.job_store.get_job_history(
                     user_id=None, workspace_id=workspace_id or None, limit=limit
                 )
+                logger.info(f"Found {len(jobs)} jobs from history (no conversation_id)")
 
             results = []
             for job in jobs:
