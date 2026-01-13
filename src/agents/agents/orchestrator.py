@@ -26,6 +26,7 @@ from semantic_kernel.contents import ChatHistory, AuthorRole, ChatMessageContent
 from semantic_kernel.functions import KernelFunction
 from semantic_kernel.functions.kernel_function_from_prompt import KernelFunctionFromPrompt
 from semantic_kernel.prompt_template import PromptTemplateConfig, InputVariable
+from semantic_kernel.exceptions import FunctionExecutionException
 
 from src.agents.models.chat import ChatRequest, ChatResponse, ChatMessage
 from src.agents.agents.base import AgentRegistry
@@ -37,6 +38,33 @@ from src.agents.prompts import AGENT_SELECTION_PROMPT, TERMINATION_PROMPT
 
 
 logger = get_logger(__name__)
+
+
+class SafeTerminationStrategy(KernelFunctionTerminationStrategy):
+    """Termination strategy with error handling for content filter issues.
+
+    If the termination check fails (e.g., content filter), defaults to
+    terminating to show partial results rather than crashing.
+    """
+
+    async def should_agent_terminate(
+        self,
+        agent,
+        history: list[ChatMessageContent],
+    ) -> bool:
+        """Check if agent should terminate, with error handling."""
+        try:
+            return await super().should_agent_terminate(agent, history)
+        except FunctionExecutionException as e:
+            if "content" in str(e).lower() or "filter" in str(e).lower():
+                logger.warning(
+                    f"Content filter triggered in termination check, defaulting to terminate: {e}"
+                )
+                return True
+            raise
+        except Exception as e:
+            logger.error(f"Termination check failed, defaulting to terminate: {e}")
+            return True
 
 
 class ConversationContext:
@@ -277,7 +305,7 @@ class OrchestratorSK:
 
             return should_terminate
 
-        return KernelFunctionTerminationStrategy(
+        return SafeTerminationStrategy(
             kernel=self.kernel,
             function=termination_function,
             result_parser=_parse_termination_result,
@@ -337,7 +365,19 @@ class OrchestratorSK:
                 return "system_context"
             if any(word in content for word in ["test", "recommend", "plan"]):
                 return "test_advisor"
-            if any(word in content for word in ["execute", "run", "ssh", "command", "investigate", "diagnose", "check", "analyze"]):
+            if any(
+                word in content
+                for word in [
+                    "execute",
+                    "run",
+                    "ssh",
+                    "command",
+                    "investigate",
+                    "diagnose",
+                    "check",
+                    "analyze",
+                ]
+            ):
                 return "action_executor"
 
             logger.warning(f"Could not parse selection result: '{content}', defaulting to echo")
