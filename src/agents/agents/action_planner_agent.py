@@ -33,6 +33,11 @@ logger = get_logger(__name__)
 
 
 class ActionPlannerAgentSK(SAPAutomationAgent):
+    """Action Planner agent using Semantic Kernel.
+    
+    Plans test/diagnostic operations without executing.
+    Investigation is AI-driven via ExecutionPlugin tools.
+    """
     """Plans work as an ActionPlan (jobs).
 
     This agent uses SK's native function calling to create action plans,
