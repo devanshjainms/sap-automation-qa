@@ -17,7 +17,7 @@ import logging
 import yaml
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Optional, TYPE_CHECKING
+from typing import Annotated, Optional, TYPE_CHECKING, Union, Any
 from uuid import UUID
 from semantic_kernel.functions import kernel_function
 
@@ -394,7 +394,9 @@ class ExecutionPlugin:
 
     @kernel_function(
         name="run_readonly_command",
-        description="Run a read-only diagnostic command on hosts via Ansible. "
+        description="Run read-only diagnostic command(s) on hosts via Ansible. "
+        + "Accepts single command (str) or multiple commands (list[str]). Multiple commands "
+        + "run sequentially in a single Ansible execution to reduce connection overhead. "
         + "Use become=True for commands requiring sudo (pcs status, crm status, etc.). "
         + "SSH key is auto-resolved from workspace.",
     )
@@ -402,11 +404,13 @@ class ExecutionPlugin:
         self,
         workspace_id: Annotated[str, "Workspace ID"],
         role: Annotated[str, "Host role (db, app, scs, ers, all)"],
-        command: Annotated[str, "Read-only command to execute"],
+        command: Annotated[
+            Union[str, list[str]], "Command or list of commands to execute sequentially"
+        ],
         become: Annotated[bool, "Use sudo/become for privileged commands (default: False)"] = False,
         job_id: Annotated[str, "Optional job ID to update (for tracking)"] = "",
     ) -> Annotated[str, "JSON string with ExecutionResult"]:
-        """Run a validated read-only command on workspace hosts.
+        """Run validated read-only command(s) on workspace hosts.
 
         SSH key is automatically resolved from workspace context.
         Conversation ID is obtained from RequestContext (set by orchestrator).
@@ -415,8 +419,8 @@ class ExecutionPlugin:
         :type workspace_id: str
         :param role: Host role to target
         :type role: str
-        :param command: Command to execute (will be validated)
-        :type command: str
+        :param command: Command or list of commands to execute (will be validated)
+        :type command: Union[str, list[str]]
         :param become: Use sudo for privileged commands
         :type become: bool
         :param job_id: Optional job ID for tracking
@@ -425,23 +429,26 @@ class ExecutionPlugin:
         :rtype: str
         """
         started_at = datetime.utcnow()
+        commands = command if isinstance(command, list) else [command]
+        is_multiple = isinstance(command, list)
 
         try:
-            try:
-                validate_readonly_command(command)
-            except ValueError as e:
-                logger.warning(f"Command validation failed: {e}")
-                exec_result = ExecutionResult(
-                    workspace_id=workspace_id,
-                    action_type="command",
-                    status="skipped",
-                    started_at=started_at,
-                    finished_at=datetime.utcnow(),
-                    hosts=[],
-                    error_message=f"Command rejected by safety validation: {e}",
-                    details={"validation_error": str(e), "command": command},
-                )
-                return json.dumps(exec_result.model_dump(), default=str, indent=2)
+            for cmd in commands:
+                try:
+                    validate_readonly_command(cmd)
+                except ValueError as e:
+                    logger.warning(f"Command validation failed: {e}")
+                    exec_result = ExecutionResult(
+                        workspace_id=workspace_id,
+                        action_type="command",
+                        status="skipped",
+                        started_at=started_at,
+                        finished_at=datetime.utcnow(),
+                        hosts=[],
+                        error_message=f"Command rejected by safety validation: {e}",
+                        details={"validation_error": str(e), "command": cmd},
+                    )
+                    return json.dumps(exec_result.model_dump(), default=str, indent=2)
             ctx = self._get_execution_context(workspace_id)
             if "error" in ctx:
                 return json.dumps(ctx)
@@ -455,10 +462,9 @@ class ExecutionPlugin:
 
             host_pattern = self._map_role_to_inventory_group(role, workspace.sid)
             logger.info(
-                f"Running validated read-only command on {role} hosts "
-                f"(pattern: {host_pattern}): {command}"
+                f"Running {len(commands)} command(s) on {role} hosts (pattern: {host_pattern})"
             )
-            extra_vars: dict[str, str] = {}
+            extra_vars: dict[str, Any] = {}
             if ctx.get("ssh_key_path"):
                 extra_vars["ansible_ssh_private_key_file"] = ctx["ssh_key_path"]
                 logger.info(f"SSH key from workspace context: {ctx['ssh_key_path']}")
@@ -467,15 +473,26 @@ class ExecutionPlugin:
                     f"No SSH key found in workspace context for {workspace_id}, "
                     "using Ansible defaults"
                 )
-
-            result = self.ansible.run_ad_hoc(
-                inventory=inventory_path,
-                host_pattern=host_pattern,
-                module="shell",
-                args=command,
-                extra_vars=extra_vars if extra_vars else None,
-                become=become,
-            )
+            if is_multiple:
+                result = self.ansible.run_ad_hoc(
+                    inventory=inventory_path,
+                    host_pattern=host_pattern,
+                    module="shell",
+                    args="{{ item }}",
+                    extra_vars=extra_vars,
+                    become=become,
+                    loop_var="item",
+                    loop_items=commands,
+                )
+            else:
+                result = self.ansible.run_ad_hoc(
+                    inventory=inventory_path,
+                    host_pattern=host_pattern,
+                    module="shell",
+                    args=commands[0],
+                    extra_vars=extra_vars if extra_vars else None,
+                    become=become,
+                )
 
             finished_at = datetime.utcnow()
             if result["rc"] == 0:
@@ -504,18 +521,20 @@ class ExecutionPlugin:
                 error_message=error_message,
                 details={
                     "return_code": result["rc"],
-                    "command": command,
+                    "command": commands[0] if len(commands) == 1 else f"{len(commands)} commands",
+                    "commands": commands if len(commands) > 1 else None,
                     "role": role,
                     "host_pattern": host_pattern,
                     "full_stdout_length": len(result["stdout"]) if result["stdout"] else 0,
                 },
             )
 
-            logger.info(f"Read-only command completed with status: {status}")
+            logger.info(f"Command execution completed with status: {status}")
+            command_str = json.dumps(commands) if is_multiple else commands[0]
             self._store_command_execution(
                 workspace_id=workspace_id,
                 role=role,
-                command=command,
+                command=command_str,
                 result=exec_result,
                 job_id=job_id,
                 target_node=primary_target,
@@ -529,6 +548,7 @@ class ExecutionPlugin:
         except Exception as e:
             logger.error(f"Error running command: {e}")
 
+            command_str = json.dumps(commands) if is_multiple else commands[0]
             exec_result = ExecutionResult(
                 workspace_id=workspace_id,
                 action_type="command",
@@ -537,12 +557,16 @@ class ExecutionPlugin:
                 finished_at=datetime.utcnow(),
                 hosts=[],
                 error_message=str(e),
-                details={"exception": str(e), "command": command},
+                details={
+                    "exception": str(e),
+                    "command": command_str,
+                    "commands": commands if len(commands) > 1 else None,
+                },
             )
             self._store_command_execution(
                 workspace_id=workspace_id,
                 role=role,
-                command=command,
+                command=command_str,
                 result=exec_result,
                 job_id=job_id,
                 target_node=role,
@@ -652,7 +676,7 @@ class ExecutionPlugin:
                 command = ""
                 if job.test_id:
                     command = job.test_id.split(":", 1)[1] if ":" in job.test_id else job.test_id
-                
+
                 result_summary = None
                 if job.result and isinstance(job.result, dict):
                     result_summary = {

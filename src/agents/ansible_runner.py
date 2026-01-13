@@ -112,6 +112,8 @@ class AnsibleRunner:
         args: str,
         extra_vars: Optional[dict[str, Any]] = None,
         become: bool = False,
+        loop_var: Optional[str] = None,
+        loop_items: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Execute ansible ad-hoc command for diagnostics.
 
@@ -121,10 +123,14 @@ class AnsibleRunner:
         :type host_pattern: str
         :param module: Ansible module to use (e.g., 'shell', 'command', 'setup')
         :type module: str
-        :param args: Module arguments (e.g., command to execute)
+        :param args: Module arguments (e.g., command to execute, or '{{ item }}' for loops)
         :type args: str
         :param become: Whether to use privilege escalation (sudo)
         :type become: bool
+        :param loop_var: Loop variable name (e.g., 'item') for batch execution
+        :type loop_var: Optional[str]
+        :param loop_items: List of values to loop over (for batch command execution)
+        :type loop_items: Optional[list[str]]
         :returns: Dict containing rc, stdout, stderr, command, results
         :rtype: dict[str, Any]
         """
@@ -139,8 +145,13 @@ class AnsibleRunner:
             args,
         ]
 
-        if extra_vars:
-            cmd.extend(["--extra-vars", json.dumps(extra_vars)])
+        vars_to_pass = extra_vars.copy() if extra_vars else {}
+        if loop_items:
+            vars_to_pass[loop_var or "item"] = loop_items
+            logger.info(f"Running {len(loop_items)} commands sequentially in single execution")
+
+        if vars_to_pass:
+            cmd.extend(["--extra-vars", json.dumps(vars_to_pass)])
 
         if become:
             cmd.append("--become")

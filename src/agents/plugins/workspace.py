@@ -7,6 +7,7 @@ Philosophy: Provide simple read/write tools + examples. Let LLM reason about
 structure, validation, and workflow. Don't encode business rules in code.
 """
 
+import yaml
 import json
 from pathlib import Path
 from typing import Annotated
@@ -15,6 +16,7 @@ from semantic_kernel.functions import kernel_function
 
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.observability import get_logger
+from src.agents.workspace_cache import WorkspaceCacheManager
 
 logger = get_logger(__name__)
 
@@ -392,12 +394,14 @@ class WorkspacePlugin:
         - hosts: Parsed hosts.yaml content
         - workspace_path: Absolute path to workspace directory
 
-        This eliminates the need for ExecutionPlugin to:
-        - Load hosts.yaml separately
-        - Load sap-parameters.yaml separately
-        - Discover SSH keys separately
+        Uses WorkspaceCache to avoid repeated file reads within the same conversation.
         """
-        import yaml
+        cache = WorkspaceCacheManager.get()
+        if cache and not cache.is_expired():
+            cached_context = cache.get_execution_context()
+            if cached_context and cached_context.get("workspace_id") == workspace_id:
+                logger.info(f"✓ Using cached execution context for {workspace_id}")
+                return json.dumps(cached_context, indent=2)
 
         if not self.store.workspace_exists(workspace_id):
             return json.dumps({"error": "Workspace not found", "workspace_id": workspace_id})
@@ -405,7 +409,6 @@ class WorkspacePlugin:
         workspace_path = self.store.get_workspace_path(workspace_id)
         files = self.store.list_files(workspace_id)
 
-        # Build result
         result = {
             "workspace_id": workspace_id,
             "workspace_path": str(workspace_path),
@@ -459,5 +462,8 @@ class WorkspacePlugin:
             f"Execution context for {workspace_id}: ready={result['ready']}, "
             f"missing={result['missing']}"
         )
+
+        if cache:
+            cache.set_execution_context(result)
 
         return json.dumps(result, indent=2)

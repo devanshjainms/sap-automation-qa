@@ -11,6 +11,7 @@ from typing import Annotated, Dict, List, Optional, Any
 from semantic_kernel.functions import kernel_function
 
 from src.agents.observability import get_logger
+from src.agents.workspace_cache import WorkspaceCacheManager
 
 logger = get_logger(__name__)
 
@@ -152,8 +153,27 @@ class GlossaryPlugin:
             "Comma-separated list of available workspaces (from list_workspaces tool)",
         ],
     ) -> Annotated[str, "JSON with resolved workspace or suggestions"]:
-        """Resolve an ambiguous user reference to a concrete workspace."""
+        """Resolve an ambiguous user reference to a concrete workspace.
+
+        Uses WorkspaceCache to avoid repeated resolution within same conversation.
+        """
         reference = reference.strip().upper()
+        cache = WorkspaceCacheManager.get()
+        if cache and not cache.is_expired():
+            cached_workspace = cache.get_workspace_id()
+            cached_sid = cache.resolved_sid
+            if cached_sid == reference and cached_workspace:
+                logger.info(f"Using cached workspace resolution: {reference} → {cached_workspace}")
+                return json.dumps(
+                    {
+                        "reference": reference,
+                        "resolved": True,
+                        "workspace": cached_workspace,
+                        "message": f"'{reference}' resolved to workspace '{cached_workspace}' (cached)",
+                        "cached": True,
+                    }
+                )
+
         workspaces = [w.strip() for w in available_workspaces.split(",")]
 
         matches = []
@@ -166,6 +186,9 @@ class GlossaryPlugin:
                 matches.append(ws)
 
         if len(matches) == 1:
+            if cache:
+                cache.set_workspace(workspace_id=matches[0], sid=reference)
+
             return json.dumps(
                 {
                     "reference": reference,
