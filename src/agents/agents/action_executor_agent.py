@@ -21,7 +21,7 @@ from src.agents.plugins.execution import ExecutionPlugin
 from src.agents.plugins.workspace import WorkspacePlugin
 from src.agents.plugins.ssh import SSHPlugin
 from src.agents.plugins.job_management import JobManagementPlugin
-from src.agents.plugins.investigation_metadata import InvestigationMetadataPlugin
+from src.agents.plugins.troubleshooting import TroubleshootingPlugin
 from src.agents.execution import GuardLayer
 from src.agents.observability import get_logger
 from src.agents.prompts import ACTION_EXECUTOR_SYSTEM_PROMPT
@@ -78,7 +78,10 @@ class ActionExecutorAgent(SAPAutomationAgent):
             WorkspacePlugin(workspace_store),
             SSHPlugin(),
             JobManagementPlugin(job_store=job_store),
-            InvestigationMetadataPlugin(workspace_store=workspace_store),
+            TroubleshootingPlugin(
+                workspace_store=workspace_store,
+                execution_plugin=execution_plugin,
+            ),
         ]
         if getattr(execution_plugin, "keyvault_plugin", None) is not None:
             plugins.append(execution_plugin.keyvault_plugin)

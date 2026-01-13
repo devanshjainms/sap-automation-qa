@@ -2,10 +2,16 @@
 # Licensed under the MIT License.
 
 """
-Investigation Metadata Plugin for SAP QA Framework.
+Troubleshooting Plugin for SAP QA Framework.
 
-Provides metadata-driven investigation capabilities by extracting knowledge
-from existing Ansible check definitions and SAP HA best practices constants.
+Provides complete troubleshooting capabilities including:
+- Autonomous investigation of cluster issues
+- Metadata-driven investigation guidance
+- Log analysis and correlation
+- Configuration validation
+- Remediation suggestions
+
+Uses ExecutionPlugin for data collection (commands, logs).
 """
 
 import json
@@ -13,7 +19,7 @@ import os
 import re
 import yaml
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING, Annotated
 
 from semantic_kernel.functions import kernel_function
 
@@ -21,36 +27,43 @@ from src.agents.workspace.workspace_store import WorkspaceStore
 from src.module_utils.enums import Check
 from src.agents.observability import get_logger
 
+if TYPE_CHECKING:
+    from src.agents.plugins.execution import ExecutionPlugin
+
 logger = get_logger(__name__)
 
 
-class InvestigationMetadataPlugin:
+class TroubleshootingPlugin:
     """
-    Semantic Kernel plugin for metadata-driven SAP HA investigation.
+    Semantic Kernel plugin for SAP HA troubleshooting.
 
-    Extracts metadata from Ansible check definitions and SAP HA constants
-    to provide intelligent investigation guidance without hardcoded commands.
+    Provides complete troubleshooting workflows including autonomous investigation,
+    metadata-driven guidance, and remediation suggestions.
 
-    Public Methods (reusable by other modules):
-        - parse_check_files(): Extract metadata from Ansible YAML checks
-        - parse_constants_yaml(): Parse SAP HA best practice constants
-        - load_investigation_patterns(): Load hints-based patterns
-        - match_problem_to_patterns(): Match problem description to patterns
+    High-Level Tools (autonomous operations):
+        - investigate_cluster_issue(): Complete investigation with root cause
+        - run_health_check(): Proactive diagnostics
 
-    Kernel Functions (agent interface):
-        - list_available_checks(): List all available check capabilities
-        - suggest_relevant_checks(): Suggest checks for a problem
-        - get_expected_configuration(): Get expected SAP HA config
-        - get_baseline_health_status(): Get cached baseline or recommend checks
+    Metadata Functions (guidance):
+        - suggest_relevant_checks(): Pattern-based check recommendations
+        - get_expected_configuration(): SAP HA best practices
+        - list_available_checks(): Available check capabilities
+
+    Requires ExecutionPlugin for data collection (commands, logs).
     """
 
-    def __init__(self, workspace_store: WorkspaceStore):
-        """Initialize investigation metadata plugin.
+    def __init__(
+        self, workspace_store: WorkspaceStore, execution_plugin: Optional["ExecutionPlugin"] = None
+    ):
+        """Initialize troubleshooting plugin.
 
         :param workspace_store: Workspace storage instance
         :type workspace_store: WorkspaceStore
+        :param execution_plugin: ExecutionPlugin for running commands/logs
+        :type execution_plugin: Optional[ExecutionPlugin]
         """
         self._workspace_store = workspace_store
+        self._execution = execution_plugin
         self._check_metadata_cache: Optional[Dict[str, Check]] = None
         self._constants_cache: Dict[str, Dict] = {}
         self._patterns_cache: Optional[Dict] = None
@@ -58,7 +71,7 @@ class InvestigationMetadataPlugin:
         self._checks_dir = self._src_root / "roles" / "configuration_checks" / "tasks" / "files"
         self._patterns_file = self._src_root / "agents" / "config" / "investigation_patterns.yaml"
 
-        logger.info("InvestigationMetadataPlugin initialized")
+        logger.info("TroubleshootingPlugin initialized")
 
     def parse_check_files(self, force_reload: bool = False) -> Dict[str, Check]:
         """Parse Ansible check YAML files to extract metadata.

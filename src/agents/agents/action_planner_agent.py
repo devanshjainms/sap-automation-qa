@@ -25,7 +25,7 @@ from src.agents.observability import get_logger
 from src.agents.plugins.action_planner import ActionPlannerPlugin
 from src.agents.plugins.test import TestPlannerPlugin
 from src.agents.plugins.workspace import WorkspacePlugin
-from src.agents.plugins.investigation_metadata import InvestigationMetadataPlugin
+from src.agents.plugins.troubleshooting import TroubleshootingPlugin
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.prompts import ACTION_PLANNER_AGENT_SYSTEM_PROMPT
 
@@ -58,12 +58,12 @@ class ActionPlannerAgentSK(SAPAutomationAgent):
         workspace_store: WorkspaceStore,
         action_planner_plugin: Optional[ActionPlannerPlugin] = None,
         test_planner_plugin: Optional[TestPlannerPlugin] = None,
-        investigation_plugin: Optional[InvestigationMetadataPlugin] = None,
+        troubleshooting_plugin: Optional[TroubleshootingPlugin] = None,
     ) -> None:
         action_planner = action_planner_plugin or ActionPlannerPlugin()
         test_planner = test_planner_plugin or TestPlannerPlugin()
         workspace_plugin = WorkspacePlugin(workspace_store)
-        investigation = investigation_plugin or InvestigationMetadataPlugin(workspace_store)
+        troubleshooting = troubleshooting_plugin or TroubleshootingPlugin(workspace_store)
 
         super().__init__(
             name="action_planner",
@@ -73,12 +73,12 @@ class ActionPlannerAgentSK(SAPAutomationAgent):
             ),
             kernel=kernel,
             instructions=ACTION_PLANNER_AGENT_SYSTEM_PROMPT,
-            plugins=[action_planner, test_planner, workspace_plugin, investigation],
+            plugins=[action_planner, test_planner, workspace_plugin, troubleshooting],
         )
 
         self.workspace_store: WorkspaceStore = workspace_store
         self.action_planner_plugin: ActionPlannerPlugin = action_planner
         self.test_planner_plugin: TestPlannerPlugin = test_planner
-        self.investigation_plugin: InvestigationMetadataPlugin = investigation
+        self.troubleshooting_plugin: TroubleshootingPlugin = troubleshooting
 
         logger.info("ActionPlannerAgentSK initialized")
