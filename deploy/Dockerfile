@@ -1,7 +1,7 @@
 # SAP Automation QA Backend
 # Multi-stage build for smaller final image
 
-FROM python:3.10-slim as builder
+FROM mcr.microsoft.com/oss/python/python:3.10 as builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Final stage
-FROM python:3.10-slim
+FROM mcr.microsoft.com/oss/python/python:3.10-slim
 
 WORKDIR /app
 

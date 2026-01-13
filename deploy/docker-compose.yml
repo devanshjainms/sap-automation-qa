@@ -39,7 +39,7 @@ services:
 
   # Frontend build (runs once, exits after building)
   frontend:
-    image: node:20-alpine
+    image: mcr.microsoft.com/azurelinux/base/nodejs:20
     container_name: sap-qa-frontend-build
     working_dir: /build
     volumes:
@@ -52,7 +52,7 @@ services:
       - build  # Only run with: docker compose --profile build up
 
   nginx:
-    image: nginx:alpine
+    image: mcr.microsoft.com/azurelinux/base/nginx:1.25
     container_name: sap-qa-nginx
     restart: unless-stopped
     ports:
