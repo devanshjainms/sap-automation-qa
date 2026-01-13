@@ -304,9 +304,6 @@ class OrchestratorSK:
                     description="Select the next agent based on user intent and domain context.",
                     input_variables=[
                         InputVariable(
-                            name="input", description="The user's request", is_required=True
-                        ),
-                        InputVariable(
                             name="_history_",
                             description="Conversation history (injected by SK)",
                             is_required=False,

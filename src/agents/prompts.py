@@ -329,9 +329,10 @@ EXAMPLES:
 - "show workspace X" → system_context
 - "hello" → echo
 
-USER: {{$input}}
+CONVERSATION HISTORY:
+{{$_history_}}
 
-Agent name:"""
+Based on the LAST USER MESSAGE in the history, return ONLY the agent name (action_executor, test_advisor, system_context, or echo):"""
 
 
 # =============================================================================
