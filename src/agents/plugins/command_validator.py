@@ -89,6 +89,14 @@ def validate_readonly_command(command: str) -> None:
 
     for token in tokens[1:]:
         token_lower = token.lower()
+        if binary in ("crm", "pcs", "corosync-cfgtool", "sbd") and token_lower in (
+            "node",
+            "resource",
+            "status",
+            "show",
+            "config",
+        ):
+            continue
         if token_lower in FORBIDDEN_TOKENS:
             raise ValueError(
                 f"Token '{token}' is a forbidden operation. " "This operation is not allowed."

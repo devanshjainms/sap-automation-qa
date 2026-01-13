@@ -336,11 +336,18 @@ class TroubleshootingPlugin:
             keywords = pattern_data.get("keywords", [])
             if not keywords:
                 continue
-            score = (
-                (sum(1 for keyword in keywords if keyword.lower() in problem_lower)) / len(keywords)
-                if keywords
-                else 0.0
-            )
+            matched_keywords = 0
+            for keyword in keywords:
+                keyword_lower = keyword.lower()
+                if keyword_lower in problem_lower:
+                    matched_keywords += 1
+                    continue
+                keyword_words = keyword_lower.replace(".*", " ").split()
+                if all(word in problem_lower for word in keyword_words if len(word) > 2):
+                    matched_keywords += 1
+
+            score = matched_keywords / len(keywords) if keywords else 0.0
+
             if pattern_name.lower().replace("_", " ") in problem_lower:
                 score = min(score + 0.3, 1.0)
 

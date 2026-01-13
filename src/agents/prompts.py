@@ -339,21 +339,18 @@ Based on the LAST USER MESSAGE in the history, return ONLY the agent name (actio
 # Termination Strategy Prompt - Determines when conversation goal is achieved
 # =============================================================================
 
-TERMINATION_PROMPT = """Determine if the user's question has been answered.
+TERMINATION_PROMPT = """Check if conversation is complete.
 
-CONVERSATION:
-{{$history}}
+History: {{$history}}
+Agent: {{$agent}}
 
-LAST AGENT: {{$agent}}
+Reply YES if:
+- Answer was provided
+- Error blocks progress
+- Question asked to user
 
-Answer YES to terminate if:
-- A specific answer was provided (lists, details, data, plans)
-- An error was reported that blocks progress
-- A clarifying question was asked (user needs to respond)
+Reply NO if:
+- Still gathering data
+- More work needed
 
-Answer NO to continue if:
-- The agent is still gathering information
-- A partial answer needs more data
-- The agent said it will do something but hasn't done it yet
-
-IMPORTANT: Reply with ONLY the word 'YES' or 'NO'."""
+Reply ONLY: YES or NO"""
