@@ -1,7 +1,7 @@
 # SAP Automation QA Backend
 # Multi-stage build for smaller final image
 
-FROM mcr.microsoft.com/azurelinux/base/python:3.10 as builder
+FROM mcr.microsoft.com/azurelinux/base/python:3.12 as builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Final stage
-FROM mcr.microsoft.com/azurelinux/base/python:3.10
+FROM mcr.microsoft.com/azurelinux/base/python:3.12
 
 WORKDIR /app
 
