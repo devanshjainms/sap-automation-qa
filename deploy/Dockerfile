@@ -6,10 +6,10 @@ FROM mcr.microsoft.com/azurelinux/base/python:3.12 as builder
 WORKDIR /app
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN tdnf update -y && tdnf install -y \
     gcc \
-    libffi-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libffi-devel \
+    && tdnf clean all
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
@@ -21,11 +21,11 @@ FROM mcr.microsoft.com/azurelinux/base/python:3.12
 WORKDIR /app
 
 # Install runtime dependencies (ansible needs ssh, git for some operations)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssh-client \
+RUN tdnf update -y && tdnf install -y \
+    openssh-clients \
     git \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
+    && tdnf clean all \
     && mkdir -p /app/data /app/logs /root/.ssh \
     && chmod 700 /root/.ssh
 
