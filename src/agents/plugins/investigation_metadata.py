@@ -394,14 +394,14 @@ class InvestigationMetadataPlugin:
 
     @kernel_function(
         name="suggest_relevant_checks",
-        description="Suggest relevant configuration checks based on problem description",
+        description="Suggest relevant configuration checks, logs, and search patterns based on problem description",
     )
     def suggest_relevant_checks(self, problem_description: str) -> str:
-        """Suggest relevant checks for a problem.
+        """Suggest relevant checks, logs, and investigation guidance for a problem.
 
         :param problem_description: Description of the problem to investigate
         :type problem_description: str
-        :returns: JSON-formatted string with check suggestions
+        :returns: JSON-formatted string with comprehensive investigation metadata
         :rtype: str
         """
         try:
@@ -418,26 +418,59 @@ class InvestigationMetadataPlugin:
                         "standard", []
                     ),
                     "category_hints": ["general"],
-                    "explanation": "No specific pattern matched. Recommending baseline checks.",
+                    "relevant_logs": ["messages", "syslog"],
+                    "search_patterns": ["error", "fail", "critical"],
+                    "explanation": "No specific pattern matched. Recommending baseline checks and system logs.",
                 }
             else:
                 recommended_tags = pattern_data.get("recommended_check_tags", [])
                 category_hints = pattern_data.get("category_hints", [])
+                relevant_logs = self._get_relevant_logs_for_categories(category_hints)
+                search_patterns = pattern_data.get("keywords", [])
 
                 result = {
                     "matched_pattern": pattern_name,
                     "confidence": round(confidence, 2),
+                    "severity": pattern_data.get("severity", "unknown"),
                     "recommended_check_tags": recommended_tags,
                     "category_hints": category_hints,
+                    "relevant_logs": relevant_logs,
+                    "search_patterns": search_patterns,
                     "explanation": f"Problem matches '{pattern_name}' pattern. "
-                    f"Recommend running checks tagged: {', '.join(recommended_tags)}",
+                    f"Recommend: (1) Run checks tagged {', '.join(recommended_tags)}, "
+                    f"(2) Analyze logs {', '.join(relevant_logs)} with patterns {', '.join(search_patterns[:3])}",
                 }
 
             return json.dumps(result, indent=2)
 
         except Exception as e:
             logger.error(f"Error suggesting checks: {e}", exc_info=e)
-            return f"Error: {str(e)}"
+            return json.dumps({"error": str(e)}, indent=2)
+
+    def _get_relevant_logs_for_categories(self, categories: list[str]) -> list[str]:
+        """Map category hints to relevant log types.
+
+        :param categories: List of category hints
+        :type categories: list[str]
+        :returns: List of relevant log types
+        :rtype: list[str]
+        """
+        log_mapping = {
+            "high_availability": ["messages", "syslog"],
+            "hana": ["hana_trace", "hana_alert", "messages"],
+            "sap": ["sap_log", "messages"],
+            "ascs": ["sap_log", "messages"],
+            "network": ["messages", "syslog"],
+            "azure": ["messages", "syslog"],
+        }
+
+        logs = set()
+        for category in categories:
+            logs.update(log_mapping.get(category.lower(), ["messages"]))
+        if not logs:
+            logs = {"messages", "syslog"}
+
+        return sorted(list(logs))
 
     @kernel_function(
         name="get_expected_configuration",
