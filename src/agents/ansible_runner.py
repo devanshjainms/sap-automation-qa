@@ -8,7 +8,8 @@ capturing structured output for test execution and diagnostics.
 """
 
 import json
-import logging
+import tempfile
+import yaml as pyyaml
 import subprocess
 from pathlib import Path
 from typing import Any, Optional
@@ -129,11 +130,17 @@ class AnsibleRunner:
         :type become: bool
         :param loop_var: Loop variable name (e.g., 'item') for batch execution
         :type loop_var: Optional[str]
-        :param loop_items: List of values to loop over (for batch command execution)
+        :param loop_items: List of values to loop over (creates temp playbook)
         :type loop_items: Optional[list[str]]
-        :returns: Dict containing rc, stdout, stderr, command, results
+        :returns: Dict containing rc, stdout, stderr, command, results, hosts
         :rtype: dict[str, Any]
         """
+        if loop_items:
+            logger.info(f"Running {len(loop_items)} commands sequentially via temporary playbook")
+            return self._run_with_temp_playbook(
+                inventory, host_pattern, module, loop_items, extra_vars, become
+            )
+
         cmd = [
             "ansible",
             host_pattern,
@@ -181,6 +188,7 @@ class AnsibleRunner:
                 "stderr": result.stderr,
                 "command": " ".join(cmd),
                 "results": ansible_results,
+                "hosts": self._parse_hosts_from_output(result.stdout),
             }
 
         except subprocess.TimeoutExpired:
@@ -191,6 +199,7 @@ class AnsibleRunner:
                 "stderr": "Execution timed out after 300 seconds",
                 "command": " ".join(cmd),
                 "results": None,
+                "hosts": [],
             }
         except Exception as e:
             logger.error(f"Error running ansible ad-hoc: {e}")
@@ -200,4 +209,98 @@ class AnsibleRunner:
                 "stderr": f"Execution error: {e}",
                 "command": " ".join(cmd),
                 "results": None,
+                "hosts": [],
             }
+
+    def _run_with_temp_playbook(
+        self,
+        inventory: Path,
+        host_pattern: str,
+        module: str,
+        commands: list[str],
+        extra_vars: Optional[dict[str, Any]],
+        become: bool,
+    ) -> dict[str, Any]:
+        """Run multiple commands via temporary playbook with loop.
+
+        Creates temp playbook that loops over commands for single execution.
+
+        :param inventory: Path to Ansible inventory
+        :param host_pattern: Host pattern to target
+        :param module: Ansible module (typically 'shell')
+        :param commands: List of commands to execute
+        :param extra_vars: Extra variables
+        :param become: Use sudo
+        :returns: Dict with rc, stdout, stderr, command, hosts
+        """
+
+        playbook_content = [
+            {
+                "name": "Run multiple commands sequentially",
+                "hosts": host_pattern,
+                "gather_facts": False,
+                "become": become,
+                "tasks": [
+                    {
+                        "name": f"Execute command",
+                        module: "{{ item }}",
+                        "loop": commands,
+                        "register": "command_results",
+                    }
+                ],
+            }
+        ]
+
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".yml", delete=False, dir=self.base_dir
+            ) as f:
+                pyyaml.dump(playbook_content, f, default_flow_style=False)
+                temp_playbook = Path(f.name)
+
+            logger.info(f"Created temporary playbook: {temp_playbook}")
+            result = self.run_playbook(
+                inventory=inventory,
+                playbook=temp_playbook,
+                extra_vars=extra_vars,
+            )
+            temp_playbook.unlink(missing_ok=True)
+            hosts = self._parse_hosts_from_output(result["stdout"])
+
+            return {
+                "rc": result["rc"],
+                "stdout": result["stdout"],
+                "stderr": result["stderr"],
+                "command": f"ansible-playbook (temp) - {len(commands)} commands",
+                "results": result.get("results"),
+                "hosts": hosts,
+            }
+
+        except Exception as e:
+            logger.error(f"Error running temporary playbook: {e}")
+            return {
+                "rc": -1,
+                "stdout": "",
+                "stderr": f"Temp playbook error: {e}",
+                "command": "ansible-playbook (temp)",
+                "results": None,
+                "hosts": [],
+            }
+
+    def _parse_hosts_from_output(self, output: str) -> list[str]:
+        """Parse host names from Ansible output.
+
+        :param output: Ansible command output
+        :returns: List of hostnames that executed
+        """
+        hosts = []
+        if not output:
+            return hosts
+
+        for line in output.split("\n"):
+            if "|" in line and ("SUCCESS" in line or "CHANGED" in line or "FAILED" in line):
+                hostname = line.split("|")[0].strip()
+                if hostname and hostname not in hosts:
+                    hosts.append(hostname)
+
+        return hosts
