@@ -1,0 +1,218 @@
+# Investigation Patterns Configuration
+# Defines how to automatically investigate different types of SAP/cluster issues
+#
+# Each pattern contains:
+#   - keywords: List of regex patterns to match against problem descriptions
+#   - health_checks: Commands to run to assess current state (if not already cached)
+#   - commands: Shell commands to execute for investigation
+#   - logs: Log files to examine with grep patterns
+#   - roles: Which SAP roles to investigate (db, scs, ers, all)
+
+investigation_patterns:
+  # STONITH / Fencing Issues
+  stonith:
+    description: "Azure fencing agent (STONITH) failures or configuration issues"
+    keywords:
+      - "stonith"
+      - "fence|fencing"
+      - "rsc_st_azure"
+      - "azure.*agent"
+    
+    health_checks:
+      - command: "pcs stonith status"
+        description: "Check STONITH resource status"
+      - command: "pcs stonith config"
+        description: "Verify STONITH configuration"
+      - command: "pcs resource failcount show"
+        description: "Check resource failure counts"
+    
+    investigation_commands:
+      - command: "journalctl -u pacemaker --since '2 hours ago' | grep -iE 'stonith|fence|rsc_st_azure' | tail -200"
+        description: "Check pacemaker logs for STONITH activity"
+      - command: "grep -iE 'rsc_st_azure|fence|stonith' /var/log/messages | tail -200"
+        description: "Check system logs for fencing events"
+      - command: "pcs constraint --full"
+        description: "Review cluster constraints that may affect fencing"
+      - command: "az vm list -o table 2>&1"
+        description: "Verify Azure CLI connectivity (fencing dependency)"
+    
+    logs:
+      - type: "messages"
+        pattern: "rsc_st_azure|fence|stonith"
+        lines: 200
+        description: "System messages related to fencing"
+      - type: "pacemaker"
+        pattern: "stonith|fence"
+        lines: 200
+        description: "Pacemaker logs for STONITH operations"
+    
+    default_role: "scs"  # STONITH typically managed from SCS nodes
+
+  # Resource Failures
+  resource_failure:
+    description: "Cluster resource start/stop/migration failures"
+    keywords:
+      - "resource.*fail"
+      - "failcount"
+      - "migration.*fail"
+      - "resource.*stop"
+      - "resource.*start.*fail"
+    
+    health_checks:
+      - command: "pcs status"
+        description: "Get current cluster status"
+      - command: "pcs resource failcount show"
+        description: "Check all resource failure counts"
+    
+    investigation_commands:
+      - command: "journalctl -u pacemaker --since '1 hour ago' | grep -iE 'fail|error|stop|start' | tail -200"
+        description: "Check pacemaker logs for resource operations"
+      - command: "pcs resource debug-start --full"
+        description: "Attempt resource start with full debug output"
+      - command: "pcs constraint --full"
+        description: "Check constraints affecting resource placement"
+      - command: "crm_simulate -sL"
+        description: "Simulate cluster actions"
+    
+    logs:
+      - type: "messages"
+        pattern: "pacemaker|corosync|fail"
+        lines: 200
+    
+    default_role: "all"
+
+  # Split-Brain / Quorum Issues
+  split_brain:
+    description: "Cluster partition, split-brain, or quorum loss scenarios"
+    keywords:
+      - "split.brain"
+      - "partition"
+      - "quorum.*lost"
+      - "no.quorum"
+      - "fencing.*delay"
+    
+    health_checks:
+      - command: "pcs status"
+        description: "Check cluster status"
+      - command: "corosync-quorumtool -s"
+        description: "Check quorum status"
+      - command: "corosync-cfgtool -s"
+        description: "Check Corosync ring status"
+    
+    investigation_commands:
+      - command: "journalctl -u corosync --since '2 hours ago' | grep -iE 'quorum|partition|member' | tail -200"
+        description: "Check Corosync logs for membership changes"
+      - command: "journalctl -u pacemaker --since '2 hours ago' | grep -iE 'quorum|fence|stonith' | tail -200"
+        description: "Check Pacemaker response to quorum events"
+      - command: "grep -iE 'split.brain|partition|quorum' /var/log/messages | tail -200"
+        description: "System logs for cluster partition events"
+      - command: "ip addr show | grep -E 'inet |state'"
+        description: "Check network interface status"
+      - command: "pcs property show"
+        description: "Review cluster properties (no-quorum-policy, etc.)"
+    
+    logs:
+      - type: "messages"
+        pattern: "corosync|quorum|partition"
+        lines: 200
+    
+    default_role: "all"
+
+  # SAP Process Issues
+  sap_process:
+    description: "SAP instance processes (ASCS/ERS/HANA) crashes or failures"
+    keywords:
+      - "sap.*process"
+      - "enqueue.*server"
+      - "message.*server"
+      - "hdb.*crash"
+      - "instance.*fail"
+      - "sapstartsrv"
+    
+    health_checks:
+      - command: "ps aux | grep -E 'sap|hdb' | grep -v grep"
+        description: "Check running SAP processes"
+    
+    investigation_commands:
+      - command: "grep -iE 'error|fail|crash|abort' /usr/sap/*/ASCS*/work/dev_* 2>/dev/null | tail -200"
+        description: "Check ASCS work directory logs"
+      - command: "grep -iE 'error|fail|crash|abort' /usr/sap/*/ERS*/work/dev_* 2>/dev/null | tail -200"
+        description: "Check ERS work directory logs"
+      - command: "journalctl -u SAP* --since '1 hour ago' | tail -200"
+        description: "Check systemd SAP service logs"
+    
+    logs:
+      - type: "sap_log"
+        pattern: "error|fail|crash"
+        lines: 200
+    
+    default_role: "scs"
+
+  # Network Issues
+  network:
+    description: "Network connectivity, latency, or communication failures"
+    keywords:
+      - "network.*fail"
+      - "timeout"
+      - "connection.*refused"
+      - "cannot.*reach"
+      - "latency"
+    
+    health_checks:
+      - command: "ip addr show"
+        description: "Check interface status"
+      - command: "ss -tunap | grep -E ':(5404|5405|3[0-9]{3})'"
+        description: "Check cluster and SAP port listeners"
+    
+    investigation_commands:
+      - command: "journalctl --since '1 hour ago' | grep -iE 'network|timeout|connection' | tail -200"
+        description: "Check system logs for network issues"
+      - command: "ip route show"
+        description: "Check routing table"
+      - command: "ss -s"
+        description: "Get socket statistics"
+      - command: "journalctl -u corosync --since '1 hour ago' | grep -iE 'timeout|retransmit' | tail -100"
+        description: "Check Corosync for network timeouts"
+    
+    logs:
+      - type: "messages"
+        pattern: "network|timeout|connection"
+        lines: 200
+    
+    default_role: "all"
+
+# Default investigation (when no pattern matches)
+default:
+  description: "General investigation when issue type cannot be determined"
+  health_checks:
+    - command: "pcs status"
+      description: "Get cluster status"
+    - command: "systemctl status SAP* | head -50"
+      description: "Check SAP service status"
+  
+  investigation_commands:
+    - command: "journalctl --since '1 hour ago' | grep -iE 'error|fail|critical' | tail -200"
+      description: "Check recent errors in system logs"
+    - command: "dmesg | tail -100"
+      description: "Check kernel ring buffer"
+  
+  logs:
+    - type: "messages"
+      pattern: "error|fail|critical"
+      lines: 200
+  
+  default_role: "all"
+
+# Global settings
+settings:
+  # Cache health check results for this duration (seconds)
+  health_check_cache_ttl: 60  # 1 minute
+  
+  # Maximum number of lines to return per log/command
+  max_output_lines: 200
+  
+  # Timeout for each command execution (seconds)
+  command_timeout: 60
+  
+  # Whether to run health checks automatically if not cached
+  auto_health_check: true

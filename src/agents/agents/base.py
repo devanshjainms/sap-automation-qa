@@ -251,7 +251,9 @@ def create_default_agent_registry(kernel: Optional[Kernel] = None) -> "AgentRegi
     registry.register(SystemContextAgentSK(kernel=kernel, workspace_store=workspace_store))
     registry.register(
         ActionExecutorAgent(
-            kernel=kernel, workspace_store=workspace_store, execution_plugin=execution_plugin
+            kernel=kernel,
+            workspace_store=workspace_store,
+            execution_plugin=execution_plugin,
         )
     )
     return registry

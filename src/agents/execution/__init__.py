@@ -25,6 +25,7 @@ from src.agents.execution.guards import (
     GuardLayer,
     GuardFilter,
 )
+from src.agents.execution.worker import JobWorker
 
 __all__ = [
     "ExecutionJob",
@@ -32,6 +33,7 @@ __all__ = [
     "JobEvent",
     "JobEventType",
     "JobStore",
+    "JobWorker",
     "ExecutionError",
     "WorkspaceLockError",
     "JobNotFoundError",
