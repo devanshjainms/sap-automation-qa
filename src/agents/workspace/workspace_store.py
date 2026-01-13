@@ -5,18 +5,22 @@ Lean workspace store - file operations + minimal backward compatibility.
 """
 
 from pathlib import Path
-from typing import Optional
-import yaml
+from typing import Optional, Dict, Any
+from datetime import datetime, timedelta
+import threading
 
 from src.agents.models.workspace import WorkspaceMetadata
 
 
 class WorkspaceStore:
-    """Simple file-based workspace store."""
+    """Simple file-based workspace store with baseline health caching."""
 
-    def __init__(self, root_path: str | Path) -> None:
+    def __init__(self, root_path: str | Path, baseline_ttl_seconds: int = 300) -> None:
         self.root_path = Path(root_path)
         self.root_path.mkdir(parents=True, exist_ok=True)
+        self._baseline_cache: Dict[str, Dict[str, Any]] = {}
+        self._baseline_ttl = timedelta(seconds=baseline_ttl_seconds)
+        self._cache_lock = threading.RLock()
 
     def list_workspace_ids(self) -> list[str]:
         """List all workspace directory names."""
@@ -135,3 +139,46 @@ class WorkspaceStore:
         """Return workspace IDs that match the provided SID."""
         matches = self.find_by_sid_env(sid)
         return [ws.workspace_id for ws in matches]
+
+    def get_baseline_cache(self, workspace_id: str) -> Optional[Dict[str, Any]]:
+        """Get cached baseline results for a workspace."""
+        with self._cache_lock:
+            if workspace_id not in self._baseline_cache:
+                return None
+
+            cached = self._baseline_cache[workspace_id]
+            age = datetime.utcnow() - cached["timestamp"]
+
+            if age > self._baseline_ttl:
+                del self._baseline_cache[workspace_id]
+                return None
+
+            return {
+                "data": cached["results"],
+                "age_seconds": int(age.total_seconds()),
+                "check_tags": cached["check_tags"],
+                "cached_at": cached["timestamp"].isoformat(),
+            }
+
+    def set_baseline_cache(
+        self, workspace_id: str, results: Dict[str, Any], check_tags: list[str]
+    ) -> None:
+        """Cache baseline results for a workspace."""
+        with self._cache_lock:
+            self._baseline_cache[workspace_id] = {
+                "workspace_id": workspace_id,
+                "timestamp": datetime.utcnow(),
+                "results": results,
+                "check_tags": check_tags,
+            }
+
+    def invalidate_baseline_cache(self, workspace_id: str) -> None:
+        """Invalidate cached baseline for a workspace."""
+        with self._cache_lock:
+            if workspace_id in self._baseline_cache:
+                del self._baseline_cache[workspace_id]
+
+    def clear_all_baseline_cache(self) -> None:
+        """Clear all cached baselines."""
+        with self._cache_lock:
+            self._baseline_cache.clear()

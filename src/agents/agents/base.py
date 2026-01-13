@@ -227,6 +227,7 @@ def create_default_agent_registry(kernel: Optional[Kernel] = None) -> "AgentRegi
     from src.agents.plugins.execution import ExecutionPlugin
     from src.agents.plugins.workspace import WorkspacePlugin
     from src.agents.plugins.keyvault import KeyVaultPlugin
+    from src.agents.plugins.investigation_metadata import InvestigationMetadataPlugin
     from src.agents.ansible_runner import AnsibleRunner
     from src.agents.sk_kernel import create_kernel
 
@@ -237,6 +238,7 @@ def create_default_agent_registry(kernel: Optional[Kernel] = None) -> "AgentRegi
     ansible_runner = AnsibleRunner(base_dir=src_dir)
     workspace_plugin = WorkspacePlugin(store=workspace_store)
     keyvault_plugin = KeyVaultPlugin()
+    investigation_plugin = InvestigationMetadataPlugin(workspace_store=workspace_store)
     execution_plugin = ExecutionPlugin(
         workspace_store=workspace_store,
         ansible_runner=ansible_runner,
@@ -247,7 +249,13 @@ def create_default_agent_registry(kernel: Optional[Kernel] = None) -> "AgentRegi
     registry = AgentRegistry()
     registry.register(EchoAgentSK(kernel=kernel))
     registry.register(TestAdvisorAgentSK(kernel=kernel, workspace_store=workspace_store))
-    registry.register(ActionPlannerAgentSK(kernel=kernel, workspace_store=workspace_store))
+    registry.register(
+        ActionPlannerAgentSK(
+            kernel=kernel, 
+            workspace_store=workspace_store,
+            investigation_plugin=investigation_plugin
+        )
+    )
     registry.register(SystemContextAgentSK(kernel=kernel, workspace_store=workspace_store))
     registry.register(
         ActionExecutorAgent(

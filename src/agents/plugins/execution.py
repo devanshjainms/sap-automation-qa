@@ -576,7 +576,8 @@ class ExecutionPlugin:
             return json.dumps(exec_result.model_dump(), default=str, indent=2)
 
     @kernel_function(
-        name="tail_log", description="Tail a whitelisted log file for a given role in the workspace"
+        name="tail_log",
+        description="Tail a whitelisted log file for investigation or general viewing",
     )
     def tail_log(
         self,
@@ -588,8 +589,20 @@ class ExecutionPlugin:
             Optional[str],
             "Optional grep pattern to filter log content. Example: 'error|fail|critical'",
         ] = None,
+        investigation: Annotated[
+            bool,
+            "Investigation mode: adds context lines, timestamps, and deduplication for "
+            + "root cause analysis",
+        ] = False,
+        context_lines: Annotated[
+            int,
+            "Number of context lines before/after pattern match (investigation mode only)",
+        ] = 5,
     ) -> Annotated[str, "JSON string with ExecutionResult containing log tail"]:
-        """Tail a whitelisted log file, optionally filtering with grep pattern.
+        """Tail a whitelisted log file with optional investigation mode.
+
+        Investigation mode extracts focused excerpts with context for troubleshooting.
+        Regular mode shows raw tail output.
 
         :param workspace_id: Workspace identifier
         :type workspace_id: str
@@ -601,6 +614,10 @@ class ExecutionPlugin:
         :type lines: int
         :param pattern: Optional grep pattern for filtering (regex)
         :type pattern: Optional[str]
+        :param investigation: Enable investigation mode (context + dedup)
+        :type investigation: bool
+        :param context_lines: Context lines around matches (investigation mode)
+        :type context_lines: int
         :returns: JSON string with ExecutionResult
         :rtype: str
         """
@@ -617,17 +634,35 @@ class ExecutionPlugin:
                 )
 
             log_pattern = LOG_WHITELIST[log_key]
-            if pattern:
-                if any(char in pattern for char in [";", "|", "&", "$", "`", "\n", "\r"]):
+            if investigation and pattern:
+                if any(char in pattern for char in [";", "&", "$", "`", "\n", "\r"]):
                     return json.dumps(
                         {
-                            "error": f"Invalid characters in grep pattern."
-                            + f"Use only alphanumeric and regex metacharacters."
+                            "error": "Invalid characters in grep pattern. "
+                            + "Use only regex metacharacters."
                         }
                     )
-                command = f"grep -iE '{pattern}' {log_pattern} | tail -n {lines}"
+                ctx = max(1, min(context_lines, 10))
+                command = (
+                    f"grep -iEnC{ctx} --group-separator='---' '{pattern}' {log_pattern} 2>/dev/null | "
+                    f"tail -n {lines}"
+                )
+
+            elif pattern:
+                if any(char in pattern for char in [";", "&", "$", "`", "\n", "\r"]):
+                    return json.dumps({"error": "Invalid characters in grep pattern."})
+                command = f"grep -iE '{pattern}' {log_pattern} 2>/dev/null | tail -n {lines}"
+
+            elif investigation:
+                if "messages" in log_type or "syslog" in log_type:
+                    command = f"tail -n {lines} {log_pattern} 2>/dev/null || echo 'Log file not accessible'"
+                else:
+                    command = f"tail -n {lines} {log_pattern} 2>/dev/null || echo 'Log file not accessible'"
+
             else:
-                command = f"tail -n {lines} {log_pattern}"
+                command = (
+                    f"tail -n {lines} {log_pattern} 2>/dev/null || echo 'Log file not accessible'"
+                )
 
             validate_readonly_command(command)
             return self.run_readonly_command(workspace_id, role, command)
@@ -777,176 +812,128 @@ class ExecutionPlugin:
             return json.dumps({"error": str(e)})
 
     @kernel_function(
-        name="investigate_issue",
-        description=(
-            "Automatically investigate SAP/cluster issues by analyzing the problem description "
-            "and running appropriate diagnostics. Use this when user asks to 'investigate', "
-            "'check logs', 'find root cause', or 'dig deeper' into an issue. "
-            "Supports STONITH/fencing, resource failures, split-brain, SAP processes, and network "
-            "issues. Can optionally run initial health checks if not already performed."
-        ),
+        name="list_available_logs",
+        description="List all available log types for a given role. Use this to discover"
+        + " which logs you can investigate.",
     )
-    def investigate_issue(
+    def list_available_logs(
         self,
-        workspace_id: Annotated[str, "Workspace identifier (e.g., T02, P01)"],
-        problem_description: Annotated[
-            str,
-            "Natural language description of the issue (e.g., 'rsc_st_azure stopped', "
-            "'resource failover failed', 'investigate logs for scs cluster')",
-        ],
-        role: Annotated[
-            str, "Target role: db, scs, ers, or all. Defaults to 'all' if not specified"
-        ] = "all",
-        run_health_check: Annotated[
-            bool, "Whether to run health checks first (defaults to True)"
-        ] = True,
-        custom_commands: Annotated[
-            Optional[str],
-            "Optional JSON list of custom commands to run instead of pattern-based investigation",
-        ] = None,
-    ) -> Annotated[str, "Investigation findings with diagnostics and log excerpts"]:
-        """Autonomously investigate SAP/cluster issues using pattern matching.
+        role: Annotated[str, "Host role (db, scs, app, system)"],
+    ) -> Annotated[str, "JSON list of available log types for this role"]:
+        """List available log types for a role from LOG_WHITELIST.
 
-        This function:
-        1. Loads investigation patterns from config/investigation_patterns.yaml
-        2. Matches problem_description against pattern keywords
-        3. Optionally runs health checks (cluster status, resource state)
-        4. Executes investigation commands (journalctl, grep logs, pcs commands)
-        5. Returns aggregated findings
-
-        :param workspace_id: Workspace to investigate
-        :type workspace_id: str
-        :param problem_description: Natural language problem description
-        :type problem_description: str
-        :param role: Target role (db/scs/ers/all)
+        :param role: Host role
         :type role: str
-        :param run_health_check: Whether to run health checks first
-        :type run_health_check: bool
-        :param custom_commands: Optional JSON array of custom commands
-        :type custom_commands: Optional[str]
-        :returns: Investigation report as formatted string
+        :returns: JSON with available log types and their paths
         :rtype: str
         """
-
-        try:
-            logger.info(
-                f"Starting investigation for workspace={workspace_id}, "
-                f"problem='{problem_description}', role={role}"
-            )
-            config_path = Path(__file__).parent.parent / "config" / "investigation_patterns.yaml"
-            if not config_path.exists():
-                return (
-                    "ERROR: Investigation patterns config not found at "
-                    f"{config_path}. Cannot proceed with investigation."
-                )
-
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f)
-
-            patterns = config.get("investigation_patterns", {})
-            settings = config.get("settings", {})
-            default_pattern = config.get("default", {})
-            matched_pattern = None
-            matched_type = None
-
-            problem_lower = problem_description.lower()
-
-            for pattern_type, pattern_config in patterns.items():
-                keywords = pattern_config.get("keywords", [])
-                for keyword_regex in keywords:
-                    if re.search(keyword_regex, problem_lower):
-                        matched_pattern = pattern_config
-                        matched_type = pattern_type
-                        logger.info(f"Matched investigation pattern: {pattern_type}")
-                        break
-                if matched_pattern:
-                    break
-
-            if not matched_pattern:
-                logger.info("No specific pattern matched, using default investigation")
-                matched_pattern = default_pattern
-                matched_type = "general"
-            target_role = role if role != "all" else matched_pattern.get("default_role", "all")
-
-            investigation_report = []
-            investigation_report.append("=" * 80)
-            investigation_report.append("INVESTIGATION REPORT")
-            investigation_report.append("=" * 80)
-            investigation_report.append(f"Workspace: {workspace_id}")
-            investigation_report.append(f"Issue Type: {matched_type}")
-            investigation_report.append(f"Description: {matched_pattern.get('description', 'N/A')}")
-            investigation_report.append(f"Target Role(s): {target_role}")
-            investigation_report.append(f"Timestamp: {datetime.utcnow().isoformat()}Z")
-            investigation_report.append("=" * 80)
-            investigation_report.append("")
-
-            if run_health_check and not custom_commands:
-                health_checks = matched_pattern.get("health_checks", [])
-                if health_checks:
-                    investigation_report.append("HEALTH CHECKS:")
-                    investigation_report.append("-" * 80)
-
-                    for check in health_checks:
-                        cmd = check.get("command")
-                        desc = check.get("description", cmd)
-                        investigation_report.append(f"\n[CHECK] {desc}")
-                        investigation_report.append(f"Command: {cmd}")
-                        result = self.run_readonly_command(
-                            workspace_id=workspace_id, role=target_role, command=cmd
-                        )
-                        investigation_report.append(result)
-                        investigation_report.append("")
-
-                    investigation_report.append("-" * 80)
-                    investigation_report.append("")
-            if custom_commands:
-                try:
-                    commands_list = json.loads(custom_commands)
-                    investigation_report.append("CUSTOM INVESTIGATION COMMANDS:")
-                    investigation_report.append("-" * 80)
-
-                    for cmd in commands_list:
-                        investigation_report.append(f"\n[COMMAND] {cmd}")
-                        result = self.run_readonly_command(
-                            workspace_id=workspace_id, role=target_role, command=cmd
-                        )
-                        investigation_report.append(result)
-                        investigation_report.append("")
-
-                except json.JSONDecodeError as e:
-                    investigation_report.append(f"ERROR: Invalid custom_commands JSON: {e}")
-            else:
-                inv_commands = matched_pattern.get("investigation_commands", [])
-                if inv_commands:
-                    investigation_report.append("INVESTIGATION COMMANDS:")
-                    investigation_report.append("-" * 80)
-
-                    command_strings = [cmd["command"] for cmd in inv_commands]
-                    result = self.run_readonly_command(
-                        workspace_id=workspace_id,
-                        role=target_role,
-                        command=command_strings,
-                    )
-                    investigation_report.append(result)
-                    investigation_report.append("")
-
-            investigation_report.append("=" * 80)
-            investigation_report.append("END OF INVESTIGATION REPORT")
-            investigation_report.append("=" * 80)
-
-            final_report = "\n".join(investigation_report)
-            logger.info(
-                f"Investigation complete for {workspace_id}, "
-                f"report length: {len(final_report)} chars"
-            )
-            return final_report
-
-        except Exception as e:
-            logger.error(f"Error during investigation: {e}", exc_info=e)
+        available = [
+            {"log_type": log_type, "path_pattern": LOG_WHITELIST[(r, log_type)]}
+            for r, log_type in LOG_WHITELIST.keys()
+            if r == role
+        ]
+        if not available:
             return json.dumps(
                 {
-                    "error": f"Investigation failed: {str(e)}",
-                    "workspace_id": workspace_id,
-                    "problem": problem_description,
+                    "role": role,
+                    "available_logs": [],
+                    "error": f"No logs whitelisted for role '{role}'",
                 }
+            )
+
+        return json.dumps({"role": role, "available_logs": available}, indent=2)
+
+    @kernel_function(
+        name="analyze_log_for_failure",
+        description=(
+            "Analyze a specific log file to find events related to a failure. "
+            "Returns raw log excerpts for LLM to analyze and correlate. "
+            "Use this iteratively to investigate different logs based on your reasoning."
+        ),
+    )
+    def analyze_log_for_failure(
+        self,
+        workspace_id: Annotated[str, "Workspace ID"],
+        role: Annotated[str, "Host role (db, scs, app, system)"],
+        log_type: Annotated[str, "Log type to analyze (from list_available_logs)"],
+        search_patterns: Annotated[
+            str,
+            "Pipe-separated search patterns based on failure type. Example: 'error|fail|timeout'",
+        ],
+        lines: Annotated[int, "Number of lines to return"] = 300,
+        context_lines: Annotated[int, "Context lines around matches"] = 5,
+    ) -> Annotated[str, "JSON with log excerpts for LLM analysis"]:
+        """Analyze log file for failure-related events.
+
+        This is a lightweight tool - it returns raw log data.
+        The LLM analyzes the content, correlates across logs, and draws conclusions.
+
+        :param workspace_id: Workspace ID
+        :type workspace_id: str
+        :param role: Host role
+        :type role: str
+        :param log_type: Log type
+        :type log_type: str
+        :param search_patterns: Pipe-separated regex patterns
+        :type search_patterns: str
+        :param lines: Max lines to return
+        :type lines: int
+        :param context_lines: Context around matches
+        :type context_lines: int
+        :returns: JSON with log excerpts
+        :rtype: str
+        """
+        started_at = datetime.utcnow()
+        try:
+            result = json.loads(
+                self.tail_log(
+                    workspace_id=workspace_id,
+                    role=role,
+                    log_type=log_type,
+                    lines=lines,
+                    pattern=search_patterns,
+                    investigation=True,
+                    context_lines=context_lines,
+                )
+            )
+
+            if "error" in result:
+                return json.dumps(
+                    {
+                        "status": "error",
+                        "log_type": log_type,
+                        "role": role,
+                        "error": result["error"],
+                    },
+                    indent=2,
+                )
+            duration = (datetime.utcnow() - started_at).total_seconds()
+
+            return json.dumps(
+                {
+                    "status": "success",
+                    "log_type": log_type,
+                    "role": role,
+                    "search_patterns": search_patterns,
+                    "excerpts": result.get("stdout", ""),
+                    "analysis_hint": (
+                        "Review excerpts for: 1) Error patterns, 2) Timestamps to correlate "
+                        + "with other logs, 3) Resource names/IDs, 4) Related failures. "
+                        + "Then decide if you need to check other logs."
+                    ),
+                    "duration_seconds": round(duration, 2),
+                },
+                indent=2,
+            )
+
+        except Exception as e:
+            logger.error(f"Error analyzing log {log_type}: {e}", exc_info=e)
+            return json.dumps(
+                {
+                    "status": "error",
+                    "log_type": log_type,
+                    "role": role,
+                    "error": str(e),
+                },
+                indent=2,
             )
