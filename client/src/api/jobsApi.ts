@@ -6,7 +6,7 @@
  */
 import { apiClient } from "./client";
 import { API_ENDPOINTS } from "./endpoints";
-import { Job, JobListItem, JobListResponse } from "../types";
+import { Job, JobListResponse } from "../types";
 
 export interface JobListParams {
   workspaceId?: string;

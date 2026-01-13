@@ -16,7 +16,6 @@ import {
   Option,
 } from "@fluentui/react-components";
 import {
-  PlayRegular,
   CheckmarkCircleRegular,
   DismissCircleRegular,
   ClockRegular,

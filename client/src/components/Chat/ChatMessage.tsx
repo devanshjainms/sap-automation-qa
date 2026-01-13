@@ -13,7 +13,6 @@ import {
   BotSparkleRegular,
   CopyRegular,
   CheckmarkRegular,
-  ArrowRightRegular,
 } from "@fluentui/react-icons";
 import ReactMarkdown from "react-markdown";
 import { ChatMessage as ChatMessageType } from "../../types";

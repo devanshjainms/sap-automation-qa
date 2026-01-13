@@ -96,8 +96,6 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({
     return `${(ms / 1000).toFixed(1)}s`;
   };
 
-  const completedCount = steps.filter((s) => s.status === "complete").length;
-
   return (
     <div className={styles.container}>
       <div className={styles.header} onClick={() => setIsExpanded(!isExpanded)}>
