@@ -340,7 +340,7 @@ class OrchestratorSK:
                 return "system_context"
             if any(word in content for word in ["test", "recommend", "plan"]):
                 return "test_advisor"
-            if any(word in content for word in ["execute", "run", "ssh", "command"]):
+            if any(word in content for word in ["execute", "run", "ssh", "command", "investigate", "diagnose", "check", "analyze"]):
                 return "action_executor"
 
             logger.warning(f"Could not parse selection result: '{content}', defaulting to echo")

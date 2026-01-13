@@ -21,6 +21,7 @@ from src.agents.plugins.execution import ExecutionPlugin
 from src.agents.plugins.workspace import WorkspacePlugin
 from src.agents.plugins.ssh import SSHPlugin
 from src.agents.plugins.job_management import JobManagementPlugin
+from src.agents.plugins.investigation_metadata import InvestigationMetadataPlugin
 from src.agents.execution import GuardLayer
 from src.agents.observability import get_logger
 from src.agents.prompts import ACTION_EXECUTOR_SYSTEM_PROMPT
@@ -77,16 +78,19 @@ class ActionExecutorAgent(SAPAutomationAgent):
             WorkspacePlugin(workspace_store),
             SSHPlugin(),
             JobManagementPlugin(job_store=job_store),
+            InvestigationMetadataPlugin(workspace_store=workspace_store),
         ]
         if getattr(execution_plugin, "keyvault_plugin", None) is not None:
             plugins.append(execution_plugin.keyvault_plugin)
 
         super().__init__(
             name="action_executor",
-            description="Executes SAP QA actions, runs playbooks, performs configuration checks, "
-            + "and runs functional tests (HA, crash, failover) using Ansible. "
-            + "Use this agent whenever the user asks to 'run', 'execute', 'perform', "
-            + "or 'start' a test or action.",
+            description="Investigates problems, executes diagnostics, runs tests, and performs "
+            + "actions on SAP systems. "
+            + "Use this agent for: investigation, diagnosis, root cause analysis, "
+            + "running tests, running configuration checks "
+            + "checking cluster status, analyzing logs, executing commands. "
+            + "Primary operational agent for SAP HA systems.",
             kernel=kernel,
             instructions=ACTION_EXECUTOR_SYSTEM_PROMPT,
             plugins=plugins,

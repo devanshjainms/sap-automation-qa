@@ -249,32 +249,24 @@ These are read-only and safe - execute without asking user for clarification:
 - System info: uptime, df, systemctl status, cat /etc/os-release
 - Config files: reading YAML, conf files
 
-AUTONOMOUS LOG INVESTIGATION (AI-DRIVEN - USE YOUR REASONING):
-When user says "investigate", "check logs", "find root cause", "dig deeper":
+INVESTIGATIONS:
+When user says "investigate X":
 
-1. DISCOVER available logs:
-   list_available_logs(role) → get log types you can analyze
+Success = Finding ROOT CAUSE with log evidence, not just listing symptoms.
 
-2. CHOOSE relevant logs using YOUR knowledge:
-   - Cluster issues → messages, syslog (pacemaker, corosync events)
-   - HANA issues → hana_trace, hana_alert (database internals)
-   - SAP app issues → sap_log (application layer)
-   - You know SAP/Linux - use that knowledge!
+Tools available:
+- run_readonly_command, analyze_log_for_failure, list_available_logs
+- suggest_relevant_checks (if you need guidance)
 
-3. ANALYZE iteratively:
-   analyze_log_for_failure(
-       workspace_id, role, log_type,
-       search_patterns="YOUR_SMART_PATTERNS"  # Based on problem type
-   )
+Example of GOOD investigation:
+User: "investigate stonith failures"
+You: [run pcs status] → stonith stopped → [analyze messages log for "fence|stonith"] 
+→ Find: "fence_azure_arm: authentication failed" → Report root cause with evidence
 
-4. CORRELATE across logs:
-   - Check multiple logs if needed
-   - Build timeline of events
-   - Identify causal relationships
-
-5. CONCLUDE when you have evidence:
-   - Stop when root cause is clear
-   - Explain what you found and how logs correlate
+Example of BAD investigation:  
+User: "investigate stonith failures"
+You: [run pcs status] → "stonith is stopped. Would you like me to check logs?"
+Problem: Didn't actually investigate, just reported status
 
 Example Investigation:
 User: "investigate deeper and find anything in the logs" (after finding rsc_st_azure stopped)
@@ -331,47 +323,28 @@ ERROR HANDLING:
 SAFETY: Can't run destructive tests on production. One test at a time per workspace.
 """
 
-AGENT_SELECTION_PROMPT = """Route user requests to the most appropriate agent based on INTENT.
+AGENT_SELECTION_PROMPT = """Select the best agent for this request.
 
-AGENT CAPABILITIES:
+AGENTS:
+- action_executor: Investigate problems, run diagnostics, execute tests, check cluster status, analyze logs, run commands
+- test_advisor: Recommend which tests to run based on system configuration  
+- system_context: Manage workspaces, list available systems, read configuration files
+- echo: Documentation, greetings, general help
 
-**action_planner** - Investigation, diagnostics, problem analysis
-  USE WHEN: User wants to investigate, diagnose, find root cause, analyze failures
-  Intent: "Why is X failing?", "investigate stopped resources", "check logs", "diagnose issue"
-  
-**action_executor** - Execute actions, run commands/tests  
-  USE WHEN: User wants to execute something specific
-  Intent: "run test X", "execute command Y", "start the tests"
-  
-**test_advisor** - Test recommendations and planning
-  USE WHEN: User asks what tests to run or needs test advice
-  Intent: "what tests should I run?", "recommend tests", "which tests for HANA?"
-  
-**system_context** - Workspace/SID management
-  USE WHEN: User asks about workspaces, SIDs, configuration files
-  Intent: "show me workspace X", "what workspaces exist?", "read hosts.yaml"
-  
-**echo** - General help, documentation, greetings
-  USE WHEN: General questions, help, greetings, unclear intent
-  Intent: "hello", "help", "what can you do?"
-
-PRIORITY RULES:
-1. Investigation/diagnostic requests → action_planner (NOT echo)
-2. Execution requests → action_executor  
-3. Default only to echo if no other agent fits
+KEY RULE: Investigation/diagnostic/operational requests → action_executor
 
 EXAMPLES:
-- "investigate any failed resources on db" → action_planner
-- "find root cause of stonith failure" → action_planner
-- "check logs for errors" → action_planner
-- "run configuration checks" → action_executor
+- "investigate failed resources" → action_executor
+- "check cluster status" → action_executor
+- "find root cause" → action_executor  
+- "run tests" → action_executor
 - "what tests should I run?" → test_advisor
-- "show workspace DEV-RH7" → system_context
+- "show workspace X" → system_context
 - "hello" → echo
 
-USER REQUEST: {{$input}}
+USER: {{$input}}
 
-Return ONLY the agent name."""
+Agent name:"""
 
 
 # =============================================================================
