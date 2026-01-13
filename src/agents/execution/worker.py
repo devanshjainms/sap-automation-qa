@@ -10,14 +10,16 @@ in the background and emits events for real-time status updates.
 import asyncio
 import json
 from datetime import datetime
-from typing import Any, AsyncGenerator, Callable, Optional
+from typing import Any, AsyncGenerator, Callable, Optional, TYPE_CHECKING
 from uuid import UUID
 
 from src.agents.models.job import ExecutionJob, JobEvent, JobEventType, JobStatus
 from src.agents.execution.store import JobStore
 from src.agents.execution.exceptions import WorkspaceLockError
-from src.agents.plugins.execution import ExecutionPlugin
 from src.agents.observability import get_logger
+
+if TYPE_CHECKING:
+    from src.agents.plugins.execution import ExecutionPlugin
 
 logger = get_logger(__name__)
 
@@ -32,7 +34,7 @@ class JobWorker:
     def __init__(
         self,
         job_store: JobStore,
-        execution_plugin: ExecutionPlugin,
+        execution_plugin: "ExecutionPlugin",
     ) -> None:
         """Initialize the job worker.
 
