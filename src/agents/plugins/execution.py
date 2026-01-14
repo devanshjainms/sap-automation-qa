@@ -531,10 +531,12 @@ class ExecutionPlugin:
 
             logger.info(f"Command execution completed with status: {status}")
             command_str = json.dumps(commands) if is_multiple else commands[0]
+            conversation_id = self._get_conversation_id()
             self._store_command_execution(
                 workspace_id=workspace_id,
                 role=role,
                 command=command_str,
+                conversation_id=conversation_id or "",
                 result=exec_result,
                 job_id=job_id,
                 target_node=primary_target,
@@ -563,10 +565,12 @@ class ExecutionPlugin:
                     "commands": commands if len(commands) > 1 else None,
                 },
             )
+            conversation_id = self._get_conversation_id()
             self._store_command_execution(
                 workspace_id=workspace_id,
                 role=role,
                 command=command_str,
+                conversation_id=conversation_id or "",
                 result=exec_result,
                 job_id=job_id,
                 target_node=role,
@@ -623,6 +627,7 @@ class ExecutionPlugin:
         """
         started_at = datetime.utcnow()
         pattern_to_use = pattern if pattern and pattern.strip() else None
+        conversation_id = self._get_conversation_id()
 
         try:
             log_key = (role, log_type)
