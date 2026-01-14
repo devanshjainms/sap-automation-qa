@@ -135,6 +135,13 @@ class ExecutionPlugin:
         """
         resolved_conversation_id = self._get_conversation_id(conversation_id)
 
+        if not resolved_conversation_id:
+            logger.warning(
+                f"_store_command_execution: conversation_id is None/empty! "
+                f"Job will not be queryable by conversation. "
+                f"workspace_id={workspace_id}, command={command[:50]}"
+            )
+
         logger.info(
             f"_store_command_execution called: job_id={job_id or 'NONE'}, "
             f"conversation_id={resolved_conversation_id or 'NONE'}, workspace_id={workspace_id}, "
@@ -677,8 +684,6 @@ class ExecutionPlugin:
                 command = (
                     f"tail -n {lines} {log_pattern} 2>/dev/null || echo 'Log file not accessible'"
                 )
-
-            validate_readonly_command(command)
             return self.run_readonly_command(workspace_id, role, command)
 
         except Exception as e:
