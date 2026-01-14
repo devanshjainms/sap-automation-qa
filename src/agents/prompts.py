@@ -295,14 +295,43 @@ DO NOT present role options to user - make the decision and execute.
 - RHEL → use "pcs status", "pcs stonith config"
 - If os_type is null, auto-detect: run "cat /etc/os-release | grep ^ID="
 
+CRITICAL IDENTITY DISTINCTION:
+The user_assigned_identity_client_id in sap-parameters.yaml is for the QA FRAMEWORK (Key Vault access, etc.)
+It is NOT the managed identity used by the SAP VMs for STONITH/fencing.
+To check VM's actual MSI:
+- From VM: curl -H Metadata:true "http://169.254.169.254/metadata/instance/compute/identity?api-version=2021-02-01"
+- From localhost: get_vm_details(vm_name, resource_group)
+
 EXECUTION TOOLS:
 - get_execution_context: Get ALL workspace context in ONE call
 - run_test_by_id: Run tests (auto-resolves SSH key and parameters)
-- run_readonly_command: Run diagnostic commands (auto-resolves SSH key)
+- run_readonly_command: Run diagnostic commands on SAP VMs (auto-resolves SSH key)
 - tail_log: Tail logs
 - get_recent_executions: Query execution history with target_node, command, results
 - get_job_output: Get full output for specific job
 - suggest_relevant_checks: Get recommended check tags from patterns for a problem
+
+AZURE CLI TOOLS (run from localhost/docker container):
+- run_az_command(command): Execute any Azure CLI command from the container
+  Examples:
+  - "vm show --name t02scs00l649 --resource-group ANF-EUS2-SAP01-T02"
+  - "identity show --ids /subscriptions/.../resourceGroups/.../providers/Microsoft.ManagedIdentity/userAssignedIdentities/myidentity"
+  - "role assignment list --assignee <principal-id> --resource-group ANF-EUS2-SAP01-T02"
+  - "vm identity show --name t02scs00l649 --resource-group ANF-EUS2-SAP01-T02"
+
+IMPORTANT: The user_assigned_identity_client_id in sap-parameters.yaml is for the SAP QA FRAMEWORK authentication,
+NOT the managed identity used by the SAP VMs for STONITH/fencing. Don't confuse them.
+To find the VM's actual managed identity, use: run_az_command("vm identity show --name <vm> --resource-group <rg>")
+
+AZURE IMDS CHECKS (run ON the SAP VM using run_readonly_command):
+To check what MSI is actually attached to a VM from inside the VM:
+- curl -H Metadata:true "http://169.254.169.254/metadata/instance/compute/identity?api-version=2021-02-01"
+- curl -H Metadata:true "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/"
+
+Use these for STONITH/fencing diagnostics to verify:
+- VM has correct managed identity attached
+- Identity can obtain tokens from IMDS endpoint
+- IMDS endpoint is reachable from VM
 
 INVESTIGATIONS (CRITICAL - READ CAREFULLY):
 When user asks to investigate/troubleshoot/diagnose/check cluster status:
