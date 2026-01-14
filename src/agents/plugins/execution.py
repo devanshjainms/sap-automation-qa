@@ -331,8 +331,8 @@ class ExecutionPlugin:
                 started_at=started_at,
                 finished_at=finished_at,
                 hosts=[],
-                stdout=result["stdout"][:2000] if result["stdout"] else None,
-                stderr=result["stderr"][:2000] if result["stderr"] else None,
+                stdout=result["stdout"][:8000] if result["stdout"] else None,
+                stderr=result["stderr"][:8000] if result["stderr"] else None,
                 error_message=error_message,
                 details={
                     "return_code": result["rc"],
@@ -516,8 +516,8 @@ class ExecutionPlugin:
                 started_at=started_at,
                 finished_at=finished_at,
                 hosts=target_nodes_list or [role],
-                stdout=result["stdout"][:2000] if result["stdout"] else None,
-                stderr=result["stderr"][:2000] if result["stderr"] else None,
+                stdout=result["stdout"][:8000] if result["stdout"] else None,
+                stderr=result["stderr"][:8000] if result["stderr"] else None,
                 error_message=error_message,
                 details={
                     "return_code": result["rc"],

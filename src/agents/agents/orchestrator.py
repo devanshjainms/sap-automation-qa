@@ -226,6 +226,32 @@ class OrchestratorSK:
         except Exception as e:
             logger.warning(f"Failed to persist context: {e}")
 
+    def _sanitize_agent_response(self, content: str) -> str:
+        """Remove malformed tool call artifacts from agent responses.
+
+        Sometimes the LLM outputs tool call JSON in its text response instead of
+        using proper function calling. This corrupts the history and confuses
+        subsequent iterations.
+
+        :param content: Raw agent response content
+        :returns: Sanitized content
+        """
+        if not content:
+            return content
+        sanitized = re.sub(
+            r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\s*to=functions\.[^\s]+[^\n]*",
+            "[command executed]",
+            content,
+        )
+        sanitized = re.sub(r"to=functions\.[^\s]*[^\n]*", "", sanitized)
+        sanitized = re.sub(r'\{"workspace_id"[^}]+\}', "[command parameters]", sanitized)
+        sanitized = re.sub(r"\n{3,}", "\n\n", sanitized).strip()
+
+        if sanitized != content:
+            logger.debug("Sanitized malformed tool call artifacts from agent response")
+
+        return sanitized
+
     def _detect_sid_in_message(self, message: str) -> Optional[str]:
         """Detect if the message contains a valid SID from known workspaces.
 
@@ -496,7 +522,8 @@ class OrchestratorSK:
                     continue
 
                 iteration_count += 1
-                final_content = message.content or ""
+                raw_content = message.content or ""
+                final_content = self._sanitize_agent_response(raw_content)
                 agent_name = message.name or "assistant"
                 agent_chain.append(agent_name)
                 conv_context.set("last_agent", agent_name)
