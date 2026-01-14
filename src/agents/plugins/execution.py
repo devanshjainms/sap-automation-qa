@@ -646,7 +646,7 @@ class ExecutionPlugin:
                     )
                 ctx = max(1, min(context_lines, 10))
                 command = (
-                    f"grep -iEnC{ctx} --group-separator='---' "
+                    f"grep -iEnC{ctx} --group-separator=--- "
                     + f"'{pattern_to_use}' {log_pattern} 2>/dev/null | "
                     f"tail -n {lines}"
                 )
