@@ -44,6 +44,7 @@ const AppContent: React.FC<AppContentProps> = ({
 
   const [isHealthy, setIsHealthy] = useState<boolean | null>(null);
   const [showJobPanel, setShowJobPanel] = useState(false);
+  const [selectedWorkspaceForJobs, setSelectedWorkspaceForJobs] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<{
     workspaceId: string;
     fileName: string;
@@ -91,6 +92,14 @@ const AppContent: React.FC<AppContentProps> = ({
 
   const handleWorkspaceSelect = (workspaceId: string, fileName: string) => {
     setSelectedFile({ workspaceId, fileName });
+    setShowJobPanel(false);
+    setSelectedWorkspaceForJobs(null);
+  };
+
+  const handleJobsClick = (workspaceId: string) => {
+    setSelectedWorkspaceForJobs(workspaceId);
+    setShowJobPanel(true);
+    setSelectedFile(null);
   };
 
   const handleCloseFile = () => {
@@ -126,7 +135,10 @@ const AppContent: React.FC<AppContentProps> = ({
       {/* Main Content */}
       <div className={styles.mainContainer}>
         {/* Collapsible Sidebar */}
-        <CollapsibleSidebar onWorkspaceSelect={handleWorkspaceSelect} />
+        <CollapsibleSidebar 
+          onWorkspaceSelect={handleWorkspaceSelect}
+          onJobsClick={handleJobsClick}
+        />
 
         {/* Content Area */}
         <main className={styles.content}>
@@ -137,7 +149,7 @@ const AppContent: React.FC<AppContentProps> = ({
               onClose={handleCloseFile}
             />
           ) : showJobPanel ? (
-            <JobExecutionPanel />
+            <JobExecutionPanel workspaceId={selectedWorkspaceForJobs || undefined} />
           ) : (
             <ChatPanel />
           )}

@@ -43,6 +43,7 @@ import {
   DocumentRegular,
   CheckmarkCircleRegular,
   ChatRegular,
+  PlayRegular,
 } from "@fluentui/react-icons";
 import { useWorkspace } from "../../context";
 import { workspacesApi } from "../../api";
@@ -51,10 +52,12 @@ import { useWorkspaceSectionStyles as useStyles } from "../../styles";
 
 interface WorkspaceSectionProps {
   onWorkspaceSelect?: (workspaceId: string, fileName: string) => void;
+  onJobsClick?: (workspaceId: string) => void;
 }
 
 export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({
   onWorkspaceSelect,
+  onJobsClick,
 }) => {
   const styles = useStyles();
   const { state, loadWorkspaces, selectWorkspace } = useWorkspace();
@@ -324,6 +327,17 @@ export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({
                       >
                         <DocumentRegular className={styles.fileIcon} />
                         <Text>hosts.yaml</Text>
+                      </div>
+                      <div
+                        className={styles.fileItem}
+                        onClick={() => {
+                          if (onJobsClick) {
+                            onJobsClick(workspace.workspace_id);
+                          }
+                        }}
+                      >
+                        <PlayRegular className={styles.fileIcon} />
+                        <Text>Jobs</Text>
                       </div>
                     </div>
                   )}

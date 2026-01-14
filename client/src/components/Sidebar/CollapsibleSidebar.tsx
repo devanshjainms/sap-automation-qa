@@ -24,10 +24,12 @@ import { useCollapsibleSidebarStyles as useStyles } from "../../styles";
 
 interface CollapsibleSidebarProps {
   onWorkspaceSelect?: (workspaceId: string, fileName: string) => void;
+  onJobsClick?: (workspaceId: string) => void;
 }
 
 export const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
   onWorkspaceSelect,
+  onJobsClick,
 }) => {
   const styles = useStyles();
   const { startNewChat } = useChat();
@@ -76,7 +78,10 @@ export const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
           <ConversationSection />
 
           {/* Workspaces Section */}
-          <WorkspaceSection onWorkspaceSelect={onWorkspaceSelect} />
+          <WorkspaceSection 
+            onWorkspaceSelect={onWorkspaceSelect}
+            onJobsClick={onJobsClick}
+          />
 
           {/* Job Execution Section */}
           <JobSection />

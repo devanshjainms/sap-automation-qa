@@ -246,16 +246,27 @@ const JobRow: React.FC<JobRowProps> = ({ job, isExpanded, onToggle, onCancel, st
   );
 };
 
-export const JobExecutionPanel: React.FC = () => {
+interface JobExecutionPanelProps {
+  workspaceId?: string;
+}
+
+export const JobExecutionPanel: React.FC<JobExecutionPanelProps> = ({ workspaceId }) => {
   const styles = useStyles();
   const [jobs, setJobs] = useState<JobListItem[]>([]);
   const [workspaces, setWorkspaces] = useState<string[]>([]);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>("");
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string>(workspaceId || "");
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
+
+  // Update selected workspace when prop changes
+  useEffect(() => {
+    if (workspaceId) {
+      setSelectedWorkspace(workspaceId);
+    }
+  }, [workspaceId]);
 
   const fetchWorkspaces = useCallback(async () => {
     try {
