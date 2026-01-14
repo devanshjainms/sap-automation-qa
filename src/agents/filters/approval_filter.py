@@ -9,6 +9,7 @@ Ansible or SSH action is invoked.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Callable
 
@@ -80,14 +81,36 @@ class ApprovalFilter:
             f"[TOOL INVOCATION] LLM calling {plugin_name}.{function_name} with args: {args_summary}"
         )
 
-        if plugin_name != "execution":
+        plugin_key = plugin_name.lower().strip()
+        if plugin_key not in {"execution", "executionplugin"}:
             await next(context)
             return
 
         if function_name == "run_readonly_command":
-            command = str(context.arguments.get("command", ""))
+            command_arg = context.arguments.get("command", "")
+
+            commands: list[str]
+            if isinstance(command_arg, list):
+                commands = [str(cmd) for cmd in command_arg]
+            elif isinstance(command_arg, str):
+                stripped = command_arg.strip()
+                if stripped.startswith("[") and stripped.endswith("]"):
+                    try:
+                        parsed = json.loads(stripped)
+                        commands = (
+                            [str(cmd) for cmd in parsed]
+                            if isinstance(parsed, list)
+                            else [command_arg]
+                        )
+                    except json.JSONDecodeError:
+                        commands = [command_arg]
+                else:
+                    commands = [command_arg]
+            else:
+                commands = [str(command_arg)]
             try:
-                validate_readonly_command(command)
+                for cmd in commands:
+                    validate_readonly_command(cmd)
             except ValueError as exc:
                 logger.warning(f"ApprovalFilter blocked command: {exc}")
                 context.result = FunctionResult(
@@ -126,7 +149,11 @@ class ApprovalFilter:
                 workspace = (
                     self.workspace_store.get_workspace(workspace_id) if workspace_id else None
                 )
-                if workspace and allowed_tests.get(test_id, {}).get("destructive") and workspace.env == "PRD":
+                if (
+                    workspace
+                    and allowed_tests.get(test_id, {}).get("destructive")
+                    and workspace.env == "PRD"
+                ):
                     context.result = FunctionResult(
                         function=context.function.metadata,
                         value=(

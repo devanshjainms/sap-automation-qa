@@ -239,12 +239,17 @@ class OrchestratorSK:
         if not content:
             return content
         sanitized = re.sub(
-            r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\s*to=functions\.[^\s]+[^\n]*",
-            "[command executed]",
+            r"\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\s*to=functions\.[^\s]+[^\n]*",
+            "",
             content,
         )
-        sanitized = re.sub(r"to=functions\.[^\s]*[^\n]*", "", sanitized)
-        sanitized = re.sub(r'\{"workspace_id"[^}]+\}', "[command parameters]", sanitized)
+        sanitized = re.sub(r"\s*to=functions\.[^\s]*[^\n]*", "", sanitized)
+        sanitized = re.sub(
+            r"\s*\{\s*\"workspace_id\"\s*:\s*\"[^\"]+\"\s*,\s*\"role\"\s*:\s*\"[^\"]+\"\s*,\s*\"command\"\s*:\s*\[[^\]]*\]\s*(?:,\s*\"become\"\s*:\s*(?:true|false))?\s*\}\s*",
+            "",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
         sanitized = re.sub(r"\n{3,}", "\n\n", sanitized).strip()
 
         if sanitized != content:
@@ -268,8 +273,7 @@ class OrchestratorSK:
             self._refresh_valid_sids()
             if not self._valid_sids:
                 return None
-        sid_pattern = r"\b([A-Za-z][A-Za-z0-9]{2})\b"
-        candidates = re.findall(sid_pattern, message)
+        candidates = re.findall(r"\b([A-Za-z][A-Za-z0-9]{2})\b", message)
         for candidate in candidates:
             if candidate.upper() in self._valid_sids:
                 logger.info(f"Detected valid SID: {candidate.upper()}")
@@ -344,9 +348,7 @@ class OrchestratorSK:
         self,
     ) -> kernel_function_selection_strategy.KernelFunctionSelectionStrategy:
         """Build domain-aware agent selection strategy."""
-        agents = self.registry.all_agents()
-        agent_descriptions = "\n".join([f"- {agent.name}: {agent.description}" for agent in agents])
-        available_names = {agent.name for agent in agents}
+        available_names = {agent.name for agent in self.registry.all_agents()}
 
         selection_function = cast(
             KernelFunction,
@@ -500,14 +502,11 @@ class OrchestratorSK:
                     content = context_prefix + content
                 chat_history.add_user_message(content)
             elif msg.role == "assistant":
-                chat_history.add_assistant_message(msg.content)
+                chat_history.add_assistant_message(self._sanitize_agent_response(msg.content))
             elif msg.role == "system":
                 chat_history.add_system_message(msg.content)
-        agents = self.registry.all_agents()
-        agent_descriptions = "\n".join([f"- {agent.name}: {agent.description}" for agent in agents])
-
         group_chat = AgentGroupChat(
-            agents=agents,
+            agents=self.registry.all_agents(),
             selection_strategy=self.selection_strategy,
             termination_strategy=self.termination_strategy,
             chat_history=chat_history,
@@ -522,19 +521,16 @@ class OrchestratorSK:
                     continue
 
                 iteration_count += 1
-                raw_content = message.content or ""
-                final_content = self._sanitize_agent_response(raw_content)
+                final_content = self._sanitize_agent_response(message.content or "")
                 agent_name = message.name or "assistant"
                 agent_chain.append(agent_name)
                 conv_context.set("last_agent", agent_name)
                 self._extract_context_from_response(final_content, conv_context)
-
             if not final_content:
                 final_content = (
                     "I've consulted the specialized agents but couldn't produce a final summary. "
                     "Please try rephrasing your request."
                 )
-
             await asyncio.sleep(0.1)
         finally:
             self._persist_context(conversation_id, conv_context)
