@@ -412,8 +412,8 @@ class OrchestratorSK:
             return "echo"
 
         return kernel_function_selection_strategy.KernelFunctionSelectionStrategy(
-            kernel=self.kernel,
             function=selection_function,
+            kernel=self.kernel,
             result_parser=_parse_selection_result,
         )
 

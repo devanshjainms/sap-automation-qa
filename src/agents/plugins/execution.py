@@ -586,9 +586,9 @@ class ExecutionPlugin:
         log_type: Annotated[str, "Log type (hana_trace, hana_alert, sap_log, messages, syslog)"],
         lines: Annotated[int, "Number of lines to tail"] = 200,
         pattern: Annotated[
-            Optional[str],
-            "Optional grep pattern to filter log content. Example: 'error|fail|critical'",
-        ] = None,
+            str,
+            "Optional grep pattern to filter log content. Leave empty for no filtering. Example: 'error|fail|critical'",
+        ] = "",
         investigation: Annotated[
             bool,
             "Investigation mode: adds context lines, timestamps, and deduplication for "
@@ -612,8 +612,8 @@ class ExecutionPlugin:
         :type log_type: str
         :param lines: Number of lines to tail
         :type lines: int
-        :param pattern: Optional grep pattern for filtering (regex)
-        :type pattern: Optional[str]
+        :param pattern: Grep pattern for filtering (empty string means no filter)
+        :type pattern: str
         :param investigation: Enable investigation mode (context + dedup)
         :type investigation: bool
         :param context_lines: Context lines around matches (investigation mode)
@@ -622,6 +622,7 @@ class ExecutionPlugin:
         :rtype: str
         """
         started_at = datetime.utcnow()
+        pattern_to_use = pattern if pattern and pattern.strip() else None
 
         try:
             log_key = (role, log_type)
@@ -629,13 +630,14 @@ class ExecutionPlugin:
                 available = [f"{r}/{lt}" for r, lt in LOG_WHITELIST.keys()]
                 return json.dumps(
                     {
-                        "error": f"Log type '{role}/{log_type}' not in whitelist. Available: {available}"
+                        "error": f"Log type '{role}/{log_type}' not in whitelist. "
+                        + f"Available: {available}"
                     }
                 )
 
             log_pattern = LOG_WHITELIST[log_key]
-            if investigation and pattern:
-                if any(char in pattern for char in [";", "&", "$", "`", "\n", "\r"]):
+            if investigation and pattern_to_use:
+                if any(char in pattern_to_use for char in [";", "&", "$", "`", "\n", "\r"]):
                     return json.dumps(
                         {
                             "error": "Invalid characters in grep pattern. "
@@ -644,20 +646,27 @@ class ExecutionPlugin:
                     )
                 ctx = max(1, min(context_lines, 10))
                 command = (
-                    f"grep -iEnC{ctx} --group-separator='---' '{pattern}' {log_pattern} 2>/dev/null | "
+                    f"grep -iEnC{ctx} --group-separator='---' "
+                    + f"'{pattern_to_use}' {log_pattern} 2>/dev/null | "
                     f"tail -n {lines}"
                 )
 
-            elif pattern:
-                if any(char in pattern for char in [";", "&", "$", "`", "\n", "\r"]):
+            elif pattern_to_use:
+                if any(char in pattern_to_use for char in [";", "&", "$", "`", "\n", "\r"]):
                     return json.dumps({"error": "Invalid characters in grep pattern."})
-                command = f"grep -iE '{pattern}' {log_pattern} 2>/dev/null | tail -n {lines}"
+                command = f"grep -iE '{pattern_to_use}' {log_pattern} 2>/dev/null | tail -n {lines}"
 
             elif investigation:
                 if "messages" in log_type or "syslog" in log_type:
-                    command = f"tail -n {lines} {log_pattern} 2>/dev/null || echo 'Log file not accessible'"
+                    command = (
+                        f"tail -n {lines} {log_pattern} 2>/dev/null "
+                        + "|| echo 'Log file not accessible'"
+                    )
                 else:
-                    command = f"tail -n {lines} {log_pattern} 2>/dev/null || echo 'Log file not accessible'"
+                    command = (
+                        f"tail -n {lines} {log_pattern} 2>/dev/null "
+                        + "|| echo 'Log file not accessible'"
+                    )
 
             else:
                 command = (
