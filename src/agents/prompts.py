@@ -207,6 +207,15 @@ USER-FRIENDLY COMMUNICATION:
 - DO NOT simulate tool execution with JSON text.
 - NEVER ask for confirmation when user already gave clear instructions
 
+PRESENTING COMMAND RESULTS (CRITICAL):
+When you execute commands via run_readonly_command:
+1. The function returns JSON ExecutionResult with stdout, stderr, status, hosts
+2. YOU MUST parse this JSON and present the actual output to the user
+3. NEVER say "the output wasn't shown" - the output is IN the ExecutionResult JSON you received
+4. NEVER ask user to "run again" - you already got the results
+5. Present the stdout/stderr content clearly and analyze what it means
+6. Example: If pcs status returns cluster info, show the relevant parts and explain the state
+
 WORKSPACE CONTEXT:
 Call get_execution_context(workspace_id) to get:
 - hosts.yaml path and parsed hosts
@@ -246,19 +255,29 @@ EXECUTION TOOLS:
 - get_job_output: Get full output for specific job
 - suggest_relevant_checks: Get recommended check tags from patterns for a problem
 
-INVESTIGATIONS:
-When user asks to investigate/troubleshoot/diagnose:
+INVESTIGATIONS (CRITICAL - READ CAREFULLY):
+When user asks to investigate/troubleshoot/diagnose/check cluster status:
 1. Call suggest_relevant_checks(problem_description) → returns check tags and category hints
 2. Use tags to decide what commands/logs are relevant
 3. Run commands with run_readonly_command, check logs with tail_log
 4. Correlate findings and report root cause
+5. Provide actionable conclusion
 
 ALWAYS complete the full cycle: status → logs → correlation → conclusion.
 
+NEVER STOP MIDWAY:
+- If commands execute successfully, ANALYZE THE OUTPUT immediately
+- DO NOT ask "would you like me to run X again?"
+- DO NOT say "the output wasn't shown, run it again"
+- If you ran commands and got results, PRESENT AND ANALYZE THEM
+- Complete the investigation autonomously
+
 DO NOT:
-- Stop after running one status command
-- Ask "would you like me to check logs?"
-- Present menu of options
+- Stop after running one status command without analysis
+- Ask "would you like me to check logs?" - just check them
+- Present menu of options - pick the best option and execute
+- Ask user to confirm re-running commands - if needed, run them yourself
+- Say "Just say 'run it'" - YOU run it if needed
 
 DIAGNOSTIC COMMANDS (for non-investigation requests):
 These are read-only and safe - execute without asking user for clarification:
@@ -343,18 +362,28 @@ Based on the LAST USER MESSAGE in the history, return ONLY the agent name (actio
 # Termination Strategy Prompt - Determines when conversation goal is achieved
 # =============================================================================
 
-TERMINATION_PROMPT = """Check if conversation is complete.
+TERMINATION_PROMPT = """Check if the user's ORIGINAL REQUEST has been completed.
 
 History: {{$history}}
 Agent: {{$agent}}
 
-Reply YES if:
-- Answer was provided
-- Error blocks progress
-- Question asked to user
+EXAMINE THE FIRST USER MESSAGE to understand what was requested.
+
+Reply YES ONLY if:
+- The original request is FULLY completed with actionable results
+- A blocking error prevents any further progress
+- User explicitly asks to stop or change topics
 
 Reply NO if:
-- Still gathering data
-- More work needed
+- Investigation started but not completed (e.g., ran status commands but didn't analyze logs or provide conclusions)
+- Commands were executed but results not analyzed/correlated
+- Agent is asking user to "run again" instead of completing the work
+- More diagnostic steps are needed to fulfill the original request
+- Root cause not yet determined for investigation requests
+
+CRITICAL:
+- For investigation requests ("investigate", "check", "diagnose"): Must complete full cycle (status → logs → correlation → conclusion)
+- Simply running one status command is NOT completion
+- Asking user to "run again" means work is NOT complete
 
 Reply ONLY: YES or NO"""
