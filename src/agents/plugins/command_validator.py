@@ -6,7 +6,7 @@
 This module provides strict validation for shell commands to ensure
 only safe, read-only operations are executed via ad-hoc Ansible.
 """
-
+import re
 import shlex
 from typing import Tuple
 
@@ -47,6 +47,8 @@ def validate_readonly_command(command: str) -> None:
         raise ValueError("Empty command not allowed")
 
     command = command.strip()
+    command_to_parse = re.sub(r"\s*2>/dev/null\s*", " ", command)
+    command_to_parse = re.sub(r"\s*>/dev/null\s*", " ", command_to_parse).strip()
 
     dangerous_operators = [";", "&&", "||", "`", "$(", "$("]
     for op in dangerous_operators:
@@ -56,7 +58,7 @@ def validate_readonly_command(command: str) -> None:
                 "Shell control operators are not allowed for safety."
             )
     try:
-        tokens = shlex.split(command)
+        tokens = shlex.split(command_to_parse)
     except ValueError as e:
         raise ValueError(f"Invalid command syntax: {e}")
 
