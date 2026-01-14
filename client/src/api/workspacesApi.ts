@@ -47,4 +47,37 @@ export const workspacesApi = {
     );
     return response.data;
   },
+
+  create: async (workspaceName: string): Promise<Workspace> => {
+    const response = await apiClient.post<Workspace>(API_ENDPOINTS.WORKSPACES, {
+      workspace_id: workspaceName,
+      clone_from: "DEV-WEEU-SAP01-X00",
+    });
+    return response.data;
+  },
+
+  delete: async (workspaceId: string): Promise<void> => {
+    await apiClient.delete(API_ENDPOINTS.WORKSPACE_BY_ID(workspaceId));
+  },
+
+  getFileContent: async (
+    workspaceId: string,
+    fileName: string,
+  ): Promise<string> => {
+    const response = await apiClient.get<{ content: string }>(
+      `${API_ENDPOINTS.WORKSPACE_BY_ID(workspaceId)}/files/${fileName}`,
+    );
+    return response.data.content;
+  },
+
+  updateFileContent: async (
+    workspaceId: string,
+    fileName: string,
+    content: string,
+  ): Promise<void> => {
+    await apiClient.put(
+      `${API_ENDPOINTS.WORKSPACE_BY_ID(workspaceId)}/files/${fileName}`,
+      { content },
+    );
+  },
 };

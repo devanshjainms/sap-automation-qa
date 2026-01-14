@@ -14,3 +14,9 @@ export { useStyles as useThinkingIndicatorStyles } from "./ThinkingIndicator.sty
 export { useStyles as useConversationSidebarStyles } from "./ConversationSidebar.styles";
 export { useStyles as useWorkspaceSelectorStyles } from "./WorkspaceSelector.styles";
 export { useStyles as useJobExecutionPanelStyles } from "./JobExecutionPanel.styles";
+export { useStyles as useCollapsibleSidebarStyles } from "./CollapsibleSidebar.styles";
+export { useStyles as useConversationSectionStyles } from "./ConversationSection.styles";
+export { useStyles as useWorkspaceSectionStyles } from "./WorkspaceSection.styles";
+export { useStyles as useJobSectionStyles } from "./JobSection.styles";
+export { useStyles as useWorkspaceFileViewerStyles } from "./WorkspaceFileViewer.styles";
+

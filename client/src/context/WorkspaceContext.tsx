@@ -60,7 +60,7 @@ export const WorkspaceProvider: React.FC<{ children: ReactNode }> = ({
     workspaces: [],
     isLoading: false,
     error: null,
-    selectedWorkspaceIds: loadSavedWorkspaces(),
+    selectedWorkspaceIds: [],
   });
 
   const loadWorkspaces = useCallback(async () => {

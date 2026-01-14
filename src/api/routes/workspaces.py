@@ -171,3 +171,202 @@ async def get_workspace(workspace_id: str) -> WorkspaceDetailResponse:
     except Exception as e:
         logger.error(f"Failed to get workspace {workspace_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get workspace: {e}")
+
+
+class CreateWorkspaceRequest(BaseModel):
+    """Request model for creating a workspace."""
+
+    workspace_id: str
+    clone_from: Optional[str] = "X00"
+
+
+class FileContentResponse(BaseModel):
+    """Response model for file content."""
+
+    content: str
+
+
+class UpdateFileContentRequest(BaseModel):
+    """Request model for updating file content."""
+
+    content: str
+
+
+@router.post("", response_model=WorkspaceInfo, status_code=201)
+async def create_workspace(request: CreateWorkspaceRequest) -> WorkspaceInfo:
+    """Create a new workspace by cloning an existing one.
+
+    :param request: Create workspace request
+    :type request: CreateWorkspaceRequest
+    :returns: Created workspace info
+    :rtype: WorkspaceInfo
+    """
+    import shutil
+    import yaml
+
+    store = get_workspace_store()
+
+    try:
+        existing = store.get_workspace(request.workspace_id)
+        if existing:
+            raise HTTPException(
+                status_code=400, detail=f"Workspace {request.workspace_id} already exists"
+            )
+
+        clone_from = request.clone_from or "X00"
+        source_workspace = store.get_workspace(clone_from)
+        if not source_workspace:
+            raise HTTPException(status_code=404, detail=f"Source workspace {clone_from} not found")
+        new_workspace_path = store.root_path / request.workspace_id
+        new_workspace_path.mkdir(parents=True, exist_ok=False)
+        if source_workspace.path:
+            for file_name in ["sap-parameters.yaml", "hosts.yaml"]:
+                source_file = source_workspace.path / file_name
+                if source_file.exists():
+                    dest_file = new_workspace_path / file_name
+                    shutil.copy2(source_file, dest_file)
+                    logger.info(f"Copied {file_name} from {clone_from} to {request.workspace_id}")
+        new_workspace = store.get_workspace(request.workspace_id)
+        if not new_workspace:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to create workspace {request.workspace_id}"
+            )
+
+        logger.info(f"Created workspace {request.workspace_id} from {request.clone_from}")
+
+        return WorkspaceInfo(
+            workspace_id=new_workspace.workspace_id,
+            env=new_workspace.env,
+            region=new_workspace.region,
+            deployment_code=new_workspace.deployment_code,
+            sid=new_workspace.sid,
+            path=str(new_workspace.path) if new_workspace.path else None,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create workspace: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create workspace: {e}")
+
+
+@router.delete("/{workspace_id}", status_code=204)
+async def delete_workspace(workspace_id: str) -> None:
+    """Delete a workspace.
+
+    :param workspace_id: Workspace ID to delete
+    :type workspace_id: str
+    """
+    import shutil
+
+    store = get_workspace_store()
+
+    try:
+        workspace = store.get_workspace(workspace_id)
+        if not workspace:
+            raise HTTPException(status_code=404, detail=f"Workspace {workspace_id} not found")
+        if workspace.path and workspace.path.exists():
+            shutil.rmtree(workspace.path)
+            logger.info(f"Deleted workspace directory: {workspace.path}")
+
+        logger.info(f"Deleted workspace {workspace_id}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete workspace {workspace_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete workspace: {e}")
+
+
+@router.get("/{workspace_id}/files/{file_name}", response_model=FileContentResponse)
+async def get_file_content(workspace_id: str, file_name: str) -> FileContentResponse:
+    """Get content of a workspace file.
+
+    :param workspace_id: Workspace ID
+    :type workspace_id: str
+    :param file_name: File name (e.g., sap-parameters.yaml, hosts.yaml)
+    :type file_name: str
+    :returns: File content
+    :rtype: FileContentResponse
+    """
+    store = get_workspace_store()
+
+    try:
+        workspace = store.get_workspace(workspace_id)
+        if not workspace:
+            raise HTTPException(status_code=404, detail=f"Workspace {workspace_id} not found")
+
+        if not workspace.path:
+            raise HTTPException(status_code=500, detail=f"Workspace {workspace_id} has no path")
+        allowed_files = ["sap-parameters.yaml", "hosts.yaml"]
+        if file_name not in allowed_files:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file name. Allowed files: {', '.join(allowed_files)}",
+            )
+
+        file_path = workspace.path / file_name
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail=f"File {file_name} not found")
+
+        with open(file_path, "r") as f:
+            content = f.read()
+
+        logger.info(f"Retrieved file {file_name} from workspace {workspace_id}")
+
+        return FileContentResponse(content=content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get file {file_name} from workspace {workspace_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get file content: {e}")
+
+
+@router.put("/{workspace_id}/files/{file_name}", status_code=204)
+async def update_file_content(
+    workspace_id: str, file_name: str, request: UpdateFileContentRequest
+) -> None:
+    """Update content of a workspace file.
+
+    :param workspace_id: Workspace ID
+    :type workspace_id: str
+    :param file_name: File name (e.g., sap-parameters.yaml, hosts.yaml)
+    :type file_name: str
+    :param request: Update file content request
+    :type request: UpdateFileContentRequest
+    """
+    import yaml
+
+    store = get_workspace_store()
+
+    try:
+        workspace = store.get_workspace(workspace_id)
+        if not workspace:
+            raise HTTPException(status_code=404, detail=f"Workspace {workspace_id} not found")
+
+        if not workspace.path:
+            raise HTTPException(status_code=500, detail=f"Workspace {workspace_id} has no path")
+        allowed_files = ["sap-parameters.yaml", "hosts.yaml"]
+        if file_name not in allowed_files:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file name. Allowed files: {', '.join(allowed_files)}",
+            )
+        try:
+            yaml.safe_load(request.content)
+        except yaml.YAMLError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid YAML syntax: {str(e)}")
+
+        file_path = workspace.path / file_name
+        if file_path.exists():
+            backup_path = workspace.path / f"{file_name}.bak"
+            import shutil
+
+            shutil.copy2(file_path, backup_path)
+        with open(file_path, "w") as f:
+            f.write(request.content)
+
+        logger.info(f"Updated file {file_name} in workspace {workspace_id}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update file {file_name} in workspace {workspace_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update file content: {e}")

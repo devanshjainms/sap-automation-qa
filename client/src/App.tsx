@@ -11,39 +11,25 @@ import {
   FluentProvider,
   webLightTheme,
   webDarkTheme,
-  Tab,
-  TabList,
   Button,
   Tooltip,
   Badge,
 } from "@fluentui/react-components";
 import {
-  ChatRegular,
-  ChatFilled,
-  ClipboardTaskListLtrRegular,
-  ClipboardTaskListLtrFilled,
   WeatherMoonRegular,
   WeatherSunnyRegular,
-  bundleIcon,
 } from "@fluentui/react-icons";
 
 import { ChatProvider, WorkspaceProvider } from "./context";
 import {
   ChatPanel,
-  ConversationSidebar,
+  CollapsibleSidebar,
   JobExecutionPanel,
+  WorkspaceFileViewer,
 } from "./components";
 import { healthApi } from "./api";
-import { APP_STRINGS, LABELS } from "./constants";
+import { APP_STRINGS } from "./constants";
 import { useAppStyles as useStyles } from "./styles";
-
-const ChatIcon = bundleIcon(ChatFilled, ChatRegular);
-const TestIcon = bundleIcon(
-  ClipboardTaskListLtrFilled,
-  ClipboardTaskListLtrRegular,
-);
-
-type TabValue = "chat" | "tests";
 
 interface AppContentProps {
   isDarkMode: boolean;
@@ -56,8 +42,12 @@ const AppContent: React.FC<AppContentProps> = ({
 }) => {
   const styles = useStyles();
 
-  const [selectedTab, setSelectedTab] = useState<TabValue>("chat");
   const [isHealthy, setIsHealthy] = useState<boolean | null>(null);
+  const [showJobPanel, setShowJobPanel] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<{
+    workspaceId: string;
+    fileName: string;
+  } | null>(null);
 
   // Check API health on mount
   useEffect(() => {
@@ -75,10 +65,6 @@ const AppContent: React.FC<AppContentProps> = ({
     const interval = setInterval(checkHealth, 30000);
     return () => clearInterval(interval);
   }, []);
-
-  const handleTabSelect = (_: unknown, data: { value: TabValue }) => {
-    setSelectedTab(data.value);
-  };
 
   const getStatusBadge = () => {
     if (isHealthy === null) {
@@ -103,6 +89,14 @@ const AppContent: React.FC<AppContentProps> = ({
     );
   };
 
+  const handleWorkspaceSelect = (workspaceId: string, fileName: string) => {
+    setSelectedFile({ workspaceId, fileName });
+  };
+
+  const handleCloseFile = () => {
+    setSelectedFile(null);
+  };
+
   return (
     <div className={styles.root}>
       {/* Header */}
@@ -112,17 +106,6 @@ const AppContent: React.FC<AppContentProps> = ({
           {getStatusBadge()}
         </div>
         <div className={styles.headerRight}>
-          <TabList
-            selectedValue={selectedTab}
-            onTabSelect={handleTabSelect as never}
-          >
-            <Tab icon={<ChatIcon />} value="chat">
-              {LABELS.CHAT}
-            </Tab>
-            <Tab icon={<TestIcon />} value="tests">
-              {LABELS.JOB_EXECUTION}
-            </Tab>
-          </TabList>
           <Tooltip
             content={
               isDarkMode ? "Switch to light mode" : "Switch to dark mode"
@@ -142,16 +125,22 @@ const AppContent: React.FC<AppContentProps> = ({
 
       {/* Main Content */}
       <div className={styles.mainContainer}>
-        {/* Sidebar */}
-        <aside className={styles.sidebar}>
-          <ConversationSidebar />
-        </aside>
+        {/* Collapsible Sidebar */}
+        <CollapsibleSidebar onWorkspaceSelect={handleWorkspaceSelect} />
 
         {/* Content Area */}
         <main className={styles.content}>
-          <div className={styles.tabContent}>
-            {selectedTab === "chat" ? <ChatPanel /> : <JobExecutionPanel />}
-          </div>
+          {selectedFile ? (
+            <WorkspaceFileViewer
+              workspaceId={selectedFile.workspaceId}
+              fileName={selectedFile.fileName}
+              onClose={handleCloseFile}
+            />
+          ) : showJobPanel ? (
+            <JobExecutionPanel />
+          ) : (
+            <ChatPanel />
+          )}
         </main>
       </div>
     </div>

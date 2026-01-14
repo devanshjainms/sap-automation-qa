@@ -6,3 +6,5 @@
  */
 
 export { WorkspaceSelector } from "./WorkspaceSelector";
+export { WorkspaceFileViewer } from "./WorkspaceFileViewer";
+

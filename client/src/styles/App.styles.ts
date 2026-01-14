@@ -47,22 +47,11 @@ export const useStyles = makeStyles({
     flex: 1,
     overflow: "hidden",
   },
-  sidebar: {
-    width: "280px",
-    borderRight: `1px solid ${tokens.colorNeutralStroke1}`,
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: tokens.colorNeutralBackground2,
-  },
   content: {
     flex: 1,
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
     backgroundColor: tokens.colorNeutralBackground1,
-  },
-  tabContent: {
-    flex: 1,
-    overflow: "hidden",
   },
 });
