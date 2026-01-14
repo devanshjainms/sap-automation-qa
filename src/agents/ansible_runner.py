@@ -221,9 +221,9 @@ class AnsibleRunner:
         extra_vars: Optional[dict[str, Any]],
         become: bool,
     ) -> dict[str, Any]:
-        """Run multiple commands via temporary playbook with loop.
+        """Run multiple commands via temporary playbook in single execution.
 
-        Creates temp playbook that loops over commands for single execution.
+        Creates temp playbook that runs all commands at once with visible output.
 
         :param inventory: Path to Ansible inventory
         :param host_pattern: Host pattern to target
@@ -233,21 +233,32 @@ class AnsibleRunner:
         :param become: Use sudo
         :returns: Dict with rc, stdout, stderr, command, hosts
         """
+        tasks = []
+        for i, cmd in enumerate(commands):
+            tasks.append(
+                {
+                    "name": f"Execute: {cmd}",
+                    module: cmd,
+                    "register": f"cmd_result_{i}",
+                    "failed_when": False,
+                }
+            )
+            tasks.append(
+                {
+                    "name": f"Display output for: {cmd}",
+                    "ansible.builtin.debug": {
+                        "msg": "{{ cmd_result_%d.stdout }}" % i,
+                    },
+                }
+            )
 
         playbook_content = [
             {
-                "name": "Run multiple commands sequentially",
+                "name": "Run multiple commands in single execution",
                 "hosts": host_pattern,
                 "gather_facts": False,
                 "become": become,
-                "tasks": [
-                    {
-                        "name": f"Execute command",
-                        module: "{{ item }}",
-                        "loop": commands,
-                        "register": "command_results",
-                    }
-                ],
+                "tasks": tasks,
             }
         ]
 
