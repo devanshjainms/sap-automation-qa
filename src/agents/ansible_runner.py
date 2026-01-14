@@ -171,7 +171,7 @@ class AnsibleRunner:
                 cwd=self.base_dir,
                 capture_output=True,
                 text=True,
-                timeout=300,
+                timeout=60
             )
 
             logger.info(f"ansible ad-hoc completed with rc={result.returncode}")
@@ -241,6 +241,8 @@ class AnsibleRunner:
                     module: cmd,
                     "register": f"cmd_result_{i}",
                     "failed_when": False,
+                    "async": 60,
+                    "poll": 5,
                 }
             )
             tasks.append(
