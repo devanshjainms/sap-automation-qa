@@ -286,7 +286,7 @@ export const ConversationSection: React.FC = () => {
                       onClick={handleShowMore}
                       className={styles.showMoreButton}
                     >
-                      Show more ({filteredConversations.length - visibleCount} remaining)
+                      Show more
                     </Button>
                   </div>
                 )}
