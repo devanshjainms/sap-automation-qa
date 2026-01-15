@@ -19,24 +19,22 @@ import {
 import { ConversationSection } from "../Sidebar/ConversationSection";
 import { WorkspaceSection } from "../Sidebar/WorkspaceSection";
 import { JobSection } from "../Sidebar/JobSection";
-import { useChat } from "../../context";
+import { useChat, useApp } from "../../context";
 import { useCollapsibleSidebarStyles as useStyles } from "../../styles";
 
-interface CollapsibleSidebarProps {
-  onWorkspaceSelect?: (workspaceId: string, fileName: string) => void;
-  onJobsClick?: (workspaceId: string) => void;
-}
-
-export const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
-  onWorkspaceSelect,
-  onJobsClick,
-}) => {
+export const CollapsibleSidebar: React.FC = () => {
   const styles = useStyles();
   const { startNewChat } = useChat();
+  const { navigateToChat } = useApp();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
+  };
+
+  const handleNewChat = () => {
+    startNewChat();
+    navigateToChat();
   };
 
   return (
@@ -64,7 +62,7 @@ export const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
             <Button
               icon={<AddRegular />}
               appearance="transparent"
-              onClick={startNewChat}
+              onClick={handleNewChat}
               className={styles.navButton}
             />
           </Tooltip>
@@ -78,10 +76,7 @@ export const CollapsibleSidebar: React.FC<CollapsibleSidebarProps> = ({
           <ConversationSection />
 
           {/* Workspaces Section */}
-          <WorkspaceSection 
-            onWorkspaceSelect={onWorkspaceSelect}
-            onJobsClick={onJobsClick}
-          />
+          <WorkspaceSection />
 
           {/* Job Execution Section */}
           <JobSection />

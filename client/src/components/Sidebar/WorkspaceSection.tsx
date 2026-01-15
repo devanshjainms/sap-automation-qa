@@ -45,22 +45,15 @@ import {
   ChatRegular,
   PlayRegular,
 } from "@fluentui/react-icons";
-import { useWorkspace } from "../../context";
+import { useWorkspace, useApp } from "../../context";
 import { workspacesApi } from "../../api";
 import { Workspace } from "../../types";
 import { useWorkspaceSectionStyles as useStyles } from "../../styles";
 
-interface WorkspaceSectionProps {
-  onWorkspaceSelect?: (workspaceId: string, fileName: string) => void;
-  onJobsClick?: (workspaceId: string) => void;
-}
-
-export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({
-  onWorkspaceSelect,
-  onJobsClick,
-}) => {
+export const WorkspaceSection: React.FC = () => {
   const styles = useStyles();
   const { state, loadWorkspaces, selectWorkspace } = useWorkspace();
+  const { navigateToFile, navigateToJobs } = useApp();
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedWorkspace, setExpandedWorkspace] = useState<string | null>(null);
@@ -116,9 +109,7 @@ export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({
   };
 
   const handleFileClick = (workspaceId: string, fileName: string) => {
-    if (onWorkspaceSelect) {
-      onWorkspaceSelect(workspaceId, fileName);
-    }
+    navigateToFile(workspaceId, fileName);
   };
 
   const openCreateDialog = () => {
@@ -148,8 +139,8 @@ export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({
       setNewWorkspaceName("");
       
       // Automatically open sap-parameters.yaml after creation
-      if (useBoilerplate && onWorkspaceSelect) {
-        onWorkspaceSelect(workspaceName, "sap-parameters.yaml");
+      if (useBoilerplate) {
+        navigateToFile(workspaceName, "sap-parameters.yaml");
       }
     } catch (error: any) {
       const errorMsg = error?.response?.data?.detail || error?.message || "Failed to create workspace";
@@ -330,11 +321,7 @@ export const WorkspaceSection: React.FC<WorkspaceSectionProps> = ({
                       </div>
                       <div
                         className={styles.fileItem}
-                        onClick={() => {
-                          if (onJobsClick) {
-                            onJobsClick(workspace.workspace_id);
-                          }
-                        }}
+                        onClick={() => navigateToJobs(workspace.workspace_id)}
                       >
                         <PlayRegular className={styles.fileIcon} />
                         <Text>Jobs</Text>

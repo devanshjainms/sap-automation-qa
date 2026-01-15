@@ -37,7 +37,7 @@ import {
   SearchRegular,
   DismissRegular,
 } from "@fluentui/react-icons";
-import { useChat } from "../../context";
+import { useChat, useApp } from "../../context";
 import { APP_STRINGS } from "../../constants";
 import { ConversationListItem } from "../../types";
 import { useConversationSectionStyles as useStyles } from "../../styles";
@@ -86,6 +86,7 @@ export const ConversationSection: React.FC = () => {
     deleteConversation,
     renameConversation,
   } = useChat();
+  const { navigateToChat } = useApp();
 
   const [isExpanded, setIsExpanded] = useState(true);
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -125,10 +126,12 @@ export const ConversationSection: React.FC = () => {
 
   const handleConversationClick = (conversation: ConversationListItem) => {
     loadConversation(conversation.id);
+    navigateToChat();
   };
 
   const handleNewChat = () => {
     startNewChat();
+    navigateToChat();
   };
 
   const openRenameDialog = (conversation: ConversationListItem) => {

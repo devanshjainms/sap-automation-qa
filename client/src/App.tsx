@@ -20,7 +20,7 @@ import {
   WeatherSunnyRegular,
 } from "@fluentui/react-icons";
 
-import { ChatProvider, WorkspaceProvider } from "./context";
+import { AppProvider, ChatProvider, WorkspaceProvider, useApp } from "./context";
 import {
   ChatPanel,
   CollapsibleSidebar,
@@ -41,14 +41,9 @@ const AppContent: React.FC<AppContentProps> = ({
   onToggleTheme,
 }) => {
   const styles = useStyles();
+  const { state, closeFile } = useApp();
 
   const [isHealthy, setIsHealthy] = useState<boolean | null>(null);
-  const [showJobPanel, setShowJobPanel] = useState(false);
-  const [selectedWorkspaceForJobs, setSelectedWorkspaceForJobs] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<{
-    workspaceId: string;
-    fileName: string;
-  } | null>(null);
 
   // Check API health on mount
   useEffect(() => {
@@ -90,20 +85,28 @@ const AppContent: React.FC<AppContentProps> = ({
     );
   };
 
-  const handleWorkspaceSelect = (workspaceId: string, fileName: string) => {
-    setSelectedFile({ workspaceId, fileName });
-    setShowJobPanel(false);
-    setSelectedWorkspaceForJobs(null);
-  };
-
-  const handleJobsClick = (workspaceId: string) => {
-    setSelectedWorkspaceForJobs(workspaceId);
-    setShowJobPanel(true);
-    setSelectedFile(null);
-  };
-
-  const handleCloseFile = () => {
-    setSelectedFile(null);
+  const renderContent = () => {
+    switch (state.currentView) {
+      case "file":
+        return state.selectedFile ? (
+          <WorkspaceFileViewer
+            workspaceId={state.selectedFile.workspaceId}
+            fileName={state.selectedFile.fileName}
+            onClose={closeFile}
+          />
+        ) : (
+          <ChatPanel />
+        );
+      case "jobs":
+        return (
+          <JobExecutionPanel
+            workspaceId={state.selectedWorkspaceForJobs || undefined}
+          />
+        );
+      case "chat":
+      default:
+        return <ChatPanel />;
+    }
   };
 
   return (
@@ -135,25 +138,10 @@ const AppContent: React.FC<AppContentProps> = ({
       {/* Main Content */}
       <div className={styles.mainContainer}>
         {/* Collapsible Sidebar */}
-        <CollapsibleSidebar 
-          onWorkspaceSelect={handleWorkspaceSelect}
-          onJobsClick={handleJobsClick}
-        />
+        <CollapsibleSidebar />
 
         {/* Content Area */}
-        <main className={styles.content}>
-          {selectedFile ? (
-            <WorkspaceFileViewer
-              workspaceId={selectedFile.workspaceId}
-              fileName={selectedFile.fileName}
-              onClose={handleCloseFile}
-            />
-          ) : showJobPanel ? (
-            <JobExecutionPanel workspaceId={selectedWorkspaceForJobs || undefined} />
-          ) : (
-            <ChatPanel />
-          )}
-        </main>
+        <main className={styles.content}>{renderContent()}</main>
       </div>
     </div>
   );
@@ -177,11 +165,13 @@ const App: React.FC = () => {
 
   return (
     <FluentProvider theme={isDarkMode ? webDarkTheme : webLightTheme}>
-      <WorkspaceProvider>
-        <ChatProvider>
-          <AppContent isDarkMode={isDarkMode} onToggleTheme={toggleTheme} />
-        </ChatProvider>
-      </WorkspaceProvider>
+      <AppProvider>
+        <WorkspaceProvider>
+          <ChatProvider>
+            <AppContent isDarkMode={isDarkMode} onToggleTheme={toggleTheme} />
+          </ChatProvider>
+        </WorkspaceProvider>
+      </AppProvider>
     </FluentProvider>
   );
 };
