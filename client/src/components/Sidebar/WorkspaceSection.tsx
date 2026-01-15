@@ -40,7 +40,6 @@ import {
   FolderRegular,
   MoreHorizontalRegular,
   DeleteRegular,
-  EditRegular,
   ChevronDownRegular,
   ChevronRightRegular,
   DocumentRegular,
@@ -173,7 +172,7 @@ export const WorkspaceSection: React.FC = () => {
     setRunningTests(true);
     setError(null);
     try {
-      const response = await workspacesApi.triggerExecution(
+      await workspacesApi.triggerExecution(
         selectedWorkspace.workspace_id,
         {
           test_group: selectedTestGroup as any,

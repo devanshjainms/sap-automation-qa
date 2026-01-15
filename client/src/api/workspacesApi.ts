@@ -6,7 +6,7 @@
  */
 import { apiClient } from "./client";
 import { API_ENDPOINTS } from "./endpoints";
-import { Workspace, Job } from "../types";
+import { Workspace } from "../types";
 
 export interface WorkspaceListResponse {
   workspaces: Workspace[];
