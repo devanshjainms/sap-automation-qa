@@ -444,7 +444,7 @@ class WorkspacePlugin:
         for filename in files:
             filename_lower = filename.lower()
             if any(pattern in filename_lower for pattern in key_patterns):
-                if not filename.endswith(".pub"):  # Skip public keys
+                if not filename.endswith(".pub"):
                     key_path = workspace_path / filename
                     if key_path.exists():
                         result["ssh_key_path"] = str(key_path)

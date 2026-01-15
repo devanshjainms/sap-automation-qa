@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import Annotated, Optional
 from urllib.parse import urlparse
 
-import yaml
 from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
 from azure.keyvault.secrets import SecretClient
 from semantic_kernel.functions import kernel_function
@@ -122,31 +121,6 @@ class KeyVaultPlugin:
         return self._clients[cache_key]
 
     @staticmethod
-    def _parse_key_vault_id(key_vault_id: str) -> Optional[str]:
-        """Extract Key Vault name from ARM resource ID.
-
-        :param key_vault_id: Full ARM resource ID of the Key Vault
-        :type key_vault_id: str
-        :returns: Key Vault name or None if parsing fails
-        :rtype: Optional[str]
-
-        Example:
-            Input: /subscriptions/.../Microsoft.KeyVault/vaults/my-vault
-            Output: my-vault
-        """
-        if not key_vault_id:
-            return None
-        try:
-            parts = key_vault_id.split("/")
-            if "vaults" in parts:
-                vault_idx = parts.index("vaults")
-                if vault_idx + 1 < len(parts):
-                    return parts[vault_idx + 1]
-        except Exception as e:
-            logger.warning(f"Failed to parse key_vault_id '{key_vault_id}': {e}")
-        return None
-
-    @staticmethod
     def _parse_secret_id(secret_id: str) -> tuple[Optional[str], Optional[str]]:
         """Extract vault name and secret name from Key Vault secret URL.
 
@@ -173,78 +147,29 @@ class KeyVaultPlugin:
         return None, None
 
     @kernel_function(
-        name="get_secret",
-        description="Retrieve a secret value from Azure Key Vault. Use this to fetch "
-        + "credentials, connection strings, or other sensitive configuration values.",
+        name="parse_key_vault_id_and_secret_id",
+        description="Extract vault name and secret name from a Key Vault secret URL. "
+        + "Use this to parse secret_id from sap-parameters.yaml. "
+        + "Example input: https://my-vault.vault.azure.net/secrets/ssh-key/version → "
+        + "Output: vault_name=my-vault, secret_name=ssh-key",
     )
-    def get_secret(
+    def parse_key_vault_id_and_secret_id(
         self,
-        secret_name: Annotated[str, "Name of the secret in Key Vault"],
-        vault_name: Annotated[
-            str,
-            "REQUIRED: Name of the Azure Key Vault (without .vault.azure.net). "
-            "Read from workspace sap-parameters.yaml first.",
-        ] = "",
-        managed_identity_client_id: Annotated[
-            str,
-            "Client ID of user-assigned managed identity (optional).",
-        ] = "",
-    ) -> Annotated[str, "JSON string with secret value or error"]:
-        """Retrieve a secret from Azure Key Vault.
+        secret_id: Annotated[str, "Full Key Vault secret URL"],
+    ) -> Annotated[str, "JSON with vault_name, secret_name or error"]:
+        """Extract vault name and secret name from Key Vault secret URL.
 
-        :param secret_name: Name of the secret to retrieve
-        :type secret_name: str
-        :param vault_name: Key Vault name (uses default if empty)
-        :type vault_name: str
-        :param managed_identity_client_id: Client ID for user-assigned managed identity
-        :type managed_identity_client_id: str
-        :returns: JSON string with secret value or error message
+        :param secret_id: Full Key Vault secret URL
+        :type secret_id: str
+        :returns: JSON with vault_name, secret_name or error
         :rtype: str
-
-        Example output (success):
-            {"secret_name": "my-secret", "value": "secret-value", "vault": "my-vault"}
-
-        Example output (error):
-            {"error": "Secret not found", "secret_name": "my-secret"}
         """
-        effective_vault = vault_name.strip() if vault_name else None
-        effective_identity = (
-            managed_identity_client_id.strip() if managed_identity_client_id else None
-        )
-
-        if not effective_vault:
-            error_msg = "No Key Vault specified. Provide vault_name."
-            logger.error(error_msg)
-            return json.dumps({"error": error_msg})
-
-        identity_info = f" (identity: {effective_identity})" if effective_identity else ""
-        logger.info(
-            f"Retrieving secret '{secret_name}' from vault '{effective_vault}'{identity_info}"
-        )
-
-        try:
-            client = self._get_client(effective_vault, effective_identity)
-            secret = client.get_secret(secret_name)
-
-            logger.info(f"Successfully retrieved secret '{secret_name}'")
+        key_vault_name, secret_name = self._parse_secret_id(secret_id)
+        if key_vault_name and secret_name:
             return json.dumps(
-                {
-                    "secret_name": secret_name,
-                    "value": secret.value,
-                    "vault": effective_vault,
-                }
+                {"vault_name": key_vault_name, "secret_name": secret_name, "source": secret_id}
             )
-
-        except Exception as e:
-            error_msg = f"Failed to retrieve secret '{secret_name}': {str(e)}"
-            logger.error(error_msg)
-            return json.dumps(
-                {
-                    "error": error_msg,
-                    "secret_name": secret_name,
-                    "vault": effective_vault,
-                }
-            )
+        return json.dumps({"error": f"Could not parse vault/secret from: {secret_id}"})
 
     @kernel_function(
         name="get_ssh_private_key",
@@ -306,9 +231,7 @@ class KeyVaultPlugin:
         )
 
         if not effective_vault:
-            error_msg = (
-                "No Key Vault specified. Provide vault_name."
-            )
+            error_msg = "No Key Vault specified. Provide vault_name."
             logger.error(error_msg)
             return json.dumps({"error": error_msg})
 
@@ -356,173 +279,6 @@ class KeyVaultPlugin:
                     "vault": effective_vault,
                 }
             )
-
-    @kernel_function(
-        name="get_ssh_key_for_workspace",
-        description="Retrieve SSH private key for a specific SAP workspace. This function "
-        + "reads the workspace's sap-parameters.yaml to determine the Key Vault name and "
-        + "SSH key secret name, then fetches and saves the key. If the key vault name and "
-        + "secret name are not found in the config, it looks for local key files as a fallback.",
-    )
-    def get_ssh_key_for_workspace(
-        self,
-        workspace_id: Annotated[
-            str,
-            "Workspace ID in format ENV-REGION-DEPLOYMENT-SID (e.g., DEV-WEEU-SAP01-X00)",
-        ],
-        workspace_root: Annotated[
-            str,
-            "Root path to WORKSPACES/SYSTEM directory",
-        ] = "WORKSPACES/SYSTEM",
-    ) -> Annotated[str, "JSON string with key file path or error"]:
-        """Retrieve SSH key for a workspace using its sap-parameters.yaml configuration.
-
-        This function:
-        1. Reads sap-parameters.yaml from the workspace
-        2. Extracts Key Vault name, SSH key secret name, and managed identity client ID
-        3. Fetches the key from Key Vault using the specified identity
-        4. Saves it to a temporary file
-
-        :param workspace_id: Workspace identifier
-        :type workspace_id: str
-        :param workspace_root: Path to WORKSPACES/SYSTEM directory
-        :type workspace_root: str
-        :returns: JSON string with key_path or error
-        :rtype: str
-
-        Example output (success):
-            {
-                "key_path": "/tmp/sap_keys/DEV-WEEU-SAP01-X00_id_rsa",
-                "workspace_id": "DEV-WEEU-SAP01-X00",
-                "vault": "DEVWEEUSAP01-vault",
-                "secret_name": "sshkey",
-                "identity": "12345678-1234-1234-1234-123456789abc"
-            }
-        """
-        logger.info(f"Getting SSH key for workspace '{workspace_id}'")
-
-        try:
-            workspace_path = Path(workspace_root) / workspace_id
-            params_path = workspace_path / "sap-parameters.yaml"
-
-            if not params_path.exists():
-                error_msg = f"sap-parameters.yaml not found at {params_path}"
-                logger.error(error_msg)
-                return json.dumps({"error": error_msg, "workspace_id": workspace_id})
-
-            with open(params_path, "r") as f:
-                params = yaml.safe_load(f)
-
-            vault_name = params.get("kv_name") or params.get("keyvault_name")
-            ssh_secret_name = params.get("sshkey_secret_name")
-            managed_identity_client_id = params.get("user_assigned_identity_client_id")
-
-            if not vault_name:
-                error_msg = (
-                    f"Key Vault name not found in sap-parameters.yaml for workspace "
-                    f"'{workspace_id}'."
-                )
-                logger.error(error_msg)
-                return json.dumps({"error": error_msg, "workspace_id": workspace_id})
-
-            if not ssh_secret_name:
-                error_msg = (
-                    f"SSH key secret name not found in sap-parameters.yaml for workspace "
-                    f"'{workspace_id}'."
-                )
-                logger.error(error_msg)
-                return json.dumps({"error": error_msg, "workspace_id": workspace_id})
-
-            identity_info = (
-                f", identity: {managed_identity_client_id}" if managed_identity_client_id else ""
-            )
-            logger.info(
-                f"Using vault '{vault_name}', secret '{ssh_secret_name}'{identity_info} "
-                f"for workspace '{workspace_id}'"
-            )
-
-            key_filename = f"{workspace_id}_id_rsa"
-            result = self.get_ssh_private_key(
-                secret_name=ssh_secret_name,
-                vault_name=vault_name,
-                key_filename=key_filename,
-                managed_identity_client_id=managed_identity_client_id or "",
-            )
-
-            result_dict = json.loads(result)
-            result_dict["workspace_id"] = workspace_id
-            if managed_identity_client_id:
-                result_dict["identity"] = managed_identity_client_id
-
-            return json.dumps(result_dict)
-
-        except Exception as e:
-            error_msg = f"Failed to get SSH key for workspace '{workspace_id}': {str(e)}"
-            logger.error(error_msg)
-            return json.dumps({"error": error_msg, "workspace_id": workspace_id})
-
-    @kernel_function(
-        name="list_secrets",
-        description="List all secret names in an Azure Key Vault. Does not retrieve "
-        + "secret values, only names. Useful for discovering available secrets.",
-    )
-    def list_secrets(
-        self,
-        vault_name: Annotated[
-            str,
-            "Name of the Azure Key Vault. Leave empty to use default vault.",
-        ] = "",
-        managed_identity_client_id: Annotated[
-            str,
-            "Client ID of user-assigned managed identity. Leave empty to use default.",
-        ] = "",
-    ) -> Annotated[str, "JSON string with list of secret names or error"]:
-        """List all secret names in a Key Vault.
-
-        :param vault_name: Key Vault name (uses default if empty)
-        :type vault_name: str
-        :param managed_identity_client_id: Client ID for user-assigned managed identity
-        :type managed_identity_client_id: str
-        :returns: JSON string with secret names or error
-        :rtype: str
-
-        Example output:
-            {"vault": "my-vault", "secrets": ["sshkey", "db-password", "api-key"], "count": 3}
-        """
-        effective_vault = vault_name.strip() if vault_name else None
-        effective_identity = (
-            managed_identity_client_id.strip() if managed_identity_client_id else None
-        )
-
-        if not effective_vault:
-            error_msg = (
-                "No Key Vault specified. Provide vault_name."
-            )
-            logger.error(error_msg)
-            return json.dumps({"error": error_msg})
-
-        identity_info = f" (identity: {effective_identity})" if effective_identity else ""
-        logger.info(f"Listing secrets in vault '{effective_vault}'{identity_info}")
-
-        try:
-            client = self._get_client(effective_vault, effective_identity)
-            secrets = list(client.list_properties_of_secrets())
-            secret_names = [s.name for s in secrets]
-
-            logger.info(f"Found {len(secret_names)} secrets in vault '{effective_vault}'")
-
-            return json.dumps(
-                {
-                    "vault": effective_vault,
-                    "secrets": secret_names,
-                    "count": len(secret_names),
-                }
-            )
-
-        except Exception as e:
-            error_msg = f"Failed to list secrets in vault '{effective_vault}': {str(e)}"
-            logger.error(error_msg)
-            return json.dumps({"error": error_msg, "vault": effective_vault})
 
     def cleanup_temp_keys(self) -> None:
         """Clean up temporary SSH key files.

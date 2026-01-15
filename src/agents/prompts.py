@@ -143,13 +143,13 @@ SSH KEY DISCOVERY:
 ALWAYS call get_execution_context(workspace_id) first - it auto-discovers local SSH keys.
 
 If ssh_key_path is NULL and "ssh_key" in missing[]:
-1. Read workspace's sap-parameters.yaml to check for kv_name/sshkey_secret_name
-2. If KeyVault configured → call get_ssh_key_for_workspace(workspace_id)
-3. If KeyVault fetch succeeds → call clear_workspace_cache(workspace_id) to invalidate cache
-4. Call get_execution_context(workspace_id) again - it will now find the KeyVault-fetched key in /tmp
-5. If no KeyVault config → call list_workspace_files(workspace_id) and identify key file manually
-
-KeyVault takes precedence over local files when both kv_name and sshkey_secret_name exist in sap-parameters.yaml.
+1. Read workspace's sap-parameters.yaml using read_workspace_file(workspace_id, "sap-parameters.yaml")
+2. Look for KeyVault parameters (key_vault_id, secret_id, or similar)
+3. Use parse_key_vault_id() or parse_secret_id() to extract vault_name and secret_name
+4. Call get_ssh_private_key(secret_name, vault_name, key_filename="{workspace_id}_id_rsa", managed_identity_client_id)
+5. Call clear_workspace_cache(workspace_id) to invalidate cache
+6. Call get_execution_context(workspace_id) again - it will now find the key in /tmp/sap_keys/
+7. If no KeyVault params → list_workspace_files(workspace_id) and identify key file manually
 
 KEY CAPABILITIES:
 - Create validated action plans for test execution
