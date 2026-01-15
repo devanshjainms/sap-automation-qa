@@ -27,6 +27,7 @@ import {
 import { useJobSectionStyles as useStyles } from "../../styles";
 import { jobsApi } from "../../api";
 import { Job, JobStatus } from "../../types";
+import { useApp } from "../../context";
 
 interface JobSectionProps {
   onJobViewToggle?: () => void;
@@ -83,6 +84,7 @@ const formatRelativeTime = (dateString: string): string => {
 
 export const JobSection: React.FC<JobSectionProps> = ({ onJobViewToggle }) => {
   const styles = useStyles();
+  const { navigateToJobs } = useApp();
   const [isExpanded, setIsExpanded] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
@@ -152,7 +154,12 @@ export const JobSection: React.FC<JobSectionProps> = ({ onJobViewToggle }) => {
           ) : (
             <div className={styles.list}>
               {jobs.map((job) => (
-                <div key={job.job_id} className={styles.jobItem}>
+                <div 
+                  key={job.job_id} 
+                  className={styles.jobItem}
+                  onClick={() => navigateToJobs(job.workspace_id)}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className={styles.jobIcon}>
                     {getStatusIcon(job.status)}
                   </div>
