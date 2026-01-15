@@ -248,9 +248,10 @@ const JobRow: React.FC<JobRowProps> = ({ job, isExpanded, onToggle, onCancel, st
 
 interface JobExecutionPanelProps {
   workspaceId?: string;
+  selectedJobId?: string;
 }
 
-export const JobExecutionPanel: React.FC<JobExecutionPanelProps> = ({ workspaceId }) => {
+export const JobExecutionPanel: React.FC<JobExecutionPanelProps> = ({ workspaceId, selectedJobId }) => {
   const styles = useStyles();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [workspaces, setWorkspaces] = useState<string[]>([]);
@@ -265,8 +266,10 @@ export const JobExecutionPanel: React.FC<JobExecutionPanelProps> = ({ workspaceI
   useEffect(() => {
     if (workspaceId) {
       setSelectedWorkspace(workspaceId);
+      setOffset(0);
+      setExpandedJobId(selectedJobId || null);
     }
-  }, [workspaceId]);
+  }, [workspaceId, selectedJobId]);
 
   const fetchWorkspaces = useCallback(async () => {
     try {
@@ -287,6 +290,14 @@ export const JobExecutionPanel: React.FC<JobExecutionPanelProps> = ({ workspaceI
       setJobs(response.jobs);
       setTotal(response.total);
       setIsLoading(false);
+      if (selectedJobId && !response.jobs.some(job => job.job_id === selectedJobId)) {
+        try {
+          const selectedJob = await jobsApi.getById(selectedJobId);
+          setJobs([selectedJob, ...response.jobs.slice(0, ITEMS_PER_PAGE - 1)]);
+        } catch (error) {
+          console.error("Failed to fetch selected job:", error);
+        }
+      }
 
       // Check if any jobs are still running
       const hasRunningJobs = response.jobs.some(
@@ -297,7 +308,7 @@ export const JobExecutionPanel: React.FC<JobExecutionPanelProps> = ({ workspaceI
       console.error("Failed to fetch jobs:", error);
       setIsLoading(false);
     }
-  }, [selectedWorkspace, offset]);
+  }, [selectedWorkspace, offset, selectedJobId]);
 
   // Fetch workspaces on mount
   useEffect(() => {

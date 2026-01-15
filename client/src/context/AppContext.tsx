@@ -25,12 +25,13 @@ interface AppState {
   currentView: ViewType;
   selectedFile: SelectedFile | null;
   selectedWorkspaceForJobs: string | null;
+  selectedJobId: string | null;
   selectedWorkspaceForReports: string | null;
 }
 
 type AppAction =
   | { type: "NAVIGATE_TO_CHAT" }
-  | { type: "NAVIGATE_TO_JOBS"; payload: string }
+  | { type: "NAVIGATE_TO_JOBS"; payload: { workspaceId: string; jobId?: string } }
   | { type: "NAVIGATE_TO_REPORTS"; payload: string }
   | { type: "NAVIGATE_TO_FILE"; payload: SelectedFile }
   | { type: "CLOSE_FILE" };
@@ -39,6 +40,7 @@ const initialState: AppState = {
   currentView: "chat",
   selectedFile: null,
   selectedWorkspaceForJobs: null,
+  selectedJobId: null,
   selectedWorkspaceForReports: null,
 };
 
@@ -50,6 +52,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         currentView: "chat",
         selectedFile: null,
         selectedWorkspaceForJobs: null,
+        selectedJobId: null,
         selectedWorkspaceForReports: null,
       };
     case "NAVIGATE_TO_JOBS":
@@ -57,7 +60,8 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         ...state,
         currentView: "jobs",
         selectedFile: null,
-        selectedWorkspaceForJobs: action.payload,
+        selectedWorkspaceForJobs: action.payload.workspaceId,
+        selectedJobId: action.payload.jobId || null,
         selectedWorkspaceForReports: null,
       };
     case "NAVIGATE_TO_REPORTS":
@@ -66,6 +70,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         currentView: "reports",
         selectedFile: null,
         selectedWorkspaceForJobs: null,
+        selectedJobId: null,
         selectedWorkspaceForReports: action.payload,
       };
     case "NAVIGATE_TO_FILE":
@@ -74,6 +79,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         currentView: "file",
         selectedFile: action.payload,
         selectedWorkspaceForJobs: null,
+        selectedJobId: null,
         selectedWorkspaceForReports: null,
       };
     case "CLOSE_FILE":
@@ -90,7 +96,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
 interface AppContextType {
   state: AppState;
   navigateToChat: () => void;
-  navigateToJobs: (workspaceId: string) => void;
+  navigateToJobs: (workspaceId: string, jobId?: string) => void;
   navigateToReports: (workspaceId: string) => void;
   navigateToFile: (workspaceId: string, fileName: string) => void;
   closeFile: () => void;
@@ -107,8 +113,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     dispatch({ type: "NAVIGATE_TO_CHAT" });
   }, []);
 
-  const navigateToJobs = useCallback((workspaceId: string) => {
-    dispatch({ type: "NAVIGATE_TO_JOBS", payload: workspaceId });
+  const navigateToJobs = useCallback((workspaceId: string, jobId?: string) => {
+    dispatch({ type: "NAVIGATE_TO_JOBS", payload: { workspaceId, jobId } });
   }, []);
 
   const navigateToReports = useCallback((workspaceId: string) => {

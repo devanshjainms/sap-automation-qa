@@ -157,7 +157,7 @@ export const JobSection: React.FC<JobSectionProps> = ({ onJobViewToggle }) => {
                 <div 
                   key={job.job_id} 
                   className={styles.jobItem}
-                  onClick={() => navigateToJobs(job.workspace_id)}
+                  onClick={() => navigateToJobs(job.workspace_id, job.job_id)}
                   style={{ cursor: 'pointer' }}
                 >
                   <div className={styles.jobIcon}>

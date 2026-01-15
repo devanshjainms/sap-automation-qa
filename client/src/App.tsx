@@ -102,6 +102,7 @@ const AppContent: React.FC<AppContentProps> = ({
         return (
           <JobExecutionPanel
             workspaceId={state.selectedWorkspaceForJobs || undefined}
+            selectedJobId={state.selectedJobId || undefined}
           />
         );
       case "reports":
