@@ -19,4 +19,5 @@ export { useStyles as useConversationSectionStyles } from "./ConversationSection
 export { useStyles as useWorkspaceSectionStyles } from "./WorkspaceSection.styles";
 export { useStyles as useJobSectionStyles } from "./JobSection.styles";
 export { useStyles as useWorkspaceFileViewerStyles } from "./WorkspaceFileViewer.styles";
+export { useStyles as useReportsPanelStyles } from "./ReportsPanel.styles";
 

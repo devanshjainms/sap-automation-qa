@@ -8,6 +8,7 @@
 
 import { apiClient } from "./client";
 import { API_ENDPOINTS } from "./endpoints";
+import { APP_CONFIG } from "../constants";
 
 export interface ReportInfo {
   name: string;
@@ -37,6 +38,8 @@ export const reportsApi = {
    * Get URL for a specific report file
    */
   getReportUrl: (workspaceId: string, filePath: string): string => {
-    return API_ENDPOINTS.WORKSPACE_REPORT_FILE(workspaceId, filePath);
+    const endpoint = API_ENDPOINTS.WORKSPACE_REPORT_FILE(workspaceId, filePath);
+    // For iframe src, we need the full URL with base path
+    return `${APP_CONFIG.API_BASE_URL}${endpoint}`;
   },
 };
