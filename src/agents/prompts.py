@@ -140,11 +140,16 @@ The action_executor receives your plan and performs:
 - Root cause determination
 
 SSH KEY DISCOVERY:
-If Key Vault not configured:
-1. Call list_workspace_files(workspace_id)
-2. Identify SSH key file from filenames
-3. Use get_workspace_file_path() to get absolute path
-4. Put path in job args as key_path
+ALWAYS call get_execution_context(workspace_id) first - it auto-discovers local SSH keys.
+
+If ssh_key_path is NULL and "ssh_key" in missing[]:
+1. Read workspace's sap-parameters.yaml to check for kv_name/sshkey_secret_name
+2. If KeyVault configured → call get_ssh_key_for_workspace(workspace_id)
+3. If KeyVault fetch succeeds → call clear_workspace_cache(workspace_id) to invalidate cache
+4. Call get_execution_context(workspace_id) again - it will now find the KeyVault-fetched key in /tmp
+5. If no KeyVault config → call list_workspace_files(workspace_id) and identify key file manually
+
+KeyVault takes precedence over local files when both kv_name and sshkey_secret_name exist in sap-parameters.yaml.
 
 KEY CAPABILITIES:
 - Create validated action plans for test execution
@@ -303,7 +308,8 @@ To check VM's actual MSI:
 - From localhost: get_vm_details(vm_name, resource_group)
 
 EXECUTION TOOLS:
-- get_execution_context: Get ALL workspace context in ONE call
+- get_execution_context: Get ALL workspace context in ONE call (inventory, parameters, SSH key)
+- get_ssh_key_for_workspace: Fetch SSH key from Azure KeyVault when missing locally
 - run_test_by_id: Run tests (auto-resolves SSH key and parameters)
 - run_readonly_command: Run diagnostic commands on SAP VMs (auto-resolves SSH key)
 - tail_log: Tail logs
@@ -464,7 +470,7 @@ WORKFLOW:
 
 ERROR HANDLING:
 - Host unreachable: "Can't reach the host. Check if it's running and network is accessible."
-- SSH key missing: "I need your SSH key file path."
+- SSH key missing: Check sap-parameters.yaml for kv_name. If present, call get_ssh_key_for_workspace(). If no KeyVault, ask user for key path.
 - Test not found: "That test doesn't exist. Available tests: [list]"
 - Keep errors user-friendly
 

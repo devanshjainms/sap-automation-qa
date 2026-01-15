@@ -449,8 +449,14 @@ class WorkspacePlugin:
                     if key_path.exists():
                         result["ssh_key_path"] = str(key_path)
                         result["ssh_key_file"] = filename
-                        logger.info(f"Resolved SSH key: {key_path}")
+                        logger.info(f"Resolved SSH key from workspace: {key_path}")
                         break
+        if not result["ssh_key_path"]:
+            temp_key_path = Path("/tmp/sap_keys") / f"{workspace_id}_id_rsa"
+            if temp_key_path.exists():
+                result["ssh_key_path"] = str(temp_key_path)
+                result["ssh_key_file"] = temp_key_path.name
+                logger.info(f"Resolved SSH key from KeyVault temp: {temp_key_path}")
 
         if not result["ssh_key_path"]:
             result["missing"].append("ssh_key")
