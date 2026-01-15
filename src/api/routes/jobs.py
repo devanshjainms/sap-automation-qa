@@ -9,14 +9,11 @@ This module provides REST endpoints for:
 - Job management operations
 """
 
-from typing import Any, Optional
+from typing import Optional
 from uuid import UUID
-
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
-
 from src.agents.execution.store import JobStore
-from src.agents.models.job import JobStatus
+from src.agents.models.job import ExecutionJob, JobStatus, JobListResponse
 from src.agents.observability import get_logger
 
 logger = get_logger(__name__)
@@ -39,56 +36,6 @@ def set_job_store(store: JobStore) -> None:
 def get_job_store() -> Optional[JobStore]:
     """Get the global job store instance."""
     return _job_store
-
-
-class JobListItem(BaseModel):
-    """Lightweight job item for list responses."""
-
-    job_id: str
-    workspace_id: str
-    test_id: Optional[str] = None
-    test_group: Optional[str] = None
-    status: str
-    target_node: Optional[str] = None
-    created_at: str
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
-    error_message: Optional[str] = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class JobDetail(BaseModel):
-    """Full job details including raw output."""
-
-    job_id: str
-    conversation_id: Optional[str] = None
-    user_id: Optional[str] = None
-    workspace_id: str
-    test_id: Optional[str] = None
-    test_group: Optional[str] = None
-    test_ids: list[str] = Field(default_factory=list)
-    status: str
-    progress_percent: float = 0.0
-    current_step: Optional[str] = None
-    target_node: Optional[str] = None
-    target_nodes: list[str] = Field(default_factory=list)
-    created_at: str
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
-    raw_stdout: Optional[str] = None
-    raw_stderr: Optional[str] = None
-    result: Optional[dict[str, Any]] = None
-    error_message: Optional[str] = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class JobListResponse(BaseModel):
-    """Response for job list endpoint."""
-
-    jobs: list[JobListItem]
-    total: int
-    limit: int
-    offset: int
 
 
 @router.get("", response_model=JobListResponse)
@@ -126,36 +73,20 @@ async def list_jobs(
     if conversation_id:
         jobs = [j for j in jobs if j.conversation_id == conversation_id]
 
-    job_items = [
-        JobListItem(
-            job_id=str(job.id),
-            workspace_id=job.workspace_id,
-            test_id=job.test_id,
-            test_group=job.test_group,
-            status=job.status.value,
-            target_node=job.target_node,
-            created_at=job.created_at.isoformat(),
-            started_at=job.started_at.isoformat() if job.started_at else None,
-            completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            error_message=job.error_message,
-            metadata=job.metadata,
-        )
-        for job in jobs
-    ]
-    total = len(job_items)
+    total = len(jobs)
 
-    logger.info(f"Listed {len(job_items)} jobs (workspace={workspace_id}, status={status})")
+    logger.info(f"Listed {len(jobs)} jobs (workspace={workspace_id}, status={status})")
 
     return JobListResponse(
-        jobs=job_items,
+        jobs=jobs,
         total=total,
         limit=limit,
         offset=offset,
     )
 
 
-@router.get("/{job_id}", response_model=JobDetail)
-async def get_job(job_id: str) -> JobDetail:
+@router.get("/{job_id}", response_model=ExecutionJob)
+async def get_job(job_id: str) -> ExecutionJob:
     """Get full job details including raw output.
 
     :param job_id: Job ID
@@ -174,28 +105,7 @@ async def get_job(job_id: str) -> JobDetail:
 
     logger.info(f"Retrieved job details for {job_id}")
 
-    return JobDetail(
-        job_id=str(job.id),
-        conversation_id=job.conversation_id,
-        user_id=job.user_id,
-        workspace_id=job.workspace_id,
-        test_id=job.test_id,
-        test_group=job.test_group,
-        test_ids=job.test_ids,
-        status=job.status.value,
-        progress_percent=job.progress_percent,
-        current_step=job.current_step,
-        target_node=job.target_node,
-        target_nodes=job.target_nodes,
-        created_at=job.created_at.isoformat(),
-        started_at=job.started_at.isoformat() if job.started_at else None,
-        completed_at=job.completed_at.isoformat() if job.completed_at else None,
-        raw_stdout=job.raw_stdout,
-        raw_stderr=job.raw_stderr,
-        result=job.result,
-        error_message=job.error_message,
-        metadata=job.metadata,
-    )
+    return job
 
 
 @router.get("/workspaces/list")

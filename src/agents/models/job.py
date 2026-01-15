@@ -7,11 +7,12 @@ This module defines the data structures for tracking asynchronous
 test execution jobs, including status, progress, and events.
 """
 
-from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 from uuid import UUID, uuid4
+
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class JobStatus(str, Enum):
@@ -38,8 +39,7 @@ class JobEventType(str, Enum):
     CANCELLED = "cancelled"
 
 
-@dataclass
-class JobEvent:
+class JobEvent(BaseModel):
     """An event that occurred during job execution.
 
     Events are streamed to clients via SSE for real-time updates.
@@ -47,7 +47,7 @@ class JobEvent:
 
     event_type: JobEventType
     message: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
     step_index: Optional[int] = None
     total_steps: Optional[int] = None
     progress_percent: Optional[float] = None
@@ -66,8 +66,7 @@ class JobEvent:
         }
 
 
-@dataclass
-class ExecutionJob:
+class ExecutionJob(BaseModel):
     """Represents an async test execution job.
 
     Jobs are created when a user requests test execution via chat,
@@ -75,30 +74,32 @@ class ExecutionJob:
     real-time updates.
     """
 
-    id: UUID = field(default_factory=uuid4)
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: UUID = Field(default_factory=uuid4, serialization_alias="job_id")
     conversation_id: Optional[str] = None
     user_id: Optional[str] = None
     workspace_id: str = ""
     test_id: Optional[str] = None
     test_group: Optional[str] = None
-    test_ids: list[str] = field(default_factory=list)
+    test_ids: list[str] = Field(default_factory=list)
     status: JobStatus = JobStatus.PENDING
     progress_percent: float = 0.0
     current_step: Optional[str] = None
     current_step_index: int = 0
     total_steps: int = 0
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     target_node: Optional[str] = None
-    target_nodes: list[str] = field(default_factory=list)
+    target_nodes: list[str] = Field(default_factory=list)
     raw_stdout: Optional[str] = None
     raw_stderr: Optional[str] = None
 
     result: Optional[dict[str, Any]] = None
-    error_message: Optional[str] = None
-    events: list[JobEvent] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    error_message: Optional[str] = Field(default=None, serialization_alias="error")
+    events: list[JobEvent] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     def add_event(self, event: JobEvent) -> None:
         """Add an event to the job history."""
@@ -327,3 +328,12 @@ class ExecutionJob:
             )
 
         return job
+
+
+class JobListResponse(BaseModel):
+    """Response for job list endpoint."""
+
+    jobs: list[ExecutionJob]
+    total: int
+    limit: int
+    offset: int

@@ -25,7 +25,7 @@ import {
   CalendarRegular,
   ArrowSyncRegular,
 } from "@fluentui/react-icons";
-import { Job, JobListItem, JobStatus } from "../../types";
+import { Job, JobStatus } from "../../types";
 import { jobsApi } from "../../api";
 import { APP_STRINGS, APP_CONFIG } from "../../constants";
 import { useJobExecutionPanelStyles as useStyles } from "../../styles";
@@ -86,7 +86,7 @@ const formatTimestamp = (timestamp: string): string => {
 };
 
 interface JobRowProps {
-  job: JobListItem;
+  job: Job;
   isExpanded: boolean;
   onToggle: () => void;
   onCancel: (jobId: string) => void;
@@ -252,7 +252,7 @@ interface JobExecutionPanelProps {
 
 export const JobExecutionPanel: React.FC<JobExecutionPanelProps> = ({ workspaceId }) => {
   const styles = useStyles();
-  const [jobs, setJobs] = useState<JobListItem[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [workspaces, setWorkspaces] = useState<string[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>(workspaceId || "");
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);

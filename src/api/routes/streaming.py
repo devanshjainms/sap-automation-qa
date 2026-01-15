@@ -11,10 +11,8 @@ This module provides SSE streaming capabilities for:
 import asyncio
 import json
 from typing import Any, AsyncGenerator, Optional
-
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
-
 from src.agents.execution.worker import JobWorker, JobEventEmitter
 from src.agents.observability import get_logger
 

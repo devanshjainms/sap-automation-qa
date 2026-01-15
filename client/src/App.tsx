@@ -25,6 +25,7 @@ import {
   ChatPanel,
   CollapsibleSidebar,
   JobExecutionPanel,
+  ReportsPanel,
   WorkspaceFileViewer,
 } from "./components";
 import { healthApi } from "./api";
@@ -101,6 +102,12 @@ const AppContent: React.FC<AppContentProps> = ({
         return (
           <JobExecutionPanel
             workspaceId={state.selectedWorkspaceForJobs || undefined}
+          />
+        );
+      case "reports":
+        return (
+          <ReportsPanel
+            workspaceId={state.selectedWorkspaceForReports || undefined}
           />
         );
       case "chat":

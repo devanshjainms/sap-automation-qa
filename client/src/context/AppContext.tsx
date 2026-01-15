@@ -14,7 +14,7 @@ import React, {
   ReactNode,
 } from "react";
 
-type ViewType = "chat" | "jobs" | "file";
+type ViewType = "chat" | "jobs" | "file" | "reports";
 
 interface SelectedFile {
   workspaceId: string;
@@ -25,11 +25,13 @@ interface AppState {
   currentView: ViewType;
   selectedFile: SelectedFile | null;
   selectedWorkspaceForJobs: string | null;
+  selectedWorkspaceForReports: string | null;
 }
 
 type AppAction =
   | { type: "NAVIGATE_TO_CHAT" }
   | { type: "NAVIGATE_TO_JOBS"; payload: string }
+  | { type: "NAVIGATE_TO_REPORTS"; payload: string }
   | { type: "NAVIGATE_TO_FILE"; payload: SelectedFile }
   | { type: "CLOSE_FILE" };
 
@@ -37,6 +39,7 @@ const initialState: AppState = {
   currentView: "chat",
   selectedFile: null,
   selectedWorkspaceForJobs: null,
+  selectedWorkspaceForReports: null,
 };
 
 const appReducer = (state: AppState, action: AppAction): AppState => {
@@ -47,6 +50,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         currentView: "chat",
         selectedFile: null,
         selectedWorkspaceForJobs: null,
+        selectedWorkspaceForReports: null,
       };
     case "NAVIGATE_TO_JOBS":
       return {
@@ -54,6 +58,15 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         currentView: "jobs",
         selectedFile: null,
         selectedWorkspaceForJobs: action.payload,
+        selectedWorkspaceForReports: null,
+      };
+    case "NAVIGATE_TO_REPORTS":
+      return {
+        ...state,
+        currentView: "reports",
+        selectedFile: null,
+        selectedWorkspaceForJobs: null,
+        selectedWorkspaceForReports: action.payload,
       };
     case "NAVIGATE_TO_FILE":
       return {
@@ -61,6 +74,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         currentView: "file",
         selectedFile: action.payload,
         selectedWorkspaceForJobs: null,
+        selectedWorkspaceForReports: null,
       };
     case "CLOSE_FILE":
       return {
@@ -77,6 +91,7 @@ interface AppContextType {
   state: AppState;
   navigateToChat: () => void;
   navigateToJobs: (workspaceId: string) => void;
+  navigateToReports: (workspaceId: string) => void;
   navigateToFile: (workspaceId: string, fileName: string) => void;
   closeFile: () => void;
 }
@@ -96,6 +111,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     dispatch({ type: "NAVIGATE_TO_JOBS", payload: workspaceId });
   }, []);
 
+  const navigateToReports = useCallback((workspaceId: string) => {
+    dispatch({ type: "NAVIGATE_TO_REPORTS", payload: workspaceId });
+  }, []);
+
   const navigateToFile = useCallback((workspaceId: string, fileName: string) => {
     dispatch({ type: "NAVIGATE_TO_FILE", payload: { workspaceId, fileName } });
   }, []);
@@ -108,6 +127,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     state,
     navigateToChat,
     navigateToJobs,
+    navigateToReports,
     navigateToFile,
     closeFile,
   };

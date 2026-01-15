@@ -92,13 +92,29 @@ export interface ConversationWithMessages {
 
 export interface Workspace {
   workspace_id: string;
-  env?: string;
-  region?: string;
-  deployment_code?: string;
-  sid?: string;
-  sap_sid?: string;
-  environment?: string;
-  capabilities?: WorkspaceCapabilities;
+  sid: string;
+  path?: string;
+  env: string;
+  region: string;
+  deployment_code: string;
+  name: string;
+  description: string;
+  sap_sid: string;
+  db_sid: string;
+  platform: string;
+  database_high_availability: boolean;
+  scs_high_availability: boolean;
+  database_cluster_type: string;
+  scs_cluster_type: string;
+  nfs_provider: string;
+  db_instance_number: string;
+  scs_instance_number: string;
+  ers_instance_number: string;
+  auth_type: string;
+  key_vault_id: string;
+  secret_id: string;
+  user_assigned_identity_client_id: string;
+  hosts: unknown[];
 }
 
 export interface WorkspaceCapabilities {
@@ -126,39 +142,44 @@ export type JobStatus =
   | "failed"
   | "cancelled";
 
-export interface Job {
-  job_id: string;
-  conversation_id: string;
-  status: JobStatus;
-  test_id: string;
-  workspace_id: string;
-  created_at: string;
-  started_at?: string;
-  completed_at?: string;
-  result?: unknown;
-  error?: string;
-  target_node?: string;
-  target_nodes?: string[];
-  raw_stdout?: string;
-  raw_stderr?: string;
+export interface JobEvent {
+  event_type: string;
+  message: string;
+  timestamp: string;
+  step_index?: number;
+  total_steps?: number;
+  progress_percent?: number;
+  details?: Record<string, unknown>;
 }
 
-export interface JobListItem {
+export interface Job {
   job_id: string;
-  conversation_id: string;
-  status: JobStatus;
-  test_id: string;
+  conversation_id?: string;
+  user_id?: string;
   workspace_id: string;
+  test_id?: string;
+  test_group?: string;
+  test_ids: string[];
+  status: JobStatus;
+  progress_percent: number;
+  current_step?: string;
+  current_step_index: number;
+  total_steps: number;
   created_at: string;
   started_at?: string;
   completed_at?: string;
-  error?: string;
   target_node?: string;
-  target_nodes?: string[];
+  target_nodes: string[];
+  raw_stdout?: string;
+  raw_stderr?: string;
+  result?: unknown;
+  error?: string;
+  events: JobEvent[];
+  metadata: Record<string, unknown>;
 }
 
 export interface JobListResponse {
-  jobs: JobListItem[];
+  jobs: Job[];
   total: number;
   limit: number;
   offset: number;

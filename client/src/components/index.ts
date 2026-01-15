@@ -17,3 +17,4 @@ export { JobSection } from "./Sidebar";
 export { WorkspaceSelector } from "./Workspace";
 export { WorkspaceFileViewer } from "./Workspace";
 export { JobExecutionPanel } from "./JobExecution";
+export { ReportsPanel } from "./Reports";

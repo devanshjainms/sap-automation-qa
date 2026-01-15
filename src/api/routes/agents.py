@@ -4,9 +4,7 @@
 """Agent management API routes."""
 
 from typing import Optional
-
 from fastapi import APIRouter
-
 from src.agents.models import AgentInfo, AgentListResponse
 from src.agents.agents.base import AgentRegistry
 

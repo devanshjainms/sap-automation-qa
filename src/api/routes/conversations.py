@@ -14,9 +14,7 @@ Note: To chat and get AI responses, use the /chat endpoint instead.
 """
 
 from typing import Optional
-
 from fastapi import APIRouter, HTTPException, Query
-
 from src.agents.models import (
     ConversationDetailResponse,
     ConversationListResponse,

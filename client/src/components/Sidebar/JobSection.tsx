@@ -26,7 +26,7 @@ import {
 } from "@fluentui/react-icons";
 import { useJobSectionStyles as useStyles } from "../../styles";
 import { jobsApi } from "../../api";
-import { JobListItem, JobStatus } from "../../types";
+import { Job, JobStatus } from "../../types";
 
 interface JobSectionProps {
   onJobViewToggle?: () => void;
@@ -84,7 +84,7 @@ const formatRelativeTime = (dateString: string): string => {
 export const JobSection: React.FC<JobSectionProps> = ({ onJobViewToggle }) => {
   const styles = useStyles();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [jobs, setJobs] = useState<JobListItem[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchJobs = useCallback(async () => {

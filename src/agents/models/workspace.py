@@ -1,12 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class HostInfo:
+class HostInfo(BaseModel):
     """Host connection information for a SAP system node.
 
     IMPORTANT: All fields should be explicitly provided. No assumptions should be made.
@@ -35,8 +34,7 @@ class HostInfo:
         }
 
 
-@dataclass
-class WorkspaceMetadata:
+class WorkspaceMetadata(BaseModel):
     """Metadata for a SAP QA workspace.
 
     Supports flexible workspace naming - can be just SID or full ENV-REGION-DEPLOYMENT-SID format.
@@ -68,7 +66,10 @@ class WorkspaceMetadata:
     key_vault_id: str = ""
     secret_id: str = ""
     user_assigned_identity_client_id: str = ""
-    hosts: list = field(default_factory=list)
+    hosts: list = Field(default_factory=list)
+
+    class Config:
+        arbitrary_types_allowed = True
 
     def to_dict(self) -> dict:
         """Convert metadata to dictionary.
@@ -151,3 +152,54 @@ class WorkspaceMetadata:
             path=workspace_path,
             sap_sid=sid,
         )
+
+
+class CreateWorkspaceRequest(BaseModel):
+    """Request model for creating a workspace."""
+
+    workspace_id: str
+    clone_from: Optional[str] = "X00"
+
+
+class FileContentResponse(BaseModel):
+    """Response model for file content."""
+
+    content: str
+
+
+class UpdateFileContentRequest(BaseModel):
+    """Request model for updating file content."""
+
+    content: str
+
+
+class WorkspaceListResponse(BaseModel):
+    """Response model for workspace list."""
+
+    workspaces: list[WorkspaceMetadata]
+    count: int
+
+
+class WorkspaceDetailResponse(BaseModel):
+    """Response model for workspace details with additional host information."""
+
+    workspace: WorkspaceMetadata
+    scs_hosts: Optional[list[str]] = None
+    db_hosts: Optional[list[str]] = None
+
+
+class ReportInfo(BaseModel):
+    """Report file information model."""
+
+    name: str
+    path: str
+    size: int
+    modified_at: str
+
+
+class ReportsListResponse(BaseModel):
+    """Response model for listing reports."""
+
+    workspace_id: str
+    reports: List[ReportInfo]
+    quality_assurance_dir: str

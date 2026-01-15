@@ -593,7 +593,7 @@ class ExecutionPlugin:
     def tail_log(
         self,
         workspace_id: Annotated[str, "Workspace ID"],
-        role: Annotated[str, "Host role (db, scs, app, system)"],
+        role: Annotated[str, "Host role (db, scs, ers, app, pas)"],
         log_type: Annotated[str, "Log type (hana_trace, hana_alert, sap_log, messages, syslog)"],
         lines: Annotated[int, "Number of lines to tail"] = 200,
         pattern: Annotated[

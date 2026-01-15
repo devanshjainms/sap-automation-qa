@@ -44,6 +44,7 @@ import {
   CheckmarkCircleRegular,
   ChatRegular,
   PlayRegular,
+  DocumentTableRegular,
 } from "@fluentui/react-icons";
 import { useWorkspace, useApp } from "../../context";
 import { workspacesApi } from "../../api";
@@ -53,7 +54,7 @@ import { useWorkspaceSectionStyles as useStyles } from "../../styles";
 export const WorkspaceSection: React.FC = () => {
   const styles = useStyles();
   const { state, loadWorkspaces, selectWorkspace } = useWorkspace();
-  const { navigateToFile, navigateToJobs } = useApp();
+  const { navigateToFile, navigateToJobs, navigateToReports } = useApp();
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedWorkspace, setExpandedWorkspace] = useState<string | null>(null);
@@ -325,6 +326,13 @@ export const WorkspaceSection: React.FC = () => {
                       >
                         <PlayRegular className={styles.fileIcon} />
                         <Text>Jobs</Text>
+                      </div>
+                      <div
+                        className={styles.fileItem}
+                        onClick={() => navigateToReports(workspace.workspace_id)}
+                      >
+                        <DocumentTableRegular className={styles.fileIcon} />
+                        <Text>Reports</Text>
                       </div>
                     </div>
                   )}

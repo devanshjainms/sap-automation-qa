@@ -4,11 +4,19 @@
 
 from pathlib import Path
 from typing import Optional
-
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
-
+from fastapi.responses import FileResponse
 from src.agents.workspace.workspace_store import WorkspaceStore
+from src.agents.models.workspace import (
+    WorkspaceMetadata,
+    WorkspaceListResponse,
+    WorkspaceDetailResponse,
+    ReportInfo,
+    ReportsListResponse,
+    CreateWorkspaceRequest,
+    FileContentResponse,
+    UpdateFileContentRequest,
+)
 from src.agents.observability import get_logger
 
 logger = get_logger(__name__)
@@ -43,37 +51,6 @@ def set_workspace_store(store: WorkspaceStore) -> None:
     logger.info("WorkspaceStore injected via set_workspace_store")
 
 
-class WorkspaceInfo(BaseModel):
-    """Workspace information model."""
-
-    workspace_id: str
-    env: Optional[str] = None
-    region: Optional[str] = None
-    deployment_code: Optional[str] = None
-    sid: Optional[str] = None
-    path: Optional[str] = None
-
-
-class WorkspaceListResponse(BaseModel):
-    """Response model for workspace list."""
-
-    workspaces: list[WorkspaceInfo]
-    count: int
-
-
-class WorkspaceDetailResponse(BaseModel):
-    """Response model for workspace details."""
-
-    workspace_id: str
-    env: str
-    region: str
-    deployment_code: str
-    sid: str
-    path: str
-    scs_hosts: Optional[list[str]] = None
-    db_hosts: Optional[list[str]] = None
-
-
 @router.get("", response_model=WorkspaceListResponse)
 async def list_workspaces(
     sid: Optional[str] = Query(None, description="Filter by SAP System ID (e.g., X00)"),
@@ -98,23 +75,11 @@ async def list_workspaces(
         if env:
             workspaces = [w for w in workspaces if w.env.upper() == env.upper()]
 
-        workspace_infos = [
-            WorkspaceInfo(
-                workspace_id=w.workspace_id,
-                env=w.env,
-                region=w.region,
-                deployment_code=w.deployment_code,
-                sid=w.sid,
-                path=str(w.path) if w.path else None,
-            )
-            for w in workspaces
-        ]
-
-        logger.info(f"Listed {len(workspace_infos)} workspaces (sid={sid}, env={env})")
+        logger.info(f"Listed {len(workspaces)} workspaces (sid={sid}, env={env})")
 
         return WorkspaceListResponse(
-            workspaces=workspace_infos,
-            count=len(workspace_infos),
+            workspaces=workspaces,
+            count=len(workspaces),
         )
     except Exception as e:
         logger.error(f"Failed to list workspaces: {e}")
@@ -157,12 +122,7 @@ async def get_workspace(workspace_id: str) -> WorkspaceDetailResponse:
         logger.info(f"Retrieved workspace {workspace_id}")
 
         return WorkspaceDetailResponse(
-            workspace_id=workspace.workspace_id,
-            env=workspace.env,
-            region=workspace.region,
-            deployment_code=workspace.deployment_code,
-            sid=workspace.sid,
-            path=str(workspace.path) if workspace.path else "",
+            workspace=workspace,
             scs_hosts=scs_hosts,
             db_hosts=db_hosts,
         )
@@ -173,33 +133,14 @@ async def get_workspace(workspace_id: str) -> WorkspaceDetailResponse:
         raise HTTPException(status_code=500, detail=f"Failed to get workspace: {e}")
 
 
-class CreateWorkspaceRequest(BaseModel):
-    """Request model for creating a workspace."""
-
-    workspace_id: str
-    clone_from: Optional[str] = "X00"
-
-
-class FileContentResponse(BaseModel):
-    """Response model for file content."""
-
-    content: str
-
-
-class UpdateFileContentRequest(BaseModel):
-    """Request model for updating file content."""
-
-    content: str
-
-
-@router.post("", response_model=WorkspaceInfo, status_code=201)
-async def create_workspace(request: CreateWorkspaceRequest) -> WorkspaceInfo:
+@router.post("", response_model=WorkspaceMetadata, status_code=201)
+async def create_workspace(request: CreateWorkspaceRequest) -> WorkspaceMetadata:
     """Create a new workspace by cloning an existing one.
 
     :param request: Create workspace request
     :type request: CreateWorkspaceRequest
     :returns: Created workspace info
-    :rtype: WorkspaceInfo
+    :rtype: WorkspaceMetadata
     """
     import shutil
     import yaml
@@ -234,14 +175,7 @@ async def create_workspace(request: CreateWorkspaceRequest) -> WorkspaceInfo:
 
         logger.info(f"Created workspace {request.workspace_id} from {request.clone_from}")
 
-        return WorkspaceInfo(
-            workspace_id=new_workspace.workspace_id,
-            env=new_workspace.env,
-            region=new_workspace.region,
-            deployment_code=new_workspace.deployment_code,
-            sid=new_workspace.sid,
-            path=str(new_workspace.path) if new_workspace.path else None,
-        )
+        return new_workspace
     except HTTPException:
         raise
     except Exception as e:
@@ -370,3 +304,132 @@ async def update_file_content(
     except Exception as e:
         logger.error(f"Failed to update file {file_name} in workspace {workspace_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update file content: {e}")
+
+
+@router.get("/{workspace_id}/reports", response_model=ReportsListResponse)
+async def list_reports(workspace_id: str) -> ReportsListResponse:
+    """List all HTML reports in workspace quality_assurance directory.
+
+    :param workspace_id: Workspace ID
+    :type workspace_id: str
+    :returns: List of available reports
+    :rtype: ReportsListResponse
+    :raises HTTPException: If workspace not found
+    """
+    store = get_workspace_store()
+
+    try:
+        workspace = store.get_workspace(workspace_id)
+        if not workspace:
+            raise HTTPException(status_code=404, detail=f"Workspace {workspace_id} not found")
+
+        if not workspace.path:
+            raise HTTPException(status_code=500, detail=f"Workspace {workspace_id} has no path")
+
+        qa_dir = workspace.path / "quality_assurance"
+        logger.info(f"Looking for reports in: {qa_dir}")
+
+        if not qa_dir.exists():
+            logger.info(f"Quality assurance directory does not exist for {workspace_id}")
+            return ReportsListResponse(
+                workspace_id=workspace_id,
+                reports=[],
+                quality_assurance_dir=str(qa_dir),
+            )
+
+        # Find all HTML files recursively
+        reports = []
+        for html_file in qa_dir.rglob("*.html"):
+            if html_file.is_file():
+                relative_path = html_file.relative_to(qa_dir)
+                stat = html_file.stat()
+                reports.append(
+                    ReportInfo(
+                        name=str(relative_path),
+                        path=str(relative_path),
+                        size=stat.st_size,
+                        modified_at=str(stat.st_mtime),
+                    )
+                )
+
+        logger.info(f"Found {len(reports)} report(s) for workspace {workspace_id}")
+
+        return ReportsListResponse(
+            workspace_id=workspace_id,
+            reports=sorted(reports, key=lambda r: r.modified_at, reverse=True),
+            quality_assurance_dir=str(qa_dir),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to list reports for workspace {workspace_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list reports: {e}")
+
+
+@router.get("/{workspace_id}/reports/{file_path:path}")
+async def get_report_file(workspace_id: str, file_path: str):
+    """Serve a specific report file (HTML, CSS, JS, images, etc.).
+
+    :param workspace_id: Workspace ID
+    :type workspace_id: str
+    :param file_path: Relative path to file within quality_assurance directory
+    :type file_path: str
+    :returns: File response
+    :raises HTTPException: If file not found or invalid
+    """
+    store = get_workspace_store()
+
+    try:
+        workspace = store.get_workspace(workspace_id)
+        if not workspace:
+            raise HTTPException(status_code=404, detail=f"Workspace {workspace_id} not found")
+
+        if not workspace.path:
+            raise HTTPException(status_code=500, detail=f"Workspace {workspace_id} has no path")
+
+        # Security: Prevent path traversal
+        if ".." in file_path or file_path.startswith("/"):
+            raise HTTPException(status_code=400, detail="Invalid file path")
+
+        qa_dir = workspace.path / "quality_assurance"
+        full_path = qa_dir / file_path
+
+        # Ensure the resolved path is still within quality_assurance
+        if not full_path.resolve().is_relative_to(qa_dir.resolve()):
+            raise HTTPException(status_code=400, detail="Invalid file path")
+
+        if not full_path.exists():
+            raise HTTPException(status_code=404, detail=f"Report file not found: {file_path}")
+
+        if not full_path.is_file():
+            raise HTTPException(status_code=400, detail="Path is not a file")
+
+        # Determine media type
+        suffix = full_path.suffix.lower()
+        media_type_map = {
+            ".html": "text/html",
+            ".css": "text/css",
+            ".js": "application/javascript",
+            ".json": "application/json",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".svg": "image/svg+xml",
+        }
+        media_type = media_type_map.get(suffix, "application/octet-stream")
+
+        logger.info(f"Serving report file: {file_path} for workspace {workspace_id}")
+
+        return FileResponse(
+            path=str(full_path),
+            media_type=media_type,
+            filename=full_path.name,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to serve report file {file_path} for workspace {workspace_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to serve report file: {e}")

@@ -69,13 +69,7 @@ export const WorkspaceProvider: React.FC<{ children: ReactNode }> = ({
     try {
       const response = await workspacesApi.list();
 
-      const workspaces: Workspace[] = response.workspaces.map((w) => ({
-        workspace_id: w.workspace_id,
-        env: w.env,
-        region: w.region,
-        deployment_code: w.deployment_code,
-        sid: w.sid,
-      }));
+      const workspaces: Workspace[] = response.workspaces;
 
       setState((prev) => ({
         ...prev,

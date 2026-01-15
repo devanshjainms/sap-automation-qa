@@ -6,7 +6,6 @@
 import os
 
 from fastapi import APIRouter
-
 from src.agents.models import DebugEnvResponse, HealthResponse, StatusResponse
 
 router = APIRouter(tags=["health"])

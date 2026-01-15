@@ -13,8 +13,8 @@ export interface WorkspaceListResponse {
   count: number;
 }
 
-export interface WorkspaceDetailResponse extends Workspace {
-  path?: string;
+export interface WorkspaceDetailResponse {
+  workspace: Workspace;
   scs_hosts?: string[];
   db_hosts?: string[];
 }
