@@ -55,6 +55,7 @@ export const ReportsPanel: React.FC<ReportsPanelProps> = ({ workspaceId }) => {
 
   useEffect(() => {
     fetchReports();
+    setSelectedReport(null);
   }, [workspaceId]);
 
   const getReportUrl = (report: ReportInfo): string => {

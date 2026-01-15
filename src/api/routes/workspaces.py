@@ -336,8 +336,6 @@ async def list_reports(workspace_id: str) -> ReportsListResponse:
                 reports=[],
                 quality_assurance_dir=str(qa_dir),
             )
-
-        # Find all HTML files recursively
         reports = []
         for html_file in qa_dir.rglob("*.html"):
             if html_file.is_file():
@@ -387,15 +385,12 @@ async def get_report_file(workspace_id: str, file_path: str):
 
         if not workspace.path:
             raise HTTPException(status_code=500, detail=f"Workspace {workspace_id} has no path")
-
-        # Security: Prevent path traversal
         if ".." in file_path or file_path.startswith("/"):
             raise HTTPException(status_code=400, detail="Invalid file path")
 
         qa_dir = workspace.path / "quality_assurance"
         full_path = qa_dir / file_path
 
-        # Ensure the resolved path is still within quality_assurance
         if not full_path.resolve().is_relative_to(qa_dir.resolve()):
             raise HTTPException(status_code=400, detail="Invalid file path")
 
@@ -404,28 +399,20 @@ async def get_report_file(workspace_id: str, file_path: str):
 
         if not full_path.is_file():
             raise HTTPException(status_code=400, detail="Path is not a file")
-
-        # Determine media type
-        suffix = full_path.suffix.lower()
         media_type_map = {
             ".html": "text/html",
-            ".css": "text/css",
-            ".js": "application/javascript",
-            ".json": "application/json",
-            ".png": "image/png",
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".gif": "image/gif",
-            ".svg": "image/svg+xml",
         }
-        media_type = media_type_map.get(suffix, "application/octet-stream")
+        media_type = media_type_map.get(full_path.suffix.lower(), "application/octet-stream")
 
         logger.info(f"Serving report file: {file_path} for workspace {workspace_id}")
-
         return FileResponse(
             path=str(full_path),
             media_type=media_type,
-            filename=full_path.name,
+            headers={
+                "Content-Disposition": "inline",
+                "Cache-Control": "no-cache",
+                "X-Content-Type-Options": "nosniff",
+            },
         )
 
     except HTTPException:
