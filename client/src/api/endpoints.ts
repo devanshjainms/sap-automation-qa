@@ -12,6 +12,7 @@ export const API_ENDPOINTS = {
   CONVERSATION_MESSAGES: (id: string) => `/conversations/${id}/messages`,
   WORKSPACES: "/workspaces",
   WORKSPACE_BY_ID: (id: string) => `/workspaces/${id}`,
+  WORKSPACE_EXECUTE: (id: string) => `/workspaces/${id}/execute`,
   WORKSPACE_REPORTS: (workspaceId: string) => `/workspaces/${workspaceId}/reports`,
   WORKSPACE_REPORT_FILE: (workspaceId: string, filePath: string) => 
     `/workspaces/${workspaceId}/reports/${filePath}`,

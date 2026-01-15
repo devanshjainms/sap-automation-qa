@@ -7,6 +7,10 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 from src.agents.workspace.workspace_store import WorkspaceStore
+from src.agents.execution.store import JobStore
+from src.agents.execution.worker import JobWorker
+from src.agents.execution.exceptions import WorkspaceLockError
+from src.agents.models.job import ExecutionJob
 from src.agents.models.workspace import (
     WorkspaceMetadata,
     WorkspaceListResponse,
@@ -16,6 +20,8 @@ from src.agents.models.workspace import (
     CreateWorkspaceRequest,
     FileContentResponse,
     UpdateFileContentRequest,
+    TriggerTestExecutionRequest,
+    TriggerTestExecutionResponse,
 )
 from src.agents.observability import get_logger
 
@@ -24,6 +30,8 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
 _workspace_store: Optional[WorkspaceStore] = None
+_job_store: Optional[JobStore] = None
+_job_worker: Optional[JobWorker] = None
 
 
 def get_workspace_store() -> WorkspaceStore:
@@ -49,6 +57,28 @@ def set_workspace_store(store: WorkspaceStore) -> None:
     global _workspace_store
     _workspace_store = store
     logger.info("WorkspaceStore injected via set_workspace_store")
+
+
+def set_job_store_for_workspaces(store: JobStore) -> None:
+    """Set the job store instance for workspaces.
+
+    :param store: JobStore instance to use
+    :type store: JobStore
+    """
+    global _job_store
+    _job_store = store
+    logger.info("JobStore injected for workspaces router")
+
+
+def set_job_worker_for_workspaces(worker: JobWorker) -> None:
+    """Set the job worker instance for workspaces.
+
+    :param worker: JobWorker instance to use
+    :type worker: JobWorker
+    """
+    global _job_worker
+    _job_worker = worker
+    logger.info("JobWorker injected for workspaces router")
 
 
 @router.get("", response_model=WorkspaceListResponse)
@@ -420,3 +450,104 @@ async def get_report_file(workspace_id: str, file_path: str):
     except Exception as e:
         logger.error(f"Failed to serve report file {file_path} for workspace {workspace_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to serve report file: {e}")
+
+
+@router.post(
+    "/{workspace_id}/execute", response_model=TriggerTestExecutionResponse, status_code=202
+)
+async def trigger_test_execution(
+    workspace_id: str, request: TriggerTestExecutionRequest
+) -> TriggerTestExecutionResponse:
+    """Trigger test execution for a workspace using AnsibleRunner.
+
+    Creates a background job and returns immediately with job ID.
+    Use SSE endpoint /jobs/{job_id}/events to monitor real-time progress.
+
+    :param workspace_id: Workspace ID (e.g., DEV-WEEU-SAP01-X00)
+    :type workspace_id: str
+    :param request: Test execution configuration
+    :type request: TriggerTestExecutionRequest
+    :returns: Job information with ID for tracking
+    :rtype: TriggerTestExecutionResponse
+    :raises HTTPException: 404 if workspace not found, 409 if workspace locked, 400 for invalid params
+    """
+    if not _job_store:
+        raise HTTPException(status_code=503, detail="Job store not initialized")
+
+    if not _job_worker:
+        raise HTTPException(status_code=503, detail="Job worker not initialized")
+
+    store = get_workspace_store()
+
+    try:
+        workspace = store.get_workspace(workspace_id)
+        if not workspace:
+            raise HTTPException(status_code=404, detail=f"Workspace '{workspace_id}' not found")
+        valid_test_groups = ["HA_DB_HANA", "HA_SCS", "HA_OFFLINE", "CONFIG_CHECKS"]
+        if request.test_group not in valid_test_groups:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid test_group '{request.test_group}'. "
+                f"Valid groups: {', '.join(valid_test_groups)}",
+            )
+        hosts_file = workspace.path / "hosts.yaml"
+        params_file = workspace.path / "sap-parameters.yaml"
+
+        if not hosts_file.exists():
+            raise HTTPException(
+                status_code=422,
+                detail=f"Workspace missing required file: hosts.yaml",
+            )
+
+        if not params_file.exists():
+            raise HTTPException(
+                status_code=422,
+                detail=f"Workspace missing required file: sap-parameters.yaml",
+            )
+        if request.offline:
+            offline_dir = workspace.path / "offline_validation"
+            if not offline_dir.exists():
+                raise HTTPException(
+                    status_code=422,
+                    detail="Offline mode requires CIB data in offline_validation directory. "
+                    "Run online tests first to collect CIB data.",
+                )
+        test_ids = request.test_cases or []
+        job = _job_store.create_job(
+            workspace_id=workspace_id,
+            test_ids=test_ids,
+            test_group=request.test_group,
+            metadata={
+                "environment": workspace.env,
+                "initiated_via": "workspace_trigger",
+                "offline_mode": request.offline,
+                "extra_vars": request.extra_vars or {},
+            },
+        )
+        logger.info(
+            f"Created job {job.id} for workspace {workspace_id}, "
+            f"test_group={request.test_group}, test_ids={test_ids}"
+        )
+        try:
+            await _job_worker.submit_job(job)
+            logger.info(f"Submitted job {job.id} to background worker")
+        except WorkspaceLockError as e:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Workspace {workspace_id} already has an active job. "
+                f"Wait for job {e.active_job_id} to complete.",
+            )
+
+        return TriggerTestExecutionResponse(
+            job_id=str(job.id),
+            workspace_id=workspace_id,
+            test_group=request.test_group,
+            status=job.status.value,
+            test_ids=test_ids,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to trigger test execution for workspace {workspace_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to trigger test execution: {str(e)}")

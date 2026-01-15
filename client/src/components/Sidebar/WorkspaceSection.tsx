@@ -31,6 +31,9 @@ import {
   MessageBarBody,
   Checkbox,
   tokens,
+  Dropdown,
+  Option,
+  Field,
 } from "@fluentui/react-components";
 import {
   AddRegular,
@@ -47,7 +50,7 @@ import {
   DocumentTableRegular,
 } from "@fluentui/react-icons";
 import { useWorkspace, useApp } from "../../context";
-import { workspacesApi } from "../../api";
+import { workspacesApi, jobsApi } from "../../api";
 import { Workspace } from "../../types";
 import { useWorkspaceSectionStyles as useStyles } from "../../styles";
 
@@ -60,12 +63,17 @@ export const WorkspaceSection: React.FC = () => {
   const [expandedWorkspace, setExpandedWorkspace] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [runTestsDialogOpen, setRunTestsDialogOpen] = useState(false);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [useBoilerplate, setUseBoilerplate] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validWorkspaces, setValidWorkspaces] = useState<Set<string>>(new Set());
+  const [selectedTestGroup, setSelectedTestGroup] = useState<string>("CONFIG_CHECKS");
+  const [runningTests, setRunningTests] = useState(false);
+  const [activeJob, setActiveJob] = useState<any | null>(null);
+  const [checkingActiveJob, setCheckingActiveJob] = useState(false);
 
   useEffect(() => {
     loadWorkspaces();
@@ -124,6 +132,66 @@ export const WorkspaceSection: React.FC = () => {
     setSelectedWorkspace(workspace);
     setError(null);
     setDeleteDialogOpen(true);
+  };
+
+  const openRunTestsDialog = async (workspace: Workspace) => {
+    setSelectedWorkspace(workspace);
+    setSelectedTestGroup("CONFIG_CHECKS");
+    setError(null);
+    setActiveJob(null);
+    setRunTestsDialogOpen(true);
+    
+    // Check for active jobs
+    setCheckingActiveJob(true);
+    try {
+      const response = await jobsApi.list({ 
+        workspaceId: workspace.workspace_id,
+        limit: 10 
+      });
+      
+      // Check for running or pending jobs
+      const activeJobs = response.jobs?.filter(
+        (job: any) => job.status === 'running' || job.status === 'pending'
+      );
+      
+      if (activeJobs && activeJobs.length > 0) {
+        setActiveJob(activeJobs[0]);
+        console.log('Active job found:', activeJobs[0]);
+      } else {
+        console.log('No active jobs found for workspace:', workspace.workspace_id);
+      }
+    } catch (err) {
+      console.error('Failed to check active jobs:', err);
+    } finally {
+      setCheckingActiveJob(false);
+    }
+  };
+
+  const handleRunTests = async () => {
+    if (!selectedWorkspace) return;
+
+    setRunningTests(true);
+    setError(null);
+    try {
+      const response = await workspacesApi.triggerExecution(
+        selectedWorkspace.workspace_id,
+        {
+          test_group: selectedTestGroup as any,
+          test_cases: [],
+          offline: false,
+        }
+      );
+      
+      setRunTestsDialogOpen(false);
+      setSelectedWorkspace(null);
+      navigateToJobs(selectedWorkspace.workspace_id);
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.detail || error?.message || "Failed to start tests";
+      console.error("Failed to start tests:", errorMsg);
+      setError(errorMsg);
+    } finally {
+      setRunningTests(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -261,16 +329,17 @@ export const WorkspaceSection: React.FC = () => {
                         </Tooltip>
                       )}
                     </div>
-                    <Tooltip content="Add to conversation context" relationship="label">
+                    <Tooltip content="Run tests" relationship="label">
                       <Button
-                        icon={<ChatRegular />}
+                        icon={<PlayRegular />}
                         appearance="subtle"
                         size="small"
                         className={mergeClasses(styles.contextButton, "context-button")}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleWorkspaceSelect(workspace);
+                          openRunTestsDialog(workspace);
                         }}
+                        disabled={!validWorkspaces.has(workspace.workspace_id)}
                       />
                     </Tooltip>
                     <Menu>
@@ -285,6 +354,15 @@ export const WorkspaceSection: React.FC = () => {
                       </MenuTrigger>
                       <MenuPopover>
                         <MenuList>
+                          <MenuItem
+                            icon={<ChatRegular />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleWorkspaceSelect(workspace);
+                            }}
+                          >
+                            Add to Chat Context
+                          </MenuItem>
                           <MenuItem
                             icon={<DeleteRegular />}
                             onClick={(e) => {
@@ -440,6 +518,85 @@ export const WorkspaceSection: React.FC = () => {
                 disabled={loading}
               >
                 {loading ? <Spinner size="tiny" /> : "Delete"}
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+
+      {/* Run Tests Dialog */}
+      <Dialog
+        open={runTestsDialogOpen}
+        onOpenChange={(_, data) => setRunTestsDialogOpen(data.open)}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Run Tests</DialogTitle>
+            <DialogContent>
+              {error && (
+                <MessageBar intent="error" style={{ marginBottom: "12px" }}>
+                  <MessageBarBody>{error}</MessageBarBody>
+                </MessageBar>
+              )}
+              {checkingActiveJob && (
+                <MessageBar intent="info" style={{ marginBottom: "12px" }}>
+                  <MessageBarBody>
+                    <Spinner size="tiny" style={{ marginRight: "8px" }} />
+                    Checking for active jobs...
+                  </MessageBarBody>
+                </MessageBar>
+              )}
+              {activeJob && (
+                <MessageBar intent="warning" style={{ marginBottom: "12px" }}>
+                  <MessageBarBody>
+                    This workspace has an active job (ID: {activeJob.job_id.substring(0, 8)}...). 
+                    Please wait for it to complete or check the Jobs view.
+                  </MessageBarBody>
+                </MessageBar>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div>
+                  <Text weight="semibold">Workspace:</Text>
+                  <Text style={{ marginLeft: "8px" }}>
+                    {selectedWorkspace?.workspace_id}
+                  </Text>
+                </div>
+                <Field label="Test Group">
+                  <Dropdown
+                    value={selectedTestGroup}
+                    selectedOptions={[selectedTestGroup]}
+                    onOptionSelect={(_, data) => setSelectedTestGroup(data.optionValue as string)}
+                    style={{ width: "100%" }}
+                    disabled={!!activeJob}
+                  >
+                    <Option value="CONFIG_CHECKS">Configuration Checks</Option>
+                    <Option value="HA_DB_HANA">HA Database (HANA)</Option>
+                    <Option value="HA_SCS">HA Central Services (SCS)</Option>
+                    <Option value="HA_OFFLINE">HA Offline Tests</Option>
+                  </Dropdown>
+                </Field>
+                {!activeJob && (
+                  <MessageBar intent="info">
+                    <MessageBarBody>
+                      Tests will run in the background. You can monitor progress in the Jobs view.
+                    </MessageBarBody>
+                  </MessageBar>
+                )}
+              </div>
+            </DialogContent>
+            <DialogActions>
+              <DialogTrigger disableButtonEnhancement>
+                <Button appearance="secondary" disabled={runningTests}>
+                  Cancel
+                </Button>
+              </DialogTrigger>
+              <Button
+                appearance="primary"
+                icon={<PlayRegular />}
+                onClick={handleRunTests}
+                disabled={runningTests || !!activeJob || checkingActiveJob}
+              >
+                {runningTests ? <Spinner size="tiny" /> : "Run Tests"}
               </Button>
             </DialogActions>
           </DialogBody>

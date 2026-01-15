@@ -203,3 +203,24 @@ class ReportsListResponse(BaseModel):
     workspace_id: str
     reports: List[ReportInfo]
     quality_assurance_dir: str
+
+
+class TriggerTestExecutionRequest(BaseModel):
+    """Request model for triggering test execution on a workspace."""
+
+    test_group: str = Field(..., description="Test group (HA_DB_HANA, HA_SCS, CONFIG_CHECKS)")
+    test_cases: Optional[List[str]] = Field(
+        None, description="Specific test case IDs to run (empty = run all in group)"
+    )
+    extra_vars: Optional[dict] = Field(None, description="Additional Ansible extra variables")
+    offline: bool = Field(False, description="Use offline mode with CIB data")
+
+
+class TriggerTestExecutionResponse(BaseModel):
+    """Response model after triggering test execution."""
+
+    job_id: str
+    workspace_id: str
+    test_group: str
+    status: str
+    test_ids: List[str]
