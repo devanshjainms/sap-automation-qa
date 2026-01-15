@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS execution_jobs (
     conversation_id TEXT,
     user_id TEXT,
     workspace_id TEXT NOT NULL,
+    triggered_by_schedule_id TEXT,
     test_id TEXT,
     test_group TEXT,
     test_ids TEXT DEFAULT '[]',
@@ -50,6 +51,7 @@ CREATE TABLE IF NOT EXISTS execution_jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_conversation_id ON execution_jobs(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_user_id ON execution_jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_workspace_id ON execution_jobs(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_schedule_id ON execution_jobs(triggered_by_schedule_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON execution_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON execution_jobs(created_at);
 
@@ -158,17 +160,18 @@ class JobStore(SQLiteBase):
         self.execute(
             """
             INSERT INTO execution_jobs (
-                id, conversation_id, user_id, workspace_id, test_id, test_group,
+                id, conversation_id, user_id, workspace_id, triggered_by_schedule_id, test_id, test_group,
                 test_ids, status, progress_percent, current_step, current_step_index,
                 total_steps, created_at, started_at, completed_at, target_node,
                 target_nodes, raw_stdout, raw_stderr, result, error_message, events, metadata
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(job.id),
                 job.conversation_id,
                 job.user_id,
                 job.workspace_id,
+                job.triggered_by_schedule_id,
                 job.test_id,
                 job.test_group,
                 json.dumps(job.test_ids),
@@ -416,6 +419,7 @@ class JobStore(SQLiteBase):
         workspace_id: Optional[str] = None,
         user_id: Optional[str] = None,
         status: Optional[JobStatus] = None,
+        schedule_id: Optional[str] = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[ExecutionJob]:
@@ -427,6 +431,8 @@ class JobStore(SQLiteBase):
         :type user_id: Optional[str]
         :param status: Filter by status
         :type status: Optional[JobStatus]
+        :param schedule_id: Filter by schedule ID
+        :type schedule_id: Optional[str]
         :param limit: Maximum results
         :type limit: int
         :param offset: Results offset
@@ -446,6 +452,9 @@ class JobStore(SQLiteBase):
         if status:
             conditions.append("status = ?")
             params.append(status.value)
+        if schedule_id:
+            conditions.append("triggered_by_schedule_id = ?")
+            params.append(schedule_id)
 
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         params.extend([limit, offset])

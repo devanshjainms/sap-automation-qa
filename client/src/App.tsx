@@ -20,12 +20,13 @@ import {
   WeatherSunnyRegular,
 } from "@fluentui/react-icons";
 
-import { AppProvider, ChatProvider, WorkspaceProvider, useApp } from "./context";
+import { AppProvider, ChatProvider, ScheduleProvider, WorkspaceProvider, useApp } from "./context";
 import {
   ChatPanel,
   CollapsibleSidebar,
   JobExecutionPanel,
   ReportsPanel,
+  ScheduleJobsPanel,
   WorkspaceFileViewer,
 } from "./components";
 import { healthApi } from "./api";
@@ -111,6 +112,12 @@ const AppContent: React.FC<AppContentProps> = ({
             workspaceId={state.selectedWorkspaceForReports || undefined}
           />
         );
+      case "schedule_jobs":
+        return state.selectedScheduleId ? (
+          <ScheduleJobsPanel scheduleId={state.selectedScheduleId} />
+        ) : (
+          <ChatPanel />
+        );
       case "chat":
       default:
         return <ChatPanel />;
@@ -175,9 +182,11 @@ const App: React.FC = () => {
     <FluentProvider theme={isDarkMode ? webDarkTheme : webLightTheme}>
       <AppProvider>
         <WorkspaceProvider>
-          <ChatProvider>
-            <AppContent isDarkMode={isDarkMode} onToggleTheme={toggleTheme} />
-          </ChatProvider>
+          <ScheduleProvider>
+            <ChatProvider>
+              <AppContent isDarkMode={isDarkMode} onToggleTheme={toggleTheme} />
+            </ChatProvider>
+          </ScheduleProvider>
         </WorkspaceProvider>
       </AppProvider>
     </FluentProvider>

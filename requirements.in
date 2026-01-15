@@ -27,6 +27,7 @@ jmespath
 Jinja2
 PyYAML
 requests
+APScheduler
 
 # Ansible for HA testing
 ansible-core>=2.15

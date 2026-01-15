@@ -17,6 +17,7 @@ import {
   AddRegular,
 } from "@fluentui/react-icons";
 import { ConversationSection } from "../Sidebar/ConversationSection";
+import { ScheduleSection } from "../Sidebar/ScheduleSection";
 import { WorkspaceSection } from "../Sidebar/WorkspaceSection";
 import { JobSection } from "../Sidebar/JobSection";
 import { useChat, useApp } from "../../context";
@@ -77,6 +78,9 @@ export const CollapsibleSidebar: React.FC = () => {
 
           {/* Workspaces Section */}
           <WorkspaceSection />
+
+          {/* Schedules Section */}
+          <ScheduleSection />
 
           {/* Job Execution Section */}
           <JobSection />

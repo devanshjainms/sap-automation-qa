@@ -43,7 +43,7 @@ async def list_jobs(
     workspace_id: Optional[str] = Query(None, description="Filter by workspace ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
     conversation_id: Optional[str] = Query(None, description="Filter by conversation ID"),
-    limit: int = Query(50, ge=1, le=200, description="Maximum results to return"),
+    limit: int = Query(50, ge=1, le=1000, description="Maximum results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
 ) -> JobListResponse:
     """List execution jobs with optional filters.

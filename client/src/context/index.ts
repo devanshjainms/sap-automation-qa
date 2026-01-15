@@ -8,4 +8,5 @@
 
 export { AppProvider, useApp } from "./AppContext";
 export { ChatProvider, useChat } from "./ChatContext";
+export { ScheduleProvider, useSchedule } from "./ScheduleContext";
 export { WorkspaceProvider, useWorkspace } from "./WorkspaceContext";

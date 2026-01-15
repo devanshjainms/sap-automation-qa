@@ -110,6 +110,11 @@ export const useStyles = makeStyles({
     flexDirection: "column",
     ...shorthands.gap("2px"),
   },
+  workspaceTitleRow: {
+    display: "flex",
+    alignItems: "center",
+    ...shorthands.gap(tokens.spacingHorizontalXS),
+  },
   workspaceTitle: {
     fontSize: tokens.fontSizeBase200,
     fontWeight: tokens.fontWeightSemibold,
@@ -120,6 +125,14 @@ export const useStyles = makeStyles({
   },
   workspaceSubtitle: {
     fontSize: tokens.fontSizeBase100,
+    color: tokens.colorNeutralForeground3,
+  },
+  statusIconEnabled: {
+    fontSize: "14px",
+    color: tokens.colorPaletteGreenForeground1,
+  },
+  statusIconDisabled: {
+    fontSize: "14px",
     color: tokens.colorNeutralForeground3,
   },
   workspaceActions: {

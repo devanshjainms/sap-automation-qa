@@ -17,4 +17,5 @@ export type { ThinkingStep, StreamCallbacks, SendMessageParams } from "./chatApi
 export { conversationsApi } from "./conversationsApi";
 export { healthApi } from "./healthApi";
 export { jobsApi } from "./jobsApi";
+export { schedulesApi } from "./schedulesApi";
 export { workspacesApi } from "./workspacesApi";

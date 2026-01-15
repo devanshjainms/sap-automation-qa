@@ -80,6 +80,7 @@ class ExecutionJob(BaseModel):
     conversation_id: Optional[str] = None
     user_id: Optional[str] = None
     workspace_id: str = ""
+    triggered_by_schedule_id: Optional[str] = None
     test_id: Optional[str] = None
     test_group: Optional[str] = None
     test_ids: list[str] = Field(default_factory=list)

@@ -18,6 +18,11 @@ export const API_ENDPOINTS = {
   JOBS: "/jobs",
   JOB_BY_ID: (id: string) => `/jobs/${id}`,
   JOB_STATUS: (id: string) => `/jobs/${id}/status`,
+  SCHEDULES: {
+    LIST: "/schedules",
+    GET: (id: string) => `/schedules/${id}`,
+    TOGGLE: (id: string) => `/schedules/${id}/toggle`,
+  },
 } as const;
 
 export const buildConversationsQuery = (params: {

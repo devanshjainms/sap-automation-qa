@@ -13,6 +13,7 @@ from src.api.routes.chat import (
 from src.api.routes.conversations import router as conversations_router, set_conversation_manager
 from src.api.routes.health import router as health_router
 from src.api.routes.jobs import router as jobs_router, set_job_store
+from src.api.routes.schedules import router as schedules_router, set_schedule_store
 from src.api.routes.streaming import router as streaming_router, set_job_worker
 from src.api.routes.workspaces import router as workspaces_router, set_workspace_store
 
@@ -22,6 +23,7 @@ __all__ = [
     "conversations_router",
     "health_router",
     "jobs_router",
+    "schedules_router",
     "streaming_router",
     "workspaces_router",
     "set_agent_registry",
@@ -31,5 +33,6 @@ __all__ = [
     "set_job_store",
     "set_job_worker",
     "set_orchestrator",
+    "set_schedule_store",
     "set_workspace_store",
 ]

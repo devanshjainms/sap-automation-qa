@@ -23,6 +23,9 @@ from src.agents.observability import (
 from src.agents.persistence import ConversationManager
 from src.agents.execution import JobStore
 from src.agents.execution.worker import JobWorker
+from src.agents.execution.schedule_store import ScheduleStore
+from src.agents.execution.scheduler import SchedulerService
+from src.agents.agents.action_executor_agent import ActionExecutorAgent
 from src.api.routes import (
     agents_router,
     chat_router,
@@ -31,6 +34,7 @@ from src.api.routes import (
     jobs_router,
     streaming_router,
     workspaces_router,
+    schedules_router,
     set_agent_registry,
     set_chat_conversation_manager,
     set_chat_kernel,
@@ -38,7 +42,9 @@ from src.api.routes import (
     set_job_store,
     set_job_worker,
     set_orchestrator,
+    set_schedule_store,
 )
+
 
 log_format = os.environ.get("LOG_FORMAT", "json")
 initialize_logging(level=logging.INFO, log_format=log_format)
@@ -74,10 +80,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             conversation_manager=conversation_manager,
         )
 
-    from src.agents.agents.action_executor_agent import ActionExecutorAgent
-
     job_store: JobStore | None = None
     job_worker: JobWorker | None = None
+    scheduler_service: SchedulerService | None = None
 
     action_executor_base = agent_registry.get("action_executor") if agent_registry else None
     if action_executor_base and isinstance(action_executor_base, ActionExecutorAgent):
@@ -97,6 +102,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             action_executor.guard_layer.job_store = job_store
     else:
         logger.warning("Action executor not found - async job execution disabled")
+    if job_worker:
+        try:
+            schedule_store = ScheduleStore(storage_path=Path("data/schedules.json"))
+            set_schedule_store(schedule_store)
+            scheduler_service = SchedulerService(
+                schedule_store=schedule_store,
+                job_worker=job_worker,
+                check_interval_seconds=60,
+            )
+            await scheduler_service.start()
+            logger.info("SchedulerService started successfully")
+        except Exception as e:
+            logger.error(f"Failed to start SchedulerService: {e}", exc_info=e)
+    else:
+        logger.warning("Job worker not available - scheduler service disabled")
 
     if agent_registry is not None:
         set_agent_registry(agent_registry)
@@ -115,6 +135,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     logger.info("Shutting down application...")
+
+    if scheduler_service:
+        try:
+            await scheduler_service.stop()
+            logger.info("SchedulerService stopped")
+        except Exception as e:
+            logger.error(f"Error stopping SchedulerService: {e}")
 
     if job_store:
         job_store.close()
@@ -150,6 +177,7 @@ app.include_router(conversations_router)
 app.include_router(jobs_router)
 app.include_router(streaming_router)
 app.include_router(workspaces_router)
+app.include_router(schedules_router)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@
 export { ConversationSidebar } from "./ConversationSidebar";
 export { CollapsibleSidebar } from "./CollapsibleSidebar";
 export { ConversationSection } from "./ConversationSection";
+export { ScheduleSection } from "./ScheduleSection";
 export { WorkspaceSection } from "./WorkspaceSection";
 export { JobSection } from "./JobSection";
 

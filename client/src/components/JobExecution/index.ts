@@ -6,3 +6,4 @@
  */
 
 export { JobExecutionPanel } from "./JobExecutionPanel";
+export { ScheduleJobsPanel } from "./ScheduleJobsPanel";

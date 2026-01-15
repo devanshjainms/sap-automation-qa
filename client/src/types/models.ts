@@ -200,3 +200,49 @@ export interface ConversationDetailResponse {
 export interface HealthResponse {
   status: "healthy" | "unhealthy";
 }
+
+export interface Schedule {
+  id: string;
+  name: string;
+  description: string;
+  cron_expression: string;
+  timezone: string;
+  workspace_ids: string[];
+  test_group?: string;
+  test_ids: string[];
+  enabled: boolean;
+  next_run_time?: string;
+  last_run_time?: string;
+  last_run_job_ids: string[];
+  consecutive_failures: number;
+  total_runs: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateScheduleRequest {
+  name: string;
+  description?: string;
+  workspace_ids: string[];
+  test_ids: string[];
+  cron_expression: string;
+  timezone?: string;
+  enabled?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpdateScheduleRequest {
+  name?: string;
+  description?: string;
+  workspace_ids?: string[];
+  test_ids?: string[];
+  cron_expression?: string;
+  timezone?: string;
+  enabled?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ScheduleListResponse {
+  schedules: Schedule[];
+  total: number;
+}
