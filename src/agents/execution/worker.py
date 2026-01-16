@@ -180,7 +180,12 @@ class JobWorker:
             results = []
             test_ids = job.test_ids or ([job.test_id] if job.test_id else [])
 
-            if not test_ids:
+            if not test_ids and job.test_group:
+                test_ids = [""]
+                logger.info(
+                    f"Running entire {job.test_group} playbook for workspace {job.workspace_id}"
+                )
+            elif not test_ids:
                 raise ValueError("No tests specified for execution")
 
             job.total_steps = len(test_ids)

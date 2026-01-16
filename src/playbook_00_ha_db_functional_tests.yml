@@ -9,7 +9,9 @@
 - hosts:                               localhost
   gather_facts:                        true
   name:                                "Setup deployer for HA Testing Framework"
-  vars_files:                          "./vars/input-api.yaml"
+  vars_files:
+                                        - "./vars/input-api.yaml"
+                                        - "../vars.yaml"
   tasks:
     - name:                             "Check if python3-venv is available"
       ansible.builtin.command:
@@ -44,7 +46,9 @@
 - hosts:                               "{{ sap_sid | upper }}_DB"
   name:                                "Host tasks"
   gather_facts:                        true
-  vars_files:                          "./vars/input-api.yaml"
+  vars_files:
+                                        - "./vars/input-api.yaml"
+                                        - "../vars.yaml"
   tasks:
     - name:                            "Enable profile_tasks callback plugin"
       ansible.builtin.set_fact:

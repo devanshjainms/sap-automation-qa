@@ -8,7 +8,9 @@
 - hosts:                                localhost
   gather_facts:                         true
   name:                                 "Setup deployer for Configuration Checks"
-  vars_files:                           "./vars/input-api.yaml"
+  vars_files:
+                                        - "./vars/input-api.yaml"
+                                        - "../vars.yaml"
   tasks:
     - name:                             "Check if python3-venv is available"
       ansible.builtin.command:
@@ -62,7 +64,9 @@
           {{ sap_sid | upper }}_PAS"
   name:                                 "Host tasks"
   gather_facts:                         true
-  vars_files:                           "./vars/input-api.yaml"
+  vars_files:
+                                        - "./vars/input-api.yaml"
+                                        - "../vars.yaml"
   tasks:
     - name:                             "Enable profile_tasks callback plugin"
       ansible.builtin.set_fact:
@@ -270,7 +274,9 @@
 - hosts:                                localhost
   name:                                 "Generate Configuration Checks Report"
   gather_facts:                         false
-  vars_files:                           "./vars/input-api.yaml"
+  vars_files:
+                                        - "./vars/input-api.yaml"
+                                        - "../vars.yaml"
   tasks:
     - name:                             "Set workspace directory if not defined"
       ansible.builtin.set_fact:

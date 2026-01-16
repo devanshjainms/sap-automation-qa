@@ -289,13 +289,25 @@ class ExecutionPlugin:
             workspace = self.workspace_store.get_workspace(workspace_id)
             if not workspace:
                 return json.dumps({"error": f"Workspace '{workspace_id}' not found"})
-            test_config_json = self.resolve_test_execution(test_id, test_group)
-            test_config = json.loads(test_config_json)
-            if "error" in test_config:
-                return test_config_json
-
-            playbook_path = self.ansible.base_dir / test_config["playbook"]
-            tags = test_config["tags"]
+            if not test_id:
+                playbook_map = {
+                    "HA_DB_HANA": "playbook_00_ha_db_functional_tests.yml",
+                    "HA_SCS": "playbook_00_ha_scs_functional_tests.yml",
+                    "HA_OFFLINE": "playbook_01_ha_offline_tests.yml",
+                    "CONFIG_CHECKS": "playbook_00_configuration_checks.yml",
+                }
+                playbook_name = playbook_map.get(test_group)
+                if not playbook_name:
+                    return json.dumps({"error": f"Unknown test_group: {test_group}"})
+                playbook_path = self.ansible.base_dir / playbook_name
+                tags = []
+            else:
+                test_config_json = self.resolve_test_execution(test_id, test_group)
+                test_config = json.loads(test_config_json)
+                if "error" in test_config:
+                    return test_config_json
+                playbook_path = self.ansible.base_dir / test_config["playbook"]
+                tags = test_config["tags"]
             inventory_path = Path(ctx["inventory_path"]) if ctx.get("inventory_path") else None
             if not inventory_path or not inventory_path.exists():
                 return json.dumps({"error": f"Inventory not found: {ctx.get('inventory_path')}"})
