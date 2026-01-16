@@ -350,6 +350,17 @@ class JobStore(SQLiteBase):
             ),
         )
 
+    def delete_job(self, job_id: str) -> None:
+        """Delete a job from the database.
+
+        Used to clean up jobs that failed to submit or were orphaned.
+
+        :param job_id: Job ID to delete
+        :type job_id: str
+        """
+        self.execute("DELETE FROM job_events WHERE job_id = ?", (job_id,))
+        self.execute("DELETE FROM execution_jobs WHERE id = ?", (job_id,))
+
     def add_event(self, job_id: str, event: JobEvent) -> None:
         """Add an event to a job.
 

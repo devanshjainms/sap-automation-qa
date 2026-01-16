@@ -26,7 +26,6 @@ import {
   DialogContent,
   Input,
   mergeClasses,
-  Label,
   MessageBar,
   MessageBarBody,
   Textarea,
@@ -44,9 +43,6 @@ import {
   EditRegular,
   ChevronDownRegular,
   ChevronRightRegular,
-  PlayRegular,
-  PauseRegular,
-  ClockRegular,
   CheckmarkCircleRegular,
   DismissCircleRegular,
 } from "@fluentui/react-icons";
@@ -92,7 +88,6 @@ export const ScheduleSection: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Validate cron expression format
   const validateCronExpression = (cron: string): string | null => {
     if (!cron.trim()) return "Cron expression is required";
     const parts = cron.trim().split(/\s+/);
@@ -152,7 +147,6 @@ export const ScheduleSection: React.FC = () => {
     setEditTimezone(schedule.timezone);
     setEditIsEnabled(schedule.enabled);
     setEditWorkspaceIds(schedule.workspace_ids || []);
-    // Parse test_ids to extract test types
     const testIds = schedule.test_ids || [];
     const testTypeValue = testIds.find(id => id === "SAPFunctionalTests" || id === "ConfigurationChecks") || "SAPFunctionalTests";
     const sapTestTypeValue = testIds.find(id => id === "DatabaseHighAvailability" || id === "CentralServicesHighAvailability") || "DatabaseHighAvailability";
@@ -246,7 +240,6 @@ export const ScheduleSection: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // Build test_ids array from test type selections
       const testIdsArray = [editTestType];
       if (editTestType === "SAPFunctionalTests") {
         testIdsArray.push(editSAPTestType);
@@ -315,46 +308,8 @@ export const ScheduleSection: React.FC = () => {
     }
   };
 
-  const handleToggle = async (schedule: Schedule) => {
-    try {
-      await toggleSchedule(schedule.id);
-    } catch (error: any) {
-      let errorMsg = "Failed to toggle schedule";
-      if (error?.response?.data?.detail) {
-        const detail = error.response.data.detail;
-        if (typeof detail === "string") {
-          errorMsg = detail;
-        } else if (Array.isArray(detail)) {
-          errorMsg = detail.map((err: any) => err.msg || JSON.stringify(err)).join(", ");
-        } else {
-          errorMsg = detail.msg || JSON.stringify(detail);
-        }
-      } else if (error?.message) {
-        errorMsg = error.message;
-      }
-      console.error("Failed to toggle schedule:", errorMsg);
-      setError(errorMsg);
-    }
-  };
-
   const handleScheduleClick = (schedule: Schedule) => {
     navigateToScheduleJobs(schedule.id);
-  };
-
-  const formatNextRun = (nextRunAt?: string): string => {
-    if (!nextRunAt) return "Not scheduled";
-    const date = new Date(nextRunAt);
-    const now = new Date();
-    const diffMs = date.getTime() - now.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 60) {
-      return `in ${diffMins}m`;
-    } else if (diffMins < 1440) {
-      return `in ${Math.floor(diffMins / 60)}h`;
-    } else {
-      return `in ${Math.floor(diffMins / 1440)}d`;
-    }
   };
 
   return (

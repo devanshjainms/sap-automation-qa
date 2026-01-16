@@ -532,10 +532,11 @@ async def trigger_test_execution(
             await _job_worker.submit_job(job)
             logger.info(f"Submitted job {job.id} to background worker")
         except WorkspaceLockError as e:
+            _job_store.delete_job(str(job.id))
             raise HTTPException(
                 status_code=409,
-                detail=f"Workspace {workspace_id} already has an active job. "
-                f"Wait for job {e.active_job_id} to complete.",
+                detail=f"Workspace {workspace_id} already has an active job (ID: {e.active_job_id}). "
+                f"Wait for it to complete or check the Jobs view.",
             )
 
         return TriggerTestExecutionResponse(

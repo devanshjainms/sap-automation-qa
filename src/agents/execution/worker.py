@@ -53,23 +53,32 @@ class JobWorker:
     async def submit_job(self, job: ExecutionJob) -> ExecutionJob:
         """Submit a job for async execution.
 
-        Creates the job in the store and starts background execution.
-        Enforces workspace-level locking - only one job per workspace.
+        Handles both pre-created jobs (from workspace triggers) and new jobs (from scheduler).
+        Enforces workspace-level locking for all submission paths.
 
-        :param job: Job to execute
+        :param job: Job to execute (may or may not be persisted)
         :type job: ExecutionJob
-        :returns: The submitted job with ID
+        :returns: The submitted job
         :rtype: ExecutionJob
         :raises WorkspaceLockError: If workspace already has an active job
         """
         active_job = self.job_store.get_active_job_for_workspace(job.workspace_id)
-        if active_job:
+        if active_job and active_job.id != job.id:
             logger.warning(f"Workspace {job.workspace_id} already has active job {active_job.id}")
             raise WorkspaceLockError(
                 workspace_id=job.workspace_id,
                 active_job_id=str(active_job.id),
             )
 
+        if job.id is None:
+            job = self.job_store.create_job(
+                workspace_id=job.workspace_id,
+                test_ids=job.test_ids,
+                test_id=job.test_id,
+                test_group=job.test_group,
+                metadata=job.metadata,
+                triggered_by_schedule_id=job.triggered_by_schedule_id,
+            )
         self._event_queues[str(job.id)] = asyncio.Queue()
 
         task = asyncio.create_task(self._execute_job(job))
