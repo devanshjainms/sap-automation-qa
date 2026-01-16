@@ -18,13 +18,16 @@
       register:                         venv_check
       ignore_errors:                    true
       changed_when:                     false
+      when:                             skip_deployer_setup is not defined or not skip_deployer_setup
 
     - name:                             "Install python3-venv system package (if needed)"
       become:                           true
       ansible.builtin.package:
         name:                           python3-venv
         state:                          present
-      when:                             venv_check.rc != 0
+      when:                             
+        - skip_deployer_setup is not defined or not skip_deployer_setup
+        - venv_check.rc != 0
       ignore_errors:                    true
 
     - name:                             "Create virtual environment for deployer"
@@ -32,15 +35,18 @@
         name:                           pip
         virtualenv:                     "{{ playbook_dir }}/../.venv"
         virtualenv_command:             python3 -m venv
+      when:                             skip_deployer_setup is not defined or not skip_deployer_setup
 
     - name:                             "Install python azure packages on deployer"
       ansible.builtin.pip:
         virtualenv:                     "{{ playbook_dir }}/../.venv"
         requirements:                   "{{ playbook_dir }}/../requirements.in"
+      when:                             skip_deployer_setup is not defined or not skip_deployer_setup
 
     - name:                             "Set Python interpreter to use virtual environment"
       ansible.builtin.set_fact:
         ansible_python_interpreter:     "{{ playbook_dir }}/../.venv/bin/python"
+      when:                             skip_deployer_setup is not defined or not skip_deployer_setup
 
     - name:                             "Generate test group ID and timestamp"
       ansible.builtin.set_fact:

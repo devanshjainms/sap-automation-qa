@@ -322,7 +322,8 @@ class ExecutionPlugin:
             else:
                 logger.warning(f"No SSH key found in workspace context for {workspace_id}")
 
-            logger.info(f"Running test {test_id} for workspace {workspace_id}")
+            extra_vars["skip_deployer_setup"] = True
+            logger.info(f"Running test {test_id or 'full playbook'} for workspace {workspace_id}")
             result = self.ansible.run_playbook(
                 inventory=inventory_path,
                 playbook=playbook_path,
