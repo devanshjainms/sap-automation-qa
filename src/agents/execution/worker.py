@@ -216,15 +216,7 @@ class JobWorker:
                             {"test_id": test_id, "status": "failed", "error": result["error"]}
                         )
                     else:
-                        # Capture stdout/stderr from the result
-                        if result.get("stdout"):
-                            job.raw_stdout = (job.raw_stdout or "") + f"\n=== {test_id or job.test_group} ===\n" + result["stdout"]
-                        if result.get("stderr"):
-                            job.raw_stderr = (job.raw_stderr or "") + f"\n=== {test_id or job.test_group} ===\n" + result["stderr"]
-                        
-                        # Update job in database with captured output
                         self.job_store.update_job(job)
-                        
                         event = job.step_completed(
                             idx, step_name, f"{test_id or job.test_group} completed successfully"
                         )
