@@ -24,21 +24,6 @@ export interface ListWorkspacesParams {
   env?: string;
 }
 
-export interface TriggerTestExecutionRequest {
-  test_group: "HA_DB_HANA" | "HA_SCS" | "HA_OFFLINE" | "CONFIG_CHECKS";
-  test_cases?: string[];
-  extra_vars?: Record<string, any>;
-  offline?: boolean;
-}
-
-export interface TriggerTestExecutionResponse {
-  job_id: string;
-  workspace_id: string;
-  test_group: string;
-  status: string;
-  test_ids: string[];
-}
-
 export const workspacesApi = {
   list: async (
     params?: ListWorkspacesParams,
@@ -94,16 +79,5 @@ export const workspacesApi = {
       `${API_ENDPOINTS.WORKSPACE_BY_ID(workspaceId)}/files/${fileName}`,
       { content },
     );
-  },
-
-  triggerExecution: async (
-    workspaceId: string,
-    request: TriggerTestExecutionRequest,
-  ): Promise<TriggerTestExecutionResponse> => {
-    const response = await apiClient.post<TriggerTestExecutionResponse>(
-      API_ENDPOINTS.WORKSPACE_EXECUTE(workspaceId),
-      request,
-    );
-    return response.data;
   },
 };

@@ -40,9 +40,7 @@ from src.api.routes import (
     set_chat_kernel,
     set_conversation_manager,
     set_job_store,
-    set_job_store_for_workspaces,
     set_job_worker,
-    set_job_worker_for_workspaces,
     set_orchestrator,
     set_schedule_store,
 )
@@ -129,10 +127,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     set_chat_kernel(kernel)
     if job_worker:
         set_job_worker(job_worker)
-        set_job_worker_for_workspaces(job_worker)
     if job_store:
         set_job_store(job_store)
-        set_job_store_for_workspaces(job_store)
 
     logger.info("Application initialized successfully")
 
