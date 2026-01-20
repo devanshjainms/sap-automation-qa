@@ -21,7 +21,7 @@ from typing import Annotated, Optional, TYPE_CHECKING, Union, Any
 from uuid import UUID
 from semantic_kernel.functions import kernel_function
 
-from src.agents.constants import TEST_GROUP_PLAYBOOKS, LOG_WHITELIST
+from src.agents.constants import TEST_GROUP_PLAYBOOKS, LOG_WHITELIST, CONFIG_CHECKS_TAG
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.ansible_runner import AnsibleRunner
 from src.agents.plugins.command_validator import validate_readonly_command
@@ -713,6 +713,151 @@ class ExecutionPlugin:
                 details={"exception": str(e)},
             )
 
+            return json.dumps(exec_result.model_dump(), default=str, indent=2)
+
+    @kernel_function(
+        name="run_configuration_checks",
+        description="Run SAP configuration validation checks. Can run all checks or filter by category. "
+        + "Categories: common (VM, packages, network), database (HANA/Db2 config), "
+        + "ha_config (cluster, stonith, resources), scs (Central Services), application (App servers). "
+        + "SSH key is auto-resolved from workspace.",
+    )
+    def run_configuration_checks(
+        self,
+        workspace_id: Annotated[str, "Workspace ID"],
+        check_categories: Annotated[
+            Optional[list[str]],
+            "Optional list of check categories to run. "
+            "Valid: 'common', 'database', 'ha_config', 'scs', 'application'. "
+            "Omit or pass empty list to run all checks.",
+        ] = None,
+        job_id: Annotated[str, "Optional job ID to update (for tracking)"] = "",
+    ) -> Annotated[str, "JSON string with ExecutionResult"]:
+        """Run configuration validation checks with optional category filtering.
+
+        :param workspace_id: Workspace identifier
+        :type workspace_id: str
+        :param check_categories: Optional list of categories to filter
+        :type check_categories: Optional[list[str]]
+        :param job_id: Optional job ID for tracking
+        :type job_id: str
+        :returns: JSON string with ExecutionResult
+        :rtype: str
+        """
+        started_at = datetime.utcnow()
+
+        try:
+            ctx = self._get_execution_context(workspace_id)
+            if "error" in ctx:
+                return json.dumps(ctx)
+
+            workspace = self.workspace_store.get_workspace(workspace_id)
+            if not workspace:
+                return json.dumps({"error": f"Workspace '{workspace_id}' not found"})
+
+            inventory_path = Path(ctx["inventory_path"]) if ctx.get("inventory_path") else None
+            if not inventory_path or not inventory_path.exists():
+                return json.dumps({"error": f"Inventory not found: {ctx.get('inventory_path')}"})
+
+            playbook_path = self.ansible.base_dir / "playbook_00_configuration_checks.yml"
+            if not playbook_path.exists():
+                return json.dumps(
+                    {"error": f"Configuration checks playbook not found at {playbook_path}"}
+                )
+            tags = []
+            if check_categories:
+                for category in check_categories:
+                    if category in CONFIG_CHECKS_TAG:
+                        tags.extend(CONFIG_CHECKS_TAG[category])
+                    else:
+                        logger.warning(f"Unknown check category: {category}")
+                tags = list(dict.fromkeys(tags))
+
+            extra_vars = ctx.get("sap_parameters", {}) or {}
+            if ctx.get("ssh_key_path"):
+                extra_vars["ansible_ssh_private_key_file"] = ctx["ssh_key_path"]
+                logger.info(f"SSH key from workspace context: {ctx['ssh_key_path']}")
+            else:
+                logger.warning(f"No SSH key found in workspace context for {workspace_id}")
+
+            extra_vars["skip_deployer_setup"] = True
+
+            logger.info(
+                f"Running configuration checks for workspace {workspace_id} "
+                f"with categories: {check_categories or 'all'}"
+            )
+
+            result = self.ansible.run_playbook(
+                inventory=inventory_path,
+                playbook=playbook_path,
+                extra_vars=extra_vars,
+                tags=tags if tags else None,
+            )
+
+            finished_at = datetime.utcnow()
+            if result["rc"] == 0:
+                status = "success"
+                error_message = None
+            elif result["rc"] == -1:
+                status = "failed"
+                error_message = "Execution error or timeout"
+            else:
+                status = "failed"
+                error_message = f"Configuration checks failed with rc={result['rc']}"
+            report_path = None
+            if result["stdout"]:
+                import re
+
+                report_match = re.search(
+                    r"Report file (CONFIG_[A-Z0-9]+_[A-Z0-9]+_[a-f0-9-]+)\.html generated",
+                    result["stdout"],
+                )
+                if report_match:
+                    report_filename = f"{report_match.group(1)}.html"
+                    report_path = f"/tmp/sap_automation_qa/{report_filename}"
+                    logger.info(f"HTML report generated at: {report_path}")
+
+            exec_result = ExecutionResult(
+                test_id="configuration_checks",
+                test_group="CONFIG_CHECKS",
+                workspace_id=workspace_id,
+                env=workspace.env,
+                action_type="config_check",
+                status=status,
+                started_at=started_at,
+                finished_at=finished_at,
+                hosts=[],
+                stdout=result["stdout"][:8000] if result["stdout"] else None,
+                stderr=result["stderr"][:8000] if result["stderr"] else None,
+                error_message=error_message,
+                details={
+                    "return_code": result["rc"],
+                    "command": result["command"],
+                    "categories": check_categories or "all",
+                    "tags_used": tags if tags else "all",
+                    "full_stdout_length": len(result["stdout"]) if result["stdout"] else 0,
+                    "full_stderr_length": len(result["stderr"]) if result["stderr"] else 0,
+                    "report_path": report_path,
+                },
+            )
+
+            logger.info(f"Configuration checks completed with status: {status}")
+            return json.dumps(exec_result.model_dump(), default=str, indent=2)
+
+        except Exception as e:
+            logger.error(f"Error running configuration checks: {e}")
+
+            exec_result = ExecutionResult(
+                test_id="configuration_checks",
+                workspace_id=workspace_id,
+                action_type="config_check",
+                status="failed",
+                started_at=started_at,
+                finished_at=datetime.utcnow(),
+                hosts=[],
+                error_message=str(e),
+                details={"exception": str(e), "categories": check_categories or "all"},
+            )
             return json.dumps(exec_result.model_dump(), default=str, indent=2)
 
     @kernel_function(

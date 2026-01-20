@@ -152,6 +152,12 @@
           }
       loop_control:
         loop_var:                       check_type
+      tags:
+        - config_checks
+        - common
+        - vm_info
+        - packages
+        - network
 
     - name:                             "Run role-specific checks for HANA DB hosts"
       ansible.builtin.include_tasks:
@@ -167,6 +173,10 @@
                                         (platform | default('HANA') | upper == 'HANA') and
                                         (configuration_test_type == 'all' or
                                           configuration_test_type == 'Database')
+      tags:
+        - config_checks
+        - database
+        - hana
 
     - name:                             "Debug HANA checks execution"
       ansible.builtin.debug:
@@ -191,6 +201,10 @@
                                         (platform | default('HANA') | upper == 'DB2') and
                                         (configuration_test_type == 'all' or
                                           configuration_test_type == 'Database')
+      tags:
+        - config_checks
+        - database
+        - db2
 
     - name:                             "Debug Db2 checks execution"
       ansible.builtin.debug:
@@ -215,6 +229,12 @@
                                         - (platform | default('HANA') | upper == 'HANA')
                                         - database_high_availability | default(false) | bool
                                         - (configuration_test_type == 'all' or configuration_test_type == 'Database')
+      tags:
+        - config_checks
+        - database
+        - ha_config
+        - cluster
+        - stonith
 
     - name:                             "Run role-specific checks for ASCS/SCS hosts"
       ansible.builtin.include_tasks:
@@ -229,6 +249,10 @@
                                         role in ['SCS', 'ERS'] and
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'CentralServiceInstances')
+      tags:
+        - config_checks
+        - scs
+        - central_services
 
     - name:                             "Debug ASCS/SCS checks execution"
       ansible.builtin.debug:
@@ -252,6 +276,12 @@
                                         scs_high_availability | default(false) | bool and
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'CentralServiceInstances')
+      tags:
+        - config_checks
+        - scs
+        - ha_config
+        - cluster
+        - stonith
 
     - name:                             "Run role-specific checks for Application Server hosts"
       ansible.builtin.include_tasks:
@@ -267,6 +297,10 @@
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'ApplicationInstances' or
                                          configuration_test_type == 'WebDispatcherInstances')
+      tags:
+        - config_checks
+        - application
+        - app_server
 
     - name:                             "Debug Application Server checks execution"
       ansible.builtin.debug:
@@ -283,6 +317,8 @@
   vars_files:
                                         - "./vars/input-api.yaml"
                                         - "../vars.yaml"
+  tags:
+    - always
   tasks:
     - name:                             "Set workspace directory if not defined"
       ansible.builtin.set_fact:

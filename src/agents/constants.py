@@ -372,3 +372,11 @@ SKIP_PATHS = frozenset(
         "/favicon.ico",
     }
 )
+
+CONFIG_CHECKS_TAG = {
+    "common": ["common", "vm_info", "packages", "network"],
+    "database": ["database", "hana", "db2"],
+    "ha_config": ["ha_config", "cluster", "stonith"],
+    "scs": ["scs", "central_services", "ers"],
+    "application": ["application", "app_server"],
+}

@@ -246,6 +246,13 @@ Call get_execution_context(workspace_id) to get:
 
 **This is cached** - calling it multiple times in same conversation returns cached data (no repeated file reads).
 
+CONFIGURATION CHECKS:
+- run_configuration_checks() executes validation checks for SAP configurations
+- Can run all checks or filter by category: common, database, ha_config, scs, application
+- Automatically validates cluster settings, STONITH config, resources, OS parameters
+- Example: run_configuration_checks(workspace_id="X01", check_categories=["ha_config"])
+- Example: run_configuration_checks(workspace_id="X01") # runs all checks
+
 COMMAND EXECUTION:
 - run_readonly_command accepts single command (str) or list of commands (list[str])
 - Multiple commands run sequentially in one Ansible execution (reduces connection overhead)
