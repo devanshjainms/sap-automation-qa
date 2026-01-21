@@ -482,6 +482,10 @@ class WorkspacePlugin:
         if not result["ssh_key_path"] and self.keyvault_plugin:
             secret_id = result["sap_parameters"].get("secret_id", "")
             if secret_id:
+                logger.info(
+                    f"No local SSH key found, attempting to fetch from Key Vault "
+                    f"using secret_id: {secret_id}"
+                )
                 try:
                     parse_result = json.loads(
                         self.keyvault_plugin.parse_key_vault_id_and_secret_id(secret_id)
@@ -489,12 +493,16 @@ class WorkspacePlugin:
                     if "error" not in parse_result:
                         vault_name = parse_result.get("vault_name")
                         secret_name = parse_result.get("secret_name")
+                        managed_identity_client_id = result["sap_parameters"].get(
+                            "user_assigned_identity_client_id", ""
+                        )
                         if vault_name and secret_name:
                             key_result = json.loads(
                                 self.keyvault_plugin.get_ssh_private_key(
                                     secret_name=secret_name,
                                     vault_name=vault_name,
                                     key_filename=f"{workspace_id}_id_rsa",
+                                    managed_identity_client_id=managed_identity_client_id,
                                 )
                             )
                             if "key_path" in key_result:
