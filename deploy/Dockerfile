@@ -25,6 +25,7 @@ RUN tdnf update -y && tdnf install -y \
     openssh-clients \
     git \
     curl \
+    util-linux \
     && tdnf clean all \
     && mkdir -p /app/data /app/logs /root/.ssh \
     && chmod 700 /root/.ssh
