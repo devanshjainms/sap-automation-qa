@@ -85,8 +85,6 @@ class ActionExecutorAgent(SAPAutomationAgent):
             ),
             AzureCLIPlugin(),
         ]
-        if getattr(execution_plugin, "keyvault_plugin", None) is not None:
-            plugins.append(execution_plugin.keyvault_plugin)
 
         super().__init__(
             name="action_executor",

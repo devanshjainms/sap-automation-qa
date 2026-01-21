@@ -32,7 +32,6 @@ from src.agents.observability import get_logger
 from src.agents.models.job import JobStatus
 
 if TYPE_CHECKING:
-    from src.agents.plugins.keyvault import KeyVaultPlugin
     from src.agents.plugins.workspace import WorkspacePlugin
 
 logger = get_logger(__name__)
@@ -47,7 +46,6 @@ class ExecutionPlugin:
         ansible_runner: AnsibleRunner,
         job_store: Optional[JobStore] = None,
         workspace_plugin: Optional["WorkspacePlugin"] = None,
-        keyvault_plugin: Optional["KeyVaultPlugin"] = None,
     ):
         """Initialize ExecutionPlugin.
 
@@ -59,18 +57,14 @@ class ExecutionPlugin:
         :type job_store: Optional[JobStore]
         :param workspace_plugin: WorkspacePlugin for unified context resolution
         :type workspace_plugin: Optional[WorkspacePlugin]
-        :param keyvault_plugin: Optional KeyVaultPlugin for SSH key retrieval
-        :type keyvault_plugin: Optional[KeyVaultPlugin]
         """
         self.workspace_store = workspace_store
         self.ansible = ansible_runner
         self.job_store = job_store or JobStore()
         self.workspace_plugin = workspace_plugin
-        self.keyvault_plugin = keyvault_plugin
         logger.info(
             f"ExecutionPlugin initialized "
             f"(workspace_plugin={workspace_plugin is not None}, "
-            f"keyvault_enabled={keyvault_plugin is not None}, "
             f"job_store={job_store is not None})"
         )
 

@@ -10,7 +10,7 @@ structure, validation, and workflow. Don't encode business rules in code.
 import yaml
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional, TYPE_CHECKING
 
 from semantic_kernel.functions import kernel_function
 
@@ -18,15 +18,33 @@ from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.observability import get_logger
 from src.agents.workspace_cache import WorkspaceCacheManager
 
+if TYPE_CHECKING:
+    from src.agents.plugins.keyvault import KeyVaultPlugin
+
 logger = get_logger(__name__)
 
 
 class WorkspacePlugin:
     """Lean workspace plugin - simple tools, LLM does the thinking."""
 
-    def __init__(self, store: WorkspaceStore) -> None:
+    def __init__(
+        self,
+        store: WorkspaceStore,
+        keyvault_plugin: Optional["KeyVaultPlugin"] = None,
+    ) -> None:
+        """Initialize WorkspacePlugin.
+
+        :param store: WorkspaceStore for workspace metadata access
+        :type store: WorkspaceStore
+        :param keyvault_plugin: Optional KeyVaultPlugin for SSH key retrieval from Azure Key Vault
+        :type keyvault_plugin: Optional[KeyVaultPlugin]
+        """
         self.store = store
-        logger.info(f"WorkspacePlugin initialized: {store.root_path}")
+        self.keyvault_plugin = keyvault_plugin
+        logger.info(
+            f"WorkspacePlugin initialized: {store.root_path} "
+            f"(keyvault_enabled={keyvault_plugin is not None})"
+        )
 
     @kernel_function(
         name="list_workspaces",
@@ -460,6 +478,42 @@ class WorkspacePlugin:
                     result["ssh_key_file"] = temp_key_path.name
                     logger.info(f"Resolved SSH key from KeyVault temp: {temp_key_path}")
                     break
+
+        if not result["ssh_key_path"] and self.keyvault_plugin:
+            secret_id = result["sap_parameters"].get("secret_id", "")
+            if secret_id:
+                try:
+                    parse_result = json.loads(
+                        self.keyvault_plugin.parse_key_vault_id_and_secret_id(secret_id)
+                    )
+                    if "error" not in parse_result:
+                        vault_name = parse_result.get("vault_name")
+                        secret_name = parse_result.get("secret_name")
+                        if vault_name and secret_name:
+                            key_result = json.loads(
+                                self.keyvault_plugin.get_ssh_private_key(
+                                    secret_name=secret_name,
+                                    vault_name=vault_name,
+                                    key_filename=f"{workspace_id}_id_rsa",
+                                )
+                            )
+                            if "key_path" in key_result:
+                                result["ssh_key_path"] = key_result["key_path"]
+                                result["ssh_key_file"] = f"{workspace_id}_id_rsa"
+                                result["ssh_key_source"] = "keyvault"
+                                logger.info(
+                                    f"Successfully fetched SSH key from Key Vault: "
+                                    f"{key_result['key_path']}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"Failed to fetch SSH key from Key Vault: "
+                                    f"{key_result.get('error', 'Unknown error')}"
+                                )
+                    else:
+                        logger.warning(f"Failed to parse secret_id: {parse_result.get('error')}")
+                except Exception as e:
+                    logger.error(f"Error fetching SSH key from Key Vault: {e}")
 
         if not result["ssh_key_path"]:
             result["missing"].append("ssh_key")

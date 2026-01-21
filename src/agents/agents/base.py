@@ -236,13 +236,12 @@ def create_default_agent_registry(kernel: Optional[Kernel] = None) -> "AgentRegi
     workspace_store = WorkspaceStore(workspace_root)
     src_dir = Path(__file__).parent.parent.parent
     ansible_runner = AnsibleRunner(base_dir=src_dir)
-    workspace_plugin = WorkspacePlugin(store=workspace_store)
     keyvault_plugin = KeyVaultPlugin()
+    workspace_plugin = WorkspacePlugin(store=workspace_store, keyvault_plugin=keyvault_plugin)
     execution_plugin = ExecutionPlugin(
         workspace_store=workspace_store,
         ansible_runner=ansible_runner,
         workspace_plugin=workspace_plugin,
-        keyvault_plugin=keyvault_plugin,
     )
 
     registry = AgentRegistry()
