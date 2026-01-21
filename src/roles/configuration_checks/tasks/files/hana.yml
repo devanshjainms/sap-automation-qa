@@ -475,6 +475,7 @@ checks:
       storage_type:                     *premium_storage
       role:                             [*db_role]
       database_type:                    [*hana]
+      high_availability:                true
     collector_type:                     *command
     collector_args:
       command:                          "/sbin/sysctl net.ipv4.tcp_timestamps -n"
@@ -500,13 +501,14 @@ checks:
       storage_type:                     *anf
       role:                             [*db_role]
       database_type:                    [*hana]
+      high_availability:                true
     collector_type:                     *command
     collector_args:
       command:                          "/sbin/sysctl net.ipv4.tcp_timestamps -n"
       user:                             *root
     validator_type:                     *string
     validator_args:
-      expected_output:                  "1"
+      expected_output:                  "0"
     report:                             *check
     references:
       microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
@@ -1363,3 +1365,55 @@ checks:
     report:                             *check
     references:
       sap:                              "2814271"
+
+  - id:                                 "DB-HANA-0053"
+    name:                               "sysctl net.ipv4.tcp_timestamps"
+    description:                        "SAP HANA sysctl net.ipv4.tcp_timestamps"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+      high_availability:                false
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_timestamps -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "1"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"
+
+  - id:                                 "DB-HANA-0054"
+    name:                               "sysctl net.ipv4.tcp_timestamps"
+    description:                        "SAP HANA sysctl net.ipv4.tcp_timestamps"
+    category:                           *os_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          [*suse, *redhat]
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *anf
+      role:                             [*db_role]
+      database_type:                    [*hana]
+      high_availability:                false
+    collector_type:                     *command
+    collector_args:
+      command:                          "/sbin/sysctl net.ipv4.tcp_timestamps -n"
+      user:                             *root
+    validator_type:                     *string
+    validator_args:
+      expected_output:                  "1"
+    report:                             *check
+    references:
+      microsoft:                        "https://docs.microsoft.com/en-us/azure/virtual-machines/workloads/sap/sap-hana-scale-out-standby-netapp-files-suse"
+      sap:                              "3024346"

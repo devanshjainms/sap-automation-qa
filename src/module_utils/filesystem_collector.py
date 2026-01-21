@@ -295,12 +295,14 @@ class FileSystemCollector(Collector):
                         log_volume_result[lv_name] = {
                             "name": lv_name,
                             "vg_name": vg_name,
-                            "path": lv.get("lv_path"),
-                            "dm_path": lv.get("lv_dm_path"),
-                            "layout": lv.get("lv_layout"),
-                            "size": lv.get("lv_size"),
-                            "stripe_size": stripe_size,
-                            "stripes": stripes,
+                            "path": lv.get("lv_path", "").strip() if lv.get("lv_path") else "",
+                            "dm_path": lv.get("lv_dm_path", "").strip(),
+                            "layout": (
+                                lv.get("lv_layout", "").strip() if lv.get("lv_layout") else ""
+                            ),
+                            "size": lv.get("lv_size", "").strip() if lv.get("lv_size") else "",
+                            "stripe_size": stripe_size.strip(),
+                            "stripes": stripes.strip() if isinstance(stripes, str) else stripes,
                         }
 
         except Exception as ex:
