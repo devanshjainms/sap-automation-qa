@@ -23,6 +23,7 @@ from src.agents.plugins.ssh import SSHPlugin
 from src.agents.plugins.job_management import JobManagementPlugin
 from src.agents.plugins.troubleshooting import TroubleshootingPlugin
 from src.agents.plugins.azure_cli import AzureCLIPlugin
+from src.agents.plugins.keyvault import KeyVaultPlugin
 from src.agents.execution import GuardLayer
 from src.agents.observability import get_logger
 from src.agents.prompts import ACTION_EXECUTOR_SYSTEM_PROMPT
@@ -90,6 +91,7 @@ class ActionExecutorAgent(SAPAutomationAgent):
                 execution_plugin=execution_plugin,
             ),
             AzureCLIPlugin(),
+            KeyVaultPlugin(),
         ]
 
         super().__init__(
