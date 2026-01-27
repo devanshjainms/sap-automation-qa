@@ -144,7 +144,8 @@ EXAMPLES:
 CONVERSATION HISTORY:
 {{$_history_}}
 
-Based on the LAST USER MESSAGE in the history, return ONLY the agent name (action_executor, test_advisor, system_context, or echo):"""
+Analyze the conversation to understand user intent. If user is answering a clarifying question, consider the original request.
+Return ONLY the agent name (action_executor, test_advisor, system_context, or echo):"""
 
 
 # =============================================================================
