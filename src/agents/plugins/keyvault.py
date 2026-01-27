@@ -54,9 +54,7 @@ class KeyVaultPlugin:
         :type managed_identity_client_id: Optional[str]
         """
         self.temp_key_dir = Path(temp_key_dir) if temp_key_dir else Path(tempfile.gettempdir())
-        self.default_managed_identity_client_id = managed_identity_client_id or os.getenv(
-            "AZURE_CLIENT_ID"
-        )
+        self.default_managed_identity_client_id = managed_identity_client_id
         self._credentials: dict = {}
         self._clients: dict = {}
 
@@ -173,9 +171,9 @@ class KeyVaultPlugin:
 
     @kernel_function(
         name="get_ssh_private_key",
-        description="Retrieve SSH private key from Azure Key Vault and save it to a "
-        + "temporary file with correct permissions (0600). Returns the path to the key file "
-        + "which can be used with ansible_ssh_private_key_file.",
+        description="Retrieve SSH private key from Azure Key Vault. "
+        + "IMPORTANT: Read sap-parameters.yaml first to get vault_name (from secret_id), "
+        + "secret_name, and user_assigned_identity_client_id (pass as managed_identity_client_id).",
     )
     def get_ssh_private_key(
         self,
@@ -185,7 +183,7 @@ class KeyVaultPlugin:
         ],
         vault_name: Annotated[
             str,
-            "REQUIRED: Name of the Azure Key Vault. Read from workspace sap-parameters.yaml first.",
+            "Name of the Azure Key Vault (parse from secret_id in sap-parameters.yaml)",
         ] = "",
         key_filename: Annotated[
             str,
@@ -193,7 +191,7 @@ class KeyVaultPlugin:
         ] = "id_rsa",
         managed_identity_client_id: Annotated[
             str,
-            "Client ID of user-assigned managed identity (optional).",
+            "Client ID from user_assigned_identity_client_id in sap-parameters.yaml",
         ] = "",
     ) -> Annotated[str, "JSON string with key file path or error"]:
         """Retrieve SSH private key and save to temporary file.

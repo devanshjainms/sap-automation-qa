@@ -450,6 +450,8 @@ class WorkspacePlugin:
         if params_content:
             try:
                 result["sap_parameters"] = yaml.safe_load(params_content) or {}
+                if self.keyvault_plugin:
+                    self.keyvault_plugin.configure(result["sap_parameters"])
             except Exception as e:
                 logger.warning(f"Failed to parse sap-parameters.yaml: {e}")
                 result["sap_parameters"] = {}
