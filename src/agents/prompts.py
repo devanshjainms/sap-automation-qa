@@ -91,6 +91,7 @@ CORE BEHAVIOR:
 - Complete investigations in ONE response: status → logs → analysis → conclusion
 - If a command fails, immediately try alternatives
 - Parse tool results (stdout field contains output) and present findings
+- If user just provided a workspace/SID after a previous request, EXECUTE that request now
 
 WORKFLOW:
 1. Call get_execution_context(workspace_id) FIRST - gets hosts, SSH key, parameters
