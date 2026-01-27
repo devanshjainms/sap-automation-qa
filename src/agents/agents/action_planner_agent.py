@@ -59,10 +59,11 @@ class ActionPlannerAgentSK(SAPAutomationAgent):
         action_planner_plugin: Optional[ActionPlannerPlugin] = None,
         test_planner_plugin: Optional[TestPlannerPlugin] = None,
         troubleshooting_plugin: Optional[TroubleshootingPlugin] = None,
+        workspace_plugin: Optional[WorkspacePlugin] = None,
     ) -> None:
         action_planner = action_planner_plugin or ActionPlannerPlugin()
         test_planner = test_planner_plugin or TestPlannerPlugin()
-        workspace_plugin = WorkspacePlugin(workspace_store)
+        ws_plugin = workspace_plugin or WorkspacePlugin(workspace_store)
         troubleshooting = troubleshooting_plugin or TroubleshootingPlugin(workspace_store)
 
         super().__init__(
@@ -73,7 +74,7 @@ class ActionPlannerAgentSK(SAPAutomationAgent):
             ),
             kernel=kernel,
             instructions=ACTION_PLANNER_AGENT_SYSTEM_PROMPT,
-            plugins=[action_planner, test_planner, workspace_plugin, troubleshooting],
+            plugins=[action_planner, test_planner, ws_plugin, troubleshooting],
         )
 
         self.workspace_store: WorkspaceStore = workspace_store

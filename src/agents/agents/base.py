@@ -246,18 +246,31 @@ def create_default_agent_registry(kernel: Optional[Kernel] = None) -> "AgentRegi
 
     registry = AgentRegistry()
     registry.register(EchoAgentSK(kernel=kernel))
-    registry.register(TestAdvisorAgentSK(kernel=kernel, workspace_store=workspace_store))
+    registry.register(
+        TestAdvisorAgentSK(
+            kernel=kernel,
+            workspace_store=workspace_store,
+            workspace_plugin=workspace_plugin,
+        )
+    )
     registry.register(
         ActionPlannerAgentSK(
             kernel=kernel,
             workspace_store=workspace_store,
+            workspace_plugin=workspace_plugin,
             troubleshooting_plugin=TroubleshootingPlugin(
                 workspace_store=workspace_store,
                 execution_plugin=execution_plugin,
             ),
         )
     )
-    registry.register(SystemContextAgentSK(kernel=kernel, workspace_store=workspace_store))
+    registry.register(
+        SystemContextAgentSK(
+            kernel=kernel,
+            workspace_store=workspace_store,
+            workspace_plugin=workspace_plugin,
+        )
+    )
     registry.register(
         ActionExecutorAgent(
             kernel=kernel,

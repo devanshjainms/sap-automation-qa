@@ -5,13 +5,10 @@ SystemContextAgent powered by Semantic Kernel.
 
 This agent uses Semantic Kernel for agentic workspace management
 with function calling, replacing the custom tool loop.
-
-NOTE: This agent has NO hardcoded methods - all workspace operations
-are performed by the LLM autonomously calling WorkspacePlugin tools.
 """
 
+from typing import Optional
 from semantic_kernel import Kernel
-
 from src.agents.agents.base import SAPAutomationAgent
 from src.agents.workspace.workspace_store import WorkspaceStore
 from src.agents.plugins.workspace import WorkspacePlugin
@@ -35,15 +32,22 @@ class SystemContextAgentSK(SAPAutomationAgent):
     - create_workspace(): Create new workspace
     """
 
-    def __init__(self, kernel: Kernel, workspace_store: WorkspaceStore) -> None:
+    def __init__(
+        self,
+        kernel: Kernel,
+        workspace_store: WorkspaceStore,
+        workspace_plugin: Optional[WorkspacePlugin] = None,
+    ) -> None:
         """Initialize SystemContextAgent with Semantic Kernel.
 
         :param kernel: Configured Semantic Kernel instance
         :type kernel: Kernel
         :param workspace_store: WorkspaceStore instance for managing workspaces
         :type workspace_store: WorkspaceStore
+        :param workspace_plugin: Optional shared WorkspacePlugin (with KeyVault)
+        :type workspace_plugin: Optional[WorkspacePlugin]
         """
-        workspace_plugin = WorkspacePlugin(workspace_store)
+        ws_plugin = workspace_plugin or WorkspacePlugin(workspace_store)
         super().__init__(
             name="system_context",
             description=(
@@ -53,7 +57,7 @@ class SystemContextAgentSK(SAPAutomationAgent):
             ),
             kernel=kernel,
             instructions=SYSTEM_CONTEXT_AGENT_SYSTEM_PROMPT,
-            plugins=[workspace_plugin],
+            plugins=[ws_plugin],
         )
 
         self.workspace_store: WorkspaceStore = workspace_store

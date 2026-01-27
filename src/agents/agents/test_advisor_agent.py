@@ -7,9 +7,8 @@ It does NOT produce executable jobs.
 """
 
 from __future__ import annotations
-
+from typing import Optional
 from semantic_kernel import Kernel
-
 from src.agents.agents.base import SAPAutomationAgent
 from src.agents.observability import get_logger
 from src.agents.plugins.test import TestPlannerPlugin
@@ -28,9 +27,14 @@ class TestAdvisorAgentSK(SAPAutomationAgent):
     - WorkspacePlugin: Resolve SIDs, read workspace configuration (hosts.yaml, sap-parameters.yaml)
     """
 
-    def __init__(self, kernel: Kernel, workspace_store: WorkspaceStore):
+    def __init__(
+        self,
+        kernel: Kernel,
+        workspace_store: WorkspaceStore,
+        workspace_plugin: Optional[WorkspacePlugin] = None,
+    ):
         test_plugin = TestPlannerPlugin()
-        workspace_plugin = WorkspacePlugin(workspace_store)
+        ws_plugin = workspace_plugin or WorkspacePlugin(workspace_store)
 
         super().__init__(
             name="test_advisor",
@@ -40,7 +44,7 @@ class TestAdvisorAgentSK(SAPAutomationAgent):
             ),
             kernel=kernel,
             instructions=TEST_ADVISOR_AGENT_SYSTEM_PROMPT,
-            plugins=[test_plugin, workspace_plugin],
+            plugins=[test_plugin, ws_plugin],
         )
 
         self.workspace_store: WorkspaceStore = workspace_store
