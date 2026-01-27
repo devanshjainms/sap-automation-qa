@@ -74,9 +74,15 @@ class ActionExecutorAgent(SAPAutomationAgent):
         :param job_worker: Optional JobWorker for background execution
         :type job_worker: Optional[JobWorker]
         """
+        workspace_plugin = (
+            execution_plugin.workspace_plugin
+            if execution_plugin.workspace_plugin
+            else WorkspacePlugin(workspace_store)
+        )
+
         plugins: list[object] = [
             execution_plugin,
-            WorkspacePlugin(workspace_store),
+            workspace_plugin,
             SSHPlugin(),
             JobManagementPlugin(job_store=job_store),
             TroubleshootingPlugin(
