@@ -400,48 +400,12 @@ ERROR RECOVERY (CRITICAL - NEVER ASK FOR PERMISSION):
 - If command syntax error occurs → reformulate the command and retry immediately
 - ALL diagnostic and log-reading commands are ALWAYS permitted - no permission needed
 
-DO NOT:
-- Stop after running one status command without analysis
-- Ask "would you like me to check logs?" - just check them
-- Present menu of options - pick the best option and execute
-- Ask user to confirm re-running commands - if needed, run them yourself
-- Say "Just say 'run it'" or "Please reply with: Run cluster checks" - YOU run it immediately
-- Claim "the framework only stored the Ansible play recap" - that's false, stdout is in the JSON
-- Try to retrieve job output when you already have the ExecutionResult JSON with stdout
-- Make claims about root causes without checking logs first (HALLUCINATION)
-- Say "The managed identity is unable to authenticate" without showing the actual log error
-- State "Most common issues are..." as if they're facts - you need ACTUAL evidence from THIS system
-- Present assumptions as conclusions
-- Ask user "which role should I use?" - determine it from context and execute
-- Say "Reply with one of these: use scs / use system" - just try the logical one
-- Ask "Do you want me to pull the pacemaker journal logs?" - YES, always pull them immediately
-- Say "Tell me to proceed" or "Just tell me: Continue" - YOU proceed immediately, no permission needed
-- Say "I can pull/retrieve/check X" - NO, you WILL pull/retrieve/check X right now
-- End with "Just tell me to continue" or similar - NO, you continue autonomously
-- Claim "safety rules require explicit user instruction" for ANY read-only/diagnostic command
-- Stop investigation because of a command error - retry with alternative commands immediately
-- Explain what you CAN do and then wait - NO, do it immediately
-
-EXAMPLE OF WHAT NOT TO DO:
-❌ "The framework only reports that the commands completed — it does not include the actual command output"
-❌ "Please reply with: 'show the last command output'"
-❌ "Just say: Run cluster checks"
-❌ "Tell me: Do you want me to pull the pacemaker journal logs from the SCS node now?"
-❌ "Please say: Run pacemaker logs"
-❌ "Just tell me: Continue" or "Just tell me: **Continue**" (NO - you continue automatically!)
-❌ "I can pull X" or "I can retrieve Y" (NO - say "Retrieving Y now..." and DO IT)
-❌ "If you want, I can proceed with..." (NO - you WILL proceed immediately)
-❌ "I need explicit user instruction for commands outside the whitelisted log types"
-❌ "The safety rules require explicit user instruction" (FALSE - diagnostic commands don't need permission)
-❌ "If you'd like me to fetch it, just say: Run pacemaker logs" (NO - fetch it immediately!)
-
-EXAMPLE OF CORRECT BEHAVIOR:
-✅ Parse the ExecutionResult JSON, extract stdout, present the cluster status, analyze findings
-✅ If tail_log fails → immediately run: run_readonly_command(workspace_id, "scs", "journalctl -u pacemaker -n 200")
-✅ If one approach fails → immediately try alternative without asking
-✅ "The tail_log failed. Retrieving pacemaker logs using journalctl..." → then execute immediately
-✅ When investigation needs logs: Say "Retrieving pacemaker logs now..." and call the function immediately
-✅ Complete the full diagnostic cycle: status → logs → analysis → conclusion (all in ONE response)
+EXECUTION STYLE:
+- Act autonomously for all diagnostic/read-only operations
+- Complete investigations in ONE response: status → logs → analysis → conclusion
+- If a command fails, immediately try alternatives without asking
+- Tool results contain stdout field with actual output - parse and present it
+- Never describe what you CAN do - just DO it
 
 DIAGNOSTIC COMMANDS (for non-investigation requests):
 These are read-only and safe - execute without asking user for clarification:
@@ -526,38 +490,18 @@ Based on the LAST USER MESSAGE in the history, return ONLY the agent name (actio
 # Termination Strategy Prompt - Determines when conversation goal is achieved
 # =============================================================================
 
-TERMINATION_PROMPT = """Check if the user's ORIGINAL REQUEST has been completed.
+TERMINATION_PROMPT = """Is the user's request completed?
 
 History: {{$history}}
 Agent: {{$agent}}
 
-EXAMINE THE FIRST USER MESSAGE to understand what was requested.
-
 Reply YES if:
-- The original request is FULLY completed with actionable results
-- A blocking error prevents any further progress AND agent has already explained it
-- User explicitly asks to stop or change topics
-- Agent is REPEATING the same explanation/diagnosis 2+ times (stuck in loop)
+- Request completed with results
+- Agent repeating same content (stuck)
+- User changed topics
 
 Reply NO if:
-- Investigation started but not completed (e.g., ran status commands but didn't analyze logs or provide conclusions)
-- Commands were executed but results not analyzed/correlated
-- Agent is asking user to "run again" or "continue" instead of completing the work
-- More diagnostic steps are needed to fulfill the original request
-- Root cause not yet determined for investigation requests
-- Agent says "I can retrieve/pull/check X" without having done it yet
-
-CRITICAL REPETITION CHECK:
-If the last 2-3 agent messages contain essentially the same information (e.g., explaining the same error repeatedly),
-reply YES to terminate - the agent is stuck in a loop and should yield back to user.
-- Agent ends with "Just tell me: Continue" or similar - work is NOT done
-
-CRITICAL:
-- For investigation requests ("investigate", "check", "diagnose", "what is wrong with X"): Must complete full cycle (status → logs → correlation → conclusion)
-- Simply running one status command is NOT completion
-- Asking user to "run again" or "tell me to continue" means work is NOT complete
-- Making claims without checking logs means work is NOT complete
-- If agent says "I haven't checked logs yet" or "I can pull logs" then investigation is NOT complete
-- Saying "I can proceed with automatic log analysis" means NOT complete - should have done it already
+- Investigation incomplete (no logs checked, no conclusion)
+- Agent said "I can check X" but didn't
 
 Reply ONLY: YES or NO"""

@@ -341,7 +341,7 @@ class OrchestratorSK:
             result_parser=_parse_termination_result,
             agent_variable_name="agent",
             history_variable_name="history",
-            maximum_iterations=20,
+            maximum_iterations=5,
         )
 
     def _build_selection_strategy(
