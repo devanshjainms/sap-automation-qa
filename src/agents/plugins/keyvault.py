@@ -172,27 +172,14 @@ class KeyVaultPlugin:
     @kernel_function(
         name="get_ssh_private_key",
         description="Retrieve SSH private key from Azure Key Vault. "
-        + "IMPORTANT: Read sap-parameters.yaml first to get vault_name (from secret_id), "
-        + "secret_name, and user_assigned_identity_client_id (pass as managed_identity_client_id).",
+        + "Read sap-parameters.yaml first to get secret_id and user_assigned_identity_client_id.",
     )
     def get_ssh_private_key(
         self,
-        secret_name: Annotated[
-            str,
-            "Name of the SSH key secret in Key Vault (e.g., 'sshkey', 'deployer-ssh-key')",
-        ],
-        vault_name: Annotated[
-            str,
-            "Name of the Azure Key Vault (parse from secret_id in sap-parameters.yaml)",
-        ] = "",
-        key_filename: Annotated[
-            str,
-            "Filename for the temporary key file (default: 'id_rsa')",
-        ] = "id_rsa",
-        managed_identity_client_id: Annotated[
-            str,
-            "Client ID from user_assigned_identity_client_id in sap-parameters.yaml",
-        ] = "",
+        secret_name: Annotated[str, "Name of the SSH key secret in Key Vault"],
+        vault_name: Annotated[str, "Name of the Azure Key Vault"],
+        key_filename: Annotated[str, "Filename for the temporary key file"] = "id_rsa",
+        managed_identity_client_id: Annotated[str, "Client ID from sap-parameters.yaml"] = "",
     ) -> Annotated[str, "JSON string with key file path or error"]:
         """Retrieve SSH private key and save to temporary file.
 
@@ -223,10 +210,8 @@ class KeyVaultPlugin:
         Example output (error):
             {"error": "Failed to retrieve SSH key", "secret_name": "sshkey"}
         """
+        effective_identity = managed_identity_client_id.strip() if managed_identity_client_id else None
         effective_vault = vault_name.strip() if vault_name else None
-        effective_identity = (
-            managed_identity_client_id.strip() if managed_identity_client_id else None
-        )
 
         if not effective_vault:
             error_msg = "No Key Vault specified. Provide vault_name."
