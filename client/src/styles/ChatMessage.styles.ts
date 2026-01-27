@@ -46,7 +46,7 @@ export const useStyles = makeStyles({
     borderRadius: tokens.borderRadiusMedium,
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
-    lineHeight: "1.6",
+    lineHeight: "1.3",
     fontSize: tokens.fontSizeBase300,
   },
   userBubble: {
@@ -79,7 +79,7 @@ export const useStyles = makeStyles({
   },
   markdown: {
     "& p": {
-      margin: "0 0 4px 0",
+      margin: "0 0 8px 0",
       "&:last-child": {
         marginBottom: 0,
       },
@@ -87,11 +87,16 @@ export const useStyles = makeStyles({
     "& ul, & ol": {
       margin: "4px 0",
       paddingLeft: "20px",
+      "& li + li": {
+        marginTop: "2px",
+      },
     },
     "& li": {
-      marginBottom: "2px",
+      marginBottom: 0,
+      lineHeight: "1.4",
       "& p": {
         margin: 0,
+        display: "inline",
       },
     },
     "& code": {
