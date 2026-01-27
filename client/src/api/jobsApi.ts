@@ -17,11 +17,6 @@ export interface JobListParams {
 }
 
 export const jobsApi = {
-  getStatus: async (jobId: string): Promise<Job> => {
-    const response = await apiClient.get<Job>(API_ENDPOINTS.JOB_STATUS(jobId));
-    return response.data;
-  },
-
   getById: async (jobId: string): Promise<Job> => {
     const response = await apiClient.get<Job>(API_ENDPOINTS.JOB_BY_ID(jobId));
     return response.data;

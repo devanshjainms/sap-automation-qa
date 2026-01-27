@@ -27,7 +27,6 @@ from src.agents.execution.schedule_store import ScheduleStore
 from src.agents.execution.scheduler import SchedulerService
 from src.agents.agents.action_executor_agent import ActionExecutorAgent
 from src.api.routes import (
-    agents_router,
     chat_router,
     conversations_router,
     health_router,
@@ -35,7 +34,6 @@ from src.api.routes import (
     streaming_router,
     workspaces_router,
     schedules_router,
-    set_agent_registry,
     set_chat_conversation_manager,
     set_chat_kernel,
     set_conversation_manager,
@@ -118,8 +116,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.warning("Job worker not available - scheduler service disabled")
 
-    if agent_registry is not None:
-        set_agent_registry(agent_registry)
     if orchestrator is not None:
         set_orchestrator(orchestrator)
     set_conversation_manager(conversation_manager)
@@ -171,7 +167,6 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
-app.include_router(agents_router)
 app.include_router(chat_router)
 app.include_router(conversations_router)
 app.include_router(jobs_router)

@@ -381,89 +381,6 @@ def _extract_last_user_message(messages: list[ChatMessage]) -> str:
     return ""
 
 
-@router.post("/chat/confirm_execute")
-async def confirm_execute(confirmation_id: str, confirm: bool = True) -> dict:
-    """Confirm or cancel execution of a previously generated destructive ActionPlan.
-
-    :param confirmation_id: ID returned in the prior confirmation prompt
-    :param confirm: True to proceed with execution
-    :returns: status dict
-    """
-    pending = _pending_confirmations.get(confirmation_id)
-    if not pending:
-        return {"status": "not_found", "confirmation_id": confirmation_id}
-
-    if not confirm:
-        del _pending_confirmations[confirmation_id]
-        return {"status": "cancelled", "confirmation_id": confirmation_id}
-    from src.agents.agents.action_executor_agent import ActionExecutorAgent
-
-    orchestrator_local = get_orchestrator()
-    if orchestrator_local is None:
-        return {"status": "error", "message": "Orchestrator not available"}
-    registry = getattr(orchestrator_local, "registry", None)
-    if not registry:
-        return {"status": "error", "message": "Agent registry not available"}
-
-    action_executor = registry.get("action_executor")
-    if not action_executor or not isinstance(action_executor, ActionExecutorAgent):
-        return {"status": "error", "message": "ActionExecutor not available"}
-
-    plan = pending["action_plan"]
-    workspace_id = plan.get("workspace_id")
-    sap_sid = plan.get("sap_sid")
-    test_ids = [job.get("job_id") for job in plan.get("jobs", [])]
-    try:
-        await action_executor.execute_async(
-            workspace_id=workspace_id,
-            test_ids=test_ids,
-            test_group=plan.get("intent", "manual"),
-            conversation_id=pending.get("conversation_id"),
-            user_id=None,
-            confirmed=True,
-        )
-        del _pending_confirmations[confirmation_id]
-        return {"status": "started", "confirmation_id": confirmation_id}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-
-@router.post("/chat/debug_inject_destructive")
-async def debug_inject_destructive(workspace_id: str = "DEV-WEEU-SAP01-X00") -> dict:
-    """Debug-only: inject a destructive ActionPlan into pending confirmations.
-
-    This endpoint is only enabled when the env var `DEBUG_ALLOW_DESTRUCTIVE_TEST`
-    is set to a truthy value. It returns a confirmation_id which can be used
-    with `/chat/confirm_execute` to exercise the destructive execution flow.
-    """
-    if not os.getenv("DEBUG_ALLOW_DESTRUCTIVE_TEST"):
-        return {"status": "disabled"}
-
-    plan = ActionPlan(
-        workspace_id=workspace_id,
-        intent="destructive_test",
-        jobs=[
-            ActionJob(
-                job_id="failover-1",
-                title="Simulate failover",
-                action_type="execution",
-                action_name="trigger_failover",
-                arguments={"target": "node1"},
-                destructive=True,
-            )
-        ],
-    )
-
-    confirmation_id = str(_uuid.uuid4())
-    _pending_confirmations[confirmation_id] = {
-        "action_plan": plan.model_dump(),
-        "conversation_id": None,
-        "correlation_id": None,
-    }
-
-    return {"status": "injected", "confirmation_id": confirmation_id}
-
-
 async def _format_sse(event_type: str, data: dict) -> str:
     """Format data as Server-Sent Event.
 
@@ -573,10 +490,40 @@ async def chat_stream(
 
         orchestrator_task = asyncio.create_task(run_orchestrator())
 
+        async def save_response_in_background(
+            task: asyncio.Task, conv_id: str | None, t_index: int
+        ) -> None:
+            """Save the orchestrator response after client disconnects."""
+            try:
+                response = await task
+                if conv_id and _conversation_manager:
+                    _conversation_manager.process_chat_response(
+                        conversation_id=conv_id,
+                        response=response,
+                        turn_index=t_index,
+                    )
+                    logger.info(f"Background save completed for conversation {conv_id}")
+            except asyncio.CancelledError:
+                logger.warning(f"Background save cancelled for conversation {conv_id}")
+            except Exception as e:
+                logger.error(f"Background save failed for conversation {conv_id}: {e}")
+
+        client_disconnected = False
+        background_save_scheduled = False
         try:
             while True:
                 if await http_request.is_disconnected():
-                    orchestrator_task.cancel()
+                    client_disconnected = True
+                    logger.info(
+                        f"Client disconnected for conversation {active_conversation_id}, "
+                        + "letting orchestrator complete in background"
+                    )
+                    asyncio.create_task(
+                        save_response_in_background(
+                            orchestrator_task, active_conversation_id, turn_index
+                        )
+                    )
+                    background_save_scheduled = True
                     break
 
                 try:
@@ -595,43 +542,61 @@ async def chat_stream(
                     },
                 )
 
-            response = await orchestrator_task
+            if not client_disconnected:
+                response = await orchestrator_task
 
-            if active_conversation_id:
-                _conversation_manager.process_chat_response(
-                    conversation_id=active_conversation_id,
-                    response=response,
-                    turn_index=turn_index,
+                if active_conversation_id and _conversation_manager:
+                    _conversation_manager.process_chat_response(
+                        conversation_id=active_conversation_id,
+                        response=response,
+                        turn_index=turn_index,
+                    )
+
+                if is_new_conversation and first_user_message and active_conversation_id:
+                    try:
+                        title = await _generate_ai_title(first_user_message)
+                        _conversation_manager.update_conversation_title(
+                            active_conversation_id, title
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to generate AI title: {e}")
+
+                yield await _format_sse(
+                    "content",
+                    {"content": response.messages[-1].content if response.messages else ""},
                 )
-
-            if is_new_conversation and first_user_message and active_conversation_id:
-                try:
-                    title = await _generate_ai_title(first_user_message)
-                    _conversation_manager.update_conversation_title(active_conversation_id, title)
-                except Exception as e:
-                    logger.warning(f"Failed to generate AI title: {e}")
-
-            content = response.messages[-1].content if response.messages else ""
-            yield await _format_sse("content", {"content": content})
-
-            yield await _format_sse(
-                "done",
-                {
-                    "correlation_id": correlation_id,
-                    "conversation_id": active_conversation_id,
-                    "agent_chain": response.agent_chain,
-                    "test_plan": response.test_plan.model_dump() if response.test_plan else None,
-                    "action_plan": (
-                        response.action_plan.model_dump() if response.action_plan else None
-                    ),
-                    "reasoning_trace": response.reasoning_trace,
-                    "messages": [msg.model_dump() for msg in response.messages],
-                },
-            )
+                yield await _format_sse(
+                    "done",
+                    {
+                        "correlation_id": correlation_id,
+                        "conversation_id": active_conversation_id,
+                        "agent_chain": response.agent_chain,
+                        "test_plan": (
+                            response.test_plan.model_dump() if response.test_plan else None
+                        ),
+                        "action_plan": (
+                            response.action_plan.model_dump() if response.action_plan else None
+                        ),
+                        "reasoning_trace": response.reasoning_trace,
+                        "messages": [msg.model_dump() for msg in response.messages],
+                    },
+                )
 
         except Exception as e:
             logger.error(f"Error in chat stream: {e}", exc_info=e)
-            yield await _format_sse("error", {"message": str(e)})
+            if not client_disconnected:
+                yield await _format_sse("error", {"message": str(e)})
+        finally:
+            if not background_save_scheduled and not orchestrator_task.done():
+                logger.info(
+                    f"Generator closed for conversation {active_conversation_id}, "
+                    + "scheduling background save"
+                )
+                asyncio.create_task(
+                    save_response_in_background(
+                        orchestrator_task, active_conversation_id, turn_index
+                    )
+                )
 
     return StreamingResponse(
         generate_events(),

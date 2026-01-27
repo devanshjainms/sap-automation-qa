@@ -52,7 +52,7 @@ import { useWorkspaceSectionStyles as useStyles } from "../../styles";
 
 export const ScheduleSection: React.FC = () => {
   const styles = useStyles();
-  const { state, loadSchedules, createSchedule, updateSchedule, deleteSchedule, toggleSchedule } = useSchedule();
+  const { state, loadSchedules, createSchedule, updateSchedule, deleteSchedule } = useSchedule();
   const { navigateToScheduleJobs } = useApp();
   const { state: workspaceState } = useWorkspace();
 

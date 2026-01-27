@@ -3,7 +3,6 @@
 
 """API routes package."""
 
-from src.api.routes.agents import router as agents_router, set_agent_registry
 from src.api.routes.chat import (
     router as chat_router,
     set_orchestrator,
@@ -21,7 +20,6 @@ from src.api.routes.workspaces import (
 )
 
 __all__ = [
-    "agents_router",
     "chat_router",
     "conversations_router",
     "health_router",
@@ -29,7 +27,6 @@ __all__ = [
     "schedules_router",
     "streaming_router",
     "workspaces_router",
-    "set_agent_registry",
     "set_chat_conversation_manager",
     "set_chat_kernel",
     "set_conversation_manager",

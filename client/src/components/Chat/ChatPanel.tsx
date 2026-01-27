@@ -26,9 +26,21 @@ const SUGGESTIONS = [
 
 export const ChatPanel: React.FC = () => {
   const styles = useStyles();
-  const { state, sendMessage, clearError } = useChat();
+  const { state, sendMessage, clearError, loadConversation } = useChat();
   const { state: workspaceState } = useWorkspace();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Reload conversation when returning to chat if we were loading
+  // This handles cases where the user navigated away during streaming
+  useEffect(() => {
+    if (state.conversationId && state.isLoading) {
+      // Give the backend a moment to finish and save, then reload
+      const timer = setTimeout(() => {
+        loadConversation(state.conversationId!);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, []); // Only on mount
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {

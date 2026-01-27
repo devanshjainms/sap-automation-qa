@@ -29,7 +29,6 @@ interface ScheduleContextType {
   createSchedule: (request: CreateScheduleRequest) => Promise<Schedule>;
   updateSchedule: (scheduleId: string, request: UpdateScheduleRequest) => Promise<Schedule>;
   deleteSchedule: (scheduleId: string) => Promise<void>;
-  toggleSchedule: (scheduleId: string) => Promise<Schedule>;
 }
 
 const ScheduleContext = createContext<ScheduleContextType | undefined>(
@@ -157,35 +156,6 @@ export const ScheduleProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, []);
 
-  const toggleSchedule = useCallback(
-    async (scheduleId: string): Promise<Schedule> => {
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
-
-      try {
-        const schedule = await schedulesApi.toggle(scheduleId);
-        setState((prev) => ({
-          ...prev,
-          schedules: prev.schedules.map((s) =>
-            s.id === scheduleId ? schedule : s,
-          ),
-          isLoading: false,
-        }));
-        return schedule;
-      } catch (error) {
-        console.error("Failed to toggle schedule:", error);
-        const errorMsg =
-          error instanceof Error ? error.message : "Failed to toggle schedule";
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: errorMsg,
-        }));
-        throw error;
-      }
-    },
-    [],
-  );
-
   const value: ScheduleContextType = {
     state,
     loadSchedules,
@@ -193,7 +163,6 @@ export const ScheduleProvider: React.FC<{ children: ReactNode }> = ({
     createSchedule,
     updateSchedule,
     deleteSchedule,
-    toggleSchedule,
   };
 
   return (

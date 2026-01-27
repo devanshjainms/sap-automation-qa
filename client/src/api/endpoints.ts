@@ -17,11 +17,9 @@ export const API_ENDPOINTS = {
     `/workspaces/${workspaceId}/reports/${filePath}`,
   JOBS: "/jobs",
   JOB_BY_ID: (id: string) => `/jobs/${id}`,
-  JOB_STATUS: (id: string) => `/jobs/${id}/status`,
   SCHEDULES: {
     LIST: "/schedules",
     GET: (id: string) => `/schedules/${id}`,
-    TOGGLE: (id: string) => `/schedules/${id}/toggle`,
   },
 } as const;
 

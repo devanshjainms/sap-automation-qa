@@ -157,31 +157,6 @@ async def stream_job_events(job_id: str, request: Request):
     )
 
 
-@router.get("/jobs/{job_id}/status")
-async def get_job_status(job_id: str):
-    """Get current job status (non-streaming).
-
-    :param job_id: Job ID
-    :type job_id: str
-    :returns: Job status dict
-    :rtype: dict
-    """
-    if not _job_worker:
-        return {"error": "Job worker not initialized"}
-
-    job = _job_worker.job_store.get_job(job_id)
-    if not job:
-        return {"error": "Job not found"}
-
-    return {
-        "job_id": str(job.id),
-        "status": job.status.value,
-        "progress_percent": job.progress_percent,
-        "current_step": job.current_step,
-        "summary": JobEventEmitter.format_job_summary(job),
-    }
-
-
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str, reason: str = "Cancelled by user"):
     """Cancel a running job.

@@ -64,14 +64,4 @@ export const schedulesApi = {
   async delete(scheduleId: string): Promise<void> {
     await apiClient.delete(API_ENDPOINTS.SCHEDULES.GET(scheduleId));
   },
-
-  /**
-   * Toggle schedule enabled/disabled
-   */
-  async toggle(scheduleId: string): Promise<Schedule> {
-    const response = await apiClient.post<Schedule>(
-      API_ENDPOINTS.SCHEDULES.TOGGLE(scheduleId)
-    );
-    return response.data;
-  },
 };
