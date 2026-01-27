@@ -103,6 +103,9 @@ from src.agents.observability.middleware import (
     WORKSPACE_ID_HEADER,
 )
 
+# Azure Data Explorer integration
+from src.agents.observability.adx import ADXHandler
+
 
 __all__ = [
     # Context - Classes
@@ -154,4 +157,6 @@ __all__ = [
     "CORRELATION_ID_HEADER",
     "CONVERSATION_ID_HEADER",
     "WORKSPACE_ID_HEADER",
+    # Azure Data Explorer
+    "ADXHandler",
 ]

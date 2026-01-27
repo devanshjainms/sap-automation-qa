@@ -1,21 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """
-Structured logging with OOP design.
-
-This module provides:
-- LogFormatter: Abstract base for log formatters (JSON, Console)
-- StructuredLogger: Logger wrapper with context injection and event support
-- LoggerFactory: Factory for creating configured loggers
-
-Design patterns used:
-- Factory: LoggerFactory creates configured loggers
-- Strategy: Formatters implement different output strategies
-- Adapter: StructuredLogger adapts stdlib logging
+Structured logging for agents
 """
-
 from __future__ import annotations
-
 import json
 import logging
 import os
@@ -25,7 +13,6 @@ from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Optional, Union
-
 from src.agents.observability.context import ObservabilityContextManager
 from src.agents.observability.events import (
     ServiceEvent,

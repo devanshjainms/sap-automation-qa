@@ -19,6 +19,7 @@ from src.agents.observability import (
     initialize_logging,
     get_logger,
     add_observability_middleware,
+    ADXHandler,
 )
 from src.agents.persistence import ConversationManager
 from src.agents.execution import JobStore
@@ -54,6 +55,11 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager for startup/shutdown."""
     logger.info("Initializing application...")
+
+    adx_handler = ADXHandler.from_env()
+    if adx_handler:
+        logging.getLogger().addHandler(adx_handler)
+        logger.info("ADX logging enabled - logs will be shipped to Azure Data Explorer")
 
     kernel = None
     try:
@@ -131,6 +137,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     logger.info("Shutting down application...")
+
+    if adx_handler:
+        adx_handler.close()
+        logger.info("ADX handler closed - logs flushed")
 
     if scheduler_service:
         try:

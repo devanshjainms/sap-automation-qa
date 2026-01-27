@@ -235,17 +235,17 @@ class TelemetryDataSender(SapAutomationQA):
         """
         Sends telemetry data to Azure Data Explorer.
 
-        :param telemetry_json_data: The JSON data to be sent to Azure Data Explorer.
+        :param telemetry_json_data: JSON string containing a single record (dict) or
+            multiple records (list of dicts) to send to Azure Data Explorer.
         :type telemetry_json_data: str
         :return: The response from the Kusto API.
         :rtype: Any
         """
         import pandas as pd
 
-        telemetry_json_dict = json.loads(telemetry_json_data)
-        data_frame = pd.DataFrame(
-            [telemetry_json_dict.values()], columns=telemetry_json_dict.keys()
-        )
+        telemetry_data = json.loads(telemetry_json_data)
+        records = telemetry_data if isinstance(telemetry_data, list) else [telemetry_data]
+        data_frame = pd.DataFrame(records)
         ingestion_properties = IngestionProperties(
             database=self.module_params["adx_database_name"],
             table=self.module_params["telemetry_table_name"],
