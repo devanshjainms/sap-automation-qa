@@ -172,12 +172,17 @@ class KeyVaultPlugin:
     @kernel_function(
         name="get_ssh_private_key",
         description="Retrieve SSH private key from Azure Key Vault. "
-        + "Read sap-parameters.yaml first to get secret_id and user_assigned_identity_client_id.",
+        + "Pass EITHER secret_id (full URL like https://vault.vault.azure.net/secrets/name) "
+        + "OR vault_name + secret_name separately. "
+        + "The secret_id is in sap_parameters from get_execution_context.",
     )
     def get_ssh_private_key(
         self,
-        secret_name: Annotated[str, "Name of the SSH key secret in Key Vault"],
-        vault_name: Annotated[str, "Name of the Azure Key Vault"],
+        secret_id: Annotated[
+            str, "Full Key Vault secret URL (preferred) - auto-parses vault and secret name"
+        ] = "",
+        secret_name: Annotated[str, "Name of the SSH key secret (if not using secret_id)"] = "",
+        vault_name: Annotated[str, "Name of the Azure Key Vault (if not using secret_id)"] = "",
         key_filename: Annotated[str, "Filename for the temporary key file"] = "id_rsa",
         managed_identity_client_id: Annotated[str, "Client ID from sap-parameters.yaml"] = "",
     ) -> Annotated[str, "JSON string with key file path or error"]:
@@ -188,9 +193,11 @@ class KeyVaultPlugin:
         2. Saves it to a temporary file with restricted permissions (0600)
         3. Returns the path for use with Ansible
 
-        :param secret_name: Name of the SSH key secret in Key Vault
+        :param secret_id: Full Key Vault secret URL (preferred) - auto-parses vault and secret
+        :type secret_id: str
+        :param secret_name: Name of the SSH key secret in Key Vault (if not using secret_id)
         :type secret_name: str
-        :param vault_name: Key Vault name (uses default if empty)
+        :param vault_name: Key Vault name (if not using secret_id)
         :type vault_name: str
         :param key_filename: Filename for the temp key file
         :type key_filename: str
@@ -210,35 +217,51 @@ class KeyVaultPlugin:
         Example output (error):
             {"error": "Failed to retrieve SSH key", "secret_name": "sshkey"}
         """
-        effective_identity = managed_identity_client_id.strip() if managed_identity_client_id else None
         effective_vault = vault_name.strip() if vault_name else None
+        effective_secret = secret_name.strip() if secret_name else None
+
+        if secret_id and secret_id.strip():
+            parsed_vault, parsed_secret = self._parse_secret_id(secret_id.strip())
+            if parsed_vault and parsed_secret:
+                effective_vault = parsed_vault
+                effective_secret = parsed_secret
+                logger.info(f"Parsed secret_id: vault={effective_vault}, secret={effective_secret}")
+            else:
+                return json.dumps({"error": f"Could not parse secret_id URL: {secret_id}"})
 
         if not effective_vault:
-            error_msg = "No Key Vault specified. Provide vault_name."
+            error_msg = "No Key Vault specified. Provide secret_id or vault_name."
             logger.error(error_msg)
             return json.dumps({"error": error_msg})
 
+        if not effective_secret:
+            error_msg = "No secret name specified. Provide secret_id or secret_name."
+            logger.error(error_msg)
+            return json.dumps({"error": error_msg})
+
+        effective_identity = (
+            managed_identity_client_id.strip() if managed_identity_client_id else None
+        )
         identity_info = f" (identity: {effective_identity})" if effective_identity else ""
         logger.info(
-            f"Retrieving SSH key '{secret_name}' from vault '{effective_vault}'{identity_info}"
+            f"Retrieving SSH key '{effective_secret}' from vault '{effective_vault}'{identity_info}"
         )
 
         try:
-            client = self._get_client(effective_vault, effective_identity)
-            secret = client.get_secret(secret_name)
+            secret = self._get_client(effective_vault, effective_identity).get_secret(
+                effective_secret
+            )
 
             if not secret.value:
-                error_msg = f"SSH key secret '{secret_name}' is empty"
+                error_msg = f"SSH key secret '{effective_secret}' is empty"
                 logger.error(error_msg)
-                return json.dumps({"error": error_msg, "secret_name": secret_name})
+                return json.dumps({"error": error_msg, "secret_name": effective_secret})
 
             key_dir = self.temp_key_dir / "sap_keys"
             key_dir.mkdir(parents=True, exist_ok=True)
 
             key_path = key_dir / key_filename
-
             key_path.write_text(secret.value)
-
             key_path.chmod(0o600)
 
             logger.info(f"SSH key saved to '{key_path}' with permissions 0600")
@@ -246,19 +269,19 @@ class KeyVaultPlugin:
             return json.dumps(
                 {
                     "key_path": str(key_path),
-                    "secret_name": secret_name,
+                    "secret_name": effective_secret,
                     "vault": effective_vault,
                     "permissions": "0600",
                 }
             )
 
         except Exception as e:
-            error_msg = f"Failed to retrieve SSH key '{secret_name}': {str(e)}"
+            error_msg = f"Failed to retrieve SSH key '{effective_secret}': {str(e)}"
             logger.error(error_msg)
             return json.dumps(
                 {
                     "error": error_msg,
-                    "secret_name": secret_name,
+                    "secret_name": effective_secret,
                     "vault": effective_vault,
                 }
             )
