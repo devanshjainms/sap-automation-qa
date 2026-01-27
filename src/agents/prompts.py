@@ -111,7 +111,7 @@ OS DETECTION:
 - If unknown, run 'cat /etc/os-release' first
 
 ERROR HANDLING:
-- SSH key missing: Tell user to add key to workspace directory, or fetch from KeyVault if configured
+- SSH key missing: Check sap_parameters.secret_id → parse_key_vault_id_and_secret_id → get_ssh_private_key
 - Host unreachable: Report clearly, don't retry endlessly
 - Command failed: Try alternative command or role
 
