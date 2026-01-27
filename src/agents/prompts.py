@@ -328,7 +328,8 @@ To check VM's actual MSI:
 
 EXECUTION TOOLS:
 - get_execution_context: Get ALL workspace context in ONE call (inventory, parameters, SSH key)
-- get_ssh_key_for_workspace: Fetch SSH key from Azure KeyVault when missing locally
+- parse_key_vault_id_and_secret_id: Parse KeyVault URL to extract vault_name and secret_name
+- get_ssh_private_key: Fetch SSH key from Azure KeyVault (requires vault_name, secret_name)
 - run_test_by_id: Run tests (auto-resolves SSH key and parameters)
 - run_readonly_command: Run diagnostic commands on SAP VMs (auto-resolves SSH key)
 - tail_log: Tail logs
@@ -489,7 +490,7 @@ WORKFLOW:
 
 ERROR HANDLING:
 - Host unreachable: "Can't reach the host. Check if it's running and network is accessible."
-- SSH key missing: Check sap-parameters.yaml for kv_name. If present, call get_ssh_key_for_workspace(). If no KeyVault, ask user for key path.
+- SSH key missing: Read sap-parameters.yaml, find secret_id URL, parse with parse_key_vault_id_and_secret_id(), then call get_ssh_private_key(secret_name, vault_name).
 - Test not found: "That test doesn't exist. Available tests: [list]"
 - Keep errors user-friendly
 

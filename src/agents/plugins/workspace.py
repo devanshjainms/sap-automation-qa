@@ -238,7 +238,6 @@ class WorkspacePlugin:
             "sources": [],
         }
 
-        # Read sap-parameters.yaml
         sap_params = self.store.read_file(workspace_id, "sap-parameters.yaml")
         if sap_params:
             try:
@@ -261,12 +260,10 @@ class WorkspacePlugin:
             except Exception:
                 result["sources"].append({"file": "sap-parameters.yaml", "error": "parse_error"})
 
-        # Read hosts.yaml
         hosts_raw = self.store.read_file(workspace_id, "hosts.yaml")
         if hosts_raw:
             try:
                 hosts_parsed = yaml.safe_load(hosts_raw)
-                # Expecting host groups or list
                 result["hosts"] = hosts_parsed if hosts_parsed else []
                 result["sources"].append(
                     {
@@ -373,7 +370,7 @@ class WorkspacePlugin:
         for filename in files:
             filename_lower = filename.lower()
             if any(pattern in filename_lower for pattern in key_patterns):
-                if not filename.endswith(".pub"):  # Skip public keys
+                if not filename.endswith(".pub"):
                     key_path = workspace_path / filename
                     if key_path.exists():
                         logger.info(f"Resolved SSH key: {key_path}")
@@ -482,10 +479,6 @@ class WorkspacePlugin:
         if not result["ssh_key_path"] and self.keyvault_plugin:
             secret_id = result["sap_parameters"].get("secret_id", "")
             if secret_id:
-                logger.info(
-                    f"No local SSH key found, attempting to fetch from Key Vault "
-                    f"using secret_id: {secret_id}"
-                )
                 try:
                     parse_result = json.loads(
                         self.keyvault_plugin.parse_key_vault_id_and_secret_id(secret_id)
@@ -493,16 +486,12 @@ class WorkspacePlugin:
                     if "error" not in parse_result:
                         vault_name = parse_result.get("vault_name")
                         secret_name = parse_result.get("secret_name")
-                        managed_identity_client_id = result["sap_parameters"].get(
-                            "user_assigned_identity_client_id", ""
-                        )
                         if vault_name and secret_name:
                             key_result = json.loads(
                                 self.keyvault_plugin.get_ssh_private_key(
                                     secret_name=secret_name,
                                     vault_name=vault_name,
                                     key_filename=f"{workspace_id}_id_rsa",
-                                    managed_identity_client_id=managed_identity_client_id,
                                 )
                             )
                             if "key_path" in key_result:
