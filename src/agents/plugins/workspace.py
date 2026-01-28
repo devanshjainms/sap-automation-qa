@@ -395,9 +395,9 @@ class WorkspacePlugin:
 
     @kernel_function(
         name="get_execution_context",
-        description="Get complete execution context for a workspace (hosts, parameters, SSH key, "
-        "inventory path). Returns all data needed for test execution or command runs. "
-        "Call this once before any execution - no need to resolve SSH keys separately.",
+        description="Get execution context for a workspace. Returns ready=True/False. "
+        "If ready=False and missing=['ssh_key'], call get_ssh_private_key with values from "
+        "sap_parameters (e.g. secret_id URL), then call get_execution_context again.",
     )
     def get_execution_context(self, workspace_id: Annotated[str, "Workspace name/ID"]) -> str:
         """Get complete execution context for a workspace - SINGLE SOURCE OF TRUTH.

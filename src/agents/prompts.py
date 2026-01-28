@@ -114,7 +114,7 @@ OS DETECTION:
 - If unknown, run 'cat /etc/os-release' first
 
 ERROR HANDLING:
-- SSH key missing: Check sap_parameters.secret_id → parse_key_vault_id_and_secret_id → get_ssh_private_key
+- SSH key missing (ready=False): Call get_ssh_private_key with secret_id from sap_parameters, then retry get_execution_context
 - Host unreachable: Report clearly, don't retry endlessly
 - Command failed: Try alternative command or role
 

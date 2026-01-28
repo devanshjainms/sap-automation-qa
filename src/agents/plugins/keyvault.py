@@ -171,10 +171,9 @@ class KeyVaultPlugin:
 
     @kernel_function(
         name="get_ssh_private_key",
-        description="Retrieve SSH private key from Azure Key Vault. "
-        + "Pass EITHER secret_id (full URL like https://vault.vault.azure.net/secrets/name) "
-        + "OR vault_name + secret_name separately. "
-        + "The secret_id is in sap_parameters from get_execution_context.",
+        description="Fetch SSH key from Azure Key Vault. Call this when get_execution_context "
+        + "returns ready=False with missing=['ssh_key']. Pass secret_id (full KeyVault URL) "
+        + "from sap_parameters. After success, call get_execution_context again.",
     )
     def get_ssh_private_key(
         self,
