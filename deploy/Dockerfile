@@ -25,11 +25,16 @@ RUN tdnf update -y && tdnf install -y \
     curl \
     util-linux \
     gawk \
+    shadow-utils \
     && tdnf clean all \
     && ln -sf /usr/bin/python3 /usr/bin/python \
     && pip install --no-cache-dir azure-cli \
+    && groupadd --gid 1000 appgroup \
+    && useradd --uid 1000 --gid appgroup --shell /bin/bash \
+        --create-home --home-dir /app appuser \
     && mkdir -p /app/.ssh \
-    && chmod 777 /app /app/.ssh
+    && chmod 700 /app/.ssh \
+    && chown -R appuser:appgroup /app
 
 WORKDIR /app
 
@@ -42,6 +47,10 @@ ENV VIRTUAL_ENV=/opt/venv
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV HOME=/app
+
+RUN chown -R appuser:appgroup /opt/venv /app
+
+USER appuser
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/healthz || exit 1
