@@ -99,7 +99,10 @@ class TestJobsApi:
         """
         Returns 422 when workspace_id missing.
         """
-        assert client.post("/api/v1/jobs", json={"test_group": "ConfigurationChecks"}).status_code == 422
+        assert (
+            client.post("/api/v1/jobs", json={"test_group": "ConfigurationChecks"}).status_code
+            == 422
+        )
 
     def test_create_job_starts_execution(self, client: TestClient) -> None:
         """

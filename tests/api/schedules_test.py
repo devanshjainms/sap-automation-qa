@@ -110,7 +110,9 @@ class TestSchedulesApi:
         assert "Unknown test_group" in response.json()["detail"]
 
     def test_update_schedule_invalid_test_group(
-        self, client: TestClient, sample_schedule: Schedule,
+        self,
+        client: TestClient,
+        sample_schedule: Schedule,
     ) -> None:
         """Returns 400 when updating test_group to invalid value."""
         response = client.patch(
