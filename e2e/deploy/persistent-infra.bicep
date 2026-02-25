@@ -399,7 +399,7 @@ resource runnerSetup 'Microsoft.Compute/virtualMachines/extensions@2024-03-01' =
     autoUpgradeMinorVersion: true
     settings: {}
     protectedSettings: {
-      commandToExecute: 'set -e; export RUNNER_DIR=/opt/actions-runner; export RUNNER_USER=${vmAdminUsername}; apt-get update -qq && apt-get install -y -qq curl jq git docker.io; usermod -aG docker ${vmAdminUsername}; mkdir -p $RUNNER_DIR && cd $RUNNER_DIR; LATEST=$(curl -sL https://api.github.com/repos/actions/runner/releases/latest | jq -r .tag_name | sed s/v//); curl -sL https://github.com/actions/runner/releases/download/v$LATEST/actions-runner-linux-x64-$LATEST.tar.gz | tar xz; chown -R ${vmAdminUsername}:${vmAdminUsername} $RUNNER_DIR; echo "Runner v$LATEST installed at $RUNNER_DIR. Register with: ./config.sh --url <repo-url> --token <token> --labels e2e-runner --unattended"'
+      commandToExecute: 'set -e; export RUNNER_DIR=/opt/actions-runner; export RUNNER_USER=${vmAdminUsername}; export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq curl jq git docker.io ca-certificates apt-transport-https lsb-release gnupg sshpass; curl -sL https://aka.ms/InstallAzureCLIDeb | bash; usermod -aG docker ${vmAdminUsername}; mkdir -p $RUNNER_DIR && cd $RUNNER_DIR; LATEST=$(curl -sL https://api.github.com/repos/actions/runner/releases/latest | jq -r .tag_name | sed s/v//); curl -sL https://github.com/actions/runner/releases/download/v$LATEST/actions-runner-linux-x64-$LATEST.tar.gz | tar xz; chown -R ${vmAdminUsername}:${vmAdminUsername} $RUNNER_DIR; echo "Runner v$LATEST installed at $RUNNER_DIR. Register with: ./config.sh --url <repo-url> --token <token> --labels e2e-runner --unattended"'
     }
   }
 }
