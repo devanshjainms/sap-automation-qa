@@ -123,7 +123,17 @@ jobs:
 
       - name: Azure Login (Managed Identity)
         run: |
-          az login --identity --client-id "$AZURE_CLIENT_ID" --output none
+          # Validate client ID is set
+          if [ -z "$AZURE_CLIENT_ID" ]; then
+            echo "::error::AZURE_CLIENT_ID secret is empty"
+            exit 1
+          fi
+          echo "Client ID length: ${#AZURE_CLIENT_ID}"
+          az login --identity --client-id "$AZURE_CLIENT_ID" 2>&1 || {
+            echo "Retrying with trimmed client ID..."
+            TRIMMED=$(echo "$AZURE_CLIENT_ID" | tr -d '[:space:]')
+            az login --identity --client-id "$TRIMMED" 2>&1
+          }
           az account set --subscription "$E2E_AZURE_SUBSCRIPTION_ID"
 
       - name: Load secrets from Key Vault
