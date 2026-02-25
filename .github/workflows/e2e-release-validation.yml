@@ -54,14 +54,16 @@ permissions:
   contents: read
   checks: write
   actions: read
+  id-token: write
 
 concurrency:
   group: e2e-validation-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  # Azure — runner authenticates via user-assigned managed identity
+  # Azure — OIDC federated credentials
   AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
   E2E_AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
   E2E_KEY_VAULT_NAME: ${{ secrets.E2E_KEY_VAULT_NAME }}
   E2E_AZURE_RESOURCE_GROUP: "rg-sap-qa-e2e-${{ github.run_id }}"
@@ -121,33 +123,12 @@ jobs:
           fi
           az version --output table
 
-      - name: Azure Login (Managed Identity)
-        run: |
-          set -euo pipefail
-
-          # Capture values, then REMOVE AZURE_CLIENT_ID from env.
-          # az CLI / azure-identity SDK inspects this env var and tries
-          # EnvironmentCredential (service-principal) before ManagedIdentity,
-          # which sends wrong query params to IMDS → "Invalid query variables".
-          CLIENT_ID="$AZURE_CLIENT_ID"
-          SUB_ID="$E2E_AZURE_SUBSCRIPTION_ID"
-          unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID
-
-          # Verify IMDS is reachable
-          echo "Checking IMDS reachability..."
-          curl -sS -o /dev/null -w "IMDS HTTP %{http_code}\n" \
-            -H "Metadata:true" \
-            "http://169.254.169.254/metadata/instance?api-version=2021-02-01" \
-            --connect-timeout 5 || {
-              echo "::error::IMDS endpoint unreachable — not running on Azure VM?"
-              exit 1
-            }
-
-          echo "Authenticating via user-assigned managed identity..."
-          az login --identity --client-id "$CLIENT_ID" --output none
-          az account set --subscription "$SUB_ID"
-          echo "Logged in. Active subscription:"
-          az account show --query '{name:name, id:id}' -o table
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
 
       - name: Load secrets from Key Vault
         run: |
