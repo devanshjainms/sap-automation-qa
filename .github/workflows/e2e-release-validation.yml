@@ -1,0 +1,211 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+#
+# E2E Release Validation — GitHub Actions Workflow
+
+
+name: E2E Release Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      github_ref:
+        description: "Git ref to test (branch/tag/SHA)"
+        required: false
+        default: "main"
+      distros:
+        description: "Comma-separated distros"
+        required: false
+        default: "rhel,sles,ubuntu"
+      workspace_configs:
+        description: "Workspaces to test (empty = all)"
+        required: false
+        type: choice
+        default: ""
+        options:
+          - ""
+          - "SLE-AFS-AFA-SU-ANGI"
+          - "RHE-ANF-ISCSI-SU"
+          - "SLE-AFS-AFA-SU"
+          - "SLE-ANF-AFA-SO"
+      test_groups:
+        description: "Test groups to run (empty = all)"
+        required: false
+        type: choice
+        default: ""
+        options:
+          - ""
+          - "ConfigurationChecks"
+          - "CentralServicesHighAvailability"
+          - "DatabaseHighAvailability"
+      dry_run:
+        description: "Deploy + discover only, skip tests"
+        required: false
+        default: "false"
+      skip_teardown:
+        description: "Keep VMs alive after tests (debugging)"
+        required: false
+        default: "false"
+
+  release:
+    types: [prereleased, published]
+
+permissions:
+  contents: read
+  id-token: write
+  checks: write
+  actions: read
+
+concurrency:
+  group: e2e-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Azure — only 3 secrets needed; everything else loaded from Key Vault
+  E2E_AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
+  E2E_KEY_VAULT_NAME: ${{ secrets.E2E_KEY_VAULT_NAME }}
+  E2E_AZURE_RESOURCE_GROUP: "rg-sap-qa-e2e-${{ github.run_id }}"
+  E2E_AZURE_LOCATION: "swedencentral"
+
+  # GitHub repo to clone on each deployer VM
+  E2E_GITHUB_REPO: ${{ github.server_url }}/${{ github.repository }}.git
+  E2E_GITHUB_REF: ${{ github.event.inputs.github_ref || github.head_ref || github.sha }}
+
+  # Test configuration
+  E2E_DISTROS: ${{ github.event.inputs.distros || 'rhel,sles,ubuntu' }}
+  E2E_TEST_GROUPS: ${{ github.event.inputs.test_groups || '' }}
+  E2E_WORKSPACE_CONFIGS: ${{ github.event.inputs.workspace_configs || '' }}
+  E2E_EXECUTION_MODES: ${{ github.event.inputs.execution_modes || 'local,container' }}
+  E2E_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+  E2E_SKIP_TEARDOWN: ${{ github.event.inputs.skip_teardown || 'false' }}
+  E2E_VM_SIZE: ${{ github.event.inputs.vm_size || 'Standard_D4s_v5' }}
+  E2E_AUTHENTICATION_TYPE: ${{ github.event.inputs.authentication_type || 'VMPASSWORD' }}
+
+  # Timeouts
+  E2E_DEPLOY_TIMEOUT: "900"
+  E2E_TEST_TIMEOUT: "7200"
+  E2E_HEALTH_RETRIES: "30"
+  E2E_HEALTH_RETRY_DELAY: "20"
+  E2E_REPORT_DIR: "e2e/reports"
+
+jobs:
+  e2e-validation:
+    name: "E2E Validation"
+    runs-on: [self-hosted, e2e-runner]
+    environment: "e2e"
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.github_ref || github.ref }}
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install E2E test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r e2e/requirements.txt
+          # sshpass is needed for password-based SSH
+          sudo apt-get update -y && sudo apt-get install -y sshpass
+
+      - name: Azure Login (OIDC — uses deployed MSI with federated credential)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure CLI
+        run: |
+          az account show --output table
+          echo "Subscription: $(az account show --query name -o tsv)"
+
+      - name: Load secrets from Key Vault
+        run: |
+          echo "Loading secrets from Key Vault: $E2E_KEY_VAULT_NAME"
+          for secret_name in $(az keyvault secret list \
+            --vault-name "$E2E_KEY_VAULT_NAME" \
+            --query "[].name" -o tsv); do
+            env_name=$(echo "$secret_name" | tr '-' '_' | tr '[:lower:]' '[:upper:]')
+            value=$(az keyvault secret show \
+              --vault-name "$E2E_KEY_VAULT_NAME" \
+              --name "$secret_name" \
+              --query "value" -o tsv)
+            echo "::add-mask::$value"
+            echo "${env_name}=${value}" >> "$GITHUB_ENV"
+            echo "  Loaded: $secret_name -> $env_name"
+          done
+
+      - name: Run E2E validation suite
+        run: |
+          echo "=== E2E Release Validation ==="
+          echo "Ref:        $E2E_GITHUB_REF"
+          echo "Distros:    $E2E_DISTROS"
+          echo "Workspaces: ${E2E_WORKSPACE_CONFIGS:-all}"
+          echo "Groups:     ${E2E_TEST_GROUPS:-all}"
+          echo "Modes:      $E2E_EXECUTION_MODES"
+          echo "Auth:       $E2E_AUTHENTICATION_TYPE"
+          echo "Dry run:    $E2E_DRY_RUN"
+          echo "==============================="
+
+          python -m pytest e2e/tests/ \
+            --tb=short \
+            --no-header \
+            -v \
+            --timeout=7200 \
+            --junitxml=e2e/reports/e2e-results.xml \
+            -o log_cli=true \
+            -o log_cli_level=INFO \
+            2>&1 | tee e2e/reports/e2e-output.log
+
+      - name: Upload E2E reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-reports-${{ github.run_id }}
+          path: |
+            e2e/reports/*.html
+            e2e/reports/*.xml
+            e2e/reports/*.log
+          retention-days: 30
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: e2e/reports/e2e-results.xml
+          check_name: "E2E Test Results"
+          comment_mode: "off"
+
+      # Safety net: even if pytest teardown fails, clean up
+      - name: Teardown Azure resources (safety net)
+        if: always() && env.E2E_SKIP_TEARDOWN != 'true'
+        run: |
+          echo "Safety-net teardown of $E2E_AZURE_RESOURCE_GROUP"
+          az group delete \
+            --name "$E2E_AZURE_RESOURCE_GROUP" \
+            --yes --no-wait || true
+        continue-on-error: true
+
+  # ================================================================
+  # Job 2: Summary notification
+  # ================================================================
+  notify:
+    name: "Notify"
+    needs: e2e-validation
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Check result
+        run: |
+          if [[ "${{ needs.e2e-validation.result }}" == "success" ]]; then
+            echo "::notice::E2E validation PASSED for ref ${{ env.E2E_GITHUB_REF }}"
+          else
+            echo "::error::E2E validation FAILED for ref ${{ env.E2E_GITHUB_REF }}"
+          fi
