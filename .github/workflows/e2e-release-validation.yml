@@ -60,7 +60,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Azure — subscription ID and KV name; runner uses managed identity for auth
+  # Azure — runner authenticates via user-assigned managed identity
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
   E2E_AZURE_SUBSCRIPTION_ID: ${{ secrets.E2E_AZURE_SUBSCRIPTION_ID }}
   E2E_KEY_VAULT_NAME: ${{ secrets.E2E_KEY_VAULT_NAME }}
   E2E_AZURE_RESOURCE_GROUP: "rg-sap-qa-e2e-${{ github.run_id }}"
@@ -122,10 +123,8 @@ jobs:
 
       - name: Azure Login (Managed Identity)
         run: |
-          az login --identity
+          az login --identity --username "$AZURE_CLIENT_ID" --output none
           az account set --subscription "$E2E_AZURE_SUBSCRIPTION_ID"
-          az account show --output table
-          echo "Subscription: $(az account show --query name -o tsv)"
 
       - name: Load secrets from Key Vault
         run: |

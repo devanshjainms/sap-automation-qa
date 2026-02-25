@@ -404,12 +404,13 @@ _set_env_secret() {
     fi
 }
 
+_set_env_secret "AZURE_CLIENT_ID"           "${MSI_CLIENT_ID}"
 _set_env_secret "E2E_AZURE_SUBSCRIPTION_ID" "${SUB_ID}"
 _set_env_secret "E2E_KEY_VAULT_NAME"        "${KV_NAME}"
 
 echo ""
-info "Both GitHub Environment secrets set in '${GITHUB_ENVIRONMENT}'"
-info "Runner authenticates via Managed Identity — no AZURE_CLIENT_ID/TENANT_ID needed"
+info "All 3 GitHub Environment secrets set in '${GITHUB_ENVIRONMENT}'"
+info "Runner authenticates via user-assigned Managed Identity"
 
 echo ""
 echo "  Everything else is loaded from Key Vault at workflow runtime."
