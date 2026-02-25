@@ -1,0 +1,45 @@
+[project]
+name = "sap-automation-qa-e2e"
+version = "1.0.0"
+description = "End-to-end release validation for SAP Automation QA Framework"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.27,<1.0",
+    "pytest>=8.0,<9.0",
+    "pytest-asyncio>=0.24,<1.0",
+    "pytest-timeout>=2.3,<3.0",
+    "pytest-html>=4.0,<5.0",
+    "pydantic>=2.0,<3.0",
+    "pyyaml>=6.0,<7.0",
+    "tenacity>=9.0,<10.0",
+    "jinja2>=3.1,<4.0",
+    "rich>=13.0,<14.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.0",
+    "pylint>=3.0",
+    "mypy>=1.10",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "smoke: Quick health/connectivity checks",
+    "workspace: Workspace discovery and classification",
+    "job: Job submission and lifecycle tests",
+    "config_checks: Configuration check tests",
+    "db_ha: Database HA functional tests",
+    "scs_ha: Central Services HA functional tests",
+    "lifecycle: Full end-to-end lifecycle tests",
+    "slow: Long-running tests (>5 min per workspace)",
+]
+timeout = 1800
+log_cli = true
+log_cli_level = "INFO"
+
+[tool.black]
+line_length = 100
+target-version = ["py310"]
