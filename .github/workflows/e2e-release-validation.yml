@@ -123,7 +123,7 @@ jobs:
 
       - name: Azure Login (Managed Identity)
         run: |
-          az login --identity --username "$AZURE_CLIENT_ID" --output none
+          az login --identity --client-id "$AZURE_CLIENT_ID" --output none
           az account set --subscription "$E2E_AZURE_SUBSCRIPTION_ID"
 
       - name: Load secrets from Key Vault
