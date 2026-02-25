@@ -384,6 +384,7 @@ echo ""
 GH_REPO="${GITHUB_REPO_SLUG}"
 info "Target repo:        ${GH_REPO}"
 info "Target environment: ${GITHUB_ENVIRONMENT}"
+info "Auth mode:          Managed Identity (no OIDC/SP needed)"
 echo ""
 
 # Ensure the environment exists
@@ -403,13 +404,12 @@ _set_env_secret() {
     fi
 }
 
-_set_env_secret "AZURE_CLIENT_ID"           "${MSI_CLIENT_ID}"
-_set_env_secret "AZURE_TENANT_ID"           "${TENANT_ID}"
 _set_env_secret "E2E_AZURE_SUBSCRIPTION_ID" "${SUB_ID}"
 _set_env_secret "E2E_KEY_VAULT_NAME"        "${KV_NAME}"
 
 echo ""
-info "All 4 GitHub Environment secrets set in '${GITHUB_ENVIRONMENT}'"
+info "Both GitHub Environment secrets set in '${GITHUB_ENVIRONMENT}'"
+info "Runner authenticates via Managed Identity — no AZURE_CLIENT_ID/TENANT_ID needed"
 
 echo ""
 echo "  Everything else is loaded from Key Vault at workflow runtime."
