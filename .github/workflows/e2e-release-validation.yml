@@ -125,29 +125,26 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "$AZURE_CLIENT_ID" ]; then
-            echo "::error::AZURE_CLIENT_ID secret is empty or not set"
-            exit 1
-          fi
-
-          # Debug: show identity-related env vars that may confuse az CLI
-          echo "=== Identity-related env vars in GHA runner ==="
-          env | sort | grep -iE '^(IDENTITY|MSI_|ACTIONS_ID|AZURE_)' \
-            | sed 's/=.*/=<set>/' || echo "(none)"
-          echo "=== end ==="
-
-          # Run az login in a stripped environment so that no GHA/OIDC/App-Service
-          # variables trick azure-identity into a non-IMDS code-path.
+          # Capture values, then REMOVE AZURE_CLIENT_ID from env.
+          # az CLI / azure-identity SDK inspects this env var and tries
+          # EnvironmentCredential (service-principal) before ManagedIdentity,
+          # which sends wrong query params to IMDS → "Invalid query variables".
           CLIENT_ID="$AZURE_CLIENT_ID"
           SUB_ID="$E2E_AZURE_SUBSCRIPTION_ID"
+          unset AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID
 
-          env -i \
-            HOME="$HOME" \
-            PATH="$PATH" \
-            LANG="${LANG:-C.UTF-8}" \
-            AZURE_CONFIG_DIR="${AZURE_CONFIG_DIR:-$HOME/.azure}" \
-            bash -c "az login --identity --client-id '${CLIENT_ID}' --output none"
+          # Verify IMDS is reachable
+          echo "Checking IMDS reachability..."
+          curl -sS -o /dev/null -w "IMDS HTTP %{http_code}\n" \
+            -H "Metadata:true" \
+            "http://169.254.169.254/metadata/instance?api-version=2021-02-01" \
+            --connect-timeout 5 || {
+              echo "::error::IMDS endpoint unreachable — not running on Azure VM?"
+              exit 1
+            }
 
+          echo "Authenticating via user-assigned managed identity..."
+          az login --identity --client-id "$CLIENT_ID" --output none
           az account set --subscription "$SUB_ID"
           echo "Logged in. Active subscription:"
           az account show --query '{name:name, id:id}' -o table
