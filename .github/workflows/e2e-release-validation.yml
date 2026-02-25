@@ -123,18 +123,25 @@ jobs:
 
       - name: Azure Login (Managed Identity)
         run: |
-          # Validate client ID is set
+          # GitHub Actions injects IDENTITY_ENDPOINT / IDENTITY_HEADER which
+          # cause az CLI to bypass IMDS and hit the Actions OIDC endpoint.
+          # Unsetting them forces az CLI to use the VM's IMDS for managed identity.
+          unset IDENTITY_ENDPOINT IDENTITY_HEADER
+          unset MSI_ENDPOINT MSI_SECRET
+          unset ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN
+
           if [ -z "$AZURE_CLIENT_ID" ]; then
-            echo "::error::AZURE_CLIENT_ID secret is empty"
+            echo "::error::AZURE_CLIENT_ID secret is empty or not set"
             exit 1
           fi
-          echo "Client ID length: ${#AZURE_CLIENT_ID}"
-          az login --identity --client-id "$AZURE_CLIENT_ID" 2>&1 || {
-            echo "Retrying with trimmed client ID..."
-            TRIMMED=$(echo "$AZURE_CLIENT_ID" | tr -d '[:space:]')
-            az login --identity --client-id "$TRIMMED" 2>&1
-          }
+
+          echo "Authenticating via user-assigned managed identity..."
+          az login --identity \
+            --client-id "$AZURE_CLIENT_ID" \
+            --output none
           az account set --subscription "$E2E_AZURE_SUBSCRIPTION_ID"
+          echo "Logged in. Active subscription:"
+          az account show --query '{name:name, id:id}' -o table
 
       - name: Load secrets from Key Vault
         run: |
