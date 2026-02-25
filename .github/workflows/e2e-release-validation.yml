@@ -123,23 +123,32 @@ jobs:
 
       - name: Azure Login (Managed Identity)
         run: |
-          # GitHub Actions injects IDENTITY_ENDPOINT / IDENTITY_HEADER which
-          # cause az CLI to bypass IMDS and hit the Actions OIDC endpoint.
-          # Unsetting them forces az CLI to use the VM's IMDS for managed identity.
-          unset IDENTITY_ENDPOINT IDENTITY_HEADER
-          unset MSI_ENDPOINT MSI_SECRET
-          unset ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN
+          set -euo pipefail
 
           if [ -z "$AZURE_CLIENT_ID" ]; then
             echo "::error::AZURE_CLIENT_ID secret is empty or not set"
             exit 1
           fi
 
-          echo "Authenticating via user-assigned managed identity..."
-          az login --identity \
-            --client-id "$AZURE_CLIENT_ID" \
-            --output none
-          az account set --subscription "$E2E_AZURE_SUBSCRIPTION_ID"
+          # Debug: show identity-related env vars that may confuse az CLI
+          echo "=== Identity-related env vars in GHA runner ==="
+          env | sort | grep -iE '^(IDENTITY|MSI_|ACTIONS_ID|AZURE_)' \
+            | sed 's/=.*/=<set>/' || echo "(none)"
+          echo "=== end ==="
+
+          # Run az login in a stripped environment so that no GHA/OIDC/App-Service
+          # variables trick azure-identity into a non-IMDS code-path.
+          CLIENT_ID="$AZURE_CLIENT_ID"
+          SUB_ID="$E2E_AZURE_SUBSCRIPTION_ID"
+
+          env -i \
+            HOME="$HOME" \
+            PATH="$PATH" \
+            LANG="${LANG:-C.UTF-8}" \
+            AZURE_CONFIG_DIR="${AZURE_CONFIG_DIR:-$HOME/.azure}" \
+            bash -c "az login --identity --client-id '${CLIENT_ID}' --output none"
+
+          az account set --subscription "$SUB_ID"
           echo "Logged in. Active subscription:"
           az account show --query '{name:name, id:id}' -o table
 
