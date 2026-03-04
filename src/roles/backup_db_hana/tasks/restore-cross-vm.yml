@@ -1,0 +1,211 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------
+# |       Restore HANA DB Backup from 1st VM to 2nd VM (Cross-VM)            |
+# +--------------------------------------------------------------------------*/
+
+- name:                                 "Test Setup Tasks"
+  ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
+  run_once:                             true
+
+# /*---------------------------------------------------------------------------
+# |                          Pre Validations                                  |
+# +--------------------------------------------------------------------------*/
+- name:                                 "Pre Validations: Cross-VM Restore"
+  when:                                 node_tier == "hana"
+  block:
+    - name:                             "Pre Validation: Verify backup vault connectivity"
+      delegate_to:                      localhost
+      azure_backup_hana:
+        operation:                      "discover_protected_items"
+        vault_resource_id:              "{{ backup_vault_resource_id }}"
+        subscription_id:                "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+        msi_client_id:                  "{{ user_assigned_identity_client_id | default('') }}"
+      register:                         pre_backup_discovery
+      run_once:                         true
+
+    - name:                             "Pre Validation: Identify source and target nodes"
+      ansible.builtin.set_fact:
+        backup_source_node:             "{{ ansible_play_hosts | first }}"
+        backup_target_node:             "{{ ansible_play_hosts | last }}"
+      run_once:                         true
+
+    - name:                             "Pre Validation: Verify two nodes are available"
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts | length >= 2
+          - backup_source_node != backup_target_node
+        fail_msg: >-
+          Cross-VM restore requires at least 2 HANA nodes.
+          Got {{ ansible_play_hosts | length }} node(s).
+        success_msg:                    "Source: {{ backup_source_node }}, Target: {{ backup_target_node }}"
+      run_once:                         true
+
+    - name:                             "Pre Validation: Set pre-validation status"
+      ansible.builtin.set_fact:
+        pre_validations_status:         "{{ 'PASSED' if (
+                                            pre_backup_discovery.protected_items | length > 0
+                                            and ansible_play_hosts | length >= 2
+                                          ) else 'FAILED' }}"
+      run_once:                         true
+
+# /*---------------------------------------------------------------------------
+# |                          Test Execution                                   |
+# +--------------------------------------------------------------------------*/
+- name:                                 "Test Execution: Cross-VM restore"
+  when:                                 node_tier == "hana"
+  block:
+    - name:                             "Test Execution: Cross-VM restore init"
+      when:                             pre_validations_status == "PASSED"
+      block:
+        - name:                         "Test Execution: Start timer"
+          ansible.builtin.set_fact:
+            test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+            test_execution_hostname:    "{{ backup_source_node }}"
+          run_once:                     true
+
+        - name:                         "Test Execution: Stop HANA on target node"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        HDB stop
+          args:
+            executable:                 /bin/bash
+          register:                     hana_target_stop
+          delegate_to:                  "{{ backup_target_node }}"
+          run_once:                     true
+          changed_when:                 hana_target_stop.rc == 0
+          failed_when:                  false
+
+        - name:                         "Test Execution: Trigger cross-VM restore"
+          delegate_to:                  localhost
+          azure_backup_hana:
+            operation:                  "restore_to_database"
+            vault_resource_id:           "{{ backup_vault_resource_id }}"
+            subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+            msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
+            container_name:             "{{ backup_container_name }}"
+            item_name:                  "{{ backup_item_name }}"
+            target_container_name:      "{{ backup_target_container_name }}"
+            target_database_name:       "{{ backup_target_database_name }}"
+            restore_point_time:         "{{ backup_restore_point_time | default('') }}"
+          register:                     cross_vm_restore_result
+          run_once:                     true
+
+        - name:                         "Test Execution: Wait for cross-VM restore job"
+          delegate_to:                  localhost
+          azure_backup_hana:
+            operation:                  "check_restore_job"
+            vault_resource_id:           "{{ backup_vault_resource_id }}"
+            subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+            msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
+            restore_job_id:             "{{ cross_vm_restore_result.restore_job.job_id }}"
+            poll_interval_seconds:      "{{ backup_poll_interval | default(30) }}"
+            poll_timeout_seconds:       "{{ backup_poll_timeout | default(7200) }}"
+          register:                     cross_vm_job_status
+          run_once:                     true
+          when:                         cross_vm_restore_result.restore_job.job_id | default('') | length > 0
+
+        - name:                         "Test Execution: Start HANA on target node"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        HDB start
+          args:
+            executable:                 /bin/bash
+          register:                     hana_target_start
+          delegate_to:                  "{{ backup_target_node }}"
+          run_once:                     true
+          changed_when:                 hana_target_start.rc == 0
+          failed_when:                  false
+
+        - name:                         "Test Execution: Validate HANA on target node"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        sapcontrol -nr {{ db_instance_number }} -function GetProcessList
+          args:
+            executable:                 /bin/bash
+          register:                     hana_target_process_check
+          delegate_to:                  "{{ backup_target_node }}"
+          run_once:                     true
+          retries:                      10
+          delay:                        30
+          until:                        hana_target_process_check.rc == 0 or hana_target_process_check.rc == 3
+          failed_when:                  false
+
+        - name:                         "Test Execution: Verify DB on target node"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
+                                          "SELECT DATABASE_NAME, ACTIVE_STATUS FROM SYS.M_DATABASES"
+          args:
+            executable:                 /bin/bash
+          register:                     target_db_check
+          delegate_to:                  "{{ backup_target_node }}"
+          run_once:                     true
+          failed_when:                  false
+
+        - name:                         "Test Execution: Determine test execution status"
+          ansible.builtin.set_fact:
+            test_execution_status:      "{{ 'PASSED' if (
+                                            cross_vm_job_status.restore_job.status | default('') | lower == 'completed'
+                                            and (hana_target_process_check.rc | default(1)) in [0, 3]
+                                          ) else 'FAILED' }}"
+          run_once:                     true
+
+        - name:                         "Test Execution: Stop timer"
+          ansible.builtin.set_fact:
+            test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+          run_once:                     true
+
+        - name:                         "Set test case message and details"
+          ansible.builtin.set_fact:
+            test_case_message_from_test_case: >-
+              Cross-VM restore: {{ cross_vm_job_status.restore_job.status | default('N/A') }},
+              Source: {{ backup_source_node }}, Target: {{ backup_target_node }},
+              Target HANA running: {{ (hana_target_process_check.rc | default(1)) in [0, 3] }},
+              Job ID: {{ cross_vm_restore_result.restore_job.job_id | default('N/A') }}
+            test_case_details_from_test_case:
+              source_node:              "{{ backup_source_node }}"
+              target_node:              "{{ backup_target_node }}"
+              restore_trigger:          "{{ cross_vm_restore_result }}"
+              restore_job_status:       "{{ cross_vm_job_status }}"
+              hana_target_stop:         "{{ hana_target_stop }}"
+              hana_target_start:        "{{ hana_target_start }}"
+              hana_target_process:      "{{ hana_target_process_check }}"
+              target_db_check:          "{{ target_db_check }}"
+          run_once:                     true
+
+        - name:                         "Post Validations Tasks"
+          ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/post-validations-backup.yml"
+          run_once:                     true
+
+  rescue:
+    - name:                             "Rescue operation"
+      ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/rescue-backup.yml"
+      run_once:                         true
+
+- name:                                 "Pre Validations: Test Case Skipped"
+  when:                                 pre_validations_status | default('FAILED') == "FAILED"
+  block:
+    - name:                             "Set test case message and details"
+      ansible.builtin.set_fact:
+        test_case_message_from_test_case: >-
+          Pre Validations for cross-VM restore failed.
+          Protected items: {{ pre_backup_discovery.protected_items | default([]) | length }},
+          Available nodes: {{ ansible_play_hosts | length }}
+        test_case_details_from_test_case:
+          pre_validation:               "{{ pre_backup_discovery | default({}) }}"
+          available_nodes:              "{{ ansible_play_hosts }}"
+      run_once:                         true
+
+    - name:                             "Post Validations Tasks"
+      ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/post-validations-backup.yml"
+      run_once:                         true

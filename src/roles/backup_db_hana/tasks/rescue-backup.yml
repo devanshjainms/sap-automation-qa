@@ -1,0 +1,24 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+################################################################################
+#         Rescue tasks for Azure Backup test cases                             #
+################################################################################
+
+- name:                                 "Post Validations: Rescue operation set test case status"
+  delegate_to:                          localhost
+  ansible.builtin.set_fact:
+    test_case_name:                     "{{ item.name }}: {{ test_execution_hostname | default(ansible_hostname) }}"
+    test_case_hostname:                 "{{ test_execution_hostname | default(ansible_hostname) }}"
+    test_case_description:              "{{ item.description }}"
+    test_case_status:                   "FAILED"
+    test_case_message:                  "{{ ansible_failed_result | default('Unknown error occurred during backup test') }}"
+    test_case_details:                  "{{ ansible_failed_result | default('No error details available') }}"
+    test_case_var_log_messages:         []
+
+- name:                                 "Post Telemetry Data"
+  ansible.builtin.include_tasks:        "roles/misc/tasks/post-telemetry-data.yml"
+  run_once:                             true
+
+- name:                                 "Clear the failed state of hosts for next test case"
+  ansible.builtin.meta:                 clear_host_errors

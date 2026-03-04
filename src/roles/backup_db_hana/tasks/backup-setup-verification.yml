@@ -1,0 +1,84 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------
+# |           Azure Backup Setup Verification for SAP HANA                    |
+# +--------------------------------------------------------------------------*/
+
+- name:                                 "Test Setup Tasks"
+  ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
+  run_once:                             true
+
+# /*---------------------------------------------------------------------------
+# |                          Test Execution                                   |
+# +--------------------------------------------------------------------------*/
+- name:                                 "Azure Backup Setup Verification"
+  when:                                 node_tier == "hana"
+  block:
+    - name:                             "Test Execution: Start timer"
+      ansible.builtin.set_fact:
+        test_execution_start:           "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+        test_execution_hostname:        "{{ ansible_hostname }}"
+      run_once:                         true
+
+    - name:                             "Test Execution: Discover protected items in vault"
+      delegate_to:                      localhost
+      azure_backup_hana:
+        operation:                      "discover_protected_items"
+        vault_resource_id:              "{{ backup_vault_resource_id }}"
+        subscription_id:                "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+        msi_client_id:                  "{{ user_assigned_identity_client_id | default('') }}"
+        database_sid:                   "{{ db_sid | upper }}"
+      register:                         backup_discovery_result
+      run_once:                         true
+
+    - name:                             "Test Execution: Validate protected items found"
+      ansible.builtin.assert:
+        that:
+          - backup_discovery_result.protected_items | length > 0
+        fail_msg:                       "No protected HANA databases found in vault {{ backup_vault_resource_id }}"
+        success_msg:                    "Found {{ backup_discovery_result.protected_items | length }} protected item(s)"
+      run_once:                         true
+
+    - name:                             "Test Execution: Check restore points for all items"
+      delegate_to:                      localhost
+      azure_backup_hana:
+        operation:                      "check_restore_points"
+        vault_resource_id:              "{{ backup_vault_resource_id }}"
+        subscription_id:                "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+        msi_client_id:                  "{{ user_assigned_identity_client_id | default('') }}"
+      register:                         restore_points_result
+      run_once:                         true
+
+    - name:                             "Test Execution: Determine test execution status"
+      ansible.builtin.set_fact:
+        test_execution_status:          "{{ 'PASSED' if (
+                                            backup_discovery_result.status == 'PASSED'
+                                            and restore_points_result.status in ['PASSED', 'WARNING']
+                                          ) else 'FAILED' }}"
+      run_once:                         true
+
+    - name:                             "Test Execution: Stop timer"
+      ansible.builtin.set_fact:
+        test_execution_end:             "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+      run_once:                         true
+
+    - name:                             "Set test case message and details"
+      ansible.builtin.set_fact:
+        test_case_message_from_test_case: >-
+          Protected items: {{ backup_discovery_result.protected_items | length }},
+          Discovery status: {{ backup_discovery_result.status }},
+          Restore points status: {{ restore_points_result.status }}
+        test_case_details_from_test_case:
+          discovery_result:             "{{ backup_discovery_result }}"
+          restore_points_result:        "{{ restore_points_result }}"
+      run_once:                         true
+
+    - name:                             "Post Validations Tasks"
+      ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/post-validations-backup.yml"
+      run_once:                         true
+
+  rescue:
+    - name:                             "Rescue operation"
+      ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/rescue-backup.yml"
+      run_once:                         true

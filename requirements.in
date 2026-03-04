@@ -10,6 +10,7 @@ azure-kusto-ingest
 azure-mgmt-compute
 azure-mgmt-loganalytics
 azure-mgmt-network
+azure-mgmt-recoveryservicesbackup
 azure-storage-blob
 azure-storage-queue
 
