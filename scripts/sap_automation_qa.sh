@@ -50,6 +50,11 @@ Examples:
   $0 --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash] --extra-vars='{"key":"value"}'
   $0 --test_groups=HA_DB_HANA --test_cases=[ha-config] --offline
 
+  # Azure Backup Tests (set SAP_FUNCTIONAL_TEST_TYPE: AzureBackupDatabase in vars.yaml)
+  $0 --test_groups=BACKUP_DB_HANA --test_cases=[backup-setup-verification]
+  $0 --test_groups=BACKUP_DB_HANA --test_cases=[restore-to-db,restore-to-filesystem]
+  $0 --test_groups=BACKUP_DB_HANA -vv
+
   # Configuration Checks (requires TEST_TYPE: ConfigurationChecks in vars.yaml)
   $0 --extra-vars='{"configuration_test_type":"all"}'
   $0 --extra-vars='{"configuration_test_type":"high_availability"}'
@@ -82,6 +87,12 @@ Available Test Cases for groups:
 				kill-sapstartsrv-process => Kill SAP Start Service Process
 				manual-restart => Manual Restart
 				ha-failover-to-node => HA Failover to Secondary Node
+	$0 --test_groups=BACKUP_DB_HANA
+				backup-setup-verification => Azure Backup Setup Verification
+				restore-to-db => Restore Backup to HANA DB
+				restore-to-filesystem => Restore Backup to FileSystem
+				recover-db-commands => Recover DB using Database Commands
+				restore-cross-vm => Cross-VM Restore
 
 Configuration Checks (set TEST_TYPE: ConfigurationChecks in vars.yaml):
 	configuration_test_type options (use with --extra-vars):
@@ -269,6 +280,9 @@ get_playbook_name() {
                 else
                     echo "playbook_00_ha_scs_functional_tests"
                 fi
+                ;;
+            "AzureBackupDatabase")
+                echo "playbook_00_backup_db_functional_tests"
                 ;;
             "ConfigurationChecks")
                 echo "playbook_00_configuration_checks"

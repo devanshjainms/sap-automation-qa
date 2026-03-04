@@ -1,0 +1,205 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------
+# |       Recover HANA DB using database commands                             |
+# |       Uses hdbsql / recoverSys.py to perform RECOVER DATA                |
+# +--------------------------------------------------------------------------*/
+
+- name:                                 "Test Setup Tasks"
+  ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
+  run_once:                             true
+
+# /*---------------------------------------------------------------------------
+# |                          Pre Validations                                  |
+# +--------------------------------------------------------------------------*/
+- name:                                 "Pre Validations: HANA DB Recovery"
+  when:                                 node_tier == "hana"
+  block:
+    - name:                             "Pre Validation: Verify HANA instance is accessible"
+      become:                           true
+      become_user:                      "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        sapcontrol -nr {{ db_instance_number }} -function GetProcessList
+      args:
+        executable:                     /bin/bash
+      register:                         hana_pre_check
+      run_once:                         true
+      failed_when:                      false
+
+    - name:                             "Pre Validation: Set pre-validation status"
+      ansible.builtin.set_fact:
+        pre_validations_status:         "{{ 'PASSED' if (
+                                            hana_pre_check.rc | default(1) in [0, 3]
+                                          ) else 'FAILED' }}"
+      run_once:                         true
+
+# /*---------------------------------------------------------------------------
+# |                          Test Execution                                   |
+# +--------------------------------------------------------------------------*/
+- name:                                 "Test Execution: Recover DB using database commands"
+  when:                                 node_tier == "hana"
+  block:
+    - name:                             "Test Execution: Recover DB init"
+      when:                             pre_validations_status == "PASSED"
+      block:
+        - name:                         "Test Execution: Start timer"
+          ansible.builtin.set_fact:
+            test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+            test_execution_hostname:    "{{ ansible_hostname }}"
+          run_once:                     true
+
+        - name:                         "Test Execution: Query backup catalog"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
+                                          "SELECT TOP 5 BACKUP_ID, UTC_START_TIME, ENTRY_TYPE_NAME, \
+                                          STATE_NAME FROM SYS.M_BACKUP_CATALOG \
+                                          ORDER BY UTC_START_TIME DESC"
+          args:
+            executable:                 /bin/bash
+          register:                     backup_catalog_result
+          run_once:                     true
+          failed_when:                  false
+
+        - name:                         "Test Execution: Stop HANA DB for recovery"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        HDB stop
+          args:
+            executable:                 /bin/bash
+          register:                     hana_stop_result
+          run_once:                     true
+          changed_when:                 hana_stop_result.rc == 0
+          failed_when:                  false
+
+        - name:                         "Test Execution: Recover HANA SYSTEMDB"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        HDBSettings.sh recoverSys.py \
+                                          --command="RECOVER DATA USING BACKUP_ID \
+                                          ({{ backup_catalog_result.stdout_lines[1] | default('') | regex_search('[0-9]+') | default('') }}) \
+                                          CLEAR LOG" \
+                                          --timeout={{ backup_recover_timeout | default(3600) }}
+          args:
+            executable:                 /bin/bash
+          register:                     hana_recover_systemdb_result
+          run_once:                     true
+          failed_when:                  false
+          when:                         backup_catalog_result.rc | default(1) == 0
+
+        - name:                         "Test Execution: Recover HANA using most recent backup"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        HDBSettings.sh recoverSys.py \
+                                          --command="RECOVER DATA CLEAR LOG" \
+                                          --timeout={{ backup_recover_timeout | default(3600) }}
+          args:
+            executable:                 /bin/bash
+          register:                     hana_recover_recent_result
+          run_once:                     true
+          failed_when:                  false
+          when:                         backup_catalog_result.rc | default(1) != 0
+
+        - name:                         "Test Execution: Start HANA DB after recovery"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        HDB start
+          args:
+            executable:                 /bin/bash
+          register:                     hana_start_result
+          run_once:                     true
+          changed_when:                 hana_start_result.rc == 0
+          failed_when:                  false
+
+        - name:                         "Test Execution: Validate HANA is running"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        sapcontrol -nr {{ db_instance_number }} -function GetProcessList
+          args:
+            executable:                 /bin/bash
+          register:                     hana_process_check
+          run_once:                     true
+          retries:                      10
+          delay:                        30
+          until:                        hana_process_check.rc == 0 or hana_process_check.rc == 3
+          failed_when:                  false
+
+        - name:                         "Test Execution: Verify DB consistency post-recovery"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
+                                          "SELECT DATABASE_NAME, ACTIVE_STATUS FROM SYS.M_DATABASES"
+          args:
+            executable:                 /bin/bash
+          register:                     db_consistency_check
+          run_once:                     true
+          failed_when:                  false
+
+        - name:                         "Test Execution: Determine test execution status"
+          ansible.builtin.set_fact:
+            test_execution_status:      "{{ 'PASSED' if (
+                                            (hana_process_check.rc | default(1)) in [0, 3]
+                                            and (db_consistency_check.rc | default(1)) == 0
+                                          ) else 'FAILED' }}"
+          run_once:                     true
+
+        - name:                         "Test Execution: Stop timer"
+          ansible.builtin.set_fact:
+            test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+          run_once:                     true
+
+        - name:                         "Set test case message and details"
+          ansible.builtin.set_fact:
+            test_case_message_from_test_case: >-
+              HANA DB recovery:
+              {{ 'Catalog-based' if (backup_catalog_result.rc | default(1) == 0) else 'Most-recent-backup' }} recovery,
+              HANA running: {{ (hana_process_check.rc | default(1)) in [0, 3] }},
+              DB consistent: {{ (db_consistency_check.rc | default(1)) == 0 }}
+            test_case_details_from_test_case:
+              backup_catalog:           "{{ backup_catalog_result }}"
+              hana_stop:                "{{ hana_stop_result }}"
+              hana_recover_systemdb:    "{{ hana_recover_systemdb_result | default({}) }}"
+              hana_recover_recent:      "{{ hana_recover_recent_result | default({}) }}"
+              hana_start:               "{{ hana_start_result }}"
+              hana_process_check:       "{{ hana_process_check }}"
+              db_consistency:           "{{ db_consistency_check }}"
+          run_once:                     true
+
+        - name:                         "Post Validations Tasks"
+          ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/post-validations-backup.yml"
+          run_once:                     true
+
+  rescue:
+    - name:                             "Rescue operation"
+      ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/rescue-backup.yml"
+      run_once:                         true
+
+- name:                                 "Pre Validations: Test Case Skipped"
+  when:                                 pre_validations_status | default('FAILED') == "FAILED"
+  block:
+    - name:                             "Set test case message and details"
+      ansible.builtin.set_fact:
+        test_case_message_from_test_case: "Pre Validations for HANA DB recovery failed. HANA instance not accessible."
+        test_case_details_from_test_case:
+          hana_pre_check:               "{{ hana_pre_check | default({}) }}"
+      run_once:                         true
+
+    - name:                             "Post Validations Tasks"
+      ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/post-validations-backup.yml"
+      run_once:                         true

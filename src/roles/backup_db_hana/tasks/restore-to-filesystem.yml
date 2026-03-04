@@ -1,0 +1,222 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------
+# |       Restore HANA DB Backup to FileSystem using Azure Backup             |
+# |       Then perform HANA DB restore from backup files                      |
+# +--------------------------------------------------------------------------*/
+
+- name:                                 "Test Setup Tasks"
+  ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
+  run_once:                             true
+
+# /*---------------------------------------------------------------------------
+# |                          Pre Validations                                  |
+# +--------------------------------------------------------------------------*/
+- name:                                 "Pre Validations: Backup Restore to Filesystem"
+  when:                                 node_tier == "hana"
+  block:
+    - name:                             "Pre Validation: Verify backup vault connectivity"
+      delegate_to:                      localhost
+      azure_backup_hana:
+        operation:                      "discover_protected_items"
+        vault_resource_id:              "{{ backup_vault_resource_id }}"
+        subscription_id:                "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+        msi_client_id:                  "{{ user_assigned_identity_client_id | default('') }}"
+      register:                         pre_backup_discovery
+      run_once:                         true
+
+    - name:                             "Pre Validation: Verify target filesystem path exists"
+      become:                           true
+      ansible.builtin.file:
+        path:                           "{{ backup_target_filesystem_path }}"
+        state:                          directory
+        mode:                           "0755"
+      register:                         fs_path_check
+      run_once:                         true
+      failed_when:                      false
+
+    - name:                             "Pre Validation: Set pre-validation status"
+      ansible.builtin.set_fact:
+        pre_validations_status:         "{{ 'PASSED' if (
+                                            pre_backup_discovery.protected_items | length > 0
+                                            and fs_path_check is not failed
+                                          ) else 'FAILED' }}"
+      run_once:                         true
+
+# /*---------------------------------------------------------------------------
+# |                          Test Execution                                   |
+# +--------------------------------------------------------------------------*/
+- name:                                 "Test Execution: Restore backup to filesystem and recover"
+  when:                                 node_tier == "hana"
+  block:
+    - name:                             "Test Execution: Restore to filesystem init"
+      when:                             pre_validations_status == "PASSED"
+      block:
+        - name:                         "Test Execution: Start timer"
+          ansible.builtin.set_fact:
+            test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+            test_execution_hostname:    "{{ ansible_hostname }}"
+          run_once:                     true
+
+        - name:                         "Test Execution: Trigger restore to filesystem"
+          delegate_to:                  localhost
+          azure_backup_hana:
+            operation:                  "restore_to_filesystem"
+            vault_resource_id:          "{{ backup_vault_resource_id }}"
+            subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+            msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
+            container_name:             "{{ backup_container_name }}"
+            item_name:                  "{{ backup_item_name }}"
+            target_filesystem_path:     "{{ backup_target_filesystem_path }}"
+            target_vm_name:             "{{ backup_target_vm_name | default(ansible_hostname) }}"
+            target_vm_resource_group:   "{{ backup_target_vm_rg | default(azure_instance_metadata.json.compute.resourceGroupName) }}"
+            restore_point_time:         "{{ backup_restore_point_time | default('') }}"
+          register:                     restore_to_fs_result
+          run_once:                     true
+
+        - name:                         "Test Execution: Wait for restore-to-filesystem job"
+          delegate_to:                  localhost
+          azure_backup_hana:
+            operation:                  "check_restore_job"
+            vault_resource_id:           "{{ backup_vault_resource_id }}"
+            subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+            msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
+            restore_job_id:             "{{ restore_to_fs_result.restore_job.job_id }}"
+            poll_interval_seconds:      "{{ backup_poll_interval | default(30) }}"
+            poll_timeout_seconds:       "{{ backup_poll_timeout | default(7200) }}"
+          register:                     fs_restore_job_status
+          run_once:                     true
+          when:                         restore_to_fs_result.restore_job.job_id | default('') | length > 0
+
+        - name:                         "Test Execution: List restored backup files"
+          become:                       true
+          ansible.builtin.find:
+            paths:                      "{{ backup_target_filesystem_path }}"
+            recurse:                    true
+            file_type:                  file
+          register:                     restored_files
+          run_once:                     true
+
+        - name:                         "Test Execution: Validate backup files exist"
+          ansible.builtin.assert:
+            that:
+              - restored_files.files | length > 0
+            fail_msg:                   "No backup files found at {{ backup_target_filesystem_path }}"
+            success_msg:                "Found {{ restored_files.files | length }} backup file(s)"
+          run_once:                     true
+
+        - name:                         "Test Execution: Stop HANA DB for file-based restore"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        HDB stop
+          args:
+            executable:                 /bin/bash
+          register:                     hana_stop_result
+          run_once:                     true
+          changed_when:                 hana_stop_result.rc == 0
+          failed_when:                  false
+
+        - name:                         "Test Execution: Recover HANA DB from backup files"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        /usr/sap/{{ db_sid | upper }}/HDB{{ db_instance_number }}/exe/hdbbackupdiag \
+                                          --list "{{ backup_target_filesystem_path }}" && \
+                                        HDBSettings.sh recoverSys.py \
+                                          --command="RECOVER DATA FOR {{ db_sid | upper }} USING FILE \
+                                          ('{{ backup_target_filesystem_path }}')" \
+                                          --timeout={{ backup_recover_timeout | default(3600) }}
+          args:
+            executable:                 /bin/bash
+          register:                     hana_file_recover_result
+          run_once:                     true
+          failed_when:                  false
+
+        - name:                         "Test Execution: Start HANA DB after file-based restore"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        HDB start
+          args:
+            executable:                 /bin/bash
+          register:                     hana_start_result
+          run_once:                     true
+          changed_when:                 hana_start_result.rc == 0
+          failed_when:                  false
+
+        - name:                         "Test Execution: Validate HANA DB is running"
+          become:                       true
+          become_user:                  "{{ db_sid | lower }}adm"
+          ansible.builtin.shell: |
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        sapcontrol -nr {{ db_instance_number }} -function GetProcessList
+          args:
+            executable:                 /bin/bash
+          register:                     hana_process_check
+          run_once:                     true
+          retries:                      10
+          delay:                        30
+          until:                        hana_process_check.rc == 0 or hana_process_check.rc == 3
+          failed_when:                  false
+
+        - name:                         "Test Execution: Determine test execution status"
+          ansible.builtin.set_fact:
+            test_execution_status:      "{{ 'PASSED' if (
+                                            fs_restore_job_status.restore_job.status | default('') | lower == 'completed'
+                                            and restored_files.files | length > 0
+                                            and (hana_process_check.rc | default(1)) in [0, 3]
+                                          ) else 'FAILED' }}"
+          run_once:                     true
+
+        - name:                         "Test Execution: Stop timer"
+          ansible.builtin.set_fact:
+            test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+          run_once:                     true
+
+        - name:                         "Set test case message and details"
+          ansible.builtin.set_fact:
+            test_case_message_from_test_case: >-
+              Restore-to-filesystem: {{ fs_restore_job_status.restore_job.status | default('N/A') }},
+              Backup files found: {{ restored_files.files | length }},
+              HANA recovered: {{ (hana_process_check.rc | default(1)) in [0, 3] }},
+              Job ID: {{ restore_to_fs_result.restore_job.job_id | default('N/A') }}
+            test_case_details_from_test_case:
+              restore_trigger:          "{{ restore_to_fs_result }}"
+              restore_job_status:       "{{ fs_restore_job_status }}"
+              restored_files_count:     "{{ restored_files.files | length }}"
+              hana_file_recover:        "{{ hana_file_recover_result }}"
+              hana_start:               "{{ hana_start_result }}"
+              hana_process_check:       "{{ hana_process_check }}"
+          run_once:                     true
+
+        - name:                         "Post Validations Tasks"
+          ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/post-validations-backup.yml"
+          run_once:                     true
+
+  rescue:
+    - name:                             "Rescue operation"
+      ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/rescue-backup.yml"
+      run_once:                         true
+
+- name:                                 "Pre Validations: Test Case Skipped"
+  when:                                 pre_validations_status | default('FAILED') == "FAILED"
+  block:
+    - name:                             "Set test case message and details"
+      ansible.builtin.set_fact:
+        test_case_message_from_test_case: >-
+          Pre Validations for restore-to-filesystem failed.
+          Protected items: {{ pre_backup_discovery.protected_items | default([]) | length }},
+          Filesystem path check: {{ fs_path_check is not failed }}
+        test_case_details_from_test_case:
+          pre_validation:               "{{ pre_backup_discovery | default({}) }}"
+          fs_path_check:                "{{ fs_path_check | default({}) }}"
+      run_once:                         true
+
+    - name:                             "Post Validations Tasks"
+      ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/post-validations-backup.yml"
+      run_once:                         true
