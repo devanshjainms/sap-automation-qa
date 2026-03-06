@@ -75,6 +75,7 @@ Available Test Cases for groups:
 				azure-lb => Azure Load Balancer
 				sapcontrol-config => SAP Control Configuration
 				ascs-migration => ASCS Migration
+				ascs-node-crash => ASCS Node Crash
 				block-network => Block Network
 				kill-message-server => Kill Message Server
 				kill-enqueue-server => Kill Enqueue Server

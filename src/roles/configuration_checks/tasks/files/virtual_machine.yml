@@ -261,7 +261,7 @@ checks:
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "/bin/cat /etc/os-release | grep PRETTY_NAME | cut -d '=' -f2 | tr -d '\"'"
+      command:                        "/bin/cat /etc/os-release | grep -v '^#' | grep PRETTY_NAME | cut -d '=' -f2 | tr -d '\"'"
       user:                           *root
     report:                           *check
 
@@ -914,13 +914,13 @@ checks:
     severity:                         *info
     workload:                         *workload
     applicability:
-      os_type:                        [*suse, *redhat, *oraclelinux]
+      os_type:                        [*redhat]
       os_version:                     *all_versions
       hardware_type:                  *vm
       role:                           *role
       database_type:                  *db
     collector_type:                   *command
     collector_args:
-      command:                        "/bin/systemctl status kdump.service | grep -o 'Active:.*'"
+      command:                        "/bin/systemctl status kdump.service 2>/dev/null | grep -o 'Active:.*' || echo 'kdump.service not found. Recommendation: Install and enable kdump for crash dump analysis.'"
       user:                           *root
     report:                           *check

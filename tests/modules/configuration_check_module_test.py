@@ -257,6 +257,45 @@ class TestValidators:
         result = config_module.validate_string(sample_check, "  test   value  ")
         assert result["status"] == TestStatus.SUCCESS.value
 
+    def test_validate_string_contains_mode_success(self, config_module, sample_check):
+        """Test string validation with match_mode contains"""
+        sample_check.validator_args = {"expected": "true", "match_mode": "contains"}
+        result = config_module.validate_string(sample_check, "nic1: AcceleratedNetworking=true")
+        assert result["status"] == TestStatus.SUCCESS.value
+
+    def test_validate_string_contains_mode_failure(self, config_module, sample_check):
+        """Test string validation with match_mode contains"""
+        sample_check.validator_args = {"expected": "false", "match_mode": "contains"}
+        sample_check.severity = TestSeverity.WARNING
+        result = config_module.validate_string(sample_check, "nic1: AcceleratedNetworking=true")
+        assert result["status"] == TestStatus.WARNING.value
+
+    def test_validate_string_not_contains_mode_success(self, config_module, sample_check):
+        """Test string validation with match_mode not_contains"""
+        sample_check.validator_args = {"expected": "false", "match_mode": "not_contains"}
+        result = config_module.validate_string(
+            sample_check, "nic1: AcceleratedNetworking=true nic2: AcceleratedNetworking=true"
+        )
+        assert result["status"] == TestStatus.SUCCESS.value
+
+    def test_validate_string_not_contains_mode_failure(self, config_module, sample_check):
+        """Test string validation with match_mode not_contains"""
+        sample_check.validator_args = {"expected": "false", "match_mode": "not_contains"}
+        sample_check.severity = TestSeverity.WARNING
+        result = config_module.validate_string(
+            sample_check, "nic1: AcceleratedNetworking=true nic2: AcceleratedNetworking=false"
+        )
+        assert result["status"] == TestStatus.WARNING.value
+
+    def test_validate_string_default_match_mode_is_exact(self, config_module, sample_check):
+        """Test that default match_mode is exact (backward compatible)"""
+        sample_check.validator_args = {"expected": "true"}
+        result = config_module.validate_string(sample_check, "true")
+        assert result["status"] == TestStatus.SUCCESS.value
+        sample_check.severity = TestSeverity.WARNING
+        result = config_module.validate_string(sample_check, "nic: true")
+        assert result["status"] == TestStatus.WARNING.value
+
     def test_validate_numeric_range_within_bounds(self, config_module, sample_check):
         """Test numeric range validation within bounds"""
         sample_check.validator_args = {"min": 10, "max": 100}

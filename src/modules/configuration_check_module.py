@@ -447,8 +447,16 @@ class ConfigurationCheckModule(SapAutomationQA):
             expected = expected.lower()
             collected = collected.lower()
 
+        match_mode = check.validator_args.get("match_mode", "exact")
+        if match_mode == "contains":
+            is_valid = expected in collected
+        elif match_mode == "not_contains":
+            is_valid = expected not in collected
+        else:
+            is_valid = collected == expected
+
         return {
-            "status": self._create_validation_result(check.severity, collected == expected),
+            "status": self._create_validation_result(check.severity, is_valid),
         }
 
     def validate_numeric_range(self, check: Check, collected_data: str) -> Dict[str, Any]:

@@ -208,8 +208,12 @@ RESOURCE_DEFAULTS:
           value:                    "5000"
           required:                 false
         priority:
-          value:                    "100"
-          required:                 true
+          ENSA1:
+            value:                  "10"
+            required:               true
+          ENSA2:
+            value:                  "100"
+            required:               true
       operations:
         monitor:
           interval:
@@ -267,8 +271,12 @@ RESOURCE_DEFAULTS:
           value:                    "5000"
           required:                 false
         priority:
-          value:                    "100"
-          required:                 false
+          ENSA1:
+            value:                  "1000"
+            required:               true
+          ENSA2:
+            value:                  "100"
+            required:               true
       operations:
         monitor:
           interval:

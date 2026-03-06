@@ -185,11 +185,12 @@ checks:
                                           nic=$(basename "$nic_id"); \
                                           status=$(az network nic show --resource-group {{ CONTEXT.resource_group_name }} --name "$nic" \
                                           --query "enableAcceleratedNetworking" -o tsv); \
-                                          echo "$status"; \
+                                          echo "$nic: AcceleratedNetworking=$status"; \
                                         done
     validator_type:                   *string
     validator_args:
-      expected_output:                "true"
+      expected_output:                "false"
+      match_mode:                     "not_contains"
     report:                           *check
 
   - id:                               "NET-0006"
