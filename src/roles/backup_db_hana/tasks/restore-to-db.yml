@@ -177,7 +177,7 @@
         item_name:                  "{{ db_item.item_name }}"
         restore_point_time:         "{{ backup_restore_point_time | default('') }}"
         target_container_name:      "{{ (backup_restore_target_container | trim) if (database_high_availability | default(false) | bool) else '' }}"
-        target_database_name:       "{{ db_item.item_name if (database_high_availability | default(false) | bool) else '' }}"
+        target_database_name:       "{{ ('SAPHanaDatabase;' ~ (db_sid | lower) ~ ';' ~ db_item.name) if (database_high_availability | default(false) | bool) else '' }}"
         source_resource_id:         >-
           {{ '/subscriptions/' ~ backup_restore_subscription ~ '/resourceGroups/' ~ backup_restore_vm_rg ~ '/providers/Microsoft.Compute/virtualMachines/' ~ backup_restore_vm_name
              if (database_high_availability | default(false) | bool) else '' }}
@@ -189,6 +189,17 @@
         loop_var:                   db_item
         label:                      "{{ db_item.name }}"
       when:                         backup_systemdb_items | length > 0
+
+    - name:                         "Test Execution: Wait for SYSTEMDB restore jobs to complete - debug message"
+      ansible.builtin.debug:
+        msg: >-
+          Waiting for SYSTEMDB restore jobs to complete. This may take some time depending on the 
+          size of the database and the restore point. SYSTEMDB restore results so far:
+          {{ systemdb_restore_results.results | default([]) }}
+      run_once:                     true
+      when:
+                                    - systemdb_restore_results is defined
+                                    - systemdb_restore_results.results | length > 0
 
     - name:                         "Test Execution: Wait for SYSTEMDB restore to complete"
       delegate_to:                  localhost
@@ -222,7 +233,7 @@
         item_name:                  "{{ db_item.item_name }}"
         restore_point_time:         "{{ backup_restore_point_time | default('') }}"
         target_container_name:      "{{ (backup_restore_target_container | trim) if (database_high_availability | default(false) | bool) else '' }}"
-        target_database_name:       "{{ db_item.item_name if (database_high_availability | default(false) | bool) else '' }}"
+        target_database_name:       "{{ ('SAPHanaDatabase;' ~ (db_sid | lower) ~ ';' ~ db_item.name) if (database_high_availability | default(false) | bool) else '' }}"
         source_resource_id:         >-
           {{ '/subscriptions/' ~ backup_restore_subscription ~ '/resourceGroups/' ~ backup_restore_vm_rg ~ '/providers/Microsoft.Compute/virtualMachines/' ~ backup_restore_vm_name
              if (database_high_availability | default(false) | bool) else '' }}
@@ -234,6 +245,17 @@
         loop_var:                   db_item
         label:                      "{{ db_item.name }}"
       when:                         backup_tenant_items | length > 0
+
+    - name:                         "Test Execution: Wait for tenant database restore jobs to complete - debug message"
+      ansible.builtin.debug:
+        msg: >-
+          Waiting for tenant database restore jobs to complete. This may take some time depending on the 
+          size of the databases and the restore points. Tenant restore results so far:
+          {{ tenant_restore_results.results | default([]) }}
+      run_once:                     true
+      when:
+                                    - tenant_restore_results is defined
+                                    - tenant_restore_results.results | length > 0
 
     - name:                         "Test Execution: Wait for tenant restore jobs to complete"
       delegate_to:                  localhost
@@ -369,7 +391,6 @@
           changed_when:             cluster_maintenance_off_result.rc == 0
           failed_when:              false
 
-    # --- Compute overall status ---
     - name:                         "Test Execution: Compute restore results summary"
       ansible.builtin.set_fact:
         systemdb_all_ok:            "{{ (systemdb_job_statuses.results | default([])

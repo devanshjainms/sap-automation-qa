@@ -7,7 +7,7 @@ Restore operation helpers for Azure Backup HANA.
 
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, cast, Dict, List, Optional
 from azure.mgmt.recoveryservicesbackup import RecoveryServicesBackupClient
 from azure.mgmt.recoveryservicesbackup.models import (
     RecoveryPointResource,
@@ -18,6 +18,8 @@ from azure.mgmt.recoveryservicesbackup.models import (
     RecoveryMode,
     OverwriteOptions,
     BackupManagementType,
+    AzureWorkloadJob,
+    JobResource,
 )
 
 try:
@@ -486,6 +488,7 @@ class BackupRestoreHelper:
         )
         elapsed = 0
         final_status = "Unknown"
+        job_props: Optional[AzureWorkloadJob] = None
 
         while elapsed < self._poll_timeout:
             job = self._client.job_details.get(
@@ -493,7 +496,7 @@ class BackupRestoreHelper:
                 resource_group_name=self._vault_rg,
                 job_name=restore_job_id,
             )
-            job_props = job.properties
+            job_props = cast(AzureWorkloadJob, job.properties)
             final_status = (job_props.status if job_props else "Unknown") or "Unknown"
             self._log(
                 logging.INFO,
@@ -503,6 +506,15 @@ class BackupRestoreHelper:
                 break
             time.sleep(self._poll_interval)
             elapsed += self._poll_interval
+
+        error_details: List[str] = []
+        if job_props and job_props.error_details:
+            for err in job_props.error_details:
+                detail = f"{err.error_code or ""}: {err.error_string or ""}"
+                if err.recommendations:
+                    detail += f" Recommendations: {'; '.join(err.recommendations)}"
+                error_details.append(detail)
+                self._log(logging.ERROR, f"Job {restore_job_id} error: {detail}")
 
         test_status, message = self.map_job_result_status(
             restore_job_id,
@@ -515,6 +527,7 @@ class BackupRestoreHelper:
                 "job_id": restore_job_id,
                 "status": final_status,
                 "elapsed_seconds": elapsed,
+                "error_details": error_details,
             },
             "status": test_status,
             "message": message,
