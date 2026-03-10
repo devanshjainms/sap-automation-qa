@@ -2,7 +2,10 @@
 # Licensed under the MIT License.
 
 # /*---------------------------------------------------------------------------
-# |       Restore HANA DB Backup from 1st VM to 2nd VM (Cross-VM)            |
+# |       Alternate Location Restore (ALR) - Cross-VM Restore                 |
+# |       Iterates over all discovered protected databases                    |
+# |       AlternateWorkloadRestore to user-specified alternate VM             |
+# |       Requires: backup_target_vm_name (user input)                        |
 # +--------------------------------------------------------------------------*/
 
 - name:                                 "Test Setup Tasks"
@@ -12,7 +15,7 @@
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Pre Validations: Cross-VM Restore"
+- name:                                 "Pre Validations: Cross-VM Restore (ALR)"
   when:                                 node_tier == "hana"
   block:
     - name:                             "Pre Validation: Verify backup vault connectivity"
@@ -24,168 +27,229 @@
         msi_client_id:                  "{{ user_assigned_identity_client_id | default('') }}"
       register:                         pre_backup_discovery
       run_once:                         true
+      failed_when:                      pre_backup_discovery.protected_items | default([]) | length == 0
 
-    - name:                             "Pre Validation: Identify source and target nodes"
-      ansible.builtin.set_fact:
-        backup_source_node:             "{{ ansible_play_hosts | first }}"
-        backup_target_node:             "{{ ansible_play_hosts | last }}"
-      run_once:                         true
-
-    - name:                             "Pre Validation: Verify two nodes are available"
+    - name:                             "Pre Validation: Verify target VM is specified"
       ansible.builtin.assert:
         that:
-          - ansible_play_hosts | length >= 2
-          - backup_source_node != backup_target_node
+          - backup_target_vm_name | default('') | length > 0
         fail_msg: >-
-          Cross-VM restore requires at least 2 HANA nodes.
-          Got {{ ansible_play_hosts | length }} node(s).
-        success_msg:                    "Source: {{ backup_source_node }}, Target: {{ backup_target_node }}"
+          Cross-VM restore (ALR) requires backup_target_vm_name.
+          Set this variable to the target HANA VM hostname.
+        success_msg:                    "ALR target VM: {{ backup_target_vm_name }}"
+      run_once:                         true
+
+    - name:                             "Pre Validation: Build target container identifier"
+      ansible.builtin.set_fact:
+        backup_alr_target_container: >-
+          VMAppContainer;Compute;{{ backup_target_vm_rg | default(azure_instance_metadata.json.compute.resourceGroupName) }};{{ backup_target_vm_name }}
+      run_once:                         true
+
+    - name:                             "Pre Validation: Log discovered databases"
+      ansible.builtin.debug:
+        msg: >-
+          ALR: Restoring {{ pre_backup_discovery.protected_items | length }} database(s) to {{ backup_target_vm_name }}:
+          {{ pre_backup_discovery.protected_items | map(attribute='name') | list | join(', ') }}
       run_once:                         true
 
     - name:                             "Pre Validation: Set pre-validation status"
       ansible.builtin.set_fact:
         pre_validations_status:         "{{ 'PASSED' if (
                                             pre_backup_discovery.protected_items | length > 0
-                                            and ansible_play_hosts | length >= 2
+                                            and backup_target_vm_name | default('') | length > 0
                                           ) else 'FAILED' }}"
       run_once:                         true
 
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Execution: Cross-VM restore"
-  when:                                 node_tier == "hana"
+- name:                                 "Test Execution: Cross-VM restore (ALR)"
+  when:
+                                        - node_tier == "hana"
+                                        - pre_validations_status == "PASSED"
+  become:                               true
   block:
-    - name:                             "Test Execution: Cross-VM restore init"
-      when:                             pre_validations_status == "PASSED"
-      block:
-        - name:                         "Test Execution: Start timer"
-          ansible.builtin.set_fact:
-            test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
-            test_execution_hostname:    "{{ backup_source_node }}"
-          run_once:                     true
+    - name:                             "Test Execution: Start timer"
+      ansible.builtin.set_fact:
+        test_execution_start:           "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+        test_execution_hostname:        "{{ ansible_hostname }}"
+      run_once:                         true
 
-        - name:                         "Test Execution: Stop HANA on target node"
-          become:                       true
-          become_user:                  "{{ db_sid | lower }}adm"
-          ansible.builtin.shell: |
+    - name:                             "Test Execution: Put cluster in maintenance mode"
+      when:                             database_high_availability | default(false) | bool
+      ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','cluster_maintenance_on')
+                                          | map(attribute=(ansible_os_family | upper))
+                                          | first
+                                        }}
+      args:
+        executable:                     /bin/bash
+      register:                         cluster_maintenance_on_result
+      run_once:                         true
+      changed_when:                     cluster_maintenance_on_result.rc == 0
+      failed_when:                      cluster_maintenance_on_result.rc != 0
+
+    - name:                             "Test Execution: Stop HANA on target VM"
+      become_user:                      "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                        set -o pipefail
                                         source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                         HDB stop
-          args:
-            executable:                 /bin/bash
-          register:                     hana_target_stop
-          delegate_to:                  "{{ backup_target_node }}"
-          run_once:                     true
-          changed_when:                 hana_target_stop.rc == 0
-          failed_when:                  false
+      args:
+        executable:                     /bin/bash
+      register:                         alr_hana_stop
+      delegate_to:                      "{{ backup_target_vm_name }}"
+      run_once:                         true
+      changed_when:                     alr_hana_stop.rc == 0
+      failed_when:                      false
 
-        - name:                         "Test Execution: Trigger cross-VM restore"
-          delegate_to:                  localhost
-          azure_backup_hana:
-            operation:                  "restore_to_database"
-            vault_resource_id:           "{{ backup_vault_resource_id }}"
-            subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
-            msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
-            container_name:             "{{ backup_container_name }}"
-            item_name:                  "{{ backup_item_name }}"
-            target_container_name:      "{{ backup_target_container_name }}"
-            target_database_name:       "{{ backup_target_database_name }}"
-            restore_point_time:         "{{ backup_restore_point_time | default('') }}"
-          register:                     cross_vm_restore_result
-          run_once:                     true
+    # --- Restore each discovered database to the alternate VM ---
+    - name:                             "Test Execution: ALR - Restore database '{{ db_item.name }}' to {{ backup_target_vm_name }}"
+      delegate_to:                      localhost
+      azure_backup_hana:
+        operation:                      "restore_to_database"
+        vault_resource_id:              "{{ backup_vault_resource_id }}"
+        subscription_id:                "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+        msi_client_id:                  "{{ user_assigned_identity_client_id | default('') }}"
+        container_name:                 "{{ db_item.container_name }}"
+        item_name:                      "{{ db_item.item_name }}"
+        restore_point_time:             "{{ backup_restore_point_time | default('') }}"
+        restore_mode:                   "AlternateWorkloadRestore"
+        target_container_name:          "{{ backup_alr_target_container | trim }}"
+        target_database_name:           "{{ 'SAPHanaDatabase;' ~ (db_sid | lower) ~ ';' ~ db_item.name }}"
+        source_resource_id:             >-
+          {{ '/subscriptions/' ~ (azure_instance_metadata.json.compute.subscriptionId)
+             ~ '/resourceGroups/' ~ (backup_target_vm_rg | default(azure_instance_metadata.json.compute.resourceGroupName))
+             ~ '/providers/Microsoft.Compute/virtualMachines/' ~ backup_target_vm_name }}
+      register:                         alr_restore_results
+      run_once:                         true
+      loop:                             "{{ pre_backup_discovery.protected_items }}"
+      loop_control:
+        loop_var:                       db_item
+        label:                          "{{ db_item.name }}"
 
-        - name:                         "Test Execution: Wait for cross-VM restore job"
-          delegate_to:                  localhost
-          azure_backup_hana:
-            operation:                  "check_restore_job"
-            vault_resource_id:           "{{ backup_vault_resource_id }}"
-            subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
-            msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
-            restore_job_id:             "{{ cross_vm_restore_result.restore_job.job_id }}"
-            poll_interval_seconds:      "{{ backup_poll_interval | default(30) }}"
-            poll_timeout_seconds:       "{{ backup_poll_timeout | default(7200) }}"
-          register:                     cross_vm_job_status
-          run_once:                     true
-          when:                         cross_vm_restore_result.restore_job.job_id | default('') | length > 0
+    - name:                             "Test Execution: ALR - Wait for each restore job to complete"
+      delegate_to:                      localhost
+      azure_backup_hana:
+        operation:                      "check_restore_job"
+        vault_resource_id:              "{{ backup_vault_resource_id }}"
+        subscription_id:                "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+        msi_client_id:                  "{{ user_assigned_identity_client_id | default('') }}"
+        restore_job_id:                 "{{ db_restore.restore_job.job_id }}"
+        poll_interval_seconds:          "{{ backup_poll_interval | default(30) }}"
+        poll_timeout_seconds:           "{{ backup_poll_timeout | default(7200) }}"
+      register:                         alr_job_statuses
+      run_once:                         true
+      loop:                             "{{ alr_restore_results.results }}"
+      loop_control:
+        loop_var:                       db_restore
+        label:                          "{{ db_restore.db_item.name }}"
+      when:                             db_restore.restore_job.job_id | default('') | length > 0
 
-        - name:                         "Test Execution: Start HANA on target node"
-          become:                       true
-          become_user:                  "{{ db_sid | lower }}adm"
-          ansible.builtin.shell: |
+    - name:                             "Test Execution: Start HANA on target VM"
+      become_user:                      "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                        set -o pipefail
                                         source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                         HDB start
-          args:
-            executable:                 /bin/bash
-          register:                     hana_target_start
-          delegate_to:                  "{{ backup_target_node }}"
-          run_once:                     true
-          changed_when:                 hana_target_start.rc == 0
-          failed_when:                  false
+      args:
+        executable:                     /bin/bash
+      register:                         alr_hana_start
+      delegate_to:                      "{{ backup_target_vm_name }}"
+      run_once:                         true
+      changed_when:                     alr_hana_start.rc == 0
+      failed_when:                      false
 
-        - name:                         "Test Execution: Validate HANA on target node"
-          become:                       true
-          become_user:                  "{{ db_sid | lower }}adm"
-          ansible.builtin.shell: |
+    - name:                             "Test Execution: Validate HANA on target VM"
+      become_user:                      "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                        set -o pipefail
                                         source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                         sapcontrol -nr {{ db_instance_number }} -function GetProcessList
-          args:
-            executable:                 /bin/bash
-          register:                     hana_target_process_check
-          delegate_to:                  "{{ backup_target_node }}"
-          run_once:                     true
-          retries:                      10
-          delay:                        30
-          until:                        hana_target_process_check.rc == 0 or hana_target_process_check.rc == 3
-          failed_when:                  false
+      args:
+        executable:                     /bin/bash
+      register:                         alr_process_check
+      delegate_to:                      "{{ backup_target_vm_name }}"
+      run_once:                         true
+      retries:                          10
+      delay:                            30
+      until:                            alr_process_check.rc == 0 or alr_process_check.rc == 3
+      failed_when:                      false
 
-        - name:                         "Test Execution: Verify DB on target node"
-          become:                       true
-          become_user:                  "{{ db_sid | lower }}adm"
-          ansible.builtin.shell: |
+    - name:                             "Test Execution: Verify DB on target VM"
+      become_user:                      "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                        set -o pipefail
                                         source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                         hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
                                           "SELECT DATABASE_NAME, ACTIVE_STATUS FROM SYS.M_DATABASES"
-          args:
-            executable:                 /bin/bash
-          register:                     target_db_check
-          delegate_to:                  "{{ backup_target_node }}"
-          run_once:                     true
-          failed_when:                  false
+      args:
+        executable:                     /bin/bash
+      register:                         alr_db_check
+      delegate_to:                      "{{ backup_target_vm_name }}"
+      run_once:                         true
+      failed_when:                      false
 
-        - name:                         "Test Execution: Determine test execution status"
-          ansible.builtin.set_fact:
-            test_execution_status:      "{{ 'PASSED' if (
-                                            cross_vm_job_status.restore_job.status | default('') | lower == 'completed'
-                                            and (hana_target_process_check.rc | default(1)) in [0, 3]
+    - name:                             "Test Execution: Take cluster out of maintenance mode"
+      when:                             database_high_availability | default(false) | bool
+      ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','cluster_maintenance_off')
+                                          | map(attribute=(ansible_os_family | upper))
+                                          | first
+                                        }}
+      args:
+        executable:                     /bin/bash
+      register:                         cluster_maintenance_off_result
+      run_once:                         true
+      changed_when:                     cluster_maintenance_off_result.rc == 0
+      failed_when:                      false
+
+    # --- Compute overall status ---
+    - name:                             "Test Execution: Compute ALR results summary"
+      ansible.builtin.set_fact:
+        alr_all_completed:              "{{ alr_job_statuses.results | default([])
+                                            | map(attribute='restore_job.status')
+                                            | map('lower')
+                                            | reject('equalto','completed')
+                                            | list | length == 0 }}"
+      run_once:                         true
+
+    - name:                             "Test Execution: Determine test execution status"
+      ansible.builtin.set_fact:
+        test_execution_status:          "{{ 'PASSED' if (
+                                            alr_all_completed | bool
+                                            and (alr_process_check.rc | default(1)) in [0, 3]
                                           ) else 'FAILED' }}"
-          run_once:                     true
+      run_once:                         true
 
-        - name:                         "Test Execution: Stop timer"
-          ansible.builtin.set_fact:
-            test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
-          run_once:                     true
+    - name:                             "Test Execution: Stop timer"
+      ansible.builtin.set_fact:
+        test_execution_end:             "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
+      run_once:                         true
 
-        - name:                         "Set test case message and details"
-          ansible.builtin.set_fact:
-            test_case_message_from_test_case: >-
-              Cross-VM restore: {{ cross_vm_job_status.restore_job.status | default('N/A') }},
-              Source: {{ backup_source_node }}, Target: {{ backup_target_node }},
-              Target HANA running: {{ (hana_target_process_check.rc | default(1)) in [0, 3] }},
-              Job ID: {{ cross_vm_restore_result.restore_job.job_id | default('N/A') }}
-            test_case_details_from_test_case:
-              source_node:              "{{ backup_source_node }}"
-              target_node:              "{{ backup_target_node }}"
-              restore_trigger:          "{{ cross_vm_restore_result }}"
-              restore_job_status:       "{{ cross_vm_job_status }}"
-              hana_target_stop:         "{{ hana_target_stop }}"
-              hana_target_start:        "{{ hana_target_start }}"
-              hana_target_process:      "{{ hana_target_process_check }}"
-              target_db_check:          "{{ target_db_check }}"
-          run_once:                     true
+    - name:                             "Set test case message and details"
+      ansible.builtin.set_fact:
+        test_case_message_from_test_case: >-
+          Cross-VM Restore (ALR) for {{ pre_backup_discovery.protected_items | length }} DB(s) to {{ backup_target_vm_name }}:
+          All completed: {{ alr_all_completed }},
+          Target HANA running: {{ (alr_process_check.rc | default(1)) in [0, 3] }},
+          DB consistent: {{ (alr_db_check.rc | default(1)) == 0 }}
+        test_case_details_from_test_case:
+          target_vm:                    "{{ backup_target_vm_name }}"
+          databases_restored:           "{{ pre_backup_discovery.protected_items | map(attribute='name') | list }}"
+          restore_results:              "{{ alr_restore_results.results | default([]) }}"
+          restore_job_statuses:         "{{ alr_job_statuses.results | default([]) }}"
+          hana_target_stop:             "{{ alr_hana_stop }}"
+          hana_target_start:            "{{ alr_hana_start }}"
+          hana_target_process:          "{{ alr_process_check }}"
+          target_db_check:              "{{ alr_db_check }}"
+      run_once:                         true
 
-        - name:                         "Post Validations Tasks"
-          ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/post-validations-backup.yml"
-          run_once:                     true
+    - name:                             "Post Validations Tasks"
+      ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/post-validations-backup.yml"
+      run_once:                         true
 
   rescue:
     - name:                             "Rescue operation"
@@ -198,12 +262,12 @@
     - name:                             "Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
-          Pre Validations for cross-VM restore failed.
+          Pre Validations for cross-VM restore (ALR) failed.
           Protected items: {{ pre_backup_discovery.protected_items | default([]) | length }},
-          Available nodes: {{ ansible_play_hosts | length }}
+          Target VM: {{ backup_target_vm_name | default('NOT SET') }}
         test_case_details_from_test_case:
           pre_validation:               "{{ pre_backup_discovery | default({}) }}"
-          available_nodes:              "{{ ansible_play_hosts }}"
+          target_vm:                    "{{ backup_target_vm_name | default('NOT SET') }}"
       run_once:                         true
 
     - name:                             "Post Validations Tasks"

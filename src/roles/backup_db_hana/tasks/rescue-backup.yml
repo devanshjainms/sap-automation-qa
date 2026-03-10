@@ -16,6 +16,21 @@
     test_case_details:                  "{{ ansible_failed_result | default('No error details available') }}"
     test_case_var_log_messages:         []
 
+- name:                                 "Rescue: Take cluster out of maintenance mode"
+  when:                                 database_high_availability | default(false) | bool
+  become:                               true
+  ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','cluster_maintenance_off')
+                                          | map(attribute=(ansible_os_family | upper))
+                                          | first
+                                        }}
+  args:
+    executable:                         /bin/bash
+  run_once:                             true
+  changed_when:                         false
+  failed_when:                          false
+
 - name:                                 "Post Telemetry Data"
   ansible.builtin.include_tasks:        "roles/misc/tasks/post-telemetry-data.yml"
   run_once:                             true

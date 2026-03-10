@@ -2,7 +2,7 @@
 # Licensed under the MIT License.
 
 # /*---------------------------------------------------------------------------
-# |       Restore Backup to HANA DB using Azure Backup                        |
+# |       Restore Backup to HANA DB using Azure Backup (OLR)                  |
 # +--------------------------------------------------------------------------*/
 
 - name:                                 "Test Setup Tasks"
@@ -38,26 +38,17 @@
             backup_secondary_node:  "{{ cluster_status_pre.secondary_node }}"
           run_once:                 true
 
-        - name:                     "Pre Validation: Resolve restore target for HSR"
+        - name:                     "Pre Validation: Resolve primary VM details for HSR"
           ansible.builtin.set_fact:
             backup_restore_vm_name:        "{{ hostvars[backup_primary_node].azure_instance_metadata.json.compute.name }}"
             backup_restore_vm_rg:          "{{ hostvars[backup_primary_node].azure_instance_metadata.json.compute.resourceGroupName }}"
             backup_restore_subscription:   "{{ hostvars[backup_primary_node].azure_instance_metadata.json.compute.subscriptionId }}"
           run_once:                 true
 
-        - name:                     "Pre Validation: Build HSR restore parameters"
+        - name:                     "Pre Validation: Build HSR primary restore container"
           ansible.builtin.set_fact:
             backup_restore_target_container: >-
               VMAppContainer;Compute;{{ backup_restore_vm_rg }};{{ backup_restore_vm_name }}
-            backup_restore_target_db: >-
-              SAPHanaDatabase;{{ db_sid | lower }};{{ backup_item_name.split(';')[-1] }}
-          run_once:                 true
-
-        - name:                     "Pre Validation: Log HSR restore targets"
-          ansible.builtin.debug:
-            msg: >-
-              HSR restore target: container={{ backup_restore_target_container | trim }},
-              db={{ backup_restore_target_db | trim }}
           run_once:                 true
 
     - name:                         "Pre Validation: Set standalone node facts"
@@ -66,6 +57,13 @@
         backup_secondary_node:      ""
       run_once:                     true
       when:                         not (database_high_availability | default(false) | bool)
+
+    - name:                         "Pre Validation: Log discovered databases"
+      ansible.builtin.debug:
+        msg: >-
+          Discovered {{ pre_backup_discovery.protected_items | length }} database(s):
+          {{ pre_backup_discovery.protected_items | map(attribute='name') | list | join(', ') }}
+      run_once:                     true
 
     - name:                         "Pre Validation: Override status if no backup items found"
       ansible.builtin.set_fact:
@@ -77,7 +75,7 @@
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                             "Test Execution: Restore backup to HANA DB"
+- name:                             "Test Execution: Restore backup to HANA DB (OLR)"
   when:
                                     - node_tier == "hana"
                                     - pre_validations_status == "PASSED"
@@ -88,6 +86,21 @@
         test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
         test_execution_hostname:    "{{ ansible_hostname }}"
       run_once:                     true
+
+    - name:                         "Test Execution: Put cluster in maintenance mode"
+      when:                         database_high_availability | default(false) | bool
+      ansible.builtin.shell: >-
+                                    set -o pipefail && {{ commands
+                                      | selectattr('name','equalto','cluster_maintenance_on')
+                                      | map(attribute=(ansible_os_family | upper))
+                                      | first
+                                    }}
+      args:
+        executable:                 /bin/bash
+      register:                     cluster_maintenance_on_result
+      run_once:                     true
+      changed_when:                 cluster_maintenance_on_result.rc == 0
+      failed_when:                  cluster_maintenance_on_result.rc != 0
 
     - name:                         "Test Execution: HSR - Stop HANA on secondary node"
       become_user:                  "{{ db_sid | lower }}adm"
@@ -138,38 +151,46 @@
       changed_when:                 hana_stop_result.rc == 0
       failed_when:                  false
 
-    - name:                         "Test Execution: Trigger restore to database"
+    - name:                         "Test Execution: Restore database '{{ db_item.name }}'"
       delegate_to:                  localhost
       azure_backup_hana:
         operation:                  "restore_to_database"
         vault_resource_id:          "{{ backup_vault_resource_id }}"
         subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
         msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
-        container_name:             "{{ backup_container_name }}"
-        item_name:                  "{{ backup_item_name }}"
+        container_name:             "{{ db_item.container_name }}"
+        item_name:                  "{{ db_item.item_name }}"
         restore_point_time:         "{{ backup_restore_point_time | default('') }}"
-        restore_mode:               "{{ 'AlternateWorkloadRestore' if (database_high_availability | bool) else '' }}"
-        target_container_name:      "{{ (backup_restore_target_container | trim) if (database_high_availability | bool) else '' }}"
-        target_database_name:       "{{ (backup_restore_target_db | trim) if (database_high_availability | bool) else '' }}"
+        restore_mode:               "{{ 'AlternateWorkloadRestore' if (database_high_availability | default(false) | bool) else '' }}"
+        target_container_name:      "{{ (backup_restore_target_container | trim) if (database_high_availability | default(false) | bool) else '' }}"
+        target_database_name:       "{{ ('SAPHanaDatabase;' ~ (db_sid | lower) ~ ';' ~ db_item.name) if (database_high_availability | default(false) | bool) else '' }}"
         source_resource_id:         >-
           {{ '/subscriptions/' ~ backup_restore_subscription ~ '/resourceGroups/' ~ backup_restore_vm_rg ~ '/providers/Microsoft.Compute/virtualMachines/' ~ backup_restore_vm_name
-             if (database_high_availability | bool) else '' }}
-      register:                     restore_to_db_result
+             if (database_high_availability | default(false) | bool) else '' }}
+      register:                     restore_to_db_results
       run_once:                     true
+      loop:                         "{{ pre_backup_discovery.protected_items }}"
+      loop_control:
+        loop_var:                   db_item
+        label:                      "{{ db_item.name }}"
 
-    - name:                         "Test Execution: Wait for restore job to complete"
+    - name:                         "Test Execution: Wait for each restore job to complete"
       delegate_to:                  localhost
       azure_backup_hana:
         operation:                  "check_restore_job"
         vault_resource_id:          "{{ backup_vault_resource_id }}"
         subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
         msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
-        restore_job_id:             "{{ restore_to_db_result.restore_job.job_id }}"
+        restore_job_id:             "{{ db_restore.restore_job.job_id }}"
         poll_interval_seconds:      "{{ backup_poll_interval | default(30) }}"
         poll_timeout_seconds:       "{{ backup_poll_timeout | default(7200) }}"
-      register:                     restore_job_status
+      register:                     restore_job_statuses
       run_once:                     true
-      when:                         restore_to_db_result.restore_job.job_id | default('') | length > 0
+      loop:                         "{{ restore_to_db_results.results }}"
+      loop_control:
+        loop_var:                   db_restore
+        label:                      "{{ db_restore.db_item.name }}"
+      when:                         db_restore.restore_job.job_id | default('') | length > 0
 
     - name:                         "Test Execution: Start HANA DB after restore"
       become_user:                  "{{ db_sid | lower }}adm"
@@ -201,7 +222,7 @@
       until:                        hana_process_check.rc == 0 or hana_process_check.rc == 3
       failed_when:                  false
 
-    - name:                         "Test Execution: HSR - Enable replication on primary"
+    - name:                         "Test Execution: HSR - Re-establish replication"
       when:                         database_high_availability | bool
       block:
 
@@ -270,20 +291,44 @@
           failed_when:              false
           when:                     hsr_register_result.rc | default(1) == 0
 
-        - name:                     "Test Execution: Determine test execution status (HSR)"
-          ansible.builtin.set_fact:
-            test_execution_status:  "{{ 'PASSED' if (
-                                        restore_job_status.restore_job.status | default('') | lower == 'completed'
+        - name:                     "Test Execution: HSR - Take cluster out of maintenance mode"
+          ansible.builtin.shell: >-
+                                    set -o pipefail && {{ commands
+                                      | selectattr('name','equalto','cluster_maintenance_off')
+                                      | map(attribute=(ansible_os_family | upper))
+                                      | first
+                                    }}
+          args:
+            executable:             /bin/bash
+          register:                 cluster_maintenance_off_result
+          run_once:                 true
+          changed_when:             cluster_maintenance_off_result.rc == 0
+          failed_when:              false
+
+    - name:                         "Test Execution: Compute restore results summary"
+      ansible.builtin.set_fact:
+        restore_all_completed:      "{{ restore_job_statuses.results | default([])
+                                        | map(attribute='restore_job.status')
+                                        | map('lower')
+                                        | reject('equalto','completed')
+                                        | list | length == 0 }}"
+      run_once:                     true
+
+    - name:                         "Test Execution: Determine test execution status (HSR)"
+      when:                         database_high_availability | default(false) | bool
+      ansible.builtin.set_fact:
+        test_execution_status:      "{{ 'PASSED' if (
+                                        restore_all_completed | bool
                                         and (hana_process_check.rc | default(1)) in [0, 3]
                                         and hsr_register_result.rc | default(1) == 0
                                       ) else 'FAILED' }}"
-          run_once:                 true
+      run_once:                     true
 
     - name:                         "Test Execution: Determine test execution status (standalone)"
-      when:                         not (database_high_availability | bool)
+      when:                         not (database_high_availability | default(false) | bool)
       ansible.builtin.set_fact:
         test_execution_status:      "{{ 'PASSED' if (
-                                        restore_job_status.restore_job.status | default('') | lower == 'completed'
+                                        restore_all_completed | bool
                                         and (hana_process_check.rc | default(1)) in [0, 3]
                                       ) else 'FAILED' }}"
       run_once:                     true
@@ -296,32 +341,32 @@
     - name:                         "Set test case message and details (standalone)"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
-          Restore to DB (OLR):
-          {{ restore_job_status.restore_job.status | default('N/A') }},
-          HANA DB running: {{ (hana_process_check.rc | default(1)) in [0, 3] }},
-          Job ID: {{ restore_to_db_result.restore_job.job_id | default('N/A') }}
+          Restore to DB (OLR) for {{ pre_backup_discovery.protected_items | length }} DB(s):
+          All completed: {{ restore_all_completed }},
+          HANA DB running: {{ (hana_process_check.rc | default(1)) in [0, 3] }}
         test_case_details_from_test_case:
           topology:                 "Standalone"
-          restore_trigger:          "{{ restore_to_db_result }}"
-          restore_job_status:       "{{ restore_job_status }}"
+          databases_restored:       "{{ pre_backup_discovery.protected_items | map(attribute='name') | list }}"
+          restore_results:          "{{ restore_to_db_results.results | default([]) }}"
+          restore_job_statuses:     "{{ restore_job_statuses.results | default([]) }}"
           hana_stop:                "{{ hana_stop_result }}"
           hana_start:               "{{ hana_start_result }}"
           hana_process_check:       "{{ hana_process_check }}"
       run_once:                     true
-      when:                         not (database_high_availability | bool)
+      when:                         not (database_high_availability | default(false) | bool)
 
     - name:                         "Set test case message and details (HSR)"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
-          Restore to DB (HSR - AlternateWorkloadRestore):
-          {{ restore_job_status.restore_job.status | default('N/A') }},
+          Restore to DB (HSR - AlternateWorkloadRestore) for {{ pre_backup_discovery.protected_items | length }} DB(s):
+          All completed: {{ restore_all_completed }},
           HANA DB running: {{ (hana_process_check.rc | default(1)) in [0, 3] }},
-          HSR re-established: {{ (hsr_register_result.rc | default(1)) == 0 }},
-          Job ID: {{ restore_to_db_result.restore_job.job_id | default('N/A') }}
+          HSR re-established: {{ (hsr_register_result.rc | default(1)) == 0 }}
         test_case_details_from_test_case:
           topology:                 "HSR"
-          restore_trigger:          "{{ restore_to_db_result }}"
-          restore_job_status:       "{{ restore_job_status }}"
+          databases_restored:       "{{ pre_backup_discovery.protected_items | map(attribute='name') | list }}"
+          restore_results:          "{{ restore_to_db_results.results | default([]) }}"
+          restore_job_statuses:     "{{ restore_job_statuses.results | default([]) }}"
           hana_stop:                "{{ hana_stop_result }}"
           hana_start:               "{{ hana_start_result }}"
           hana_process_check:       "{{ hana_process_check }}"
