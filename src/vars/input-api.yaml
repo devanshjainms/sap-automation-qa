@@ -196,51 +196,6 @@ test_groups:
         applicability:
           topology:                 [scale_out_hsr]
 
-  - name:                           BACKUP_DB_HANA
-    test_cases:
-      - name:                       Azure Backup Setup Verification
-        task_name:                  backup-setup-verification
-        description: |
-          Validates Azure Backup configuration for SAP HANA databases by discovering all protected
-          databases in the Recovery Services vault, verifying their backup configuration status and
-          health, and checking the last restore point for each protected item.
-        enabled:                    true
-
-      - name:                       Restore Backup to HANA DB
-        task_name:                  restore-to-db
-        description: |
-          Tests the restore-to-database functionality of Azure Backup for SAP HANA. Triggers a
-          full backup or point-in-time restore to the original HANA database, monitors the
-          restore job until completion, and validates that the HANA DB is running correctly
-          after the restore operation.
-        enabled:                    true
-
-      - name:                       Restore Backup to FileSystem
-        task_name:                  restore-to-filesystem
-        description: |
-          Tests the restore-as-files functionality of Azure Backup for SAP HANA. Restores
-          the HANA database backup to a filesystem path, verifies the backup files are present,
-          then performs a HANA DB recovery from the backup files and validates the database
-          is operational.
-        enabled:                    true
-
-      - name:                       Recover DB using Database Commands
-        task_name:                  recover-db-commands
-        description: |
-          Tests HANA database recovery using native database commands (RECOVER DATA).
-          Queries the backup catalog, stops the HANA instance, performs recovery using
-          recoverSys.py, restarts the instance, and validates database consistency.
-        enabled:                    true
-
-      - name:                       Cross-VM Restore
-        task_name:                  restore-cross-vm
-        description: |
-          Tests restoring a HANA database backup from one VM to a second HANA DB VM using
-          Azure Backup. This validates the AlternateWorkloadRestore capability. The test
-          triggers the cross-VM restore, monitors the job, and validates that the target
-          HANA instance is running with a consistent database.
-        enabled:                    true
-
   - name:                           HA_SCS
     test_cases:
       - name:                       "HA Parameters Validation"
@@ -351,6 +306,52 @@ test_groups:
           cluster behavior, automatic failover execution.
         enabled:                    true
 
+  - name:                           BACKUP_DB_HANA
+    test_cases:
+      - name:                       Azure Backup Setup Verification
+        task_name:                  backup-setup-verification
+        description: |
+          Validates Azure Backup configuration for SAP HANA databases by discovering all protected
+          databases in the Recovery Services vault, verifying their backup configuration status and
+          health, and checking the last restore point for each protected item.
+        enabled:                    true
+
+      - name:                       Restore Backup to HANA DB
+        task_name:                  restore-to-db
+        description: |
+          Tests the restore-to-database functionality of Azure Backup for SAP HANA.
+          For standalone (non-HA) deployments, triggers an Original Location Recovery (OLR).
+          For HSR topologies, breaks replication before restore, uses AlternateWorkloadRestore
+          (OLR is not supported for HSR per Microsoft documentation), and re-establishes
+          HSR replication after restore completes. Monitors the restore job and validates
+          that the HANA DB is running correctly after the operation.
+        enabled:                    true
+
+      - name:                       Restore Backup to FileSystem
+        task_name:                  restore-to-filesystem
+        description: |
+          Tests the restore-as-files functionality of Azure Backup for SAP HANA. Restores
+          the HANA database backup to a filesystem path, verifies the backup files are present,
+          then performs a HANA DB recovery from the backup files and validates the database
+          is operational.
+        enabled:                    true
+
+      - name:                       Recover DB using Database Commands
+        task_name:                  recover-db-commands
+        description: |
+          Tests HANA database recovery using native database commands (RECOVER DATA).
+          Queries the backup catalog, stops the HANA instance, performs recovery using
+          recoverSys.py, restarts the instance, and validates database consistency.
+        enabled:                    true
+
+      - name:                       Cross-VM Restore
+        task_name:                  restore-cross-vm
+        description: |
+          Tests restoring a HANA database backup from one VM to a second HANA DB VM using
+          Azure Backup. This validates the AlternateWorkloadRestore capability. The test
+          triggers the cross-VM restore, monitors the job, and validates that the target
+          HANA instance is running with a consistent database.
+        enabled:                    true
 
 # Default values for HANA DB HA Test Cases
 sap_sid:                            "HDB"
@@ -381,6 +382,10 @@ backup_poll_interval:               30
 backup_poll_timeout:                7200
 backup_recover_timeout:             3600
 hana_userstore_key:                 "SYSTEM"
+backup_hsr_primary_site:            "site1"
+backup_hsr_secondary_site:          "site2"
+backup_hsr_replication_mode:        "syncmem"
+backup_hsr_operation_mode:          "logreplay"
 
 # Commands for HANA DB HA Test Cases based on OS family
 commands:

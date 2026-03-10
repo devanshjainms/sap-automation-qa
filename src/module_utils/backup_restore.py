@@ -1,0 +1,570 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+"""
+Restore operation helpers for Azure Backup HANA.
+"""
+
+import logging
+import time
+from typing import Any, Callable, Dict, List, Optional
+from azure.mgmt.recoveryservicesbackup import RecoveryServicesBackupClient
+from azure.mgmt.recoveryservicesbackup.models import (
+    RecoveryPointResource,
+    RestoreRequestResource,
+    AzureWorkloadSAPHanaRestoreRequest,
+    TargetRestoreInfo,
+)
+
+try:
+    from src.module_utils.enums import TestStatus
+except ImportError:
+    from ansible.module_utils.enums import TestStatus
+
+RESTORE_MODE_TO_RECOVERY_TYPE = {
+    "AlternateWorkloadRestore": "AlternateLocation",
+    "OriginalWorkloadRestore": "OriginalLocation",
+    "RestoreAsFiles": "RestoreAsFiles",
+    "AlternateLocation": "AlternateLocation",
+    "OriginalLocation": "OriginalLocation",
+}
+
+
+class BackupRestoreHelper:
+    """Restore operations for Azure Backup HANA.
+
+    :param client: Authenticated Recovery Services Backup client.
+    :param vault_name: Name of the Recovery Services vault.
+    :param vault_resource_group: Resource group of the vault.
+    :param subscription_id: Azure subscription ID.
+    :param poll_interval: Seconds between job status polls.
+    :param poll_timeout: Maximum seconds to wait for job completion.
+    :param log_fn: Optional callback ``(level, message)`` for structured logging.
+    """
+
+    TERMINAL_JOB_STATUSES = frozenset(
+        {
+            "completed",
+            "failed",
+            "cancelled",
+            "completedwithwarnings",
+        }
+    )
+
+    def __init__(
+        self,
+        client: RecoveryServicesBackupClient,
+        vault_name: str,
+        vault_resource_group: str,
+        subscription_id: str,
+        poll_interval: int = 30,
+        poll_timeout: int = 7200,
+        log_fn: Optional[Callable[[int, str], None]] = None,
+    ) -> None:
+        self._client = client
+        self._vault_name = vault_name
+        self._vault_rg = vault_resource_group
+        self._subscription_id = subscription_id
+        self._poll_interval = poll_interval
+        self._poll_timeout = poll_timeout
+        self._log = log_fn or (lambda _lvl, _msg: None)
+
+    @staticmethod
+    def rp_name_from_id(rp_id: str) -> str:
+        """Extract the recovery-point name from its ARM id.
+
+        :param rp_id: Full ARM resource ID.
+        :returns: Last segment (the RP name).
+        """
+        return rp_id.rsplit("/", 1)[-1] if rp_id else ""
+
+    @staticmethod
+    def build_container_id(
+        subscription_id: str,
+        vm_name: str,
+        resource_group: str,
+    ) -> str:
+        """Build the ARM container resource ID for a VM.
+
+        :param subscription_id: Azure subscription ID.
+        :param vm_name: Target VM name.
+        :param resource_group: Target VM resource group.
+        :returns: ARM resource ID for the container.
+        """
+        return (
+            f"/subscriptions/{subscription_id}"
+            f"/resourceGroups/{resource_group}"
+            f"/providers/Microsoft.Compute"
+            f"/virtualMachines/{vm_name}"
+        )
+
+    def _vm_id_to_container_id(
+        self,
+        vm_resource_id: str,
+    ) -> str:
+        """Convert a VM Compute ARM ID to a protection container ID.
+
+        The Azure Backup ``TargetRestoreInfo.container_id``
+        must reference the protection container inside the
+        Recovery Services vault, *not* the VM's Compute
+        resource ID.
+
+        :param vm_resource_id: ARM resource ID of the VM
+            (``/subscriptions/.../Microsoft.Compute/
+            virtualMachines/{name}``).
+        :returns: Full ARM ID of the corresponding
+            protection container in the vault.
+        """
+        parts = vm_resource_id.strip("/").split("/")
+        lookup = {parts[i].lower(): parts[i + 1] for i in range(0, len(parts) - 1, 2)}
+        rg = lookup.get("resourcegroups", "")
+        vm = lookup.get("virtualmachines", "")
+        return (
+            f"/subscriptions/{self._subscription_id}"
+            f"/resourceGroups/{self._vault_rg}"
+            f"/providers"
+            f"/Microsoft.RecoveryServices"
+            f"/vaults/{self._vault_name}"
+            f"/backupFabrics/Azure"
+            f"/protectionContainers"
+            f"/VMAppContainer;Compute;{rg};{vm}"
+        )
+
+    @staticmethod
+    def extract_job_id_from_poller(
+        poller: Any,
+    ) -> str:
+        """Extract the job ID from the restore LRO poller.
+
+        :param poller: LRO poller from ``begin_trigger``.
+        :returns: Job ID string (may be empty).
+        """
+        try:
+            headers = poller.initial_response().http_response.headers
+            for header_key in (
+                "azure-asyncoperation",
+                "location",
+            ):
+                url = headers.get(header_key, "")
+                if not url:
+                    continue
+                parts = url.split("/")
+                for i, segment in enumerate(parts):
+                    if segment in (
+                        "operationResults",
+                        "backupJobs",
+                    ) and i + 1 < len(parts):
+                        return parts[i + 1].split("?")[0]
+        except Exception:
+            logging.getLogger(__name__).debug(
+                "Could not extract job ID from poller " "headers.",
+                exc_info=True,
+            )
+        return ""
+
+    @staticmethod
+    def build_workload_restore(
+        rp_id: str,
+        restore_mode: str,
+        target_container_name: str = "",
+        target_database_name: str = "",
+        source_resource_id: str = "",
+    ) -> RestoreRequestResource:
+        """Construct a workload restore request model.
+
+        :param rp_id: Recovery point ARM resource ID.
+        :param restore_mode: ``OriginalWorkloadRestore`` or
+            ``AlternateWorkloadRestore`` (CLI style), or
+            ``OriginalLocation`` / ``AlternateLocation``
+            (SDK style).  Mapped to the SDK ``RecoveryType``
+            automatically.
+        :param target_container_name: For cross-VM restores.
+            Must be the full ARM ID of the target protection
+            container inside the Recovery Services vault.
+        :param target_database_name: For cross-VM restores.
+        :param source_resource_id: ARM resource ID of the
+            source VM.  When empty the field is omitted
+            from the request (required for HSR containers
+            where the protected item has no source VM).
+        :returns: SDK ``RestoreRequestResource`` object.
+        """
+        recovery_type = RESTORE_MODE_TO_RECOVERY_TYPE.get(restore_mode, restore_mode)
+        is_alternate = recovery_type == "AlternateLocation"
+        target_info = (
+            TargetRestoreInfo(
+                overwrite_option="Overwrite",
+                container_id=target_container_name,
+                database_name=target_database_name,
+            )
+            if is_alternate
+            else None
+        )
+        return RestoreRequestResource(
+            properties=AzureWorkloadSAPHanaRestoreRequest(
+                recovery_type=recovery_type,
+                source_resource_id=(source_resource_id or None),
+                target_info=target_info,
+                recovery_mode="WorkloadRecovery",
+            ),
+        )
+
+    @staticmethod
+    def build_filesystem_restore_request(
+        rp_id: str,
+        target_filesystem_path: str,
+        container_id: Optional[str],
+    ) -> RestoreRequestResource:
+        """Construct a restore-as-files request model.
+
+        :param rp_id: Recovery point ARM resource ID.
+        :param target_filesystem_path: Destination path.
+        :param container_id: ARM container ID (or ``None``).
+        :returns: SDK ``RestoreRequestResource`` object.
+        """
+        return RestoreRequestResource(
+            properties=AzureWorkloadSAPHanaRestoreRequest(
+                recovery_type="RestoreAsFiles",
+                target_info=TargetRestoreInfo(
+                    overwrite_option="Overwrite",
+                    container_id=container_id,
+                    target_directory_for_file_restore=(target_filesystem_path),
+                ),
+            ),
+        )
+
+    @staticmethod
+    def map_job_result_status(
+        job_id: str,
+        status: str,
+        elapsed: int,
+        poll_timeout: int,
+    ) -> tuple[str, str]:
+        """Map a terminal job status to TestStatus and message.
+
+        :param job_id: Azure Backup job ID.
+        :param status: Final job status string.
+        :param elapsed: Seconds elapsed during polling.
+        :param poll_timeout: Maximum allowed seconds.
+        :returns: ``(test_status_value, message)`` tuple.
+        """
+        lower = status.lower()
+        if lower == "completed":
+            return (
+                TestStatus.SUCCESS.value,
+                f"Restore job {job_id} completed " f"successfully in {elapsed}s.",
+            )
+        if lower == "completedwithwarnings":
+            return (
+                TestStatus.WARNING.value,
+                f"Restore job {job_id} completed " f"with warnings in {elapsed}s.",
+            )
+        if elapsed >= poll_timeout:
+            return (
+                TestStatus.ERROR.value,
+                f"Restore job {job_id} timed out after " f"{elapsed}s (last status: {status}).",
+            )
+        return (
+            TestStatus.ERROR.value,
+            f"Restore job {job_id} ended with " f"status '{status}'.",
+        )
+
+    def _list_recovery_points(
+        self,
+        container_name: str,
+        item_name: str,
+    ) -> List[RecoveryPointResource]:
+        """Fetch recovery points for a protected item.
+
+        :param container_name: Backup container name.
+        :param item_name: Backup item name.
+        :returns: List of SDK ``RecoveryPointResource``.
+        """
+        return list(
+            self._client.recovery_points.list(
+                vault_name=self._vault_name,
+                resource_group_name=self._vault_rg,
+                fabric_name="Azure",
+                container_name=container_name,
+                protected_item_name=item_name,
+            )
+        )
+
+    def restore_to_database(
+        self,
+        container_name: str,
+        item_name: str,
+        restore_point_time: str = "",
+        target_container_name: str = "",
+        target_database_name: str = "",
+        restore_mode: str = "",
+        source_resource_id: str = "",
+    ) -> Dict[str, Any]:
+        """Trigger a restore-to-database via Azure Backup SDK.
+
+        When *restore_mode* is supplied it takes precedence over the
+        automatic cross-VM detection.  This is required for **HSR
+        topologies** where the SDK mandates
+        ``AlternateWorkloadRestore`` even when restoring to the same
+        host (OLR is not supported for HSR containers).
+
+        :param container_name: Source backup container.
+        :param item_name: Source backup item name.
+        :param restore_point_time: Optional PIT in UTC ISO-8601.
+        :param target_container_name: Target container (cross-VM).
+        :param target_database_name: Target DB (cross-VM).
+        :param restore_mode: Explicit restore mode override
+            (``OriginalWorkloadRestore`` or
+            ``AlternateWorkloadRestore``).  When empty the mode is
+            inferred from *target_container_name*.
+        :param source_resource_id: ARM resource ID of the
+            source VM.  Falls back to the recovery-point ID
+            when empty (backward-compatible for OLR).
+        :returns: Result dict with ``restore_job``, ``status``,
+            and ``message`` keys.
+        :raises Exception: Propagated from SDK calls.
+        """
+        self._log(
+            logging.INFO,
+            "Triggering restore-to-database for " f"item='{item_name}'.",
+        )
+        rp_id = self.resolve_recovery_point(
+            container_name,
+            item_name,
+            restore_point_time,
+        )
+        if not rp_id:
+            return {
+                "status": TestStatus.ERROR.value,
+                "message": ("No suitable recovery point found."),
+            }
+
+        is_cross_vm = bool(target_container_name)
+
+        if restore_mode:
+            effective_mode = restore_mode
+        else:
+            effective_mode = (
+                "AlternateWorkloadRestore" if is_cross_vm else "OriginalWorkloadRestore"
+            )
+
+        recovery_type = RESTORE_MODE_TO_RECOVERY_TYPE.get(effective_mode, effective_mode)
+        use_target = recovery_type == "AlternateLocation"
+
+        resolved_container = target_container_name if use_target else ""
+        # Convert VM Compute resource IDs to Recovery
+        # Services protection-container ARM IDs.
+        if resolved_container and ("Microsoft.Compute/virtualMachines" in resolved_container):
+            resolved_container = self._vm_id_to_container_id(
+                resolved_container,
+            )
+        elif resolved_container and not resolved_container.startswith("/subscriptions/"):
+            resolved_container = (
+                f"/subscriptions/{self._subscription_id}"
+                f"/resourceGroups/{self._vault_rg}"
+                f"/providers"
+                f"/Microsoft.RecoveryServices"
+                f"/vaults/{self._vault_name}"
+                f"/backupFabrics/Azure"
+                f"/protectionContainers"
+                f"/{resolved_container}"
+            )
+
+        resolved_db = target_database_name if use_target else ""
+
+        self._log(
+            logging.INFO,
+            "Restore params: recovery_type=%s "
+            "target_container=%s "
+            "target_db=%s source_vm=%s"
+            % (
+                recovery_type,
+                resolved_container,
+                resolved_db,
+                source_resource_id,
+            ),
+        )
+
+        restore_request = self.build_workload_restore(
+            rp_id=rp_id,
+            restore_mode=effective_mode,
+            target_container_name=resolved_container,
+            target_database_name=resolved_db,
+            source_resource_id=source_resource_id,
+        )
+
+        poller = self._client.restores.begin_trigger(
+            vault_name=self._vault_name,
+            resource_group_name=self._vault_rg,
+            fabric_name="Azure",
+            container_name=container_name,
+            protected_item_name=item_name,
+            recovery_point_id=self.rp_name_from_id(
+                rp_id,
+            ),
+            parameters=restore_request,
+        )
+        job_id = self.extract_job_id_from_poller(poller)
+        return {
+            "restore_job": {
+                "job_id": job_id,
+                "recovery_point_id": rp_id,
+                "restore_mode": effective_mode,
+            },
+            "status": TestStatus.SUCCESS.value,
+            "message": ("Restore-to-database triggered. " f"Job ID: {job_id}"),
+        }
+
+    def restore_to_filesystem(
+        self,
+        container_name: str,
+        item_name: str,
+        target_filesystem_path: str,
+        target_vm_name: str = "",
+        target_vm_resource_group: str = "",
+        restore_point_time: str = "",
+    ) -> Dict[str, Any]:
+        """Trigger a restore-as-files to a filesystem path.
+
+        :param container_name: Source backup container.
+        :param item_name: Source backup item name.
+        :param target_filesystem_path: Destination path on the VM.
+        :param target_vm_name: Target VM for the files.
+        :param target_vm_resource_group: Target VM resource group.
+        :param restore_point_time: Optional PIT in UTC ISO-8601.
+        :returns: Result dict with ``restore_job``, ``status``, and ``message`` keys.
+        :raises Exception: Propagated from SDK calls.
+        """
+        self._log(
+            logging.INFO,
+            "Triggering restore-to-filesystem for "
+            f"item='{item_name}' -> "
+            f"'{target_filesystem_path}'.",
+        )
+        rp_id = self.resolve_recovery_point(
+            container_name,
+            item_name,
+            restore_point_time,
+        )
+        if not rp_id:
+            return {
+                "status": TestStatus.ERROR.value,
+                "message": ("No suitable recovery point found."),
+            }
+
+        container_id = (
+            self.build_container_id(
+                self._subscription_id,
+                target_vm_name,
+                (target_vm_resource_group or self._vault_rg),
+            )
+            if target_vm_name
+            else None
+        )
+        job_id = self.extract_job_id_from_poller(
+            self._client.restores.begin_trigger(
+                vault_name=self._vault_name,
+                resource_group_name=self._vault_rg,
+                fabric_name="Azure",
+                container_name=container_name,
+                protected_item_name=item_name,
+                recovery_point_id=(self.rp_name_from_id(rp_id)),
+                parameters=(
+                    self.build_filesystem_restore_request(
+                        rp_id,
+                        target_filesystem_path,
+                        container_id,
+                    )
+                ),
+            )
+        )
+        return {
+            "restore_job": {
+                "job_id": job_id,
+                "recovery_point_id": rp_id,
+                "restore_mode": "RestoreAsFiles",
+                "target_path": target_filesystem_path,
+            },
+            "status": TestStatus.SUCCESS.value,
+            "message": ("Restore-to-filesystem triggered. " f"Job ID: {job_id}"),
+        }
+
+    def check_restore_job(
+        self,
+        restore_job_id: str,
+    ) -> Dict[str, Any]:
+        """Poll a restore job until it completes or times out.
+
+        :param restore_job_id: Azure Backup job ID.
+        :returns: Result dict with ``restore_job``, ``status``, and ``message`` keys.
+        :raises Exception: Propagated from SDK calls.
+        """
+        self._log(
+            logging.INFO,
+            f"Polling restore job '{restore_job_id}'.",
+        )
+        elapsed = 0
+        final_status = "Unknown"
+
+        while elapsed < self._poll_timeout:
+            job = self._client.job_details.get(
+                vault_name=self._vault_name,
+                resource_group_name=self._vault_rg,
+                job_name=restore_job_id,
+            )
+            job_props = job.properties
+            final_status = (job_props.status if job_props else "Unknown") or "Unknown"
+            self._log(
+                logging.INFO,
+                f"Job {restore_job_id}: " f"status={final_status} " f"(elapsed={elapsed}s)",
+            )
+            if final_status.lower() in self.TERMINAL_JOB_STATUSES:
+                break
+            time.sleep(self._poll_interval)
+            elapsed += self._poll_interval
+
+        test_status, message = self.map_job_result_status(
+            restore_job_id,
+            final_status,
+            elapsed,
+            self._poll_timeout,
+        )
+        return {
+            "restore_job": {
+                "job_id": restore_job_id,
+                "status": final_status,
+                "elapsed_seconds": elapsed,
+            },
+            "status": test_status,
+            "message": message,
+        }
+
+    def resolve_recovery_point(
+        self,
+        container_name: str,
+        item_name: str,
+        restore_point_time: str = "",
+    ) -> str:
+        """Return the recovery-point ID for a restore.
+
+        :param container_name: Backup container name.
+        :param item_name: Backup item name.
+        :param restore_point_time: Optional PIT timestamp.
+        :returns: Recovery point resource ID (empty on failure).
+        """
+        rp_list = self._list_recovery_points(
+            container_name,
+            item_name,
+        )
+        if not rp_list:
+            self._log(
+                logging.WARNING,
+                f"No recovery points for {item_name}.",
+            )
+            return ""
+
+        if restore_point_time:
+            self._log(
+                logging.INFO,
+                "Using point-in-time " f"{restore_point_time}.",
+            )
+        return rp_list[0].id or ""

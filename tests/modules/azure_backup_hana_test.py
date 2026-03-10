@@ -5,20 +5,36 @@ Unit tests for the azure_backup_hana module.
 """
 
 from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 import pytest
-from src.modules.azure_backup_hana import AzureBackupHana, run_module
+import yaml
+from src.modules.azure_backup_hana import (
+    AzureBackupHana,
+    run_module,
+)
 from src.module_utils.enums import TestStatus
+from src.module_utils.backup_discovery import (
+    BackupDiscovery,
+)
+from src.module_utils.backup_parameters import (
+    BackupParameterBuilder,
+)
+from src.module_utils.backup_restore import (
+    BackupRestoreHelper,
+)
 
 
 def _make_protected_item(
     friendly_name: str = "SYSTEMDB",
     server_name: str = "hanavm01",
     parent_name: str = "H05",
-    health_status: str | None = "Healthy",
+    protected_item_health_status: str | None = "Healthy",
     protection_status: str = "Protected",
     last_backup_time: datetime | None = None,
     policy_name: str = "daily-policy",
+    policy_id: str = "/subscriptions/sub/resourceGroups/rg/providers/"
+    "Microsoft.RecoveryServices/vaults/vault/backupPolicies/daily-policy",
     container_name: str = "VMAppContainer;Compute;rg;hanavm01",
     item_name: str = "saphanadatabase;h05;systemdb",
 ) -> SimpleNamespace:
@@ -30,10 +46,11 @@ def _make_protected_item(
             friendly_name=friendly_name,
             server_name=server_name,
             parent_name=parent_name,
-            health_status=health_status,
+            protected_item_health_status=protected_item_health_status,
             protection_status=protection_status,
             last_backup_time=last_backup_time or datetime(2026, 3, 1, 12, 0),
             policy_name=policy_name,
+            policy_id=policy_id,
             container_name=container_name,
         ),
     )
@@ -52,7 +69,7 @@ def _make_recovery_point(
     return SimpleNamespace(
         id=rp_id,
         properties=SimpleNamespace(
-            recovery_point_time=rp_time or datetime(2026, 3, 1, 10, 0),
+            recovery_point_time_in_utc=(rp_time or datetime(2026, 3, 1, 10, 0)),
             type=rp_type,
         ),
     )
@@ -82,6 +99,21 @@ def _make_poller(
     )
 
 
+# Load parameter definitions from the single source of truth.
+_PARAM_YAML = (
+    Path(__file__).resolve().parents[2]
+    / "src"
+    / "roles"
+    / "backup_db_hana"
+    / "vars"
+    / "backup-parameters.yml"
+)
+with open(_PARAM_YAML, encoding="utf-8") as _fh:
+    PARAM_DEFS: list[dict[str, str]] = yaml.safe_load(
+        _fh,
+    )["backup_parameters"]
+
+
 @pytest.fixture
 def mock_client(mocker):
     """Return a ``mocker.MagicMock`` standing in for ``RecoveryServicesBackupClient``."""
@@ -106,6 +138,7 @@ def backup(mock_client, mocker):
         database_sid="H05",
         poll_interval=0,
         poll_timeout=5,
+        parameter_definitions=PARAM_DEFS,
     )
     instance._client = mock_client
     return instance
@@ -136,9 +169,7 @@ class TestAzureBackupHanaInit:
 
     def test_vault_resource_id_stored(self, backup):
         """Full resource ID is stored on the instance."""
-        assert "Microsoft.RecoveryServices/vaults/test-vault" in (
-            backup.vault_resource_id
-        )
+        assert "Microsoft.RecoveryServices/vaults/test-vault" in (backup.vault_resource_id)
 
     def test_result_start_is_iso_timestamp(self, backup):
         """The start timestamp must be a valid ISO-8601 string."""
@@ -229,11 +260,15 @@ class TestStaticHelpers:
     )
     def test_rp_name_from_id(self, rp_id, expected):
         """Last ARM path segment extracted correctly."""
-        assert AzureBackupHana._rp_name_from_id(rp_id) == expected
+        assert BackupRestoreHelper.rp_name_from_id(rp_id) == expected
 
     def test_build_container_id(self, backup):
         """ARM resource ID built with correct format."""
-        cid = backup._build_container_id("myvm", "myrg")
+        cid = BackupRestoreHelper.build_container_id(
+            "sub-123",
+            "myvm",
+            "myrg",
+        )
         assert cid == (
             "/subscriptions/sub-123"
             "/resourceGroups/myrg"
@@ -241,19 +276,75 @@ class TestStaticHelpers:
             "/virtualMachines/myvm"
         )
 
-    def test_extract_item_info(self):
-        """Item info dict populated from SDK object."""
-        item = _make_protected_item(friendly_name="DB01")
-        info = AzureBackupHana._extract_item_info(item)
-        assert info["friendly_name"] == "DB01"
-        assert info["health_status"] == "Healthy"
-        assert info["item_name"] == "saphanadatabase;h05;systemdb"
+    def test_vm_id_to_container_id(self, backup):
+        """VM Compute ID converted to protection container ID."""
+        vm_id = (
+            "/subscriptions/sub-x/resourceGroups/my-rg"
+            "/providers/Microsoft.Compute"
+            "/virtualMachines/my-vm"
+        )
+        result = backup.restore_helper._vm_id_to_container_id(
+            vm_id,
+        )
+        assert "/protectionContainers/" in result
+        assert "VMAppContainer;Compute;my-rg;my-vm" in result
+        assert "Microsoft.RecoveryServices" in result
+        assert "Microsoft.Compute" not in result
 
-    def test_extract_item_info_none_health(self):
-        """None health_status falls back to 'Unknown'."""
-        item = _make_protected_item(health_status=None)
-        info = AzureBackupHana._extract_item_info(item)
-        assert info["health_status"] == "Unknown"
+    def test_get_props(self):
+        """SDK properties returned with typed dot access."""
+        item = _make_protected_item(friendly_name="DB01")
+        props = AzureBackupHana._get_props(item)
+        assert props.friendly_name == "DB01"
+        assert props.protected_item_health_status == "Healthy"
+
+    def test_get_props_none_health(self):
+        """None protected_item_health_status is passthrough (caller handles)."""
+        item = _make_protected_item(protected_item_health_status=None)
+        props = AzureBackupHana._get_props(item)
+        assert props.protected_item_health_status is None
+
+    @pytest.mark.parametrize(
+        "container, expected",
+        [
+            ("HanaHSRContainer;Compute;rg;vm", True),
+            ("hanahsrcontainer;x;y;z", True),
+            ("VMAppContainer;Compute;rg;vm", False),
+            ("", False),
+            (None, False),
+        ],
+    )
+    def test_is_hsr_container(self, container, expected):
+        """HSR container detection by name substring."""
+        assert BackupDiscovery.is_hsr_container(container) == expected
+
+    @pytest.mark.parametrize(
+        "health, protection, has_rp, is_hsr, expected",
+        [
+            ("Healthy", "Healthy", True, False, "PASSED"),
+            ("Healthy", "Protected", True, False, "PASSED"),
+            ("Unknown", "Healthy", True, True, "PASSED"),
+            ("Unknown", "Healthy", True, False, "WARNING"),
+            ("Unhealthy", "Healthy", True, False, "WARNING"),
+            ("Healthy", "NotProtected", True, False, "FAILED"),
+            ("Healthy", "Healthy", False, False, "FAILED"),
+            (None, "Healthy", True, False, "WARNING"),
+        ],
+    )
+    def test_evaluate_db_status(
+        self,
+        health,
+        protection,
+        has_rp,
+        is_hsr,
+        expected,
+    ):
+        """Per-DB status derived from health/protection/RP/HSR."""
+        props = SimpleNamespace(
+            protected_item_health_status=health,
+            protection_status=protection,
+        )
+        assert BackupDiscovery.evaluate_db_status(props, has_rp, is_hsr) == expected
 
     def test_extract_job_id_from_async_header(self):
         """Job ID parsed from ``azure-asyncoperation`` header."""
@@ -261,7 +352,7 @@ class TestStaticHelpers:
             job_id="j-999",
             header_key="azure-asyncoperation",
         )
-        assert AzureBackupHana._extract_job_id_from_poller(poller) == "j-999"
+        assert BackupRestoreHelper.extract_job_id_from_poller(poller) == "j-999"
 
     def test_extract_job_id_from_location_header(self):
         """Job ID parsed from ``location`` header
@@ -270,7 +361,7 @@ class TestStaticHelpers:
             job_id="j-loc",
             header_key="location",
         )
-        assert AzureBackupHana._extract_job_id_from_poller(poller) == "j-loc"
+        assert BackupRestoreHelper.extract_job_id_from_poller(poller) == "j-loc"
 
     def test_extract_job_id_empty_on_exception(self):
         """Empty string returned when poller raises."""
@@ -279,7 +370,7 @@ class TestStaticHelpers:
             raise RuntimeError("boom")
 
         poller = SimpleNamespace(initial_response=_raise)
-        assert AzureBackupHana._extract_job_id_from_poller(poller) == ""
+        assert BackupRestoreHelper.extract_job_id_from_poller(poller) == ""
 
     def test_extract_job_id_empty_when_no_headers(self):
         """Empty string when headers contain no matching URL."""
@@ -288,38 +379,48 @@ class TestStaticHelpers:
                 http_response=SimpleNamespace(headers={}),
             ),
         )
-        assert AzureBackupHana._extract_job_id_from_poller(poller) == ""
+        assert BackupRestoreHelper.extract_job_id_from_poller(poller) == ""
 
     def test_all_healthy(self, backup, mock_client):
-        """SUCCESS when every item is healthy."""
+        """SUCCESS when every item is healthy with restore points."""
         mock_client.backup_protected_items.list.return_value = [
             _make_protected_item(friendly_name="DB1"),
             _make_protected_item(friendly_name="DB2"),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
         ]
         result = backup.discover_protected_items()
 
         assert result["status"] == TestStatus.SUCCESS.value
         assert len(result["protected_items"]) == 2
-        assert "healthy" in result["message"].lower()
+        assert "2 PASSED" in result["message"]
         assert result["end"] is not None
+        for item in result["protected_items"]:
+            assert item["backup_status"] == TestStatus.SUCCESS.value
+            assert "hana_system" in item
+            assert "latest_restore_point" in item
 
     def test_unhealthy_items_give_warning(self, backup, mock_client):
-        """WARNING when at least one item is unhealthy."""
+        """WARNING when at least one item has non-Healthy status."""
         mock_client.backup_protected_items.list.return_value = [
-            _make_protected_item(health_status="Healthy"),
-            _make_protected_item(health_status="Unhealthy"),
+            _make_protected_item(protected_item_health_status="Healthy"),
+            _make_protected_item(protected_item_health_status="Unhealthy"),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
         ]
         result = backup.discover_protected_items()
 
         assert result["status"] == TestStatus.WARNING.value
-        assert "1 unhealthy" in result["message"]
+        assert "1 WARNING" in result["message"]
 
     def test_empty_vault(self, backup, mock_client):
-        """SUCCESS with zero items when vault is empty."""
+        """FAILED with zero items when vault is empty."""
         mock_client.backup_protected_items.list.return_value = []
         result = backup.discover_protected_items()
 
-        assert result["status"] == TestStatus.SUCCESS.value
+        assert result["status"] == TestStatus.ERROR.value
         assert result["protected_items"] == []
 
     def test_last_backup_time_none(self, backup, mock_client):
@@ -327,8 +428,497 @@ class TestStaticHelpers:
         item = _make_protected_item()
         item.properties.last_backup_time = None
         mock_client.backup_protected_items.list.return_value = [item]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
         result = backup.discover_protected_items()
         assert result["protected_items"][0]["last_backup_time"] == ""
+
+    def test_hsr_container_unknown_health_is_passed(
+        self,
+        backup,
+        mock_client,
+    ):
+        """PASSED for HSR container with Unknown health_status."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(
+                protected_item_health_status=None,
+                container_name=("HanaHSRContainer;Compute;rg;hsrvm01"),
+            ),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        result = backup.discover_protected_items()
+
+        assert result["status"] == TestStatus.SUCCESS.value
+        item = result["protected_items"][0]
+        assert item["backup_status"] == TestStatus.SUCCESS.value
+        assert item["server_type"] == "HSR"
+
+    def test_non_hsr_unknown_health_is_warning(
+        self,
+        backup,
+        mock_client,
+    ):
+        """WARNING for non-HSR container with Unknown health."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(protected_item_health_status=None),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        result = backup.discover_protected_items()
+
+        assert result["status"] == TestStatus.WARNING.value
+        item = result["protected_items"][0]
+        assert item["backup_status"] == TestStatus.WARNING.value
+        assert item["server_type"] == "Standalone Instance"
+
+    def test_no_restore_points_gives_failed(
+        self,
+        backup,
+        mock_client,
+    ):
+        """FAILED when an item has no recovery points."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(),
+        ]
+        mock_client.recovery_points.list.return_value = []
+        result = backup.discover_protected_items()
+
+        assert result["status"] == TestStatus.ERROR.value
+        assert result["protected_items"][0]["backup_status"] == (TestStatus.ERROR.value)
+
+    def test_cumulative_status_worst_wins(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Cumulative status reflects worst per-DB status."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(
+                friendly_name="healthy_db",
+                protected_item_health_status="Healthy",
+            ),
+            _make_protected_item(
+                friendly_name="no_rp_db",
+                protected_item_health_status="Healthy",
+            ),
+        ]
+        # First call returns RP, second returns empty
+        mock_client.recovery_points.list.side_effect = [
+            [_make_recovery_point()],
+            [],
+        ]
+        result = backup.discover_protected_items()
+
+        assert result["status"] == TestStatus.ERROR.value
+        statuses = [i["backup_status"] for i in result["protected_items"]]
+        assert TestStatus.SUCCESS.value in statuses
+        assert TestStatus.ERROR.value in statuses
+
+    def test_discover_includes_restore_points_list(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Result includes legacy restore_points list."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        result = backup.discover_protected_items()
+
+        assert len(result["restore_points"]) == 1
+        rp = result["restore_points"][0]
+        assert rp["recovery_point_count"] == 1
+        assert rp["latest_recovery_point_type"] == "Full"
+
+    def test_details_contains_parameters_list(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Result includes details dict with parameters for table rendering."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        result = backup.discover_protected_items()
+
+        assert "details" in result
+        assert "parameters" in result["details"]
+        params = result["details"]["parameters"]
+        assert isinstance(params, list)
+        assert len(params) > 0
+        for p in params:
+            assert set(p.keys()) == {
+                "category",
+                "id",
+                "name",
+                "value",
+                "expected_value",
+                "status",
+            }
+
+    def test_details_parameters_per_db_rows(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Each DB produces 9 parameter rows for the table."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(friendly_name="SYSTEMDB"),
+            _make_protected_item(friendly_name="HDB"),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        mock_client.backup_jobs.list.return_value = []
+        result = backup.discover_protected_items()
+
+        params = result["details"]["parameters"]
+        assert len(params) == 18  # 9 rows per DB * 2 DBs
+
+    def test_details_parameters_names(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Parameter rows cover expected validation aspects."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        result = backup.discover_protected_items()
+
+        param_names = [p["name"] for p in result["details"]["parameters"]]
+        assert "Backup Status" in param_names
+        assert "Health Status" in param_names
+        assert "Protection Status" in param_names
+        assert "Last Backup Time" in param_names
+        assert "Latest Restore Point" in param_names
+        assert "Backup Type" in param_names
+        assert "Policy Name" in param_names
+        assert "Last Job" in param_names
+        assert "Last Full Backup" in param_names
+
+    def test_details_parameters_status_coloring(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Parameter status reflects per-DB backup_status."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(protected_item_health_status="Healthy"),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        result = backup.discover_protected_items()
+
+        for p in result["details"]["parameters"]:
+            if p["name"] == "Backup Status":
+                assert p["status"] == TestStatus.SUCCESS.value
+                assert p["value"] == TestStatus.SUCCESS.value
+
+    def test_details_empty_vault_no_parameters(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Empty vault produces empty parameters list."""
+        mock_client.backup_protected_items.list.return_value = []
+        result = backup.discover_protected_items()
+
+        assert result["details"]["parameters"] == []
+
+    def test_hsr_health_expected_value(
+        self,
+        backup,
+        mock_client,
+    ):
+        """HSR containers show 'Healthy or Unknown (HSR)' as expected."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(
+                container_name=("HanaHSRContainer;Compute;rg;vm01"),
+            ),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        mock_client.backup_jobs.list.return_value = []
+        result = backup.discover_protected_items()
+
+        health_rows = [p for p in result["details"]["parameters"] if p["name"] == "Health Status"]
+        assert len(health_rows) == 1
+        assert health_rows[0]["expected_value"] == ("Healthy or Unknown (HSR)")
+
+    def test_non_hsr_health_expected_value(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Non-HSR containers show 'Healthy' as expected."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(
+                container_name=("VMAppContainer;Compute;rg;vm01"),
+            ),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        mock_client.backup_jobs.list.return_value = []
+        result = backup.discover_protected_items()
+
+        health_rows = [p for p in result["details"]["parameters"] if p["name"] == "Health Status"]
+        assert len(health_rows) == 1
+        assert health_rows[0]["expected_value"] == "Healthy"
+
+    def test_custom_param_defs_subset(
+        self,
+        mock_client,
+        mocker,
+    ):
+        """Custom parameter_definitions produce only those rows."""
+        mocker.patch(
+            "src.modules.azure_backup_hana.ManagedIdentityCredential",
+        )
+        custom_defs = [
+            {
+                "key": "backup_status",
+                "name": "Backup Status",
+                "expected_value": "PASSED",
+                "id_source": "server_type",
+            },
+            {
+                "key": "policy_name",
+                "name": "Policy Name",
+                "expected_value": "",
+                "id_source": "db_name",
+            },
+        ]
+        instance = AzureBackupHana(
+            vault_resource_id=(
+                "/subscriptions/sub-123"
+                "/resourceGroups/test-rg"
+                "/providers/Microsoft.RecoveryServices"
+                "/vaults/test-vault"
+            ),
+            subscription_id="sub-123",
+            msi_client_id="msi-abc",
+            database_sid="H05",
+            parameter_definitions=custom_defs,
+        )
+        instance._client = mock_client
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        mock_client.backup_jobs.list.return_value = []
+        result = instance.discover_protected_items()
+
+        params = result["details"]["parameters"]
+        assert len(params) == 2
+        assert params[0]["name"] == "Backup Status"
+        assert params[1]["name"] == "Policy Name"
+
+    def test_custom_param_defs_hsr_expected(
+        self,
+        mock_client,
+        mocker,
+    ):
+        """YAML expected_value_hsr overrides expected_value for HSR."""
+        mocker.patch(
+            "src.modules.azure_backup_hana.ManagedIdentityCredential",
+        )
+        custom_defs = [
+            {
+                "key": "health_status",
+                "name": "Health Status",
+                "expected_value": "Healthy",
+                "expected_value_hsr": "Healthy or Unknown (HSR)",
+                "id_source": "db_name",
+            },
+        ]
+        instance = AzureBackupHana(
+            vault_resource_id=(
+                "/subscriptions/sub-123"
+                "/resourceGroups/test-rg"
+                "/providers/Microsoft.RecoveryServices"
+                "/vaults/test-vault"
+            ),
+            subscription_id="sub-123",
+            msi_client_id="msi-abc",
+            database_sid="H05",
+            parameter_definitions=custom_defs,
+        )
+        instance._client = mock_client
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(
+                container_name="HanaHSRContainer;Compute;rg;vm01",
+            ),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        mock_client.backup_jobs.list.return_value = []
+        result = instance.discover_protected_items()
+
+        params = result["details"]["parameters"]
+        assert len(params) == 1
+        assert params[0]["expected_value"] == "Healthy or Unknown (HSR)"
+
+    def test_compute_param_values_keys(self):
+        """_compute_param_values returns all nine expected keys."""
+        props = SimpleNamespace(
+            protected_item_health_status="Healthy",
+            protection_status="Healthy",
+            last_backup_time=datetime(2026, 3, 1, 12, 0),
+            policy_name="daily-policy",
+            policy_id="/subscriptions/sub/resourceGroups/rg/providers/"
+            "Microsoft.RecoveryServices/vaults/vault/backupPolicies/daily-policy",
+            container_name="VMAppContainer;Compute;rg;vm01",
+        )
+        computed = BackupParameterBuilder.compute_param_values(
+            props,
+            "2026-03-01T10:00:00",
+            "Full",
+            None,
+            None,
+            TestStatus.SUCCESS.value,
+        )
+        expected_keys = {
+            "backup_status",
+            "health_status",
+            "protection_status",
+            "last_backup_time",
+            "latest_restore_point",
+            "backup_type",
+            "policy_name",
+            "last_job",
+            "last_full_backup",
+        }
+        assert set(computed.keys()) == expected_keys
+        for vals in computed.values():
+            assert "value" in vals
+            assert "status" in vals
+
+    def test_discover_includes_job_info(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Job info populated from backup_jobs.list."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(friendly_name="SYSTEMDB"),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        # SDK returns entity_friendly_name with SID prefix
+        mock_client.backup_jobs.list.return_value = [
+            SimpleNamespace(
+                properties=SimpleNamespace(
+                    entity_friendly_name=("hsrdjwp2r10:SYSTEMDB"),
+                    operation="Backup",
+                    status="Completed",
+                    start_time=datetime(2026, 3, 5, 15, 29),
+                ),
+            ),
+            SimpleNamespace(
+                properties=SimpleNamespace(
+                    entity_friendly_name=("hsrdjwp2r10:SYSTEMDB"),
+                    operation="ConfigureBackup",
+                    status="Completed",
+                    start_time=datetime(2026, 3, 5, 15, 12),
+                ),
+            ),
+        ]
+        result = backup.discover_protected_items()
+
+        db = result["protected_items"][0]
+        assert db["last_job_operation"] == "Backup"
+        assert db["last_job_status"] == "Completed"
+        assert db["last_full_backup_status"] == "Completed"
+        assert "2026-03-05" in db["last_full_backup_time"]
+
+        param_names = [p["name"] for p in result["details"]["parameters"]]
+        assert "Last Job" in param_names
+        assert "Last Full Backup" in param_names
+
+        last_job_row = [p for p in result["details"]["parameters"] if p["name"] == "Last Job"][0]
+        assert "Backup" in last_job_row["value"]
+        assert last_job_row["status"] == TestStatus.SUCCESS.value
+
+    def test_discover_job_bracket_name_stripped(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Backup jobs with [vm_name] suffix still match the DB."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(friendly_name="SYSTEMDB"),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        mock_client.backup_jobs.list.return_value = [
+            SimpleNamespace(
+                properties=SimpleNamespace(
+                    entity_friendly_name=("hsrdjwp2r10:SYSTEMDB" " [DJWP2-SECE-SAP01-R10_vm01]"),
+                    operation="Backup (Full)",
+                    status="Completed",
+                    start_time=datetime(2026, 3, 5, 15, 29),
+                ),
+            ),
+            SimpleNamespace(
+                properties=SimpleNamespace(
+                    entity_friendly_name=("hsrdjwp2r10:SYSTEMDB"),
+                    operation="ConfigureBackup",
+                    status="Completed",
+                    start_time=datetime(2026, 3, 5, 15, 12),
+                ),
+            ),
+        ]
+        result = backup.discover_protected_items()
+
+        db = result["protected_items"][0]
+        # Backup (Full) is the most recent job
+        assert db["last_job_operation"] == "Backup (Full)"
+        # "Backup (Full)" starts with "backup" → counts
+        # as a full backup
+        assert db["last_full_backup_status"] == "Completed"
+        assert "2026-03-05" in db["last_full_backup_time"]
+
+    def test_discover_jobs_api_failure_graceful(
+        self,
+        backup,
+        mock_client,
+    ):
+        """Discover still works when backup_jobs API fails."""
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        mock_client.backup_jobs.list.side_effect = RuntimeError("jobs API down")
+        result = backup.discover_protected_items()
+
+        assert result["status"] == TestStatus.SUCCESS.value
+        db = result["protected_items"][0]
+        assert db["last_job_operation"] == "N/A"
+        assert db["last_full_backup_status"] == "N/A"
 
     def test_all_items_have_restore_points(self, backup, mock_client):
         """SUCCESS when every item has at least one RP."""
@@ -396,6 +986,57 @@ class TestStaticHelpers:
 
         assert result["status"] == TestStatus.SUCCESS.value
         assert result["restore_job"]["restore_mode"] == ("AlternateWorkloadRestore")
+
+    def test_explicit_restore_mode_override(self, backup, mock_client):
+        """Explicit restore_mode overrides auto-detection (HSR scenario)."""
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        mock_client.restores.begin_trigger.return_value = _make_poller(
+            job_id="job-hsr-1",
+        )
+        vm_arm = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm1"
+
+        result = backup.restore_to_database(
+            container_name="VMAppContainer;Compute;rg;vm;hanahsr",
+            item_name="item",
+            restore_mode="AlternateWorkloadRestore",
+            target_container_name="VMAppContainer;Compute;rg;vm;hanahsr",
+            target_database_name="item",
+            source_resource_id=vm_arm,
+        )
+
+        assert result["status"] == TestStatus.SUCCESS.value
+        assert result["restore_job"]["restore_mode"] == (
+            "AlternateWorkloadRestore"
+        )
+        assert result["restore_job"]["job_id"] == "job-hsr-1"
+        # verify source_resource_id was passed to SDK
+        call_kwargs = (
+            mock_client.restores.begin_trigger.call_args
+        )
+        req = call_kwargs.kwargs["parameters"]
+        assert req.properties.source_resource_id == vm_arm
+
+    def test_explicit_restore_mode_olr(self, backup, mock_client):
+        """Explicit OriginalWorkloadRestore is respected."""
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
+        mock_client.restores.begin_trigger.return_value = _make_poller(
+            job_id="job-olr-1",
+        )
+
+        result = backup.restore_to_database(
+            container_name="ctr",
+            item_name="item",
+            restore_mode="OriginalWorkloadRestore",
+        )
+
+        assert result["status"] == TestStatus.SUCCESS.value
+        assert result["restore_job"]["restore_mode"] == (
+            "OriginalWorkloadRestore"
+        )
 
     def test_no_recovery_point_returns_error_no_recovery(
         self,
@@ -546,7 +1187,7 @@ class TestStaticHelpers:
         )
         instance._client = mock_client
         mock_client.job_details.get.return_value = _make_job("InProgress")
-        mocker.patch("src.modules.azure_backup_hana.time.sleep")
+        mocker.patch("src.module_utils.backup_restore.time.sleep")
 
         result = instance.check_restore_job(restore_job_id="j-5")
 
@@ -622,15 +1263,17 @@ class TestSetJobResultStatus:
 
     def test_original_restore_has_no_target_info(self, backup):
         """``target_info`` is ``None`` for original restore."""
-        req = backup._build_workload_restore(
+        req = BackupRestoreHelper.build_workload_restore(
             rp_id="/rp/1",
             restore_mode="OriginalWorkloadRestore",
         )
         assert req.properties.target_info is None
+        assert req.properties.recovery_type == "OriginalLocation"
+        assert req.properties.recovery_mode == "WorkloadRecovery"
 
     def test_alternate_restore_has_target_info(self, backup):
         """``target_info`` populated for alternate restore."""
-        req = backup._build_workload_restore(
+        req = BackupRestoreHelper.build_workload_restore(
             rp_id="/rp/1",
             restore_mode="AlternateWorkloadRestore",
             target_container_name="ctr",
@@ -639,10 +1282,23 @@ class TestSetJobResultStatus:
         assert req.properties.target_info is not None
         assert req.properties.target_info.container_id == "ctr"
         assert req.properties.target_info.database_name == "db"
+        assert req.properties.recovery_type == "AlternateLocation"
+        assert req.properties.recovery_mode == "WorkloadRecovery"
+
+    def test_sdk_recovery_type_passthrough(self, backup):
+        """Direct SDK values are accepted without mapping."""
+        req = BackupRestoreHelper.build_workload_restore(
+            rp_id="/rp/1",
+            restore_mode="AlternateLocation",
+            target_container_name="ctr",
+            target_database_name="db",
+        )
+        assert req.properties.recovery_type == "AlternateLocation"
+        assert req.properties.target_info is not None
 
     def test_discover_dispatches_correctly(self, monkeypatch, mocker):
         """``run_module`` dispatches discover_protected_items."""
-        exit_kwargs = {}
+        result_kwargs = {}
 
         class FakeModule:
             def __init__(self, *args, **kwargs):
@@ -666,17 +1322,19 @@ class TestSetJobResultStatus:
                     "target_vm_name": "",
                     "target_vm_resource_group": "",
                     "restore_job_id": "",
+                    "restore_mode": "",
+                    "source_resource_id": "",
                     "poll_interval_seconds": 0,
                     "poll_timeout_seconds": 0,
                 }
 
             def exit_json(self, **kwargs):
-                nonlocal exit_kwargs
-                exit_kwargs = kwargs
+                nonlocal result_kwargs
+                result_kwargs = kwargs
 
             def fail_json(self, **kwargs):
-                nonlocal exit_kwargs
-                exit_kwargs = kwargs
+                nonlocal result_kwargs
+                result_kwargs = kwargs
 
         monkeypatch.setattr(
             "src.modules.azure_backup_hana.AnsibleModule",
@@ -684,7 +1342,12 @@ class TestSetJobResultStatus:
         )
 
         mock_client = mocker.MagicMock()
-        mock_client.backup_protected_items.list.return_value = []
+        mock_client.backup_protected_items.list.return_value = [
+            _make_protected_item(),
+        ]
+        mock_client.recovery_points.list.return_value = [
+            _make_recovery_point(),
+        ]
         mocker.patch(
             "src.modules.azure_backup_hana.ManagedIdentityCredential",
         )
@@ -695,7 +1358,7 @@ class TestSetJobResultStatus:
 
         run_module()
 
-        assert "status" in exit_kwargs
+        assert result_kwargs.get("status") == TestStatus.SUCCESS.value
 
     def test_error_result_calls_fail_json(self, monkeypatch, mocker):
         """``fail_json`` called when operation returns ERROR status."""
@@ -723,6 +1386,8 @@ class TestSetJobResultStatus:
                     "target_vm_name": "",
                     "target_vm_resource_group": "",
                     "restore_job_id": "",
+                    "restore_mode": "",
+                    "source_resource_id": "",
                     "poll_interval_seconds": 0,
                     "poll_timeout_seconds": 0,
                 }
