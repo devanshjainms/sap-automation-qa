@@ -6,13 +6,18 @@ Discovery and validation helpers for Azure Backup HANA.
 """
 
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional, cast
 from azure.mgmt.recoveryservicesbackup import RecoveryServicesBackupClient
 from azure.mgmt.recoveryservicesbackup.models import (
     ProtectedItemResource,
     AzureVmWorkloadSAPHanaDatabaseProtectedItem,
     RecoveryPointResource,
+    AzureWorkloadSAPHanaRecoveryPoint,
     AzureWorkloadJob,
+    BackupManagementType,
+    DataSourceType,
+    ProtectedItemHealthStatus,
+    ProtectionStatus,
 )
 
 try:
@@ -35,7 +40,8 @@ class BackupDiscovery:
     """
 
     HANA_BACKUP_FILTER = (
-        "backupManagementType eq 'AzureWorkload' " "and itemType eq 'SAPHanaDatabase'"
+        f"backupManagementType eq '{BackupManagementType.AZURE_WORKLOAD}' "
+        f"and itemType eq '{DataSourceType.SAP_HANA_DATABASE}'"
     )
 
     def __init__(
@@ -63,7 +69,7 @@ class BackupDiscovery:
         :param item: SDK ``ProtectedItemResource`` instance.
         :returns: Narrowed HANA protected item properties.
         """
-        return item.properties
+        return cast(AzureVmWorkloadSAPHanaDatabaseProtectedItem, item.properties)
 
     @staticmethod
     def is_hsr_container(
@@ -78,7 +84,7 @@ class BackupDiscovery:
 
     @staticmethod
     def evaluate_db_status(
-        props: Any,
+        props: AzureVmWorkloadSAPHanaDatabaseProtectedItem,
         has_restore_point: bool,
         is_hsr: bool,
     ) -> str:
@@ -92,11 +98,14 @@ class BackupDiscovery:
         h = (props.protected_item_health_status or "Unknown").lower()
         p = (props.protection_status or "Unknown").lower()
 
-        if p not in ("healthy", "protected"):
+        if p not in (
+            ProtectionStatus.PROTECTED.lower(),
+            ProtectionStatus.PROTECTING.lower(),
+        ):
             return TestStatus.ERROR.value
         if not has_restore_point:
             return TestStatus.ERROR.value
-        if h == "healthy":
+        if h == ProtectedItemHealthStatus.HEALTHY.lower():
             return TestStatus.SUCCESS.value
         if is_hsr and h == "unknown":
             return TestStatus.SUCCESS.value
@@ -104,7 +113,7 @@ class BackupDiscovery:
 
     @staticmethod
     def latest_rp_summary(
-        rp_list: list,
+        rp_list: List[RecoveryPointResource],
     ) -> tuple[str, str]:
         """Extract time and type from the latest RP.
 
@@ -113,7 +122,7 @@ class BackupDiscovery:
         """
         if not rp_list or rp_list[0].properties is None:
             return ("N/A", "N/A")
-        rp = rp_list[0].properties
+        rp = cast(AzureWorkloadSAPHanaRecoveryPoint, rp_list[0].properties)
         rp_time = (
             rp.recovery_point_time_in_utc.isoformat() if rp.recovery_point_time_in_utc else "N/A"
         )
@@ -121,7 +130,7 @@ class BackupDiscovery:
 
     def list_protected_items(
         self,
-    ) -> List[ProtectedItemResource]:
+    ) -> Iterable[ProtectedItemResource]:
         """Iterate over SAP HANA protected items in the vault.
 
         :returns: Iterable of SDK ``ProtectedItemResource``.
@@ -163,7 +172,7 @@ class BackupDiscovery:
             where values are SDK ``AzureWorkloadJob`` or
             ``None``.
         """
-        job_filter = "backupManagementType eq 'AzureWorkload'"
+        job_filter = f"backupManagementType eq '{BackupManagementType.AZURE_WORKLOAD}'"
         result: Dict[str, Dict[str, Optional[AzureWorkloadJob]]] = {}
         _empty: Dict[str, Optional[AzureWorkloadJob]] = {
             "last_job": None,
@@ -176,8 +185,8 @@ class BackupDiscovery:
                 filter=job_filter,
             )
             for job in jobs:
-                props: AzureWorkloadJob = job.properties
-                if props is None:
+                props = job.properties
+                if not isinstance(props, AzureWorkloadJob):
                     continue
                 raw_name = (props.entity_friendly_name or "").lower()
                 if not raw_name:
@@ -281,9 +290,7 @@ class BackupDiscovery:
                     "latest_restore_point": rp_time,
                     "backup_type": rp_type,
                     "policy_name": (
-                        props.policy_name
-                        or (props.policy_id or "").rsplit("/", 1)[-1]
-                        or ""
+                        props.policy_name or (props.policy_id or "").rsplit("/", 1)[-1] or ""
                     ),
                     "container_name": container,
                     "item_name": item_name,

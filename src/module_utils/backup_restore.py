@@ -14,20 +14,16 @@ from azure.mgmt.recoveryservicesbackup.models import (
     RestoreRequestResource,
     AzureWorkloadSAPHanaRestoreRequest,
     TargetRestoreInfo,
+    RecoveryType,
+    RecoveryMode,
+    OverwriteOptions,
+    BackupManagementType,
 )
 
 try:
     from src.module_utils.enums import TestStatus
 except ImportError:
     from ansible.module_utils.enums import TestStatus
-
-RESTORE_MODE_TO_RECOVERY_TYPE = {
-    "AlternateWorkloadRestore": "AlternateLocation",
-    "OriginalWorkloadRestore": "OriginalLocation",
-    "RestoreAsFiles": "RestoreAsFiles",
-    "AlternateLocation": "AlternateLocation",
-    "OriginalLocation": "OriginalLocation",
-}
 
 
 class BackupRestoreHelper:
@@ -104,16 +100,9 @@ class BackupRestoreHelper:
     ) -> str:
         """Convert a VM Compute ARM ID to a protection container ID.
 
-        The Azure Backup ``TargetRestoreInfo.container_id``
-        must reference the protection container inside the
-        Recovery Services vault, *not* the VM's Compute
-        resource ID.
-
-        :param vm_resource_id: ARM resource ID of the VM
-            (``/subscriptions/.../Microsoft.Compute/
+        :param vm_resource_id: ARM resource ID of the VM (``/subscriptions/.../Microsoft.Compute/
             virtualMachines/{name}``).
-        :returns: Full ARM ID of the corresponding
-            protection container in the vault.
+        :returns: Full ARM ID of the corresponding protection container in the vault.
         """
         parts = vm_resource_id.strip("/").split("/")
         lookup = {parts[i].lower(): parts[i + 1] for i in range(0, len(parts) - 1, 2)}
@@ -130,34 +119,41 @@ class BackupRestoreHelper:
             f"/VMAppContainer;Compute;{rg};{vm}"
         )
 
-    @staticmethod
-    def extract_job_id_from_poller(
-        poller: Any,
+    def find_latest_restore_job_id(
+        self,
+        item_name: str,
+        started_after: float,
     ) -> str:
-        """Extract the job ID from the restore LRO poller.
+        """Find the most recent restore job for a protected item.
 
-        :param poller: LRO poller from ``begin_trigger``.
-        :returns: Job ID string (may be empty).
+        :param item_name: Protected item name.
+        :param started_after: Epoch timestamp; only jobs started after this time are considered.
+        :returns: Job ID string (empty if not found).
         """
         try:
-            headers = poller.initial_response().http_response.headers
-            for header_key in (
-                "azure-asyncoperation",
-                "location",
-            ):
-                url = headers.get(header_key, "")
-                if not url:
+            jobs = self._client.backup_jobs.list(
+                vault_name=self._vault_name,
+                resource_group_name=self._vault_rg,
+                filter=f"backupManagementType eq '{BackupManagementType.AZURE_WORKLOAD}'",
+            )
+            for job in jobs:
+                props = job.properties
+                if props is None:
                     continue
-                parts = url.split("/")
-                for i, segment in enumerate(parts):
-                    if segment in (
-                        "operationResults",
-                        "backupJobs",
-                    ) and i + 1 < len(parts):
-                        return parts[i + 1].split("?")[0]
+                operation = (props.operation or "").lower()
+                if operation != "restore":
+                    continue
+                friendly = (props.entity_friendly_name or "").lower()
+                item_short = item_name.rsplit(";", 1)[-1].lower()
+                if item_short not in friendly:
+                    continue
+                if props.start_time and props.start_time.timestamp() >= started_after:
+                    job_id = (job.name or "").strip()
+                    if job_id:
+                        return job_id
         except Exception:
             logging.getLogger(__name__).debug(
-                "Could not extract job ID from poller " "headers.",
+                "Could not find restore job via jobs API.",
                 exc_info=True,
             )
         return ""
@@ -165,7 +161,7 @@ class BackupRestoreHelper:
     @staticmethod
     def build_workload_restore(
         rp_id: str,
-        restore_mode: str,
+        recovery_type: RecoveryType,
         target_container_name: str = "",
         target_database_name: str = "",
         source_resource_id: str = "",
@@ -173,26 +169,18 @@ class BackupRestoreHelper:
         """Construct a workload restore request model.
 
         :param rp_id: Recovery point ARM resource ID.
-        :param restore_mode: ``OriginalWorkloadRestore`` or
-            ``AlternateWorkloadRestore`` (CLI style), or
-            ``OriginalLocation`` / ``AlternateLocation``
-            (SDK style).  Mapped to the SDK ``RecoveryType``
-            automatically.
-        :param target_container_name: For cross-VM restores.
-            Must be the full ARM ID of the target protection
-            container inside the Recovery Services vault.
+        :param recovery_type: SDK ``RecoveryType`` enum value.
+        :param target_container_name: For cross-VM restores. Must be the full ARM ID of the target
+            protection container inside the Recovery Services vault.
         :param target_database_name: For cross-VM restores.
-        :param source_resource_id: ARM resource ID of the
-            source VM.  When empty the field is omitted
-            from the request (required for HSR containers
-            where the protected item has no source VM).
+        :param source_resource_id: ARM resource ID of the source VM. When empty the field is omitted
+            from the request (required for HSR containers where the protected item has no source VM).
         :returns: SDK ``RestoreRequestResource`` object.
         """
-        recovery_type = RESTORE_MODE_TO_RECOVERY_TYPE.get(restore_mode, restore_mode)
-        is_alternate = recovery_type == "AlternateLocation"
+        is_alternate = recovery_type == RecoveryType.ALTERNATE_LOCATION
         target_info = (
             TargetRestoreInfo(
-                overwrite_option="Overwrite",
+                overwrite_option=OverwriteOptions.OVERWRITE,
                 container_id=target_container_name,
                 database_name=target_database_name,
             )
@@ -204,7 +192,7 @@ class BackupRestoreHelper:
                 recovery_type=recovery_type,
                 source_resource_id=(source_resource_id or None),
                 target_info=target_info,
-                recovery_mode="WorkloadRecovery",
+                recovery_mode=RecoveryMode.WORKLOAD_RECOVERY,
             ),
         )
 
@@ -223,9 +211,10 @@ class BackupRestoreHelper:
         """
         return RestoreRequestResource(
             properties=AzureWorkloadSAPHanaRestoreRequest(
-                recovery_type="RestoreAsFiles",
+                recovery_type=RecoveryType.ALTERNATE_LOCATION,
+                recovery_mode=RecoveryMode.FILE_RECOVERY,
                 target_info=TargetRestoreInfo(
-                    overwrite_option="Overwrite",
+                    overwrite_option=OverwriteOptions.OVERWRITE,
                     container_id=container_id,
                     target_directory_for_file_restore=(target_filesystem_path),
                 ),
@@ -296,31 +285,17 @@ class BackupRestoreHelper:
         restore_point_time: str = "",
         target_container_name: str = "",
         target_database_name: str = "",
-        restore_mode: str = "",
         source_resource_id: str = "",
     ) -> Dict[str, Any]:
         """Trigger a restore-to-database via Azure Backup SDK.
 
-        When *restore_mode* is supplied it takes precedence over the
-        automatic cross-VM detection.  This is required for **HSR
-        topologies** where the SDK mandates
-        ``AlternateWorkloadRestore`` even when restoring to the same
-        host (OLR is not supported for HSR containers).
-
         :param container_name: Source backup container.
         :param item_name: Source backup item name.
         :param restore_point_time: Optional PIT in UTC ISO-8601.
-        :param target_container_name: Target container (cross-VM).
-        :param target_database_name: Target DB (cross-VM).
-        :param restore_mode: Explicit restore mode override
-            (``OriginalWorkloadRestore`` or
-            ``AlternateWorkloadRestore``).  When empty the mode is
-            inferred from *target_container_name*.
-        :param source_resource_id: ARM resource ID of the
-            source VM.  Falls back to the recovery-point ID
-            when empty (backward-compatible for OLR).
-        :returns: Result dict with ``restore_job``, ``status``,
-            and ``message`` keys.
+        :param target_container_name: Target container (cross-VM / HSR).
+        :param target_database_name: Target DB (cross-VM / HSR).
+        :param source_resource_id: ARM resource ID of the source VM.
+        :returns: Result dict with ``restore_job``, ``status``, and ``message`` keys.
         :raises Exception: Propagated from SDK calls.
         """
         self._log(
@@ -339,20 +314,12 @@ class BackupRestoreHelper:
             }
 
         is_cross_vm = bool(target_container_name)
-
-        if restore_mode:
-            effective_mode = restore_mode
-        else:
-            effective_mode = (
-                "AlternateWorkloadRestore" if is_cross_vm else "OriginalWorkloadRestore"
-            )
-
-        recovery_type = RESTORE_MODE_TO_RECOVERY_TYPE.get(effective_mode, effective_mode)
-        use_target = recovery_type == "AlternateLocation"
-
+        recovery_type = (
+            RecoveryType.ALTERNATE_LOCATION if is_cross_vm else RecoveryType.ORIGINAL_LOCATION
+        )
+        use_target = recovery_type == RecoveryType.ALTERNATE_LOCATION
         resolved_container = target_container_name if use_target else ""
-        # Convert VM Compute resource IDs to Recovery
-        # Services protection-container ARM IDs.
+
         if resolved_container and ("Microsoft.Compute/virtualMachines" in resolved_container):
             resolved_container = self._vm_id_to_container_id(
                 resolved_container,
@@ -386,13 +353,14 @@ class BackupRestoreHelper:
 
         restore_request = self.build_workload_restore(
             rp_id=rp_id,
-            restore_mode=effective_mode,
+            recovery_type=recovery_type,
             target_container_name=resolved_container,
             target_database_name=resolved_db,
             source_resource_id=source_resource_id,
         )
 
-        poller = self._client.restores.begin_trigger(
+        trigger_time = time.time()
+        self._client.restores.begin_trigger(
             vault_name=self._vault_name,
             resource_group_name=self._vault_rg,
             fabric_name="Azure",
@@ -403,12 +371,19 @@ class BackupRestoreHelper:
             ),
             parameters=restore_request,
         )
-        job_id = self.extract_job_id_from_poller(poller)
+        time.sleep(5)
+        job_id = self.find_latest_restore_job_id(item_name, trigger_time)
+        if not job_id:
+            raise RuntimeError(
+                "Restore was triggered but no matching "
+                "restore job was found via the backup "
+                "jobs API. Check Azure portal."
+            )
         return {
             "restore_job": {
                 "job_id": job_id,
                 "recovery_point_id": rp_id,
-                "restore_mode": effective_mode,
+                "recovery_type": recovery_type,
             },
             "status": TestStatus.SUCCESS.value,
             "message": ("Restore-to-database triggered. " f"Job ID: {job_id}"),
@@ -460,23 +435,30 @@ class BackupRestoreHelper:
             if target_vm_name
             else None
         )
-        job_id = self.extract_job_id_from_poller(
-            self._client.restores.begin_trigger(
-                vault_name=self._vault_name,
-                resource_group_name=self._vault_rg,
-                fabric_name="Azure",
-                container_name=container_name,
-                protected_item_name=item_name,
-                recovery_point_id=(self.rp_name_from_id(rp_id)),
-                parameters=(
-                    self.build_filesystem_restore_request(
-                        rp_id,
-                        target_filesystem_path,
-                        container_id,
-                    )
-                ),
-            )
+        trigger_time = time.time()
+        self._client.restores.begin_trigger(
+            vault_name=self._vault_name,
+            resource_group_name=self._vault_rg,
+            fabric_name="Azure",
+            container_name=container_name,
+            protected_item_name=item_name,
+            recovery_point_id=(self.rp_name_from_id(rp_id)),
+            parameters=(
+                self.build_filesystem_restore_request(
+                    rp_id,
+                    target_filesystem_path,
+                    container_id,
+                )
+            ),
         )
+        time.sleep(5)
+        job_id = self.find_latest_restore_job_id(item_name, trigger_time)
+        if not job_id:
+            raise RuntimeError(
+                "Restore-to-filesystem was triggered but "
+                "no matching restore job was found via "
+                "the backup jobs API. Check Azure portal."
+            )
         return {
             "restore_job": {
                 "job_id": job_id,

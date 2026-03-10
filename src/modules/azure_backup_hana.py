@@ -384,7 +384,6 @@ class AzureBackupHana(SapAutomationQA):
         restore_point_time: str = "",
         target_container_name: str = "",
         target_database_name: str = "",
-        restore_mode: str = "",
         source_resource_id: str = "",
     ) -> Dict[str, Any]:
         """Trigger a restore-to-database via Azure Backup SDK.
@@ -394,8 +393,6 @@ class AzureBackupHana(SapAutomationQA):
         :param restore_point_time: Optional PIT in UTC ISO-8601.
         :param target_container_name: Target container (cross-VM).
         :param target_database_name: Target DB (cross-VM).
-        :param restore_mode: Explicit restore mode override.
-            Required for HSR where OLR is not supported.
         :param source_resource_id: ARM resource ID of the
             source VM.  For HSR this must be the primary node\'s
             VM ARM ID.
@@ -409,7 +406,6 @@ class AzureBackupHana(SapAutomationQA):
                     restore_point_time=restore_point_time,
                     target_container_name=(target_container_name),
                     target_database_name=(target_database_name),
-                    restore_mode=restore_mode,
                     source_resource_id=source_resource_id,
                 )
             )
@@ -540,7 +536,7 @@ def run_module() -> None:
             target_filesystem_path=dict(type="str", required=False, default=""),
             target_vm_name=dict(type="str", required=False, default=""),
             target_vm_resource_group=dict(type="str", required=False, default=""),
-            restore_mode=dict(type="str", required=False, default=""),
+            restore_mode=dict(type="str", required=False, default=""),  # deprecated, ignored
             source_resource_id=dict(type="str", required=False, default=""),
             restore_job_id=dict(type="str", required=False, default=""),
             poll_interval_seconds=dict(type="int", required=False, default=30),
@@ -593,10 +589,6 @@ def run_module() -> None:
                 ),
                 target_database_name=params.get(
                     "target_database_name",
-                    "",
-                ),
-                restore_mode=params.get(
-                    "restore_mode",
                     "",
                 ),
                 source_resource_id=params.get(
