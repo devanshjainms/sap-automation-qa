@@ -222,6 +222,38 @@
         - db_restore.restore_job is defined
         - db_restore.restore_job.job_id | default('') | length > 0
 
+    - name:                         "Test Execution: Start HANA DB before tenant restore"
+      become_user:                  "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                    set -o pipefail
+                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                    HDB start
+      args:
+        executable:                 /bin/bash
+      register:                     hana_start_for_tenant
+      delegate_to:                  "{{ backup_primary_node }}"
+      run_once:                     true
+      changed_when:                 hana_start_for_tenant.rc == 0
+      failed_when:                  false
+      when:                         backup_tenant_items | length > 0
+
+    - name:                         "Test Execution: Wait for HANA to be ready"
+      become_user:                  "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                    set -o pipefail
+                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                    sapcontrol -nr {{ db_instance_number }} -function GetProcessList
+      args:
+        executable:                 /bin/bash
+      register:                     hana_ready_check
+      delegate_to:                  "{{ backup_primary_node }}"
+      run_once:                     true
+      retries:                      30
+      delay:                        10
+      until:                        hana_ready_check.rc == 0 or hana_ready_check.rc == 3
+      failed_when:                  false
+      when:                         backup_tenant_items | length > 0
+
     - name:                         "Test Execution: Restore tenant database '{{ db_item.name }}'"
       delegate_to:                  localhost
       azure_backup_hana:

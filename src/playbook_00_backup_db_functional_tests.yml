@@ -88,6 +88,17 @@
                                             | selectattr('enabled', 'equalto', true) | list }}"
       run_once:                        true
 
+    - name:                            "Validate required Azure Backup variables"
+      ansible.builtin.assert:
+        that:
+          - backup_vault_resource_id | default('') | length > 0
+        fail_msg: >-
+          backup_vault_resource_id is not set.
+          Provide the full ARM resource ID of the Recovery Services vault
+          (e.g. /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.RecoveryServices/vaults/{name}).
+        success_msg:                   "Backup vault: {{ backup_vault_resource_id }}"
+      run_once:                        true
+
     - name:                            "Run backup test cases by including tasks"
       ansible.builtin.include_tasks:   "./roles/{{ test_group_name | lower }}/tasks/{{ item.task_name }}.yml"
       loop:                            "{{ test_cases | list }}"
