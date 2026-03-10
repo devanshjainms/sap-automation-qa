@@ -123,7 +123,7 @@
         item_name:                      "{{ db_item.item_name }}"
         restore_point_time:             "{{ backup_restore_point_time | default('') }}"
         target_container_name:          "{{ backup_alr_target_container | trim }}"
-        target_database_name:           "{{ 'SAPHanaDatabase;' ~ (db_sid | lower) ~ ';' ~ db_item.name }}"
+        target_database_name:           "{{ (db_sid | upper) ~ '/' ~ db_item.name }}"
         source_resource_id:             >-
           {{ '/subscriptions/' ~ (azure_instance_metadata.json.compute.subscriptionId)
              ~ '/resourceGroups/' ~ (backup_target_vm_rg | default(azure_instance_metadata.json.compute.resourceGroupName))
@@ -169,7 +169,7 @@
         item_name:                      "{{ db_item.item_name }}"
         restore_point_time:             "{{ backup_restore_point_time | default('') }}"
         target_container_name:          "{{ backup_alr_target_container | trim }}"
-        target_database_name:           "{{ 'SAPHanaDatabase;' ~ (db_sid | lower) ~ ';' ~ db_item.name }}"
+        target_database_name:           "{{ (db_sid | upper) ~ '/' ~ db_item.name }}"
         source_resource_id:             >-
           {{ '/subscriptions/' ~ (azure_instance_metadata.json.compute.subscriptionId)
              ~ '/resourceGroups/' ~ (backup_target_vm_rg | default(azure_instance_metadata.json.compute.resourceGroupName))

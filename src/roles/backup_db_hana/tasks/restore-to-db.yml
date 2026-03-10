@@ -177,7 +177,7 @@
         item_name:                  "{{ db_item.item_name }}"
         restore_point_time:         "{{ backup_restore_point_time | default('') }}"
         target_container_name:      "{{ (backup_restore_target_container | trim) if (database_high_availability | default(false) | bool) else '' }}"
-        target_database_name:       "{{ ('SAPHanaDatabase;' ~ (db_sid | lower) ~ ';' ~ db_item.name) if (database_high_availability | default(false) | bool) else '' }}"
+        target_database_name:       "{{ ((db_sid | upper) ~ '/' ~ db_item.name) if (database_high_availability | default(false) | bool) else '' }}"
         source_resource_id:         >-
           {{ '/subscriptions/' ~ backup_restore_subscription ~ '/resourceGroups/' ~ backup_restore_vm_rg ~ '/providers/Microsoft.Compute/virtualMachines/' ~ backup_restore_vm_name
              if (database_high_availability | default(false) | bool) else '' }}
@@ -233,7 +233,7 @@
         item_name:                  "{{ db_item.item_name }}"
         restore_point_time:         "{{ backup_restore_point_time | default('') }}"
         target_container_name:      "{{ (backup_restore_target_container | trim) if (database_high_availability | default(false) | bool) else '' }}"
-        target_database_name:       "{{ ('SAPHanaDatabase;' ~ (db_sid | lower) ~ ';' ~ db_item.name) if (database_high_availability | default(false) | bool) else '' }}"
+        target_database_name:       "{{ ((db_sid | upper) ~ '/' ~ db_item.name) if (database_high_availability | default(false) | bool) else '' }}"
         source_resource_id:         >-
           {{ '/subscriptions/' ~ backup_restore_subscription ~ '/resourceGroups/' ~ backup_restore_vm_rg ~ '/providers/Microsoft.Compute/virtualMachines/' ~ backup_restore_vm_name
              if (database_high_availability | default(false) | bool) else '' }}

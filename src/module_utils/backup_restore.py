@@ -510,9 +510,11 @@ class BackupRestoreHelper:
         error_details: List[str] = []
         if job_props and job_props.error_details:
             for err in job_props.error_details:
-                detail = f"{err.error_code or ""}: {err.error_string or ""}"
+                code = err.error_code or "Unknown"
+                msg = err.error_string or "No details"
+                detail = "Error Code: %s, Error: %s" % (code, msg)
                 if err.recommendations:
-                    detail += f" Recommendations: {'; '.join(err.recommendations)}"
+                    detail += " Recommendations: %s" % "; ".join(err.recommendations)
                 error_details.append(detail)
                 self._log(logging.ERROR, f"Job {restore_job_id} error: {detail}")
 
