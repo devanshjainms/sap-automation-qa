@@ -138,7 +138,7 @@
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.command:      /usr/sap/{{ db_sid | upper }}/HDB{{ db_instance_number }}/HDB stop
       register:                     hsr_secondary_stop
-      delegate_to:                  "{{ backup_secondary_node }}"
+      delegate_to:                  "{{ backup_secondary_node | default(inventory_hostname, true) }}"
       run_once:                     true
       changed_when:                 hsr_secondary_stop.rc == 0
       failed_when:                  false
@@ -150,7 +150,7 @@
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.command:      /usr/sap/{{ db_sid | upper }}/HDB{{ db_instance_number }}/hdbnsutil -sr_unregister
       register:                     hsr_unregister_result
-      delegate_to:                  "{{ backup_secondary_node }}"
+      delegate_to:                  "{{ backup_secondary_node | default(inventory_hostname, true) }}"
       run_once:                     true
       changed_when:                 hsr_unregister_result.rc == 0
       failed_when:                  false
@@ -387,7 +387,7 @@
           args:
             executable:             /bin/bash
           register:                 hsr_secondary_start
-          delegate_to:              "{{ backup_secondary_node }}"
+          delegate_to:              "{{ backup_secondary_node | default(inventory_hostname, true) }}"
           run_once:                 true
           changed_when:             hsr_secondary_start.rc == 0
           failed_when:              false
@@ -409,7 +409,7 @@
           args:
             executable:             /bin/bash
           register:                 hsr_register_result
-          delegate_to:              "{{ backup_secondary_node }}"
+          delegate_to:              "{{ backup_secondary_node | default(inventory_hostname, true) }}"
           run_once:                 true
           changed_when:             hsr_register_result.rc == 0
           failed_when:              hsr_register_result.rc != 0

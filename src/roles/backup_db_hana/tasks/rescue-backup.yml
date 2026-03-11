@@ -55,7 +55,7 @@
                                         HDB start
       args:
         executable:                     /bin/bash
-      delegate_to:                      "{{ backup_secondary_node }}"
+      delegate_to:                      "{{ backup_secondary_node | default(inventory_hostname, true) }}"
       run_once:                         true
       failed_when:                      false
       when:                             backup_secondary_node | default('') != ''
@@ -74,7 +74,7 @@
                                           --operationMode={{ cluster_status_pre.operation_mode | default(backup_hsr_operation_mode | default('logreplay')) }}
       args:
         executable:                     /bin/bash
-      delegate_to:                      "{{ backup_secondary_node }}"
+      delegate_to:                      "{{ backup_secondary_node | default(inventory_hostname, true) }}"
       run_once:                         true
       failed_when:                      false
       when:                             backup_secondary_node | default('') != ''
