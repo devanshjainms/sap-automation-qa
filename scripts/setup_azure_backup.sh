@@ -2,15 +2,18 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 #
-# setup_azure_backup.sh — Automate Azure Backup setup for SAP HANA (HSR)
+# setup_azure_backup.sh — Automate Azure Backup setup for SAP HANA (HSR or standalone)
 #
 # Steps:
 #   1. Create a Recovery Services vault
-#   2. Run the pre-registration script on both VMs via az vm run-command
-#   3. Register both VMs (containers) to the vault
+#   2. Run the pre-registration script on VM(s) via az vm run-command
+#   3. Register VM(s) (containers) to the vault
 #   4. Discover protectable HANA databases
 #   5. Create a backup policy (full + log + differential)
 #   6. Enable protection on discovered databases
+#
+# Supports both HSR (two-VM) and standalone (single-VM) modes.
+# When --secondary-vm and --hsr-unique-id are omitted, runs in standalone mode.
 #
 # Reference:
 #   https://learn.microsoft.com/en-us/azure/backup/quick-backup-hana-cli
@@ -23,6 +26,7 @@ set -euo pipefail
 # ──────────────────────────────────────────────
 SUBSCRIPTION="${SUBSCRIPTION:-}"
 RESOURCE_GROUP="${RESOURCE_GROUP:-}"
+VM_RESOURCE_GROUP="${VM_RESOURCE_GROUP:-}"  # RG containing the VMs (defaults to RESOURCE_GROUP)
 LOCATION="${LOCATION:-}"
 VAULT_NAME="${VAULT_NAME:-}"
 PRIMARY_VM="${PRIMARY_VM:-}"
@@ -34,6 +38,7 @@ HSR_UNIQUE_ID="${HSR_UNIQUE_ID:-}"
 POLICY_NAME="${POLICY_NAME:-sap-hana-backup-policy}"
 STORAGE_REDUNDANCY="${STORAGE_REDUNDANCY:-GeoRedundant}"
 DATABASE_NAMES="${DATABASE_NAMES:-}"   # comma-separated, e.g. "SYSTEMDB,DB1"
+HA_MODE=false                            # auto-detected: true when secondary-vm + hsr-unique-id provided
 
 # Pre-registration script URL
 PREREG_SCRIPT_URL="https://aka.ms/ScriptForPermsOnHANA"
@@ -60,15 +65,18 @@ Usage: setup_azure_backup.sh [OPTIONS]
 
 Required:
   --subscription          Azure Subscription ID
-  --resource-group        Resource group containing the HANA VMs
+  --resource-group        Resource group for the Recovery Services vault
   --location              Azure region (e.g., eastus2)
   --vault-name            Recovery Services vault name
   --primary-vm            Primary HANA VM name
-  --secondary-vm          Secondary HANA VM name
   --sid                   SAP HANA System ID (e.g., HDB)
+
+HSR mode (both required for HA):
+  --secondary-vm          Secondary HANA VM name
   --hsr-unique-id         Unique HSR identifier (6-35 chars, alphanumeric)
 
 Optional:
+  --vm-resource-group     Resource group containing the HANA VMs (default: same as --resource-group)
   --instance-number       HANA instance number (default: 00)
   --backup-key            hdbuserstore key for backup user (default: AZUREWLBACKUPHANAUSER)
   --policy-name           Backup policy name (default: sap-hana-backup-policy)
@@ -80,7 +88,7 @@ Optional:
   -h, --help              Show this help
 
 Examples:
-  # Full setup for HSR
+  # Full setup for HSR (two VMs, same resource group)
   ./setup_azure_backup.sh \
     --subscription "aaaa-bbbb-cccc" \
     --resource-group "sap-hana-rg" \
@@ -91,6 +99,16 @@ Examples:
     --sid "HDB" \
     --instance-number "00" \
     --hsr-unique-id "HSRProd01"
+
+  # Standalone (non-HA) single VM, vault in a different RG
+  ./setup_azure_backup.sh \
+    --subscription "aaaa-bbbb-cccc" \
+    --resource-group "vault-rg" \
+    --vm-resource-group "vm-rg" \
+    --location "eastus2" \
+    --vault-name "hana-vault" \
+    --primary-vm "hana-vm1" \
+    --sid "HDB"
 
   # Skip vault creation, use existing
   ./setup_azure_backup.sh \
@@ -115,6 +133,7 @@ parse_args() {
         case "$1" in
             --subscription)       SUBSCRIPTION="$2";       shift 2 ;;
             --resource-group)     RESOURCE_GROUP="$2";     shift 2 ;;
+            --vm-resource-group)  VM_RESOURCE_GROUP="$2";  shift 2 ;;
             --location)           LOCATION="$2";           shift 2 ;;
             --vault-name)         VAULT_NAME="$2";         shift 2 ;;
             --primary-vm)         PRIMARY_VM="$2";         shift 2 ;;
@@ -142,21 +161,35 @@ validate_params() {
     [[ -z "$LOCATION" ]]       && missing+=("--location")
     [[ -z "$VAULT_NAME" ]]     && missing+=("--vault-name")
     [[ -z "$PRIMARY_VM" ]]     && missing+=("--primary-vm")
-    [[ -z "$SECONDARY_VM" ]]   && missing+=("--secondary-vm")
     [[ -z "$SID" ]]            && missing+=("--sid")
-    [[ -z "$HSR_UNIQUE_ID" ]]  && missing+=("--hsr-unique-id")
 
     if [[ ${#missing[@]} -gt 0 ]]; then
         fatal "Missing required parameters: ${missing[*]}"
     fi
 
-    # Validate HSR unique ID format (6-35 chars, must have digit+lowercase+uppercase)
-    if [[ ${#HSR_UNIQUE_ID} -lt 6 || ${#HSR_UNIQUE_ID} -gt 35 ]]; then
-        fatal "HSR_UNIQUE_ID must be 6-35 characters. Got: ${#HSR_UNIQUE_ID}"
+    # Default VM_RESOURCE_GROUP to RESOURCE_GROUP if not specified
+    VM_RESOURCE_GROUP="${VM_RESOURCE_GROUP:-$RESOURCE_GROUP}"
+
+    # Determine HA vs standalone mode
+    if [[ -n "$SECONDARY_VM" && -n "$HSR_UNIQUE_ID" ]]; then
+        HA_MODE=true
+        info "Mode: HSR (High Availability) — two VMs"
+    elif [[ -n "$SECONDARY_VM" || -n "$HSR_UNIQUE_ID" ]]; then
+        fatal "HSR mode requires both --secondary-vm and --hsr-unique-id. Provide both or neither."
+    else
+        HA_MODE=false
+        info "Mode: Standalone (single VM, non-HA)"
     fi
 
-    # Validate combined VM name + RG length <= 84
-    local combined_len=$(( ${#PRIMARY_VM} + ${#RESOURCE_GROUP} ))
+    # Validate HSR unique ID format when in HA mode
+    if [[ "$HA_MODE" == "true" ]]; then
+        if [[ ${#HSR_UNIQUE_ID} -lt 6 || ${#HSR_UNIQUE_ID} -gt 35 ]]; then
+            fatal "HSR_UNIQUE_ID must be 6-35 characters. Got: ${#HSR_UNIQUE_ID}"
+        fi
+    fi
+
+    # Validate combined VM name + VM RG length <= 84
+    local combined_len=$(( ${#PRIMARY_VM} + ${#VM_RESOURCE_GROUP} ))
     if [[ $combined_len -gt 84 ]]; then
         fatal "Combined VM name + resource group length ($combined_len) exceeds 84 characters."
     fi
@@ -181,9 +214,9 @@ get_vm_resource_id() {
     local vm_name="$1"
     az vm show \
         --name "$vm_name" \
-        --resource-group "$RESOURCE_GROUP" \
+        --resource-group "$VM_RESOURCE_GROUP" \
         --query "id" -o tsv 2>/dev/null \
-    || fatal "VM '$vm_name' not found in resource group '$RESOURCE_GROUP'"
+    || fatal "VM '$vm_name' not found in resource group '$VM_RESOURCE_GROUP'"
 }
 
 # ──────────────────────────────────────────────
@@ -269,13 +302,28 @@ run_prereg_script() {
     # MDC port format: 3<instance_number>13
     port="3${INSTANCE_NUMBER}13"
 
-    info "Running pre-registration script on both VMs..."
-    info "  SID=$SID, Instance=$INSTANCE_NUMBER, Port=$port, HSR_ID=$HSR_UNIQUE_ID"
+    # Build VM list
+    local -a vm_list=("$PRIMARY_VM")
+    if [[ "$HA_MODE" == "true" ]]; then
+        vm_list+=("$SECONDARY_VM")
+    fi
 
-    for vm_name in "$PRIMARY_VM" "$SECONDARY_VM"; do
+    info "Running pre-registration script on ${#vm_list[@]} VM(s)..."
+    info "  SID=$SID, Instance=$INSTANCE_NUMBER, Port=$port"
+    if [[ "$HA_MODE" == "true" ]]; then
+        info "  HSR_ID=$HSR_UNIQUE_ID"
+    fi
+
+    # Build HSR-specific flags for the pre-registration script
+    local hsr_flags=""
+    if [[ "$HA_MODE" == "true" ]]; then
+        hsr_flags="-hn ${HSR_UNIQUE_ID}"
+    fi
+
+    for vm_name in "${vm_list[@]}"; do
         info "Running pre-registration script on '$vm_name'..."
         az vm run-command invoke \
-            --resource-group "$RESOURCE_GROUP" \
+            --resource-group "$VM_RESOURCE_GROUP" \
             --name "$vm_name" \
             --command-id RunShellScript \
             --scripts "
@@ -293,7 +341,7 @@ run_prereg_script() {
                     -n ${INSTANCE_NUMBER} \
                     -sk SYSTEMKEY \
                     -bk ${BACKUP_KEY} \
-                    -hn ${HSR_UNIQUE_ID} \
+                    ${hsr_flags} \
                     -p ${port} \
                     -sn
             " \
@@ -309,7 +357,13 @@ run_prereg_script() {
 register_containers() {
     info "Registering VM containers to vault..."
 
-    for vm_name in "$PRIMARY_VM" "$SECONDARY_VM"; do
+    # Build VM list
+    local -a vm_list=("$PRIMARY_VM")
+    if [[ "$HA_MODE" == "true" ]]; then
+        vm_list+=("$SECONDARY_VM")
+    fi
+
+    for vm_name in "${vm_list[@]}"; do
         local resource_id
         resource_id=$(get_vm_resource_id "$vm_name")
 
@@ -341,7 +395,7 @@ register_containers() {
 
     info "Container registration complete."
 
-    # Verify both registered
+    # Verify registered containers
     info "Registered containers:"
     az backup container list \
         --resource-group "$RESOURCE_GROUP" \
@@ -356,7 +410,7 @@ register_containers() {
 discover_databases() {
     info "Initiating database discovery on primary VM..."
 
-    local container_name="VMAppContainer;Compute;${RESOURCE_GROUP};${PRIMARY_VM}"
+    local container_name="VMAppContainer;Compute;${VM_RESOURCE_GROUP};${PRIMARY_VM}"
 
     az backup protectable-item initialize \
         --resource-group "$RESOURCE_GROUP" \
@@ -512,19 +566,21 @@ POLICY_EOF
 enable_protection() {
     info "Enabling backup protection on discovered databases..."
 
-    # Get HSR container parent name for --server-name parameter
-    local hsr_parent
-    hsr_parent=$(az backup protectable-item list \
-        --resource-group "$RESOURCE_GROUP" \
-        --vault-name "$VAULT_NAME" \
-        --workload-type SAPHANA \
-        --query "[?properties.protectableItemType=='HanaHSRContainer'].properties.parentName" \
-        -o tsv 2>/dev/null | head -1)
+    # In HA mode, look for HSR container parent for --server-name parameter
+    local hsr_parent=""
+    if [[ "$HA_MODE" == "true" ]]; then
+        hsr_parent=$(az backup protectable-item list \
+            --resource-group "$RESOURCE_GROUP" \
+            --vault-name "$VAULT_NAME" \
+            --workload-type SAPHANA \
+            --query "[?properties.protectableItemType=='HanaHSRContainer'].properties.parentName" \
+            -o tsv 2>/dev/null | head -1)
 
-    if [[ -z "$hsr_parent" ]]; then
-        warn "No HSR container found. Databases may need to be protected individually."
-    else
-        info "HSR container parent: $hsr_parent"
+        if [[ -z "$hsr_parent" ]]; then
+            warn "No HSR container found. Databases may need to be protected individually."
+        else
+            info "HSR container parent: $hsr_parent"
+        fi
     fi
 
     # Get list of SAPHanaDatabase items
@@ -605,17 +661,25 @@ main() {
     validate_params
     check_az_cli
 
+    local mode_label="Standalone"
+    if [[ "$HA_MODE" == "true" ]]; then
+        mode_label="HSR (High Availability)"
+    fi
+
     info "============================================="
-    info "Azure Backup Setup for SAP HANA (HSR)"
+    info "Azure Backup Setup for SAP HANA — $mode_label"
     info "============================================="
-    info "  Vault:         $VAULT_NAME"
-    info "  Resource Group: $RESOURCE_GROUP"
-    info "  Location:      $LOCATION"
-    info "  Primary VM:    $PRIMARY_VM"
-    info "  Secondary VM:  $SECONDARY_VM"
-    info "  SID:           $SID"
-    info "  HSR Unique ID: $HSR_UNIQUE_ID"
-    info "  Policy:        $POLICY_NAME"
+    info "  Vault:            $VAULT_NAME"
+    info "  Vault RG:         $RESOURCE_GROUP"
+    info "  VM RG:            $VM_RESOURCE_GROUP"
+    info "  Location:         $LOCATION"
+    info "  Primary VM:       $PRIMARY_VM"
+    if [[ "$HA_MODE" == "true" ]]; then
+        info "  Secondary VM:     $SECONDARY_VM"
+        info "  HSR Unique ID:    $HSR_UNIQUE_ID"
+    fi
+    info "  SID:              $SID"
+    info "  Policy:           $POLICY_NAME"
     info "============================================="
     echo ""
 

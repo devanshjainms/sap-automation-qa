@@ -59,6 +59,16 @@
       ansible.builtin.set_fact:
         backup_primary_node:        "{{ ansible_hostname }}"
         backup_secondary_node:      ""
+        backup_restore_vm_name:     "{{ azure_instance_metadata.json.compute.name }}"
+        backup_restore_vm_rg:       "{{ azure_instance_metadata.json.compute.resourceGroupName }}"
+        backup_restore_subscription: "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+      run_once:                     true
+      when:                         not (database_high_availability | default(false) | bool)
+
+    - name:                         "Pre Validation: Build standalone restore container"
+      ansible.builtin.set_fact:
+        backup_restore_target_container: >-
+          VMAppContainer;Compute;{{ backup_restore_vm_rg }};{{ backup_restore_vm_name }}
       run_once:                     true
       when:                         not (database_high_availability | default(false) | bool)
 
@@ -125,7 +135,7 @@
       run_once:                     true
       changed_when:                 hsr_secondary_stop.rc == 0
       failed_when:                  false
-      when:                         database_high_availability | bool
+      when:                         database_high_availability | default(false) | bool
 
     - name:                         "Test Execution: HSR - Unregister secondary from replication"
       become_user:                  "{{ db_sid | lower }}adm"
@@ -135,7 +145,7 @@
       run_once:                     true
       changed_when:                 hsr_unregister_result.rc == 0
       failed_when:                  false
-      when:                         database_high_availability | bool
+      when:                         database_high_availability | default(false) | bool
 
     - name:                         "Test Execution: HSR - Disable replication on primary"
       become_user:                  "{{ db_sid | lower }}adm"
@@ -150,7 +160,7 @@
       run_once:                     true
       changed_when:                 hsr_disable_result.rc == 0
       failed_when:                  false
-      when:                         database_high_availability | bool
+      when:                         database_high_availability | default(false) | bool
 
     - name:                         "Test Execution: Stop HANA DB before restore"
       become_user:                  "{{ db_sid | lower }}adm"
@@ -176,11 +186,10 @@
         container_name:             "{{ db_item.container_name }}"
         item_name:                  "{{ db_item.item_name }}"
         restore_point_time:         "{{ backup_restore_point_time | default('') }}"
-        target_container_name:      "{{ (backup_restore_target_container | trim) if (database_high_availability | default(false) | bool) else '' }}"
-        target_database_name:       "{{ ((db_sid | upper) ~ '/' ~ db_item.name) if (database_high_availability | default(false) | bool) else '' }}"
+        target_container_name:      "{{ backup_restore_target_container | default('') | trim }}"
+        target_database_name:       "{{ (db_sid | upper) ~ '/' ~ db_item.name }}"
         source_resource_id:         >-
-          {{ '/subscriptions/' ~ backup_restore_subscription ~ '/resourceGroups/' ~ backup_restore_vm_rg ~ '/providers/Microsoft.Compute/virtualMachines/' ~ backup_restore_vm_name
-             if (database_high_availability | default(false) | bool) else '' }}
+          {{ '/subscriptions/' ~ backup_restore_subscription ~ '/resourceGroups/' ~ backup_restore_vm_rg ~ '/providers/Microsoft.Compute/virtualMachines/' ~ backup_restore_vm_name }}
       register:                     systemdb_restore_results
       run_once:                     true
       failed_when:                  systemdb_restore_results.status | default('') == 'ERROR'
@@ -264,11 +273,10 @@
         container_name:             "{{ db_item.container_name }}"
         item_name:                  "{{ db_item.item_name }}"
         restore_point_time:         "{{ backup_restore_point_time | default('') }}"
-        target_container_name:      "{{ (backup_restore_target_container | trim) if (database_high_availability | default(false) | bool) else '' }}"
-        target_database_name:       "{{ ((db_sid | upper) ~ '/' ~ db_item.name) if (database_high_availability | default(false) | bool) else '' }}"
+        target_container_name:      "{{ backup_restore_target_container | default('') | trim }}"
+        target_database_name:       "{{ (db_sid | upper) ~ '/' ~ db_item.name }}"
         source_resource_id:         >-
-          {{ '/subscriptions/' ~ backup_restore_subscription ~ '/resourceGroups/' ~ backup_restore_vm_rg ~ '/providers/Microsoft.Compute/virtualMachines/' ~ backup_restore_vm_name
-             if (database_high_availability | default(false) | bool) else '' }}
+          {{ '/subscriptions/' ~ backup_restore_subscription ~ '/resourceGroups/' ~ backup_restore_vm_rg ~ '/providers/Microsoft.Compute/virtualMachines/' ~ backup_restore_vm_name }}
       register:                     tenant_restore_results
       run_once:                     true
       failed_when:                  tenant_restore_results.status | default('') == 'ERROR'
@@ -341,7 +349,7 @@
       failed_when:                  false
 
     - name:                         "Test Execution: HSR - Re-establish replication"
-      when:                         database_high_availability | bool
+      when:                         database_high_availability | default(false) | bool
       block:
 
         - name:                     "Test Execution: HSR - Enable replication on primary"
