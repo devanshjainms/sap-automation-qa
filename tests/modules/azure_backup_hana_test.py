@@ -319,16 +319,22 @@ class TestStaticHelpers:
         assert BackupDiscovery.is_hsr_container(container) == expected
 
     @pytest.mark.parametrize(
-        "health, protection, has_rp, is_hsr, expected",
+        "health, protection, has_rp, is_hsr, last_job_status, expected",
         [
-            ("Healthy", "Healthy", True, False, "PASSED"),
-            ("Healthy", "Protected", True, False, "PASSED"),
-            ("Unknown", "Healthy", True, True, "PASSED"),
-            ("Unknown", "Healthy", True, False, "WARNING"),
-            ("Unhealthy", "Healthy", True, False, "WARNING"),
-            ("Healthy", "NotProtected", True, False, "FAILED"),
-            ("Healthy", "Healthy", False, False, "FAILED"),
-            (None, "Healthy", True, False, "WARNING"),
+            ("Healthy", "Healthy", True, False, None, "PASSED"),
+            ("Healthy", "Protected", True, False, None, "PASSED"),
+            ("Healthy", "Protecting", True, False, None, "PASSED"),
+            ("Unknown", "Healthy", True, True, None, "PASSED"),
+            ("Unknown", "Healthy", True, False, None, "WARNING"),
+            ("Unhealthy", "Healthy", True, False, None, "WARNING"),
+            ("Healthy", "NotProtected", True, False, None, "FAILED"),
+            ("Healthy", "ProtectionFailed", True, False, None, "FAILED"),
+            ("Healthy", "Invalid", True, False, None, "FAILED"),
+            ("Healthy", "Healthy", False, False, None, "FAILED"),
+            (None, "Healthy", True, False, None, "WARNING"),
+            ("Unhealthy", "Unhealthy", True, False, "InProgress", "WARNING"),
+            ("Unhealthy", "Unhealthy", True, False, None, "FAILED"),
+            ("Unhealthy", "Unhealthy", False, False, "InProgress", "FAILED"),
         ],
     )
     def test_evaluate_db_status(
@@ -337,6 +343,7 @@ class TestStaticHelpers:
         protection,
         has_rp,
         is_hsr,
+        last_job_status,
         expected,
     ):
         """Per-DB status derived from health/protection/RP/HSR."""
@@ -344,7 +351,8 @@ class TestStaticHelpers:
             protected_item_health_status=health,
             protection_status=protection,
         )
-        assert BackupDiscovery.evaluate_db_status(props, has_rp, is_hsr) == expected
+        last_job = SimpleNamespace(status=last_job_status) if last_job_status else None
+        assert BackupDiscovery.evaluate_db_status(props, has_rp, is_hsr, last_job) == expected
 
     def test_extract_job_id_from_async_header(self):
         """Job ID parsed from ``azure-asyncoperation`` header."""

@@ -87,21 +87,25 @@ class BackupDiscovery:
         props: AzureVmWorkloadSAPHanaDatabaseProtectedItem,
         has_restore_point: bool,
         is_hsr: bool,
+        last_job: Optional[AzureWorkloadJob] = None,
     ) -> str:
         """Derive a per-database PASSED/WARNING/FAILED status.
 
         :param props: SDK protected-item properties.
         :param has_restore_point: Whether at least one RP exists.
         :param is_hsr: Whether the container is HSR.
+        :param last_job: Most recent backup job, if any.
         :returns: ``PASSED``, ``WARNING``, or ``FAILED``.
         """
         h = (props.protected_item_health_status or "Unknown").lower()
         p = (props.protection_status or "Unknown").lower()
 
-        if p not in (
-            ProtectionStatus.PROTECTED.lower(),
-            ProtectionStatus.PROTECTING.lower(),
-        ):
+        rejected_protection = (
+            ProtectionStatus.NOT_PROTECTED.lower(),
+            ProtectionStatus.PROTECTION_FAILED.lower(),
+            ProtectionStatus.INVALID.lower(),
+        )
+        if p in rejected_protection:
             return TestStatus.ERROR.value
         if not has_restore_point:
             return TestStatus.ERROR.value
@@ -258,19 +262,20 @@ class BackupDiscovery:
                 rp_list,
             )
 
-            db_status = self.evaluate_db_status(
-                props,
-                len(rp_list) > 0,
-                is_hsr,
-            )
-            status_counts[db_status] = status_counts.get(db_status, 0) + 1
-
             db_jobs = job_index.get(
                 (props.friendly_name or "").lower(),
                 {},
             )
             last_job: Optional[AzureWorkloadJob] = db_jobs.get("last_job")
             last_full: Optional[AzureWorkloadJob] = db_jobs.get("last_full_backup")
+
+            db_status = self.evaluate_db_status(
+                props,
+                len(rp_list) > 0,
+                is_hsr,
+                last_job,
+            )
+            status_counts[db_status] = status_counts.get(db_status, 0) + 1
 
             server_name = props.server_name or ""
             parent_name = props.parent_name or ""
