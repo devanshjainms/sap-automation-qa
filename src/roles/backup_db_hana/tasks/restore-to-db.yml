@@ -42,6 +42,13 @@
             backup_secondary_node:  "{{ cluster_status_pre.secondary_node }}"
           run_once:                 true
 
+        - name:                     "Pre Validation: Verify secondary node is resolved"
+          ansible.builtin.assert:
+            that:
+              - backup_secondary_node | default('') != ''
+            fail_msg:               "Secondary node hostname is empty. cluster_status_pre.secondary_node was not resolved."
+          run_once:                 true
+
         - name:                     "Pre Validation: Resolve primary VM details for HSR"
           ansible.builtin.set_fact:
             backup_restore_vm_name:        "{{ hostvars[backup_primary_node].azure_instance_metadata.json.compute.name }}"
@@ -135,7 +142,9 @@
       run_once:                     true
       changed_when:                 hsr_secondary_stop.rc == 0
       failed_when:                  false
-      when:                         database_high_availability | default(false) | bool
+      when:
+                                    - database_high_availability | default(false) | bool
+                                    - backup_secondary_node | default('') != ''
 
     - name:                         "Test Execution: HSR - Unregister secondary from replication"
       become_user:                  "{{ db_sid | lower }}adm"
@@ -145,7 +154,9 @@
       run_once:                     true
       changed_when:                 hsr_unregister_result.rc == 0
       failed_when:                  false
-      when:                         database_high_availability | default(false) | bool
+      when:
+                                    - database_high_availability | default(false) | bool
+                                    - backup_secondary_node | default('') != ''
 
     - name:                         "Test Execution: HSR - Disable replication on primary"
       become_user:                  "{{ db_sid | lower }}adm"
@@ -380,7 +391,9 @@
           run_once:                 true
           changed_when:             hsr_secondary_start.rc == 0
           failed_when:              false
-          when:                     hsr_enable_result.rc | default(1) in [0, 102]
+          when:
+                                    - hsr_enable_result.rc | default(1) in [0, 102]
+                                    - backup_secondary_node | default('') != ''
 
         - name:                     "Test Execution: HSR - Register secondary for replication"
           become_user:              "{{ db_sid | lower }}adm"
@@ -400,7 +413,9 @@
           run_once:                 true
           changed_when:             hsr_register_result.rc == 0
           failed_when:              hsr_register_result.rc != 0
-          when:                     hsr_enable_result.rc | default(1) in [0, 102]
+          when:
+                                    - hsr_enable_result.rc | default(1) in [0, 102]
+                                    - backup_secondary_node | default('') != ''
 
         - name:                     "Test Execution: HSR - Validate replication state"
           become_user:              "{{ db_sid | lower }}adm"
