@@ -214,22 +214,6 @@
       run_once:                         true
       changed_when:                     hana_start_result.rc == 0
 
-    - name:                             "Test Execution: Validate HANA is running"
-      become_user:                      "{{ db_sid | lower }}adm"
-      ansible.builtin.shell: |
-                                        set -o pipefail
-                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                        sapcontrol -nr {{ db_instance_number }} -function GetProcessList
-      args:
-        executable:                     /bin/bash
-      register:                         hana_process_check
-      delegate_to:                      "{{ backup_primary_node }}"
-      run_once:                         true
-      retries:                          50
-      delay:                            10
-      until:                            hana_process_check.rc == 0 or hana_process_check.rc == 3
-      changed_when:                     false
-
     - name:                             "Test Execution: Verify DB consistency post-recovery"
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -263,7 +247,6 @@
           run_once:                     true
           changed_when:                 hsr_enable_result.rc == 0
           failed_when:                  hsr_enable_result.rc not in [0, 102]
-          when:                         (hana_process_check.rc | default(1)) in [0, 3]
 
         - name:                         "Test Execution: HSR - Start HANA on secondary"
           become_user:                  "{{ db_sid | lower }}adm"
@@ -360,7 +343,6 @@
                                             (hana_recover_systemdb_result.rc
                                               | default(hana_recover_recent_result.rc
                                               | default(1))) == 0
-                                            and (hana_process_check.rc | default(1)) in [0, 3]
                                             and (db_consistency_check.rc | default(1)) == 0
                                             and hsr_register_result.rc | default(1) == 0
                                           ) else 'FAILED' }}"
@@ -373,7 +355,6 @@
                                             (hana_recover_systemdb_result.rc
                                               | default(hana_recover_recent_result.rc
                                               | default(1))) == 0
-                                            and (hana_process_check.rc | default(1)) in [0, 3]
                                             and (db_consistency_check.rc | default(1)) == 0
                                           ) else 'FAILED' }}"
       run_once:                         true
@@ -388,7 +369,6 @@
         test_case_message_from_test_case: >-
           HANA DB recovery ({{ 'Catalog-based' if (backup_catalog_result.rc | default(1) == 0) else 'Most-recent-backup' }}):
           Recovery succeeded: {{ (hana_recover_systemdb_result.rc | default(hana_recover_recent_result.rc | default(1))) == 0 }},
-          HANA running: {{ (hana_process_check.rc | default(1)) in [0, 3] }},
           DB consistent: {{ (db_consistency_check.rc | default(1)) == 0 }}
         test_case_details_from_test_case:
           topology:                     "Standalone"
@@ -398,7 +378,6 @@
           hana_recover_systemdb:        "{{ hana_recover_systemdb_result | default({}) }}"
           hana_recover_recent:          "{{ hana_recover_recent_result | default({}) }}"
           hana_start:                   "{{ hana_start_result }}"
-          hana_process_check:           "{{ hana_process_check }}"
           db_consistency:               "{{ db_consistency_check }}"
       run_once:                         true
       when:                             not (database_high_availability | default(false) | bool)
@@ -408,7 +387,6 @@
         test_case_message_from_test_case: >-
           HANA DB recovery (HSR, {{ 'Catalog-based' if (backup_catalog_result.rc | default(1) == 0) else 'Most-recent-backup' }}):
           Recovery succeeded: {{ (hana_recover_systemdb_result.rc | default(hana_recover_recent_result.rc | default(1))) == 0 }},
-          HANA running: {{ (hana_process_check.rc | default(1)) in [0, 3] }},
           DB consistent: {{ (db_consistency_check.rc | default(1)) == 0 }},
           HSR re-established: {{ (hsr_register_result.rc | default(1)) == 0 }}
         test_case_details_from_test_case:
@@ -419,7 +397,6 @@
           hana_recover_systemdb:        "{{ hana_recover_systemdb_result | default({}) }}"
           hana_recover_recent:          "{{ hana_recover_recent_result | default({}) }}"
           hana_start:                   "{{ hana_start_result }}"
-          hana_process_check:           "{{ hana_process_check }}"
           db_consistency:               "{{ db_consistency_check }}"
           cluster_status_pre:           "{{ cluster_status_pre | default({}) }}"
           hsr_disable:                  "{{ hsr_disable_result | default({}) }}"

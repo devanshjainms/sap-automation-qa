@@ -65,27 +65,6 @@
                                         - backup_tenant_items | length > 0
                                         - encryption_tenant_status.results[idx].stdout | default('') is not search('YES')
 
-- name:                                 "Encryption Key Transfer: Wait for tenant indexserver on source"
-  become_user:                          "{{ db_sid | lower }}adm"
-  ansible.builtin.shell: |
-                                        set -o pipefail
-                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                        sapcontrol -nr {{ db_instance_number }} -function GetProcessList | grep -i indexserver | grep -i GREEN
-  args:
-    executable:                         /bin/bash
-  run_once:                             true
-  changed_when:                         false
-  retries:                              30
-  delay:                                10
-  until:                                source_indexserver_wait.rc == 0
-  register:                             source_indexserver_wait
-  when:
-                                        - backup_encryption_enabled | default(false) | bool
-                                        - backup_tenant_items | length > 0
-                                        - encryption_tenant_status.results | default([])
-                                            | map(attribute='stdout') | select('defined')
-                                            | reject('search', 'YES') | list | length > 0
-
 - name:                                 "Encryption Key Transfer: Set root key backup password on tenant '{{ db_item.name }}'"
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
