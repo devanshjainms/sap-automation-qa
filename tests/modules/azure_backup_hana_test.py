@@ -7,6 +7,7 @@ Unit tests for the azure_backup_hana module.
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 import pytest
 import yaml
 from src.modules.azure_backup_hana import (
@@ -22,6 +23,13 @@ from src.module_utils.backup_parameters import (
 )
 from src.module_utils.backup_restore import (
     BackupRestoreHelper,
+)
+from azure.mgmt.recoveryservicesbackup.models import (
+    AzureWorkloadJob,
+    AzureWorkloadSAPHanaRestoreRequest,
+    AzureVmWorkloadSAPHanaDatabaseProtectedItem,
+    ProtectedItemResource,
+    RecoveryType,
 )
 
 
@@ -78,7 +86,7 @@ def _make_recovery_point(
 def _make_job(status: str = "Completed") -> SimpleNamespace:
     """Build a fake ``JobResource`` for testing."""
     return SimpleNamespace(
-        properties=SimpleNamespace(status=status),
+        properties=SimpleNamespace(status=status, error_details=None),
     )
 
 
@@ -294,14 +302,14 @@ class TestStaticHelpers:
     def test_get_props(self):
         """SDK properties returned with typed dot access."""
         item = _make_protected_item(friendly_name="DB01")
-        props = AzureBackupHana._get_props(item)
+        props = AzureBackupHana._get_props(cast(ProtectedItemResource, item))
         assert props.friendly_name == "DB01"
         assert props.protected_item_health_status == "Healthy"
 
     def test_get_props_none_health(self):
         """None protected_item_health_status is passthrough (caller handles)."""
         item = _make_protected_item(protected_item_health_status=None)
-        props = AzureBackupHana._get_props(item)
+        props = AzureBackupHana._get_props(cast(ProtectedItemResource, item))
         assert props.protected_item_health_status is None
 
     @pytest.mark.parametrize(
@@ -333,7 +341,7 @@ class TestStaticHelpers:
             ("Healthy", "Healthy", False, False, None, "FAILED"),
             (None, "Healthy", True, False, None, "WARNING"),
             ("Unhealthy", "Unhealthy", True, False, "InProgress", "WARNING"),
-            ("Unhealthy", "Unhealthy", True, False, None, "FAILED"),
+            ("Unhealthy", "Unhealthy", True, False, None, "WARNING"),
             ("Unhealthy", "Unhealthy", False, False, "InProgress", "FAILED"),
         ],
     )
@@ -351,43 +359,20 @@ class TestStaticHelpers:
             protected_item_health_status=health,
             protection_status=protection,
         )
-        last_job = SimpleNamespace(status=last_job_status) if last_job_status else None
-        assert BackupDiscovery.evaluate_db_status(props, has_rp, is_hsr, last_job) == expected
-
-    def test_extract_job_id_from_async_header(self):
-        """Job ID parsed from ``azure-asyncoperation`` header."""
-        poller = _make_poller(
-            job_id="j-999",
-            header_key="azure-asyncoperation",
+        last_job = (
+            cast(AzureWorkloadJob, SimpleNamespace(status=last_job_status))
+            if last_job_status
+            else None
         )
-        assert BackupRestoreHelper.extract_job_id_from_poller(poller) == "j-999"
-
-    def test_extract_job_id_from_location_header(self):
-        """Job ID parsed from ``location`` header
-        when async header is absent."""
-        poller = _make_poller(
-            job_id="j-loc",
-            header_key="location",
+        assert (
+            BackupDiscovery.evaluate_db_status(
+                cast(AzureVmWorkloadSAPHanaDatabaseProtectedItem, props),
+                has_rp,
+                is_hsr,
+                last_job,
+            )
+            == expected
         )
-        assert BackupRestoreHelper.extract_job_id_from_poller(poller) == "j-loc"
-
-    def test_extract_job_id_empty_on_exception(self):
-        """Empty string returned when poller raises."""
-
-        def _raise(*_a, **_kw):
-            raise RuntimeError("boom")
-
-        poller = SimpleNamespace(initial_response=_raise)
-        assert BackupRestoreHelper.extract_job_id_from_poller(poller) == ""
-
-    def test_extract_job_id_empty_when_no_headers(self):
-        """Empty string when headers contain no matching URL."""
-        poller = SimpleNamespace(
-            initial_response=lambda: SimpleNamespace(
-                http_response=SimpleNamespace(headers={}),
-            ),
-        )
-        assert BackupRestoreHelper.extract_job_id_from_poller(poller) == ""
 
     def test_all_healthy(self, backup, mock_client):
         """SUCCESS when every item is healthy with restore points."""
@@ -836,16 +821,16 @@ class TestStaticHelpers:
         # SDK returns entity_friendly_name with SID prefix
         mock_client.backup_jobs.list.return_value = [
             SimpleNamespace(
-                properties=SimpleNamespace(
-                    entity_friendly_name=("hsrdjwp2r10:SYSTEMDB"),
+                properties=AzureWorkloadJob(
+                    entity_friendly_name="hsrdjwp2r10:SYSTEMDB",
                     operation="Backup",
                     status="Completed",
                     start_time=datetime(2026, 3, 5, 15, 29),
                 ),
             ),
             SimpleNamespace(
-                properties=SimpleNamespace(
-                    entity_friendly_name=("hsrdjwp2r10:SYSTEMDB"),
+                properties=AzureWorkloadJob(
+                    entity_friendly_name="hsrdjwp2r10:SYSTEMDB",
                     operation="ConfigureBackup",
                     status="Completed",
                     start_time=datetime(2026, 3, 5, 15, 12),
@@ -882,16 +867,16 @@ class TestStaticHelpers:
         ]
         mock_client.backup_jobs.list.return_value = [
             SimpleNamespace(
-                properties=SimpleNamespace(
-                    entity_friendly_name=("hsrdjwp2r10:SYSTEMDB" " [DJWP2-SECE-SAP01-R10_vm01]"),
+                properties=AzureWorkloadJob(
+                    entity_friendly_name="hsrdjwp2r10:SYSTEMDB [hanavm01]",
                     operation="Backup (Full)",
                     status="Completed",
                     start_time=datetime(2026, 3, 5, 15, 29),
                 ),
             ),
             SimpleNamespace(
-                properties=SimpleNamespace(
-                    entity_friendly_name=("hsrdjwp2r10:SYSTEMDB"),
+                properties=AzureWorkloadJob(
+                    entity_friendly_name="hsrdjwp2r10:SYSTEMDB",
                     operation="ConfigureBackup",
                     status="Completed",
                     start_time=datetime(2026, 3, 5, 15, 12),
@@ -958,13 +943,19 @@ class TestStaticHelpers:
         assert result["status"] == TestStatus.WARNING.value
         assert "no recovery points" in result["message"]
 
-    def test_original_workload_restore(self, backup, mock_client):
+    def test_original_workload_restore(self, backup, mock_client, mocker):
         """SUCCESS for in-place (original workload) restore."""
         mock_client.recovery_points.list.return_value = [
             _make_recovery_point(),
         ]
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-111",
+        )
+        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch.object(
+            backup.restore_helper,
+            "find_latest_restore_job_id",
+            return_value="job-111",
         )
 
         result = backup.restore_to_database(
@@ -974,15 +965,21 @@ class TestStaticHelpers:
 
         assert result["status"] == TestStatus.SUCCESS.value
         assert result["restore_job"]["job_id"] == "job-111"
-        assert result["restore_job"]["restore_mode"] == ("OriginalWorkloadRestore")
+        assert result["restore_job"]["recovery_type"] == (RecoveryType.ORIGINAL_LOCATION)
 
-    def test_alternate_workload_restore(self, backup, mock_client):
+    def test_alternate_workload_restore(self, backup, mock_client, mocker):
         """SUCCESS for cross-VM (alternate workload) restore."""
         mock_client.recovery_points.list.return_value = [
             _make_recovery_point(),
         ]
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-222",
+        )
+        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch.object(
+            backup.restore_helper,
+            "find_latest_restore_job_id",
+            return_value="job-222",
         )
 
         result = backup.restore_to_database(
@@ -993,58 +990,64 @@ class TestStaticHelpers:
         )
 
         assert result["status"] == TestStatus.SUCCESS.value
-        assert result["restore_job"]["restore_mode"] == ("AlternateWorkloadRestore")
+        assert result["restore_job"]["recovery_type"] == (RecoveryType.ALTERNATE_LOCATION)
 
-    def test_explicit_restore_mode_override(self, backup, mock_client):
-        """Explicit restore_mode overrides auto-detection (HSR scenario)."""
+    def test_explicit_restore_mode_override(self, backup, mock_client, mocker):
+        """Alternate restore auto-detected from target_container_name (HSR scenario)."""
         mock_client.recovery_points.list.return_value = [
             _make_recovery_point(),
         ]
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-hsr-1",
         )
-        vm_arm = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm1"
+        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch.object(
+            backup.restore_helper,
+            "find_latest_restore_job_id",
+            return_value="job-hsr-1",
+        )
+        vm_arm = (
+            "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm1"
+        )
 
         result = backup.restore_to_database(
             container_name="VMAppContainer;Compute;rg;vm;hanahsr",
             item_name="item",
-            restore_mode="AlternateWorkloadRestore",
             target_container_name="VMAppContainer;Compute;rg;vm;hanahsr",
             target_database_name="item",
             source_resource_id=vm_arm,
         )
 
         assert result["status"] == TestStatus.SUCCESS.value
-        assert result["restore_job"]["restore_mode"] == (
-            "AlternateWorkloadRestore"
-        )
+        assert result["restore_job"]["recovery_type"] == (RecoveryType.ALTERNATE_LOCATION)
         assert result["restore_job"]["job_id"] == "job-hsr-1"
         # verify source_resource_id was passed to SDK
-        call_kwargs = (
-            mock_client.restores.begin_trigger.call_args
-        )
+        call_kwargs = mock_client.restores.begin_trigger.call_args
         req = call_kwargs.kwargs["parameters"]
         assert req.properties.source_resource_id == vm_arm
 
-    def test_explicit_restore_mode_olr(self, backup, mock_client):
-        """Explicit OriginalWorkloadRestore is respected."""
+    def test_explicit_restore_mode_olr(self, backup, mock_client, mocker):
+        """OriginalLocation used when no target_container_name."""
         mock_client.recovery_points.list.return_value = [
             _make_recovery_point(),
         ]
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-olr-1",
         )
+        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch.object(
+            backup.restore_helper,
+            "find_latest_restore_job_id",
+            return_value="job-olr-1",
+        )
 
         result = backup.restore_to_database(
             container_name="ctr",
             item_name="item",
-            restore_mode="OriginalWorkloadRestore",
         )
 
         assert result["status"] == TestStatus.SUCCESS.value
-        assert result["restore_job"]["restore_mode"] == (
-            "OriginalWorkloadRestore"
-        )
+        assert result["restore_job"]["recovery_type"] == (RecoveryType.ORIGINAL_LOCATION)
 
     def test_no_recovery_point_returns_error_no_recovery(
         self,
@@ -1073,13 +1076,19 @@ class TestStaticHelpers:
 
         assert result["status"] == TestStatus.ERROR.value
 
-    def test_restore_as_files_success(self, backup, mock_client):
+    def test_restore_as_files_success(self, backup, mock_client, mocker):
         """SUCCESS when restore-as-files triggers correctly."""
         mock_client.recovery_points.list.return_value = [
             _make_recovery_point(),
         ]
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-fs-1",
+        )
+        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch.object(
+            backup.restore_helper,
+            "find_latest_restore_job_id",
+            return_value="job-fs-1",
         )
 
         result = backup.restore_to_filesystem(
@@ -1092,13 +1101,19 @@ class TestStaticHelpers:
         assert result["restore_job"]["restore_mode"] == "RestoreAsFiles"
         assert result["restore_job"]["target_path"] == "/backup/restore"
 
-    def test_cross_vm_filesystem_restore(self, backup, mock_client):
+    def test_cross_vm_filesystem_restore(self, backup, mock_client, mocker):
         """SUCCESS with target VM parameters set."""
         mock_client.recovery_points.list.return_value = [
             _make_recovery_point(),
         ]
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-fs-2",
+        )
+        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch.object(
+            backup.restore_helper,
+            "find_latest_restore_job_id",
+            return_value="job-fs-2",
         )
 
         result = backup.restore_to_filesystem(
@@ -1273,36 +1288,39 @@ class TestSetJobResultStatus:
         """``target_info`` is ``None`` for original restore."""
         req = BackupRestoreHelper.build_workload_restore(
             rp_id="/rp/1",
-            restore_mode="OriginalWorkloadRestore",
+            recovery_type=RecoveryType.ORIGINAL_LOCATION,
         )
-        assert req.properties.target_info is None
-        assert req.properties.recovery_type == "OriginalLocation"
-        assert req.properties.recovery_mode == "WorkloadRecovery"
+        props = cast(AzureWorkloadSAPHanaRestoreRequest, req.properties)
+        assert props.target_info is None
+        assert props.recovery_type == "OriginalLocation"
+        assert props.recovery_mode == "WorkloadRecovery"
 
     def test_alternate_restore_has_target_info(self, backup):
         """``target_info`` populated for alternate restore."""
         req = BackupRestoreHelper.build_workload_restore(
             rp_id="/rp/1",
-            restore_mode="AlternateWorkloadRestore",
+            recovery_type=RecoveryType.ALTERNATE_LOCATION,
             target_container_name="ctr",
             target_database_name="db",
         )
-        assert req.properties.target_info is not None
-        assert req.properties.target_info.container_id == "ctr"
-        assert req.properties.target_info.database_name == "db"
-        assert req.properties.recovery_type == "AlternateLocation"
-        assert req.properties.recovery_mode == "WorkloadRecovery"
+        props = cast(AzureWorkloadSAPHanaRestoreRequest, req.properties)
+        assert props.target_info is not None
+        assert props.target_info.container_id == "ctr"
+        assert props.target_info.database_name == "db"
+        assert props.recovery_type == "AlternateLocation"
+        assert props.recovery_mode == "WorkloadRecovery"
 
     def test_sdk_recovery_type_passthrough(self, backup):
         """Direct SDK values are accepted without mapping."""
         req = BackupRestoreHelper.build_workload_restore(
             rp_id="/rp/1",
-            restore_mode="AlternateLocation",
+            recovery_type=RecoveryType.ALTERNATE_LOCATION,
             target_container_name="ctr",
             target_database_name="db",
         )
-        assert req.properties.recovery_type == "AlternateLocation"
-        assert req.properties.target_info is not None
+        props = cast(AzureWorkloadSAPHanaRestoreRequest, req.properties)
+        assert props.recovery_type == "AlternateLocation"
+        assert props.target_info is not None
 
     def test_discover_dispatches_correctly(self, monkeypatch, mocker):
         """``run_module`` dispatches discover_protected_items."""

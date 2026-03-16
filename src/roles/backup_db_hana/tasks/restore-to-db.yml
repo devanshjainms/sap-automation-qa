@@ -159,6 +159,7 @@
       failed_when:                  cluster_maintenance_on_result.rc != 0
 
     - name:                         "Test Execution: HSR - Stop HANA on secondary node"
+      become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.command:      /usr/sap/{{ db_sid | upper }}/HDB{{ db_instance_number }}/HDB stop
       register:                     hsr_secondary_stop
@@ -170,6 +171,7 @@
                                     - backup_secondary_node | default('') != ''
 
     - name:                         "Test Execution: HSR - Unregister secondary from replication"
+      become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.command:      /usr/sap/{{ db_sid | upper }}/HDB{{ db_instance_number }}/hdbnsutil -sr_unregister
       register:                     hsr_unregister_result
@@ -181,6 +183,7 @@
                                     - backup_secondary_node | default('') != ''
 
     - name:                         "Test Execution: HSR - Disable replication on primary"
+      become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                     set -o pipefail
@@ -195,6 +198,7 @@
       when:                         database_high_availability | default(false) | bool
 
     - name:                         "Test Execution: Stop HANA DB before restore"
+      become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                     set -o pipefail
@@ -233,7 +237,7 @@
     - name:                         "Test Execution: Wait for SYSTEMDB restore jobs to complete - debug message"
       ansible.builtin.debug:
         msg: >-
-          Waiting for SYSTEMDB restore jobs to complete. This may take some time depending on the 
+          Waiting for SYSTEMDB restore jobs to complete. This may take some time depending on the
           size of the database and the restore point. SYSTEMDB restore results so far:
           {{ systemdb_restore_results.results | default([]) }}
       run_once:                     true
@@ -263,6 +267,7 @@
         - db_restore.restore_job.job_id | default('') | length > 0
 
     - name:                         "Test Execution: Start HANA DB before tenant restore"
+      become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                     set -o pipefail
@@ -302,7 +307,7 @@
     - name:                         "Test Execution: Wait for tenant database restore jobs to complete - debug message"
       ansible.builtin.debug:
         msg: >-
-          Waiting for tenant database restore jobs to complete. This may take some time depending on the 
+          Waiting for tenant database restore jobs to complete. This may take some time depending on the
           size of the databases and the restore points. Tenant restore results so far:
           {{ tenant_restore_results.results | default([]) }}
       run_once:                     true
@@ -332,6 +337,7 @@
         - db_restore.restore_job.job_id | default('') | length > 0
 
     - name:                         "Test Execution: Start HANA DB after restore"
+      become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                     set -o pipefail
@@ -349,6 +355,7 @@
       block:
 
         - name:                     "Test Execution: HSR - Enable replication on primary"
+          become:                   true
           become_user:              "{{ db_sid | lower }}adm"
           ansible.builtin.shell: |
                                     set -o pipefail
@@ -363,6 +370,7 @@
           failed_when:              hsr_enable_result.rc not in [0, 102]
 
         - name:                     "Test Execution: HSR - Start HANA on secondary"
+          become:                   true
           become_user:              "{{ db_sid | lower }}adm"
           ansible.builtin.shell: |
                                     set -o pipefail
@@ -379,6 +387,7 @@
                                     - backup_secondary_node | default('') != ''
 
         - name:                     "Test Execution: HSR - Register secondary for replication"
+          become:                   true
           become_user:              "{{ db_sid | lower }}adm"
           ansible.builtin.shell: |
                                     set -o pipefail
@@ -401,6 +410,7 @@
                                     - backup_secondary_node | default('') != ''
 
         - name:                     "Test Execution: HSR - Validate replication state"
+          become:                   true
           become_user:              "{{ db_sid | lower }}adm"
           ansible.builtin.shell: |
                                     set -o pipefail

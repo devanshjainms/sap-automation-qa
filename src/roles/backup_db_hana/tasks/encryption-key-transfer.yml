@@ -16,6 +16,7 @@
   when:                                 backup_encryption_enabled | default(false) | bool
 
 - name:                                 "Encryption Key Transfer: Create temp directory on source"
+  become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.file:
     path:                               "{{ _root_key_tmp_path }}"
@@ -25,6 +26,7 @@
   when:                                 backup_encryption_enabled | default(false) | bool
 
 - name:                                 "Encryption Key Transfer: Check tenant status on source"
+  become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail
@@ -45,6 +47,7 @@
                                         - backup_tenant_items | length > 0
 
 - name:                                 "Encryption Key Transfer: Start tenant '{{ db_item.name }}' on source (if not active)"
+  become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail
@@ -66,6 +69,7 @@
                                         - encryption_tenant_status.results[idx].stdout | default('') is not search('YES')
 
 - name:                                 "Encryption Key Transfer: Set root key backup password on tenant '{{ db_item.name }}'"
+  become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail
@@ -89,6 +93,7 @@
 # |     Step 2: Back up root keys from source HANA                         |
 # +-----------------------------------------------------------------------*/
 - name:                                 "Encryption Key Transfer: Backup root keys from tenant '{{ db_item.name }}'"
+  become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail
@@ -190,6 +195,7 @@
                                         - encryption_exported_files.files | default([]) | length > 0
 
 - name:                                 "Encryption Key Transfer: Stop tenant DB on target before key recovery"
+  become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail
@@ -212,6 +218,7 @@
                                         - backup_tenant_items | length > 0
 
 - name:                                 "Encryption Key Transfer: Recover root keys on target - tenant '{{ db_item.name }}'"
+  become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail
@@ -234,6 +241,7 @@
                                         - backup_tenant_items | length > 0
 
 - name:                                 "Encryption Key Transfer: Start tenant DB on target after key recovery"
+  become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail

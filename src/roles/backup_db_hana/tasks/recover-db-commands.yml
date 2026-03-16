@@ -94,6 +94,7 @@
       failed_when:                      cluster_maintenance_on_result.rc != 0
 
     - name:                             "Test Execution: HSR - Stop HANA on secondary node"
+      become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.command:          /usr/sap/{{ db_sid | upper }}/HDB{{ db_instance_number }}/HDB stop
       register:                         hsr_secondary_stop
@@ -105,6 +106,7 @@
                                         - backup_secondary_node | default('') != ''
 
     - name:                             "Test Execution: HSR - Unregister secondary from replication"
+      become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.command: >-
         /usr/sap/{{ db_sid | upper }}/HDB{{ db_instance_number }}/hdbnsutil -sr_unregister
@@ -117,6 +119,7 @@
                                         - backup_secondary_node | default('') != ''
 
     - name:                             "Test Execution: HSR - Disable replication on primary"
+      become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                         set -o pipefail
@@ -131,6 +134,7 @@
       when:                             database_high_availability | default(false) | bool
 
     - name:                             "Test Execution: Query backup catalog for latest full data backup"
+      become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                         set -o pipefail
@@ -159,6 +163,7 @@
                                         - backup_catalog_result.stdout | default('') | regex_search('[0-9]+') | default('') != ''
 
     - name:                             "Test Execution: Stop HANA DB for recovery"
+      become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                         set -o pipefail
@@ -172,6 +177,7 @@
       changed_when:                     hana_stop_result.rc == 0
 
     - name:                             "Test Execution: Recover HANA SYSTEMDB from catalog"
+      become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                         set -o pipefail
@@ -187,6 +193,7 @@
       when:                             backup_catalog_result.rc | default(1) == 0
 
     - name:                             "Test Execution: Recover HANA using most recent backup"
+      become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                         set -o pipefail
@@ -202,6 +209,7 @@
       when:                             backup_catalog_result.rc | default(1) != 0
 
     - name:                             "Test Execution: Start HANA DB after recovery"
+      become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                         set -o pipefail
@@ -215,6 +223,7 @@
       changed_when:                     hana_start_result.rc == 0
 
     - name:                             "Test Execution: Verify DB consistency post-recovery"
+      become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                         set -o pipefail
@@ -232,6 +241,7 @@
       when:                             database_high_availability | default(false) | bool
       block:
         - name:                         "Test Execution: HSR - Enable replication on primary"
+          become:                       true
           become_user:                  "{{ db_sid | lower }}adm"
           ansible.builtin.shell: |
                                         set -o pipefail
@@ -249,6 +259,7 @@
           failed_when:                  hsr_enable_result.rc not in [0, 102]
 
         - name:                         "Test Execution: HSR - Start HANA on secondary"
+          become:                       true
           become_user:                  "{{ db_sid | lower }}adm"
           ansible.builtin.shell: |
                                         set -o pipefail
@@ -266,6 +277,7 @@
                                         - backup_secondary_node | default('') != ''
 
         - name:                         "Test Execution: HSR - Register secondary for replication"
+          become:                       true
           become_user:                  "{{ db_sid | lower }}adm"
           ansible.builtin.shell: |
                                         set -o pipefail
@@ -292,6 +304,7 @@
                                         - backup_secondary_node | default('') != ''
 
         - name:                         "Test Execution: HSR - Validate replication state"
+          become:                       true
           become_user:                  "{{ db_sid | lower }}adm"
           ansible.builtin.shell: |
                                         set -o pipefail
