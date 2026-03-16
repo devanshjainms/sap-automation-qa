@@ -31,10 +31,10 @@ except ImportError:
 class BackupDiscovery:
     """Discovery and validation for Azure Backup HANA items.
 
-
     :param client: Authenticated Recovery Services Backup client.
     :param vault_name: Name of the Recovery Services vault.
     :param vault_resource_group: Resource group of the vault.
+    :param source_vm_name: Azure VM name to scope results to.
     :param parameter_definitions: YAML-loaded parameter defs for HTML report generation.
     :param log_fn: Optional callback ``(level, message)``.
     """
@@ -49,16 +49,28 @@ class BackupDiscovery:
         client: RecoveryServicesBackupClient,
         vault_name: str,
         vault_resource_group: str,
+        source_vm_name: str = "",
         parameter_definitions: Optional[List[Dict[str, str]]] = None,
         log_fn: Optional[Callable[[int, str], None]] = None,
     ) -> None:
         self._client = client
         self._vault_name = vault_name
         self._vault_rg = vault_resource_group
+        self._source_vm = (source_vm_name or "").lower().strip()
         self._param_defs: List[Dict[str, str]] = (
             parameter_definitions if parameter_definitions else []
         )
         self._log = log_fn or (lambda _lvl, _msg: None)
+
+    def _matches_source_vm(self, container_name: str) -> bool:
+        """Check whether a container belongs to the source VM.
+
+        :param container_name: Backup container name.
+        :returns: ``True`` when no filter is set or the container contains the configured VM name.
+        """
+        if not self._source_vm:
+            return True
+        return self._source_vm in (container_name or "").lower()
 
     @staticmethod
     def get_props(
@@ -169,12 +181,11 @@ class BackupDiscovery:
     def fetch_recent_jobs(
         self,
     ) -> Dict[str, Dict[str, Optional[AzureWorkloadJob]]]:
-        """Fetch recent backup jobs and index by DB name.
+        """Fetch recent backup jobs and index by container+DB name.
 
         :returns: Per-DB dict mapping to
             ``{"last_job": ..., "last_full_backup": ...}``
-            where values are SDK ``AzureWorkloadJob`` or
-            ``None``.
+            where values are SDK ``AzureWorkloadJob`` or ``None``.
         """
         job_filter = f"backupManagementType eq '{BackupManagementType.AZURE_WORKLOAD}'"
         result: Dict[str, Dict[str, Optional[AzureWorkloadJob]]] = {}
@@ -196,29 +207,37 @@ class BackupDiscovery:
                 if not raw_name:
                     continue
 
+                op = (props.operation or "").lower()
+                if not (op.startswith("backup") or op.startswith("restore")):
+                    continue
+
+                vm_hint = ""
                 bracket_idx = raw_name.find("[")
                 if bracket_idx > 0:
+                    vm_hint = raw_name[bracket_idx + 1 :].rstrip("]  ").strip()
                     raw_name = raw_name[:bracket_idx].rstrip()
 
-                keys = [raw_name]
+                short_name = raw_name
                 for sep in (":", ";"):
                     if sep in raw_name:
-                        short = raw_name.rsplit(sep, 1)[-1]
-                        if short and short != raw_name:
-                            keys.append(short)
+                        short_name = raw_name.rsplit(sep, 1)[-1]
                         break
 
-                for db_key in keys:
-                    entry = result.setdefault(
-                        db_key,
-                        dict(_empty),
-                    )
-                    if entry["last_job"] is None:
-                        entry["last_job"] = props
-                    if entry["last_full_backup"] is None and (
-                        props.operation or ""
-                    ).lower().startswith("backup"):
-                        entry["last_full_backup"] = props
+                if vm_hint:
+                    db_key = f"{vm_hint}::{short_name}"
+                else:
+                    db_key = f"::{short_name}"
+
+                entry = result.setdefault(
+                    db_key,
+                    dict(_empty),
+                )
+                if entry["last_job"] is None:
+                    entry["last_job"] = props
+                if entry["last_full_backup"] is None and (props.operation or "").lower().startswith(
+                    "backup"
+                ):
+                    entry["last_full_backup"] = props
         except Exception as exc:
             self._log(
                 logging.WARNING,
@@ -226,17 +245,65 @@ class BackupDiscovery:
             )
         return result
 
-    def discover(self) -> Dict[str, Any]:
-        """Discover and validate all protected HANA databases.
+    @staticmethod
+    def has_usable_restore_point(
+        rp_list: List[RecoveryPointResource],
+    ) -> bool:
+        """Check whether at least one RP has a real recovery time.
 
-        :returns: Dict with ``protected_items``,
-            ``restore_points``, ``details``, ``status``,
-            and ``message`` keys.
+        :param rp_list: Recovery point resources from the SDK.
+        :returns: ``True`` when a real restore point exists.
+        """
+        for rp_resource in rp_list:
+            if rp_resource.properties is None:
+                continue
+            rp = cast(AzureWorkloadSAPHanaRecoveryPoint, rp_resource.properties)
+            if rp.recovery_point_time_in_utc is not None:
+                return True
+            if getattr(rp, "time_ranges", None):
+                return True
+        return False
+
+    @staticmethod
+    def _match_jobs_for_item(
+        job_index: Dict[str, Dict[str, Optional[AzureWorkloadJob]]],
+        container_name: str,
+        friendly_name: str,
+    ) -> Dict[str, Optional[AzureWorkloadJob]]:
+        """Find the best matching job entry for a protected item.
+
+        :param job_index: Index returned by ``fetch_recent_jobs``.
+        :param container_name: Backup container name of the item.
+        :param friendly_name: DB friendly name (e.g. ``hdb``).
+        :returns: Dict with ``last_job`` and ``last_full_backup``.
+        """
+        db_name = friendly_name.lower()
+        empty: Dict[str, Optional[AzureWorkloadJob]] = {
+            "last_job": None,
+            "last_full_backup": None,
+        }
+        for key, entry in job_index.items():
+            sep_idx = key.find("::")
+            if sep_idx < 0:
+                continue
+            vm_hint = key[:sep_idx]
+            key_db = key[sep_idx + 2 :]
+            if key_db != db_name:
+                continue
+            if vm_hint and vm_hint in container_name.lower():
+                return entry
+        return job_index.get(f"::{db_name}", empty)
+
+    def discover(self) -> Dict[str, Any]:
+        """Discover and validate protected HANA databases.
+
+        :returns: Dict with ``protected_items``
         :raises Exception: Propagated from SDK calls.
         """
+        vm_label = f" for VM '{self._source_vm}'" if self._source_vm else ""
         self._log(
             logging.INFO,
-            "Discovering protected HANA items in " f"vault '{self._vault_name}'",
+            f"Discovering protected HANA items in vault " f"'{self._vault_name}'{vm_label}",
         )
         protected: List[Dict[str, Any]] = []
         restore_pts: List[Dict[str, Any]] = []
@@ -247,33 +314,36 @@ class BackupDiscovery:
         }
         job_index = self.fetch_recent_jobs()
         parameters: List[Dict[str, Any]] = []
+        skipped = 0
 
         for item in self.list_protected_items():
             props = self.get_props(item)
             container = props.container_name or ""
             item_name = item.name or ""
-            is_hsr = self.is_hsr_container(container)
+
+            if not self._matches_source_vm(container):
+                skipped += 1
+                continue
+
+            is_hsr = self.is_hsr_container(container_name=container)
 
             rp_list = self.list_recovery_points(
-                container,
-                item_name,
+                container_name=container,
+                item_name=item_name,
             )
             rp_time, rp_type = self.latest_rp_summary(
                 rp_list,
             )
-
-            db_jobs = job_index.get(
-                (props.friendly_name or "").lower(),
-                {},
-            )
+            has_rp = self.has_usable_restore_point(rp_list)
+            db_jobs = self._match_jobs_for_item(job_index, container, props.friendly_name or "")
             last_job: Optional[AzureWorkloadJob] = db_jobs.get("last_job")
             last_full: Optional[AzureWorkloadJob] = db_jobs.get("last_full_backup")
 
             db_status = self.evaluate_db_status(
-                props,
-                len(rp_list) > 0,
-                is_hsr,
-                last_job,
+                props=props,
+                has_restore_point=has_rp,
+                is_hsr=is_hsr,
+                last_job=last_job,
             )
             status_counts[db_status] = status_counts.get(db_status, 0) + 1
 
@@ -290,7 +360,9 @@ class BackupDiscovery:
                     "health_status": (props.protected_item_health_status or "Unknown"),
                     "protection_status": (props.protection_status or "Unknown"),
                     "last_backup_time": (
-                        props.last_backup_time.isoformat() if props.last_backup_time else ""
+                        last_full.start_time.isoformat()
+                        if last_full and last_full.start_time
+                        else ""
                     ),
                     "latest_restore_point": rp_time,
                     "backup_type": rp_type,
@@ -339,6 +411,12 @@ class BackupDiscovery:
                 )
             )
 
+        if skipped:
+            self._log(
+                logging.INFO,
+                f"Skipped {skipped} item(s) not matching " f"source VM '{self._source_vm}'.",
+            )
+
         if status_counts.get(TestStatus.ERROR.value, 0):
             status = TestStatus.ERROR.value
         elif status_counts.get(TestStatus.WARNING.value, 0):
@@ -373,16 +451,18 @@ class BackupDiscovery:
         """
         self._log(
             logging.INFO,
-            "Checking restore points for " "protected items.",
+            "Checking restore points for protected items.",
         )
         all_points: List[Dict[str, Any]] = []
         items_without_rp = 0
         item_count = 0
 
         for item in self.list_protected_items():
-            item_count += 1
             props = self.get_props(item)
             container = props.container_name or ""
+            if not self._matches_source_vm(container):
+                continue
+            item_count += 1
             item_name = item.name or ""
 
             rp_list = self.list_recovery_points(
@@ -408,10 +488,10 @@ class BackupDiscovery:
 
         if items_without_rp:
             status = TestStatus.WARNING.value
-            message = f"{items_without_rp} of {item_count} " f"item(s) have no recovery points."
+            message = f"{items_without_rp} of {item_count} item(s) have no recovery points."
         else:
             status = TestStatus.SUCCESS.value
-            message = f"All {item_count} item(s) have " f"recovery points."
+            message = f"All {item_count} item(s) have recovery points."
 
         return {
             "restore_points": all_points,

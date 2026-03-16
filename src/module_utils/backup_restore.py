@@ -19,7 +19,6 @@ from azure.mgmt.recoveryservicesbackup.models import (
     OverwriteOptions,
     BackupManagementType,
     AzureWorkloadJob,
-    JobResource,
 )
 
 try:
@@ -203,18 +202,21 @@ class BackupRestoreHelper:
         rp_id: str,
         target_filesystem_path: str,
         container_id: Optional[str],
+        source_resource_id: str = "",
     ) -> RestoreRequestResource:
         """Construct a restore-as-files request model.
 
         :param rp_id: Recovery point ARM resource ID.
         :param target_filesystem_path: Destination path.
-        :param container_id: ARM container ID (or ``None``).
+        :param container_id: Protection container ARM ID (or ``None``).
+        :param source_resource_id: ARM resource ID of the source VM.
         :returns: SDK ``RestoreRequestResource`` object.
         """
         return RestoreRequestResource(
             properties=AzureWorkloadSAPHanaRestoreRequest(
                 recovery_type=RecoveryType.ALTERNATE_LOCATION,
                 recovery_mode=RecoveryMode.FILE_RECOVERY,
+                source_resource_id=(source_resource_id or None),
                 target_info=TargetRestoreInfo(
                     overwrite_option=OverwriteOptions.OVERWRITE,
                     container_id=container_id,
@@ -399,6 +401,7 @@ class BackupRestoreHelper:
         target_vm_name: str = "",
         target_vm_resource_group: str = "",
         restore_point_time: str = "",
+        source_resource_id: str = "",
     ) -> Dict[str, Any]:
         """Trigger a restore-as-files to a filesystem path.
 
@@ -408,6 +411,7 @@ class BackupRestoreHelper:
         :param target_vm_name: Target VM for the files.
         :param target_vm_resource_group: Target VM resource group.
         :param restore_point_time: Optional PIT in UTC ISO-8601.
+        :param source_resource_id: ARM resource ID of the source VM.
         :returns: Result dict with ``restore_job``, ``status``, and ``message`` keys.
         :raises Exception: Propagated from SDK calls.
         """
@@ -428,15 +432,15 @@ class BackupRestoreHelper:
                 "message": ("No suitable recovery point found."),
             }
 
-        container_id = (
-            self.build_container_id(
+        if target_vm_name:
+            vm_arm_id = self.build_container_id(
                 self._subscription_id,
                 target_vm_name,
                 (target_vm_resource_group or self._vault_rg),
             )
-            if target_vm_name
-            else None
-        )
+            container_id = self._vm_id_to_container_id(vm_arm_id)
+        else:
+            container_id = None
         trigger_time = time.time()
         self._client.restores.begin_trigger(
             vault_name=self._vault_name,
@@ -450,6 +454,7 @@ class BackupRestoreHelper:
                     rp_id,
                     target_filesystem_path,
                     container_id,
+                    source_resource_id,
                 )
             ),
         )

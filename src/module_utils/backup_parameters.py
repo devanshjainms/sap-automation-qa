@@ -39,7 +39,11 @@ class BackupParameterBuilder:
         :param db_status: Computed PASSED/WARNING/FAILED status.
         :returns: Dict mapping parameter key to ``{"value": ..., "status": ...}``.
         """
-        last_backup_time = props.last_backup_time.isoformat() if props.last_backup_time else ""
+        last_backup_time = (
+            last_full.start_time.isoformat()
+            if last_full and last_full.start_time
+            else ""
+        )
         policy_name = props.policy_name or ""
         if not policy_name and getattr(props, "policy_id", None):
             policy_name = (props.policy_id or "").rsplit("/", 1)[-1]

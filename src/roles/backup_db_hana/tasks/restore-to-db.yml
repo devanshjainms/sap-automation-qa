@@ -3,10 +3,6 @@
 
 # /*---------------------------------------------------------------------------
 # |       Restore Backup to HANA DB using Azure Backup (OLR)                  |
-# |       Iterates over all discovered protected databases                    |
-# |       Restores SYSTEMDB first, then tenant DBs (HANA requirement)         |
-# |       Non-HA: OriginalWorkloadRestore (OLR)                              |
-# |       HSR:    AlternateWorkloadRestore to primary node (overwrite)        |
 # +--------------------------------------------------------------------------*/
 
 - name:                                 "Test Setup Tasks"
@@ -19,17 +15,6 @@
 - name:                              "Pre Validations: Backup Restore to Database"
   when:                              node_tier == "hana"
   block:
-    - name:                          "Pre Validation: Verify backup vault connectivity"
-      delegate_to:                   localhost
-      azure_backup_hana:
-        operation:                   "discover_protected_items"
-        vault_resource_id:           "{{ backup_vault_resource_id }}"
-        subscription_id:             "{{ azure_instance_metadata.json.compute.subscriptionId }}"
-        msi_client_id:               "{{ user_assigned_identity_client_id | default('') }}"
-      register:                      pre_backup_discovery
-      run_once:                      true
-      failed_when:                   pre_backup_discovery.protected_items | default([]) | length == 0
-
     - name:                          "Pre Validation: HA cluster status"
       when:                          database_high_availability | default(false) | bool
       block:
@@ -79,28 +64,67 @@
       run_once:                     true
       when:                         not (database_high_availability | default(false) | bool)
 
+    - name:                          "Pre Validation: Discover protected items for source VM"
+      delegate_to:                   localhost
+      azure_backup_hana:
+        operation:                   "discover_protected_items"
+        vault_resource_id:           "{{ backup_vault_resource_id }}"
+        subscription_id:             "{{ azure_instance_metadata.json.compute.subscriptionId }}"
+        msi_client_id:               "{{ user_assigned_identity_client_id | default('') }}"
+        source_vm_name:              "{{ backup_restore_vm_name }}"
+      register:                      pre_backup_discovery
+      run_once:                      true
+      failed_when:                   pre_backup_discovery.protected_items | default([]) | length == 0
+
+    - name:                         "Pre Validation: Set source items from filtered discovery"
+      ansible.builtin.set_fact:
+        backup_source_items:        "{{ pre_backup_discovery.protected_items }}"
+      run_once:                     true
+
+    - name:                         "Pre Validation: Log source filter results"
+      ansible.builtin.debug:
+        msg: >-
+          Found {{ backup_source_items | length }} protected item(s) for source VM
+          '{{ backup_restore_vm_name }}'.
+          Databases: {{ backup_source_items | map(attribute='name') | list }}
+      run_once:                     true
+
     - name:                         "Pre Validation: Separate SYSTEMDB and tenant databases"
       ansible.builtin.set_fact:
-        backup_systemdb_items:      "{{ pre_backup_discovery.protected_items
+        backup_systemdb_items:      "{{ backup_source_items
                                         | selectattr('name','match','^(?i)systemdb$')
                                         | list }}"
-        backup_tenant_items:        "{{ pre_backup_discovery.protected_items
+        backup_tenant_items:        "{{ backup_source_items
                                         | rejectattr('name','match','^(?i)systemdb$')
                                         | list }}"
+      run_once:                     true
+
+    - name:                         "Pre Validation: Apply restore scope parameters"
+      ansible.builtin.set_fact:
+        backup_systemdb_items:      "{{ backup_systemdb_items
+                                        if (backup_restore_systemdb | default(true) | bool)
+                                        else [] }}"
+        backup_tenant_items:        "{{ (backup_tenant_items
+                                        | selectattr('name', 'in', backup_restore_tenants | map('lower') | list)
+                                        | list)
+                                        if (backup_restore_tenants | default([]) | length > 0)
+                                        else backup_tenant_items }}"
       run_once:                     true
 
     - name:                         "Pre Validation: Log discovered databases"
       ansible.builtin.debug:
         msg: >-
-          Discovered {{ pre_backup_discovery.protected_items | length }} database(s).
-          SYSTEMDB: {{ backup_systemdb_items | map(attribute='name') | list | join(', ') | default('none') }},
-          Tenants: {{ backup_tenant_items | map(attribute='name') | list | join(', ') | default('none') }}
+          Discovered {{ backup_source_items | length }} database(s) from source VM '{{ backup_restore_vm_name }}'.
+          Restoring: SYSTEMDB: {{ backup_systemdb_items | map(attribute='name') | list | join(', ') | default('skipped') }},
+          Tenants: {{ backup_tenant_items | map(attribute='name') | list | join(', ') | default('none') }}.
+          Parameters: restore_systemdb={{ backup_restore_systemdb | default(true) }},
+          restore_tenants={{ backup_restore_tenants | default([]) }}
       run_once:                     true
 
     - name:                         "Pre Validation: Override status if no backup items found"
       ansible.builtin.set_fact:
         pre_validations_status:     "{{ 'FAILED' if (
-                                        pre_backup_discovery.protected_items | length == 0
+                                        backup_source_items | length == 0
                                       ) else pre_validations_status | default('PASSED') }}"
       run_once:                     true
 
@@ -495,12 +519,12 @@
     - name:                         "Set test case message and details (standalone)"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
-          Restore to DB (OLR) for {{ pre_backup_discovery.protected_items | length }} DB(s):
+          Restore to DB (OLR) for {{ backup_source_items | length }} DB(s):
           SYSTEMDB: {{ systemdb_all_ok }}, Tenants: {{ tenant_all_ok }},
           HANA DB running: {{ (hana_process_check.rc | default(1)) in [0, 3] }}
         test_case_details_from_test_case:
           topology:                 "Standalone"
-          databases_restored:       "{{ pre_backup_discovery.protected_items | map(attribute='name') | list }}"
+          databases_restored:       "{{ backup_source_items | map(attribute='name') | list }}"
           systemdb_results:         "{{ systemdb_restore_results.results | default([]) }}"
           systemdb_job_statuses:    "{{ systemdb_job_statuses.results | default([]) }}"
           tenant_results:           "{{ tenant_restore_results.results | default([]) }}"
@@ -514,13 +538,13 @@
     - name:                         "Set test case message and details (HSR)"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
-          Restore to DB (HSR - AlternateWorkloadRestore) for {{ pre_backup_discovery.protected_items | length }} DB(s):
+          Restore to DB (HSR - AlternateWorkloadRestore) for {{ backup_source_items | length }} DB(s):
           SYSTEMDB: {{ systemdb_all_ok }}, Tenants: {{ tenant_all_ok }},
           HANA DB running: {{ (hana_process_check.rc | default(1)) in [0, 3] }},
           HSR re-established: {{ (hsr_register_result.rc | default(1)) == 0 }}
         test_case_details_from_test_case:
           topology:                 "HSR"
-          databases_restored:       "{{ pre_backup_discovery.protected_items | map(attribute='name') | list }}"
+          databases_restored:       "{{ backup_source_items | map(attribute='name') | list }}"
           systemdb_results:         "{{ systemdb_restore_results.results | default([]) }}"
           systemdb_job_statuses:    "{{ systemdb_job_statuses.results | default([]) }}"
           tenant_results:           "{{ tenant_restore_results.results | default([]) }}"
@@ -551,9 +575,12 @@
   block:
     - name:                             "Set test case message and details"
       ansible.builtin.set_fact:
-        test_case_message_from_test_case: "Pre Validations for Azure Backup restore-to-database failed. No protected items found."
+        test_case_message_from_test_case: >-
+          Pre Validations for Azure Backup restore-to-database failed.
+          Source VM items: {{ backup_source_items | default([]) | length }},
+          VM: {{ backup_restore_vm_name | default('NOT SET') }}
         test_case_details_from_test_case:
-          pre_validation:               "{{ pre_backup_discovery | default({}) }}"
+          pre_validation:               "{{ backup_source_items | default([]) }}"
       run_once:                         true
 
     - name:                             "Post Validations Tasks"

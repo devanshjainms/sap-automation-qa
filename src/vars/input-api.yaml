@@ -349,11 +349,11 @@ test_groups:
         task_name:                  restore-cross-vm
         description: |
           Tests Alternate Location Recovery (ALR) of Azure Backup for SAP HANA.
-          Iterates over all discovered protected databases (SYSTEMDB + tenant DBs)
-          and restores each one to a user-specified alternate VM using
-          AlternateWorkloadRestore with overwrite. Requires backup_target_vm_name
-          to be set. Validates the target HANA instance is running with consistent
-          databases after all restores complete.
+          Restores tenant databases only (SYSTEMDB is excluded) to a
+          user-specified alternate VM using AlternateWorkloadRestore with
+          overwrite. Requires backup_target_vm_name to be set. Validates the
+          target HANA instance is running with consistent databases after all
+          tenant restores complete.
         enabled:                    true
 
 # Default values for HANA DB HA Test Cases
@@ -377,14 +377,14 @@ backup_container_name:              ""
 backup_item_name:                   ""
 backup_target_filesystem_path:      "/sapinstall/hana_backup/"
 backup_target_vm_name:              ""
-backup_target_vm_rg:                ""
 backup_target_container_name:       ""
-backup_target_database_name:        ""
 backup_restore_point_time:          ""
 backup_poll_interval:               30
 backup_poll_timeout:                7200
 backup_recover_timeout:             3600
 hana_userstore_key:                 "SYSTEM"
+backup_restore_systemdb:            true
+backup_restore_tenants:             []
 backup_hsr_primary_site:            "site1"
 backup_hsr_secondary_site:          "site2"
 backup_hsr_replication_mode:        "syncmem"

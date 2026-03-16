@@ -1,6 +1,8 @@
-# Azure Backup Functional Testing for SAP HANA
+# Functional Test for Azure Backup for SAP HANA
 
-The SAP Testing Automation Framework includes an Azure Backup testing component that validates backup and restore operations for SAP HANA databases deployed on Azure. It exercises the [Azure Backup for SAP HANA](https://learn.microsoft.com/azure/backup/sap-hana-database-about) service through the Python SDK (`azure-mgmt-recoveryservicesbackup`) and native HANA recovery commands.
+The SAP Testing Automation Framework includes an Azure Backup testing component that validates the configuration of Azure Backup infrastructure and functionality of restore operations by performing actual restore for SAP HANA databases deployed on Azure.
+
+> **Important:** This is a **testing and validation tool only**. It is designed to verify that Azure Backup is correctly configured and that restore operations function as expected. It should **not** be used as a substitute for actual SAP HANA database restore procedures in any scenario.
 
 ## Supported Scenarios
 
@@ -8,11 +10,11 @@ The framework supports both **HA (two-node cluster)** and **Non-HA (single-node)
 
 | # | Test Case | Task Name | Description |
 |---|-----------|-----------|-------------|
-| 1 | Azure Backup Setup Verification | `backup-setup-verification` | Discovers all protected HANA databases in the Recovery Services vault, verifies backup configuration health, and checks that recent restore points exist. |
+| 1 | Azure Backup Configuration Validation | `backup-setup-verification` | Discovers all protected HANA databases in the Recovery Services vault, verifies backup configuration health, and checks that recent restore points exist. |
 | 2 | Restore Backup to HANA DB | `restore-to-db` | Triggers a full or point-in-time restore to the original HANA database via Azure Backup, monitors the restore job, then validates HANA is running. |
 | 3 | Restore Backup to FileSystem | `restore-to-filesystem` | Restores the HANA backup as files to a filesystem path, verifies the files are present, then recovers the HANA DB from those files and validates it is operational. |
 | 4 | Recover DB using Database Commands | `recover-db-commands` | Tests native HANA recovery using `recoverSys.py` / `RECOVER DATA`. Queries the backup catalog, stops HANA, performs recovery, restarts, and validates consistency. |
-| 5 | Cross-VM Restore | `restore-cross-vm` | Restores a HANA backup from VM-1 to VM-2 (AlternateWorkloadRestore). Validates the target HANA instance starts and the database is consistent. Requires ≥ 2 HANA nodes. |
+| 5 | Cross-VM Restore | `restore-cross-vm` | Restores **tenant databases only** from VM-1 to VM-2 (AlternateWorkloadRestore). SYSTEMDB is not restored in cross-VM scenarios. Validates the target HANA instance starts and the databases are consistent. |
 
 ## Prerequisites
 
@@ -40,7 +42,7 @@ For identity setup, see [Setup Guide — Identity and Authorization](./SETUP.MD#
 - The management server must have SSH connectivity to all HANA DB hosts.
 - The `<sid>adm` user must be able to run `HDB stop`, `HDB start`, `sapcontrol`, and `hdbsql` commands.
 - For test case 3 (restore-to-filesystem), the target filesystem path must be writable.
-- For test case 5 (cross-VM restore), at least 2 HANA nodes must be in the inventory.
+- For test case 5 (cross-VM restore), target VM information must be provided.
 
 ## Configuration
 
@@ -58,22 +60,25 @@ SAP_FUNCTIONAL_TEST_TYPE:   AzureBackupDatabase
 Add the following variables to your system's `sap-parameters.yaml` file (under `WORKSPACES/SYSTEM/<SYSTEM_CONFIG_NAME>/`):
 
 ```yaml
-# Required: Recovery Services vault resource ID
-backup_vault_resource_id:         "/subscriptions/xxxx/resourceGroups/my-backup-rg/providers/Microsoft.RecoveryServices/vaults/my-rsv-vault"
+# Recovery Services vault ARM resource ID
+backup_vault_resource_id:         "/subscriptions/xxxx/resourceGroups/my-rg/providers/Microsoft.RecoveryServices/vaults/my-vault"
 
-# Required for restore test cases (2-5)
-backup_container_name:            "VMAppContainer;Compute;my-rg;hanavm01"
-backup_item_name:                 "saphanadatabase;h05;systemdb"
+# Whether to restore SYSTEMDB (set false to skip)
+backup_restore_systemdb:          true
+# Restrict tenant restore to specific DBs (empty = all tenants)
+backup_restore_tenants:           []          # e.g. ["HDB", "H01"]
 
-# Required for filesystem restore (test case 3)
-backup_target_filesystem_path:    "/hana/backup/restore"
+# Target path for file-based restore; must be writable
+backup_target_filesystem_path:    "/hana/backup/restore/"
 
-# Required for cross-VM restore (test case 5)
-backup_target_container_name:     "VMAppContainer;Compute;my-rg;hanavm02"
-backup_target_database_name:      "SYSTEMDB"
+# Target VM hostname (source VM should be able to resolve this hostname)
+backup_target_vm_name:            ""
 
-# Optional: point-in-time restore (ISO 8601 UTC timestamp)
+#  Point-in-time restore (optional, ISO 8601 UTC)
 backup_restore_point_time:        ""
+
+# HANA Key (created as part of pre-registration for Azure Backup)
+hana_userstore_key:               "SYSTEM"
 ```
 
 ### 3. User-Assigned Managed Identity (Optional)

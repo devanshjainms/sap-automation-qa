@@ -14,6 +14,7 @@
   tasks:
     - name:                            "Install python azure packages required"
       become:                          true
+      no_log:                          true
       ansible.builtin.pip:
         name:
           - azure-identity
@@ -112,6 +113,10 @@
 
     - name:                            "Render HTML report for the test group logs"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
+      when:                            test_group_name is defined
+
+    - name:                            "Display test execution summary"
+      ansible.builtin.include_tasks:   "./roles/misc/tasks/display-test-summary.yml"
       when:                            test_group_name is defined
 
     - name:                            "Debug the group_invocation_id"

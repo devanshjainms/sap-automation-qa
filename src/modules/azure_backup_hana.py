@@ -216,6 +216,7 @@ class AzureBackupHana(SapAutomationQA):
         subscription_id: str,
         msi_client_id: str = "",
         database_sid: str = "",
+        source_vm_name: str = "",
         poll_interval: int = _DEFAULT_POLL_INTERVAL,
         poll_timeout: int = _DEFAULT_POLL_TIMEOUT,
         parameter_definitions: Optional[List[Dict[str, str]]] = None,
@@ -229,6 +230,7 @@ class AzureBackupHana(SapAutomationQA):
         self.vault_resource_group = vault_rg
         self.subscription_id = subscription_id
         self.database_sid = database_sid
+        self.source_vm_name = source_vm_name
         self.poll_interval = poll_interval
         self.poll_timeout = poll_timeout
         self.parameter_definitions: List[Dict[str, str]] = (
@@ -291,6 +293,7 @@ class AzureBackupHana(SapAutomationQA):
                 client=self.client,
                 vault_name=self.vault_name,
                 vault_resource_group=(self.vault_resource_group),
+                source_vm_name=self.source_vm_name,
                 parameter_definitions=(self.parameter_definitions),
                 log_fn=self.log,
             )
@@ -423,6 +426,7 @@ class AzureBackupHana(SapAutomationQA):
         target_vm_name: str = "",
         target_vm_resource_group: str = "",
         restore_point_time: str = "",
+        source_resource_id: str = "",
     ) -> Dict[str, Any]:
         """Trigger a restore-as-files to a filesystem path.
 
@@ -432,6 +436,7 @@ class AzureBackupHana(SapAutomationQA):
         :param target_vm_name: Target VM for the files.
         :param target_vm_resource_group: Target VM resource group.
         :param restore_point_time: Optional PIT in UTC ISO-8601.
+        :param source_resource_id: ARM resource ID of the source VM.
         :returns: Result dict with ``restore_job`` details.
         """
         try:
@@ -443,6 +448,7 @@ class AzureBackupHana(SapAutomationQA):
                     target_vm_name=target_vm_name,
                     target_vm_resource_group=(target_vm_resource_group),
                     restore_point_time=restore_point_time,
+                    source_resource_id=source_resource_id,
                 )
             )
         except Exception as exc:
@@ -538,6 +544,7 @@ def run_module() -> None:
             target_vm_resource_group=dict(type="str", required=False, default=""),
             restore_mode=dict(type="str", required=False, default=""),  # deprecated, ignored
             source_resource_id=dict(type="str", required=False, default=""),
+            source_vm_name=dict(type="str", required=False, default=""),
             restore_job_id=dict(type="str", required=False, default=""),
             poll_interval_seconds=dict(type="int", required=False, default=30),
             poll_timeout_seconds=dict(type="int", required=False, default=7200),
@@ -558,6 +565,7 @@ def run_module() -> None:
         subscription_id=params["subscription_id"],
         msi_client_id=params.get("msi_client_id", ""),
         database_sid=params.get("database_sid", ""),
+        source_vm_name=params.get("source_vm_name", ""),
         poll_interval=params.get(
             "poll_interval_seconds",
             AzureBackupHana._DEFAULT_POLL_INTERVAL,
@@ -612,6 +620,10 @@ def run_module() -> None:
                 ),
                 restore_point_time=params.get(
                     "restore_point_time",
+                    "",
+                ),
+                source_resource_id=params.get(
+                    "source_resource_id",
                     "",
                 ),
             )
