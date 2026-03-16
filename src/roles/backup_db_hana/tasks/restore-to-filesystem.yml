@@ -59,7 +59,6 @@
         mode:                       "0755"
       register:                     fs_path_check
       run_once:                     true
-      failed_when:                  false
 
     - name:                          "Pre Validation: Discover protected items for source VM"
       delegate_to:                   localhost
@@ -164,7 +163,6 @@
       delegate_to:                  "{{ backup_secondary_node | default(inventory_hostname, true) }}"
       run_once:                     true
       changed_when:                 hsr_secondary_stop.rc == 0
-      failed_when:                  false
       when:
                                     - database_high_availability | default(false) | bool
                                     - backup_secondary_node | default('') != ''
@@ -176,7 +174,6 @@
       delegate_to:                  "{{ backup_secondary_node | default(inventory_hostname, true) }}"
       run_once:                     true
       changed_when:                 hsr_unregister_result.rc == 0
-      failed_when:                  false
       when:
                                     - database_high_availability | default(false) | bool
                                     - backup_secondary_node | default('') != ''
@@ -193,7 +190,6 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       changed_when:                 hsr_disable_result.rc == 0
-      failed_when:                  false
       when:                         database_high_availability | default(false) | bool
 
     - name:                         "Test Execution: Stop HANA DB before restore"
@@ -208,7 +204,6 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       changed_when:                 hana_stop_result.rc == 0
-      failed_when:                  false
 
     - name:                         "Test Execution: Clean target filesystem path"
       ansible.builtin.file:
@@ -221,7 +216,6 @@
       loop_control:
         loop_var:                   item_state
       run_once:                     true
-      failed_when:                  false
 
     - name:                         "Test Execution: Create per-DB subdirectory for SYSTEMDB"
       ansible.builtin.file:
@@ -255,7 +249,6 @@
              ~ backup_restore_vm_name }}
       register:                     systemdb_fs_restore_results
       run_once:                     true
-      failed_when:                  false
       loop:                         "{{ backup_systemdb_items }}"
       loop_control:
         loop_var:                   db_item
@@ -326,7 +319,6 @@
              ~ backup_restore_vm_name }}
       register:                     tenant_fs_restore_results
       run_once:                     true
-      failed_when:                  false
       loop:                         "{{ backup_tenant_items }}"
       loop_control:
         loop_var:                   db_item
@@ -381,13 +373,39 @@
         success_msg:                "Found {{ restored_files.files | length }} backup file(s)"
       run_once:                     true
 
-    - name:                         "Test Execution: Recover HANA DB from backup files"
+    - name:                         "Test Execution: Validate backup files with hdbbackupdiag"
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                     set -o pipefail
                                     source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                     /usr/sap/{{ db_sid | upper }}/HDB{{ db_instance_number }}/exe/hdbbackupdiag \
-                                      --list "{{ backup_target_filesystem_path }}" && \
+                                      -d "{{ backup_target_filesystem_path }}/{{ db_item.name }}" -f
+      args:
+        executable:                 /bin/bash
+      register:                     hana_backupdiag_result
+      delegate_to:                  "{{ backup_primary_node }}"
+      run_once:                     true
+      changed_when:                 false
+      loop:                         "{{ (backup_systemdb_items + backup_tenant_items) }}"
+      loop_control:
+        loop_var:                   db_item
+        label:                      "{{ db_item.name }}"
+
+    - name:                         "Test Execution: Log hdbbackupdiag results"
+      ansible.builtin.debug:
+        msg: >-
+          hdbbackupdiag for {{ item.db_item.name }}
+          (rc={{ item.rc | default(-1) }}):
+          {{ item.stdout_lines | default([]) | join(', ') }}
+          {{ '-- STDERR: ' ~ item.stderr_lines[0] if (item.stderr_lines | default([]) | length > 0) else '' }}
+      loop:                         "{{ hana_backupdiag_result.results | default([]) }}"
+      run_once:                     true
+
+    - name:                         "Test Execution: Recover HANA DB from backup files"
+      become_user:                  "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                    set -o pipefail
+                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                     HDBSettings.sh recoverSys.py \
                                       --command="RECOVER DATA FOR {{ db_sid | upper }} USING FILE \
                                       ('{{ backup_target_filesystem_path }}')" \
@@ -397,7 +415,6 @@
       register:                     hana_file_recover_result
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
-      failed_when:                  false
 
     - name:                         "Test Execution: Start HANA DB after recovery"
       become_user:                  "{{ db_sid | lower }}adm"
@@ -411,7 +428,6 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       changed_when:                 hana_start_result.rc == 0
-      failed_when:                  false
 
     - name:                         "Test Execution: Validate HANA DB is running"
       become_user:                  "{{ db_sid | lower }}adm"
@@ -427,7 +443,42 @@
       retries:                      50
       delay:                        10
       until:                        hana_process_check.rc == 0 or hana_process_check.rc == 3
-      failed_when:                  false
+
+    - name:                         "Test Execution: Start tenant DB after recovery"
+      become_user:                  "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                    set -o pipefail
+                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                    hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
+                                      "ALTER SYSTEM START DATABASE {{ db_item.name }}"
+      args:
+        executable:                 /bin/bash
+      register:                     tenant_start_result
+      delegate_to:                  "{{ backup_primary_node }}"
+      run_once:                     true
+      changed_when:                 true
+      loop:                         "{{ backup_tenant_items | default([]) }}"
+      loop_control:
+        loop_var:                   db_item
+        label:                      "{{ db_item.name }}"
+      when:                         (hana_process_check.rc | default(1)) in [0, 3]
+
+    - name:                         "Test Execution: Wait for tenant indexserver"
+      become_user:                  "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                    set -o pipefail
+                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                    sapcontrol -nr {{ db_instance_number }} -function GetProcessList | grep -i indexserver | grep -i GREEN
+      args:
+        executable:                 /bin/bash
+      register:                     tenant_indexserver_wait
+      delegate_to:                  "{{ backup_primary_node }}"
+      run_once:                     true
+      changed_when:                 false
+      retries:                      30
+      delay:                        10
+      until:                        tenant_indexserver_wait.rc == 0
+      when:                         (hana_process_check.rc | default(1)) in [0, 3]
 
     - name:                         "Test Execution: HSR - Re-establish replication"
       when:                         database_high_availability | default(false) | bool
@@ -445,7 +496,6 @@
           delegate_to:              "{{ backup_primary_node }}"
           run_once:                 true
           changed_when:             hsr_enable_result.rc == 0
-          failed_when:              hsr_enable_result.rc not in [0, 102]
           when:                     (hana_process_check.rc | default(1)) in [0, 3]
 
         - name:                     "Test Execution: HSR - Start HANA on secondary"
@@ -460,7 +510,6 @@
           delegate_to:              "{{ backup_secondary_node | default(inventory_hostname, true) }}"
           run_once:                 true
           changed_when:             hsr_secondary_start.rc == 0
-          failed_when:              false
           when:
                                     - hsr_enable_result.rc | default(1) in [0, 102]
                                     - backup_secondary_node | default('') != ''
@@ -499,7 +548,6 @@
           delegate_to:              "{{ backup_primary_node }}"
           run_once:                 true
           changed_when:             false
-          failed_when:              false
           when:                     hsr_register_result.rc | default(1) == 0
 
         - name:                     "Test Execution: HSR - Take cluster out of maintenance mode"
@@ -514,7 +562,6 @@
           register:                 cluster_maintenance_off_result
           run_once:                 true
           changed_when:             cluster_maintenance_off_result.rc == 0
-          failed_when:              false
 
     - name:                         "Test Execution: Compute restore results summary"
       ansible.builtin.set_fact:

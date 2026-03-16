@@ -165,7 +165,6 @@
       delegate_to:                  "{{ backup_secondary_node | default(inventory_hostname, true) }}"
       run_once:                     true
       changed_when:                 hsr_secondary_stop.rc == 0
-      failed_when:                  false
       when:
                                     - database_high_availability | default(false) | bool
                                     - backup_secondary_node | default('') != ''
@@ -177,7 +176,6 @@
       delegate_to:                  "{{ backup_secondary_node | default(inventory_hostname, true) }}"
       run_once:                     true
       changed_when:                 hsr_unregister_result.rc == 0
-      failed_when:                  false
       when:
                                     - database_high_availability | default(false) | bool
                                     - backup_secondary_node | default('') != ''
@@ -194,7 +192,6 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       changed_when:                 hsr_disable_result.rc == 0
-      failed_when:                  false
       when:                         database_high_availability | default(false) | bool
 
     - name:                         "Test Execution: Stop HANA DB before restore"
@@ -209,7 +206,6 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       changed_when:                 hana_stop_result.rc == 0
-      failed_when:                  false
 
     - name:                         "Test Execution: Restore SYSTEMDB '{{ db_item.name }}'"
       delegate_to:                  localhost
@@ -278,7 +274,6 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       changed_when:                 hana_start_for_tenant.rc == 0
-      failed_when:                  false
       when:                         backup_tenant_items | length > 0
 
     - name:                         "Test Execution: Wait for HANA to be ready"
@@ -295,7 +290,6 @@
       retries:                      30
       delay:                        10
       until:                        hana_ready_check.rc == 0 or hana_ready_check.rc == 3
-      failed_when:                  false
       when:                         backup_tenant_items | length > 0
 
     - name:                         "Test Execution: Restore tenant database '{{ db_item.name }}'"
@@ -365,7 +359,6 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       changed_when:                 hana_start_result.rc == 0
-      failed_when:                  false
 
     - name:                         "Test Execution: Validate HANA is running"
       become_user:                  "{{ db_sid | lower }}adm"
@@ -381,7 +374,6 @@
       retries:                      50
       delay:                        10
       until:                        hana_process_check.rc == 0 or hana_process_check.rc == 3
-      failed_when:                  false
 
     - name:                         "Test Execution: HSR - Re-establish replication"
       when:                         database_high_availability | default(false) | bool
@@ -414,7 +406,6 @@
           delegate_to:              "{{ backup_secondary_node | default(inventory_hostname, true) }}"
           run_once:                 true
           changed_when:             hsr_secondary_start.rc == 0
-          failed_when:              false
           when:
                                     - hsr_enable_result.rc | default(1) in [0, 102]
                                     - backup_secondary_node | default('') != ''
@@ -453,7 +444,6 @@
           delegate_to:              "{{ backup_primary_node }}"
           run_once:                 true
           changed_when:             false
-          failed_when:              false
           when:                     hsr_register_result.rc | default(1) == 0
 
         - name:                     "Test Execution: HSR - Take cluster out of maintenance mode"
@@ -468,7 +458,6 @@
           register:                 cluster_maintenance_off_result
           run_once:                 true
           changed_when:             cluster_maintenance_off_result.rc == 0
-          failed_when:              false
 
     - name:                         "Test Execution: Compute restore results summary"
       ansible.builtin.set_fact:

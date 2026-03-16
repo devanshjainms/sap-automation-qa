@@ -27,7 +27,6 @@
       register:                         hana_pre_check
       run_once:                         true
       changed_when:                     false
-      failed_when:                      false
 
     - name:                             "Pre Validation: HA cluster status"
       when:                             database_high_availability | default(false) | bool
@@ -101,7 +100,6 @@
       delegate_to:                      "{{ backup_secondary_node | default(inventory_hostname, true) }}"
       run_once:                         true
       changed_when:                     hsr_secondary_stop.rc == 0
-      failed_when:                      false
       when:
                                         - database_high_availability | default(false) | bool
                                         - backup_secondary_node | default('') != ''
@@ -114,7 +112,6 @@
       delegate_to:                      "{{ backup_secondary_node | default(inventory_hostname, true) }}"
       run_once:                         true
       changed_when:                     hsr_unregister_result.rc == 0
-      failed_when:                      false
       when:
                                         - database_high_availability | default(false) | bool
                                         - backup_secondary_node | default('') != ''
@@ -131,7 +128,6 @@
       delegate_to:                      "{{ backup_primary_node }}"
       run_once:                         true
       changed_when:                     hsr_disable_result.rc == 0
-      failed_when:                      false
       when:                             database_high_availability | default(false) | bool
 
     - name:                             "Test Execution: Query backup catalog for latest full data backup"
@@ -150,7 +146,6 @@
       delegate_to:                      "{{ backup_primary_node }}"
       run_once:                         true
       changed_when:                     false
-      failed_when:                      false
 
     - name:                             "Test Execution: Extract backup ID from catalog"
       ansible.builtin.set_fact:
@@ -175,7 +170,6 @@
       delegate_to:                      "{{ backup_primary_node }}"
       run_once:                         true
       changed_when:                     hana_stop_result.rc == 0
-      failed_when:                      false
 
     - name:                             "Test Execution: Recover HANA SYSTEMDB from catalog"
       become_user:                      "{{ db_sid | lower }}adm"
@@ -190,7 +184,6 @@
       register:                         hana_recover_systemdb_result
       delegate_to:                      "{{ backup_primary_node }}"
       run_once:                         true
-      failed_when:                      false
       when:                             backup_catalog_result.rc | default(1) == 0
 
     - name:                             "Test Execution: Recover HANA using most recent backup"
@@ -206,7 +199,6 @@
       register:                         hana_recover_recent_result
       delegate_to:                      "{{ backup_primary_node }}"
       run_once:                         true
-      failed_when:                      false
       when:                             backup_catalog_result.rc | default(1) != 0
 
     - name:                             "Test Execution: Start HANA DB after recovery"
@@ -221,7 +213,6 @@
       delegate_to:                      "{{ backup_primary_node }}"
       run_once:                         true
       changed_when:                     hana_start_result.rc == 0
-      failed_when:                      false
 
     - name:                             "Test Execution: Validate HANA is running"
       become_user:                      "{{ db_sid | lower }}adm"
@@ -238,7 +229,6 @@
       delay:                            10
       until:                            hana_process_check.rc == 0 or hana_process_check.rc == 3
       changed_when:                     false
-      failed_when:                      false
 
     - name:                             "Test Execution: Verify DB consistency post-recovery"
       become_user:                      "{{ db_sid | lower }}adm"
@@ -253,7 +243,6 @@
       delegate_to:                      "{{ backup_primary_node }}"
       run_once:                         true
       changed_when:                     false
-      failed_when:                      false
 
     - name:                             "Test Execution: HSR - Re-establish replication"
       when:                             database_high_availability | default(false) | bool
@@ -363,7 +352,6 @@
       register:                         cluster_maintenance_off_result
       run_once:                         true
       changed_when:                     cluster_maintenance_off_result.rc == 0
-      failed_when:                      false
 
     - name:                             "Test Execution: Determine test execution status (HSR)"
       when:                             database_high_availability | default(false) | bool

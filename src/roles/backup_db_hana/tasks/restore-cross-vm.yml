@@ -58,7 +58,6 @@
       register:                         target_vm_imds
       delegate_to:                      "{{ backup_target_vm_name }}"
       run_once:                         true
-      failed_when:                      false
 
     - name:                             "Pre Validation: Resolve target container from IMDS"
       ansible.builtin.set_fact:
@@ -167,7 +166,6 @@
       delegate_to:                      "{{ backup_target_vm_name }}"
       run_once:                         true
       changed_when:                     alr_hana_start_for_tenant.rc == 0
-      failed_when:                      false
 
     - name:                             "Test Execution: ALR - Wait for HANA ready on target"
       become_user:                      "{{ db_sid | lower }}adm"
@@ -184,7 +182,6 @@
       delay:                            10
       until:                            alr_hana_ready_check.rc == 0 or alr_hana_ready_check.rc == 3
       changed_when:                     false
-      failed_when:                      false
 
     - name:                             "Test Execution: ALR - Restore tenant '{{ db_item.name }}' to {{ backup_target_vm_name }}"
       delegate_to:                      localhost
@@ -254,7 +251,6 @@
       delegate_to:                      "{{ backup_target_vm_name }}"
       run_once:                         true
       changed_when:                     alr_hana_start.rc == 0
-      failed_when:                      false
 
     - name:                             "Test Execution: Validate HANA on target VM"
       become_user:                      "{{ db_sid | lower }}adm"
@@ -271,7 +267,6 @@
       delay:                            10
       until:                            alr_process_check.rc == 0 or alr_process_check.rc == 3
       changed_when:                     false
-      failed_when:                      false
 
     - name:                             "Test Execution: Verify DB on target VM"
       become_user:                      "{{ db_sid | lower }}adm"
@@ -286,7 +281,6 @@
       delegate_to:                      "{{ backup_target_vm_name }}"
       run_once:                         true
       changed_when:                     false
-      failed_when:                      false
 
     - name:                             "Test Execution: Take cluster out of maintenance mode"
       when:                             database_high_availability | default(false) | bool
@@ -301,7 +295,6 @@
       register:                         cluster_maintenance_off_result
       run_once:                         true
       changed_when:                     cluster_maintenance_off_result.rc == 0
-      failed_when:                      false
 
     - name:                             "Test Execution: Compute ALR results summary"
       ansible.builtin.set_fact:

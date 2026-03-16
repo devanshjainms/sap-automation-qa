@@ -38,7 +38,6 @@
         parameter_definitions:          "{{ backup_parameters | default([]) }}"
       register:                         backup_verification_result
       run_once:                         true
-      failed_when:                      false
 
     - name:                             "Test Execution: Validate protected items found"
       ansible.builtin.assert:

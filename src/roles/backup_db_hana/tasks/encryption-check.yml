@@ -19,7 +19,6 @@
   register:                             encryption_check_result
   run_once:                             true
   changed_when:                         false
-  failed_when:                          false
 
 - name:                                 "Encryption Check: Set encryption status"
   ansible.builtin.set_fact:
