@@ -1,7 +1,15 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>SAP High Availability QA Results</title>
+    {% set _group = test_case_results[0].TestGroupName|default('') if test_case_results else '' %}
+    {% if _group == 'AzureBackupDatabase' %}
+      {% set report_title = 'SAP Azure Backup QA Results' %}
+    {% elif _group == 'CentralServicesHighAvailability' or _group == 'DatabaseHighAvailability' %}
+      {% set report_title = 'SAP High Availability QA Results' %}
+    {% else %}
+      {% set report_title = 'SAP Quality Assurance Results' %}
+    {% endif %}
+    <title>{{ report_title }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -611,7 +619,8 @@
   </head>
   <body>
     <div class="navbar">
-      <div class="system-id">SAP High Availability QA Results</div>
+      <div class="system-id">{{ report_title }}</div>
+      
     </div>
     <div class="main-content">
       <div class="container">

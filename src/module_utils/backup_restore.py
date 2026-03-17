@@ -591,7 +591,7 @@ class BackupRestoreHelper:
 
         self._log(
             logging.INFO,
-            f"Selecting recovery point <= {pit.isoformat()}.",
+            f"Using point-in-time {pit.isoformat()} to select recovery point.",
         )
         candidates = []
         for rp in rp_list:
