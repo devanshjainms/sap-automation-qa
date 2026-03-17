@@ -40,9 +40,7 @@ class BackupParameterBuilder:
         :returns: Dict mapping parameter key to ``{"value": ..., "status": ...}``.
         """
         last_backup_time = (
-            last_full.start_time.isoformat()
-            if last_full and last_full.start_time
-            else ""
+            last_full.start_time.isoformat() if last_full and last_full.start_time else ""
         )
         policy_name = props.policy_name or ""
         if not policy_name and getattr(props, "policy_id", None):

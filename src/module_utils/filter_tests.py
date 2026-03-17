@@ -83,9 +83,7 @@ class TestFilter:
 
         return json.dumps(filtered_config, indent=2)
 
-    def resolve_functional_test_type(
-        self, test_group: str
-    ) -> Optional[str]:
+    def resolve_functional_test_type(self, test_group: str) -> Optional[str]:
         """
         Resolve SAP_FUNCTIONAL_TEST_TYPE from a test group name.
 
@@ -97,9 +95,7 @@ class TestFilter:
         :return: Functional test type name or None if unresolved
         :rtype: Optional[str]
         """
-        type_map = self.config.get(
-            "sap_functional_test_type_map", []
-        )
+        type_map = self.config.get("sap_functional_test_type_map", [])
         for entry in type_map:
             if test_group.startswith(entry["value"]):
                 return entry["name"]

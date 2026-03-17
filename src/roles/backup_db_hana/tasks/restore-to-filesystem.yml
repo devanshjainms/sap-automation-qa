@@ -58,6 +58,7 @@
         state:                      directory
         mode:                       "0755"
       register:                     fs_path_check
+      delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
 
     - name:                          "Pre Validation: Discover protected items for source VM"
@@ -219,17 +220,19 @@
         - directory
       loop_control:
         loop_var:                   item_state
+      delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
 
     - name:                         "Test Execution: Create per-DB subdirectory for SYSTEMDB"
       ansible.builtin.file:
-        path:                       "{{ backup_target_filesystem_path }}/{{ db_item.name }}"
+        path:                       "{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}"
         state:                      directory
         mode:                       "0755"
       loop:                         "{{ backup_systemdb_items }}"
       loop_control:
         loop_var:                   db_item
         label:                      "{{ db_item.name }}"
+      delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       when:                         backup_systemdb_items | length > 0
 
@@ -242,7 +245,7 @@
         msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
         container_name:             "{{ db_item.container_name }}"
         item_name:                  "{{ db_item.item_name }}"
-        target_filesystem_path:     "{{ backup_target_filesystem_path }}/{{ db_item.name }}"
+        target_filesystem_path:     "{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}"
         target_vm_name:             "{{ backup_restore_vm_name }}"
         target_vm_resource_group:   "{{ backup_restore_vm_rg }}"
         restore_point_time:         "{{ backup_restore_point_time | default('') }}"
@@ -293,13 +296,14 @@
 
     - name:                         "Test Execution: Create per-DB subdirectory for tenants"
       ansible.builtin.file:
-        path:                       "{{ backup_target_filesystem_path }}/{{ db_item.name }}"
+        path:                       "{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}"
         state:                      directory
         mode:                       "0755"
       loop:                         "{{ backup_tenant_items }}"
       loop_control:
         loop_var:                   db_item
         label:                      "{{ db_item.name }}"
+      delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       when:                         backup_tenant_items | length > 0
 
@@ -312,7 +316,7 @@
         msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
         container_name:             "{{ db_item.container_name }}"
         item_name:                  "{{ db_item.item_name }}"
-        target_filesystem_path:     "{{ backup_target_filesystem_path }}/{{ db_item.name }}"
+        target_filesystem_path:     "{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}"
         target_vm_name:             "{{ backup_restore_vm_name }}"
         target_vm_resource_group:   "{{ backup_restore_vm_rg }}"
         restore_point_time:         "{{ backup_restore_point_time | default('') }}"
@@ -380,7 +384,7 @@
     - name:                         "Test Execution: Discover SYSTEMDB backup file prefix"
       ansible.builtin.shell: |
                                     set -o pipefail
-                                    ls -1 {{ backup_target_filesystem_path }}/systemdb/Data/*_databackup_0_1 2>/dev/null \
+                                    ls -1 {{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}/Data/*_databackup_0_1 2>/dev/null \
                                       | head -1 | xargs basename | sed 's/_databackup_0_1$//'
       args:
         executable:                 /bin/bash
@@ -392,7 +396,7 @@
     - name:                         "Test Execution: Discover tenant backup file prefixes"
       ansible.builtin.shell: |
                                     set -o pipefail
-                                    ls -1 {{ backup_target_filesystem_path }}/{{ db_item.name }}/Data/*_databackup_0_1 2>/dev/null \
+                                    ls -1 {{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/*_databackup_0_1 2>/dev/null \
                                       | head -1 | xargs basename | sed 's/_databackup_0_1$//'
       args:
         executable:                 /bin/bash
@@ -419,7 +423,7 @@
                                     set -o pipefail
                                     source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                     HDBSettings.sh recoverSys.py \
-                                      --command="RECOVER DATA USING FILE ('{{ backup_target_filesystem_path }}/systemdb/Data/{{ systemdb_backup_prefix.stdout }}') CLEAR LOG" \
+                                      --command="RECOVER DATA USING FILE ('{{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}/Data/{{ systemdb_backup_prefix.stdout }}') CLEAR LOG" \
                                       --timeout={{ backup_recover_timeout | default(3600) }}
       args:
         executable:                 /bin/bash
@@ -448,7 +452,7 @@
                                     set -o pipefail
                                     source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                     hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
-                                      "RECOVER DATA FOR {{ db_item.name | upper }} USING FILE ('{{ backup_target_filesystem_path }}/{{ db_item.name }}/Data/{{ tenant_backup_prefixes.results[idx].stdout }}') CLEAR LOG"
+                                      "RECOVER DATA FOR {{ db_item.name | upper }} USING FILE ('{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/{{ tenant_backup_prefixes.results[idx].stdout }}') CLEAR LOG"
       args:
         executable:                 /bin/bash
       register:                     tenant_recover_result

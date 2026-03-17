@@ -123,4 +123,4 @@ Test results are generated the same way as HA tests. Navigate to your workspace 
 cd WORKSPACES/SYSTEM/<SYSTEM_CONFIG_NAME>/quality_assurance/
 ```
 
-The HTML report summarises each test case with PASS/FAIL/SKIPPED status. For details on the report format, see [High Availability — Viewing Test Results](./HIGH_AVAILABILITY.md#viewing-test-results).
+The HTML report summarises each test case with PASS/FAIL/WARNING/SKIPPED status. For details on the report format, see [High Availability — Viewing Test Results](./HIGH_AVAILABILITY.md#viewing-test-results).

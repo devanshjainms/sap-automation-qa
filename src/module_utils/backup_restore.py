@@ -7,6 +7,7 @@ Restore operation helpers for Azure Backup HANA.
 
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any, Callable, cast, Dict, List, Optional
 from azure.mgmt.recoveryservicesbackup import RecoveryServicesBackupClient
 from azure.mgmt.recoveryservicesbackup.models import (
@@ -540,6 +541,26 @@ class BackupRestoreHelper:
             "message": message,
         }
 
+    @staticmethod
+    def _parse_pit_timestamp(
+        restore_point_time: str,
+    ) -> Optional[datetime]:
+        """Parse an ISO-8601 PIT string to a tz-aware datetime.
+
+        :param restore_point_time: ISO-8601 UTC timestamp.
+        :returns: Parsed ``datetime`` or ``None`` on failure.
+        """
+        text = restore_point_time.strip()
+        if not text:
+            return None
+        try:
+            dt = datetime.fromisoformat(text)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            return None
+
     def resolve_recovery_point(
         self,
         container_name: str,
@@ -550,7 +571,7 @@ class BackupRestoreHelper:
 
         :param container_name: Backup container name.
         :param item_name: Backup item name.
-        :param restore_point_time: Optional PIT timestamp.
+        :param restore_point_time: Optional PIT in ISO-8601 UTC.
         :returns: Recovery point resource ID (empty on failure).
         """
         rp_list = self._list_recovery_points(
@@ -564,9 +585,38 @@ class BackupRestoreHelper:
             )
             return ""
 
-        if restore_point_time:
+        pit = self._parse_pit_timestamp(restore_point_time)
+        if pit is None:
+            return rp_list[0].id or ""
+
+        self._log(
+            logging.INFO,
+            f"Selecting recovery point <= {pit.isoformat()}.",
+        )
+        candidates = []
+        for rp in rp_list:
+            props = rp.properties
+            rp_time = getattr(props, "recovery_point_time_in_utc", None)
+            if rp_time is None:
+                continue
+            if rp_time.tzinfo is None:
+                rp_time = rp_time.replace(tzinfo=timezone.utc)
+            if rp_time <= pit:
+                candidates.append((rp_time, rp))
+
+        if not candidates:
             self._log(
-                logging.INFO,
-                "Using point-in-time " f"{restore_point_time}.",
+                logging.WARNING,
+                "No recovery point at or before "
+                f"{pit.isoformat()} for {item_name}. "
+                "Falling back to the latest point.",
             )
-        return rp_list[0].id or ""
+            return rp_list[0].id or ""
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        best = candidates[0][1]
+        self._log(
+            logging.INFO,
+            "Selected recovery point " f"{best.id} at {candidates[0][0].isoformat()}.",
+        )
+        return best.id or ""
