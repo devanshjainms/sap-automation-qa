@@ -541,9 +541,7 @@ class TestTestFilter:
         finally:
             os.unlink(temp_yaml_file)
 
-    def test_get_ansible_vars_includes_resolved_type_backup(
-        self, temp_backup_yaml_file
-    ):
+    def test_get_ansible_vars_includes_resolved_type_backup(self, temp_backup_yaml_file):
         """
         Test get_ansible_vars includes SAP_FUNCTIONAL_TEST_TYPE for BACKUP_DB_HANA.
 
