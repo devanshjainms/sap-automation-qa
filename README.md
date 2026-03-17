@@ -8,6 +8,8 @@
 [![Ansible Lint](https://github.com/Azure/sap-automation-qa/actions/workflows/github-actions-ansible-lint.yml/badge.svg)](https://github.com/Azure/sap-automation-qa/actions/workflows/github-actions-ansible-lint.yml)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/Azure/sap-automation-qa)](https://scorecard.dev/viewer/?uri=github.com/Azure/sap-automation-qa)
 [![GitHub Issues](https://img.shields.io/github/issues/Azure/sap-automation-qa)](https://github.com/Azure/sap-automation-qa/issues)
+[![GitHub Stars](https://img.shields.io/github/stars/Azure/sap-automation-qa)](https://github.com/Azure/sap-automation-qa/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/Azure/sap-automation-qa)](https://github.com/Azure/sap-automation-qa/network/members)
 
 ## 🔍 Overview
 
