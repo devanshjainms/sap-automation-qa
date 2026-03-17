@@ -542,7 +542,7 @@ def run_module() -> None:
             target_filesystem_path=dict(type="str", required=False, default=""),
             target_vm_name=dict(type="str", required=False, default=""),
             target_vm_resource_group=dict(type="str", required=False, default=""),
-            restore_mode=dict(type="str", required=False, default=""),  # deprecated, ignored
+            restore_mode=dict(type="str", required=False, default=""),
             source_resource_id=dict(type="str", required=False, default=""),
             source_vm_name=dict(type="str", required=False, default=""),
             restore_job_id=dict(type="str", required=False, default=""),
