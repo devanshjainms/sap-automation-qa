@@ -7,7 +7,7 @@ Unit tests for the filesystem_freeze module.
 
 import io
 import pytest
-from src.modules.filesystem_freeze import FileSystemFreeze, main
+from plugins.modules.filesystem_freeze import FileSystemFreeze, main
 
 
 def fake_open_factory(file_content):
@@ -119,12 +119,12 @@ class TestFileSystemFreeze:
                 mock_result = kwargs
 
         with monkeypatch.context() as monkey_patch:
-            monkey_patch.setattr("src.modules.filesystem_freeze.AnsibleModule", MockAnsibleModule)
+            monkey_patch.setattr("plugins.modules.filesystem_freeze.AnsibleModule", MockAnsibleModule)
             monkey_patch.setattr(
                 "builtins.open", fake_open_factory(["/dev/sda1 /hana/shared ext4 rw,relatime 0 0"])
             )
             monkey_patch.setattr(
-                "src.modules.filesystem_freeze.FileSystemFreeze.execute_command_subprocess",
+                "plugins.modules.filesystem_freeze.FileSystemFreeze.execute_command_subprocess",
                 lambda self, cmd: "command output",
             )
 
@@ -152,7 +152,7 @@ class TestFileSystemFreeze:
                 mock_result = kwargs
 
         with monkeypatch.context() as monkey_patch:
-            monkey_patch.setattr("src.modules.filesystem_freeze.AnsibleModule", MockAnsibleModule)
+            monkey_patch.setattr("plugins.modules.filesystem_freeze.AnsibleModule", MockAnsibleModule)
 
             main()
 

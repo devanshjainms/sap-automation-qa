@@ -8,9 +8,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 import pytest
 from pytest_mock import MockerFixture
-from src.core.models.schedule import Schedule
-from src.core.services.scheduler import SchedulerService
-from src.core.storage.schedule_store import ScheduleStore
+from app.core.models.schedule import Schedule
+from app.core.services.scheduler import SchedulerService
+from app.core.storage.schedule_store import ScheduleStore
 
 
 class TestSchedulerService:

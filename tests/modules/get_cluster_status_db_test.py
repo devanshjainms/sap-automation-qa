@@ -7,11 +7,11 @@ Unit tests for the get_cluster_status_db module.
 
 import xml.etree.ElementTree as ET
 import pytest
-from src.modules.get_cluster_status_db import (
+from plugins.modules.get_cluster_status_db import (
     HanaClusterStatusChecker,
     run_module,
 )
-from src.module_utils.enums import (
+from plugins.module_utils.enums import (
     OperatingSystemFamily,
     HanaSRProvider,
     HanaTopology,
@@ -258,7 +258,7 @@ class TestHanaClusterStatusChecker:
         :type hana_checker_classic: HanaClusterStatusChecker
         """
         mock_super_run = mocker.patch(
-            "src.module_utils.get_cluster_status.BaseClusterStatusChecker.run",
+            "plugins.module_utils.get_cluster_status.BaseClusterStatusChecker.run",
             return_value={"status": "PASSED"},
         )
 
@@ -292,18 +292,18 @@ class TestRunModule:
             "hana_topology": "scale_up",
         }
         mocker.patch(
-            "src.modules.get_cluster_status_db.ansible_facts", return_value={"os_family": "REDHAT"}
+            "plugins.modules.get_cluster_status_db.ansible_facts", return_value={"os_family": "REDHAT"}
         )
 
         mocker.patch(
-            "src.modules.get_cluster_status_db.AnsibleModule", return_value=mock_ansible_module
+            "plugins.modules.get_cluster_status_db.AnsibleModule", return_value=mock_ansible_module
         )
         mock_run = mocker.MagicMock(return_value={"status": "PASSED"})
         mock_checker = mocker.MagicMock()
         mock_checker.run = mock_run
         mock_checker.get_result.return_value = {"status": "PASSED"}
         mocker.patch(
-            "src.modules.get_cluster_status_db.HanaClusterStatusChecker", return_value=mock_checker
+            "plugins.modules.get_cluster_status_db.HanaClusterStatusChecker", return_value=mock_checker
         )
         run_module()
 
@@ -690,11 +690,11 @@ class TestHanaClusterStatusCheckerScaleOutHSR:
             "hana_topology": "scale_out_hsr",
         }
         mocker.patch(
-            "src.modules.get_cluster_status_db.ansible_facts",
+            "plugins.modules.get_cluster_status_db.ansible_facts",
             return_value={"os_family": "REDHAT"},
         )
         mocker.patch(
-            "src.modules.get_cluster_status_db.AnsibleModule",
+            "plugins.modules.get_cluster_status_db.AnsibleModule",
             return_value=mock_ansible_module,
         )
         mock_checker = mocker.MagicMock()
@@ -703,7 +703,7 @@ class TestHanaClusterStatusCheckerScaleOutHSR:
             "status": "PASSED",
         }
         mocker.patch(
-            "src.modules.get_cluster_status_db" ".HanaClusterStatusChecker",
+            "plugins.modules.get_cluster_status_db" ".HanaClusterStatusChecker",
             return_value=mock_checker,
         )
         run_module()

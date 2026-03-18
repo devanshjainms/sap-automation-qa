@@ -4,7 +4,7 @@
 """Tests for Schedules API routes."""
 
 from fastapi.testclient import TestClient
-from src.core.models.schedule import Schedule
+from app.core.models.schedule import Schedule
 
 
 class TestSchedulesApi:

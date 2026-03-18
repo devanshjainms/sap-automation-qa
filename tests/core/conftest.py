@@ -10,12 +10,12 @@ from typing import Any, Callable, Generator
 from uuid import uuid4
 import pytest
 from pytest_mock import MockerFixture
-from src.core.models.job import Job
-from src.core.models.schedule import Schedule
-from src.core.storage.job_store import JobStore
-from src.core.storage.schedule_store import ScheduleStore
-from src.core.execution.worker import JobWorker
-from src.core.services.scheduler import SchedulerService
+from app.core.models.job import Job
+from app.core.models.schedule import Schedule
+from app.core.storage.job_store import JobStore
+from app.core.storage.schedule_store import ScheduleStore
+from app.core.execution.worker import JobWorker
+from app.core.services.scheduler import SchedulerService
 
 
 @pytest.fixture

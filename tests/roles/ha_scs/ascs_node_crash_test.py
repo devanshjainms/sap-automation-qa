@@ -32,7 +32,7 @@ class TestASCSNodeCrash(RolesTestingBaseSCS):
         return self.file_operations(
             operation="read",
             file_path=Path(__file__).parent.parent.parent
-            / "src/roles/ha_scs/tasks/ascs-node-crash.yml",
+            / "roles/ha_scs/tasks/ascs-node-crash.yml",
         )
 
     @pytest.fixture

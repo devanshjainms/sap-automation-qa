@@ -32,7 +32,7 @@ class TestKillMessageServer(RolesTestingBaseSCS):
         return self.file_operations(
             operation="read",
             file_path=Path(__file__).parent.parent.parent
-            / "src/roles/ha_scs/tasks/kill-message-server.yml",
+            / "roles/ha_scs/tasks/kill-message-server.yml",
         )
 
     @pytest.fixture

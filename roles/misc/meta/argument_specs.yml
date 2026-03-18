@@ -1,0 +1,37 @@
+---
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+argument_specs:
+  pre-validations-db:
+    short_description: Pre-validation checks for HANA DB cluster
+    description:
+      - Validates cluster status and removes location constraints before test execution.
+  pre-validations-scs:
+    short_description: Pre-validation checks for SCS cluster
+    description:
+      - Validates SCS cluster status before test execution.
+  post-validations:
+    short_description: Post-validation and result reporting
+    description:
+      - Collects test results, parses logs, and sends telemetry data.
+  rescue:
+    short_description: Rescue handler for failed test cases
+    description:
+      - Captures failure details, parses error logs, and sends telemetry.
+  test-case-setup:
+    short_description: Test case setup and filtering
+    description:
+      - Configures test case variables and validates test selection.
+  render-html-report:
+    short_description: Generate HTML test report
+    description:
+      - Renders a Jinja2 HTML report from test results.
+  cluster-report:
+    short_description: Generate cluster status report
+    description:
+      - Collects current cluster status for all nodes.
+  offline-validation:
+    short_description: Offline HA configuration validation
+    description:
+      - Validates HA configuration without live cluster interaction.

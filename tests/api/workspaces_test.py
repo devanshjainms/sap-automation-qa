@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Generator
 import pytest
 from fastapi.testclient import TestClient
-from src.api.routes import workspaces
-from src.api.routes.workspaces import (
+from app.api.routes import workspaces
+from app.api.routes.workspaces import (
     _load_workspaces_from_directory,
     default_workspace_loader,
     set_workspace_loader,

@@ -8,13 +8,13 @@ from typing import Any
 
 import pytest
 from pytest_mock import MockerFixture
-from src.core.models.telemetry import TelemetryConfig
-from src.core.observability.telemetry_handlers import (
+from app.core.models.telemetry import TelemetryConfig
+from app.core.observability.telemetry_handlers import (
     ADXHandler,
     LogAnalyticsHandler,
 )
 
-_MOCK_SENDER = "src.core.observability.telemetry_handlers.TelemetryDataSender"
+_MOCK_SENDER = "app.core.observability.telemetry_handlers.TelemetryDataSender"
 
 
 def _make_record(

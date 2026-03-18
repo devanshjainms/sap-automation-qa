@@ -1,10 +1,10 @@
 exclude_paths:
-  - src/modules
-  - src/module_utils
+  - plugins/modules
+  - plugins/module_utils
   - .github
-  - src/roles/ha_db_hana/tasks/files/
-  - src/roles/ha_scs/tasks/files/
-  - src/roles/configuration_checks/tasks/files/
+  - roles/ha_db_hana/tasks/files/
+  - roles/ha_scs/tasks/files/
+  - roles/configuration_checks/tasks/files/
 
 skip_list:
   - no-handler

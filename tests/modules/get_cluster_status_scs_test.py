@@ -7,7 +7,7 @@ Unit tests for the get_cluster_status_scs module.
 
 import xml.etree.ElementTree as ET
 import pytest
-from src.modules.get_cluster_status_scs import SCSClusterStatusChecker, run_module
+from plugins.modules.get_cluster_status_scs import SCSClusterStatusChecker, run_module
 
 
 class TestSCSClusterStatusChecker:
@@ -184,10 +184,10 @@ class TestRunModule:
             "ers_instance_number": "01",
         }
         mocker.patch(
-            "src.modules.get_cluster_status_scs.AnsibleModule", return_value=mock_ansible_module
+            "plugins.modules.get_cluster_status_scs.AnsibleModule", return_value=mock_ansible_module
         )
         mocker.patch(
-            "src.modules.get_cluster_status_scs.ansible_facts", return_value={"os_family": "REDHAT"}
+            "plugins.modules.get_cluster_status_scs.ansible_facts", return_value={"os_family": "REDHAT"}
         )
 
         mock_run = mocker.MagicMock()
@@ -195,7 +195,7 @@ class TestRunModule:
         mock_checker.run = mock_run
         mock_checker.get_result.return_value = {"status": "PASSED"}
         mocker.patch(
-            "src.modules.get_cluster_status_scs.SCSClusterStatusChecker", return_value=mock_checker
+            "plugins.modules.get_cluster_status_scs.SCSClusterStatusChecker", return_value=mock_checker
         )
 
         run_module()

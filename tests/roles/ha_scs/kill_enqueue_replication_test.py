@@ -32,7 +32,7 @@ class TestKillEnqueueReplicationServer(RolesTestingBaseSCS):
         return self.file_operations(
             operation="read",
             file_path=Path(__file__).parent.parent.parent
-            / "src/roles/ha_scs/tasks/kill-enqueue-replication.yml",
+            / "roles/ha_scs/tasks/kill-enqueue-replication.yml",
         )
 
     @pytest.fixture

@@ -146,8 +146,8 @@ fi
 
 # Set the environment variables
 export ANSIBLE_COLLECTIONS_PATH=/opt/ansible/collections:${ANSIBLE_COLLECTIONS_PATH:+${ANSIBLE_COLLECTIONS_PATH}}
-export ANSIBLE_CONFIG="${cmd_dir}/../src/ansible.cfg"
-export ANSIBLE_MODULE_UTILS="${cmd_dir}/../src/module_utils:${ANSIBLE_MODULE_UTILS:+${ANSIBLE_MODULE_UTILS}}"
+export ANSIBLE_CONFIG="${cmd_dir}/../ansible.cfg"
+export ANSIBLE_MODULE_UTILS="${cmd_dir}/../plugins/module_utils:${ANSIBLE_MODULE_UTILS:+${ANSIBLE_MODULE_UTILS}}"
 export ANSIBLE_HOST_KEY_CHECKING=False
 set_output_context
 
@@ -301,8 +301,8 @@ get_playbook_name() {
 # Generate filtered test configuration as JSON for Ansible extra vars
 # :return: JSON string with filtered test configuration
 get_filtered_test_config() {
-    local input_api_file="${cmd_dir}/../src/vars/input-api.yaml"
-    local test_filter_script="${cmd_dir}/../src/module_utils/filter_tests.py"
+    local input_api_file="${cmd_dir}/../vars/input-api.yaml"
+    local test_filter_script="${cmd_dir}/../plugins/module_utils/filter_tests.py"
 
     if [[ ! -f "$test_filter_script" ]]; then
         log "ERROR" "Test filter script not found: $test_filter_script" >&2
@@ -435,7 +435,7 @@ run_ansible_playbook() {
     # Skip authentication setup if in offline mode
     if [[ "$OFFLINE_MODE" == "true" ]]; then
         log "INFO" "Offline mode: Skipping SSH authentication setup"
-        command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts \
+        command="ansible-playbook ${cmd_dir}/../playbooks/$playbook_name.yml -i $system_hosts \
             -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars --connection=local"
     else
         # Set local secret_id and key_vault_id if defined
@@ -459,7 +459,7 @@ run_ansible_playbook() {
 
                 check_file_exists "$temp_file" \
                     "Temporary SSH key file not found. Please check the Key Vault secret ID."
-                command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts --private-key $temp_file \
+                command="ansible-playbook ${cmd_dir}/../playbooks/$playbook_name.yml -i $system_hosts --private-key $temp_file \
                     -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars"
             else
                 local ssh_key_dir="${cmd_dir}/../$WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME"
@@ -491,7 +491,7 @@ run_ansible_playbook() {
                     "SSH key file not found in $WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME directory. Looked for files with patterns: ssh_key.*, *ssh_key*"
 
                 chmod 600 "$ssh_key"
-                command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts --private-key $ssh_key \
+                command="ansible-playbook ${cmd_dir}/../playbooks/$playbook_name.yml -i $system_hosts --private-key $ssh_key \
                     -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars"
             fi
 
@@ -504,14 +504,14 @@ run_ansible_playbook() {
 
                 check_file_exists "$temp_file" \
                     "Temporary password file not found. Please check the Key Vault secret ID."
-                command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts \
+                command="ansible-playbook ${cmd_dir}/../playbooks/$playbook_name.yml -i $system_hosts \
                     --extra-vars 'ansible_ssh_pass=$(cat $temp_file)' --extra-vars @$VARS_FILE -e @$system_params \
                     -e '_workspace_directory=$system_config_folder' $extra_vars"
             else
                 local password_file="${cmd_dir}/../$WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME/password"
                 check_file_exists "$password_file" \
                     "password file not found in $WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME directory."
-                command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts \
+                command="ansible-playbook ${cmd_dir}/../playbooks/$playbook_name.yml -i $system_hosts \
                     --extra-vars 'ansible_ssh_pass=$(cat $password_file)' --extra-vars @$VARS_FILE -e @$system_params \
                     -e '_workspace_directory=$system_config_folder' $extra_vars"
             fi
@@ -614,8 +614,8 @@ main() {
 
     # Override SAP_FUNCTIONAL_TEST_TYPE based on --test_groups if specified
     if [[ -n "$TEST_GROUPS" ]]; then
-        local test_filter_script="${cmd_dir}/../src/module_utils/filter_tests.py"
-        local input_api_file="${cmd_dir}/../src/vars/input-api.yaml"
+        local test_filter_script="${cmd_dir}/../plugins/module_utils/filter_tests.py"
+        local input_api_file="${cmd_dir}/../vars/input-api.yaml"
         local resolved_type
         resolved_type=$(python3 "$test_filter_script" "$input_api_file" "$TEST_GROUPS" "null" 2>/dev/null \
             | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('SAP_FUNCTIONAL_TEST_TYPE',''))" 2>/dev/null || true)

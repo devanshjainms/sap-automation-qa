@@ -28,7 +28,7 @@ jobs:
 
       - name: Run pytest with coverage
         run: |
-          pytest --cov=src/ --cov-fail-under=85 --cov-report=xml tests/
+          pytest --cov=app/ --cov=plugins/ --cov-fail-under=85 --cov-report=xml tests/
 
       - name: Run pylint
         run: |
@@ -36,4 +36,4 @@ jobs:
 
       - name: Check code formatting with black
         run: |
-          black --check src/ tests/ --config pyproject.toml
+          black --check app/ plugins/ tests/ --config pyproject.toml

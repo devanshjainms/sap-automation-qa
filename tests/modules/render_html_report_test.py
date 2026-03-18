@@ -6,7 +6,7 @@ Unit tests for the render_html_report module.
 """
 
 import pytest
-from src.modules.render_html_report import HTMLReportRenderer, main
+from plugins.modules.render_html_report import HTMLReportRenderer, main
 
 
 class TestHTMLReportRenderer:
@@ -122,6 +122,6 @@ class TestHTMLReportRenderer:
             def exit_json(self, **kwargs):
                 mock_result.update(kwargs)
 
-        monkeypatch.setattr("src.modules.render_html_report.AnsibleModule", MockAnsibleModule)
+        monkeypatch.setattr("plugins.modules.render_html_report.AnsibleModule", MockAnsibleModule)
         main()
         assert mock_result["status"] == "PASSED"

@@ -1,0 +1,164 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+"""
+This module is used to setup the context for the test cases
+and setup base variables for the test case running in the sap-automation-qa
+"""
+
+from abc import ABC
+import sys
+import logging
+import subprocess
+import traceback
+from typing import Optional, Dict, Any
+import xml.etree.ElementTree as ET
+import yaml
+
+try:
+    from ansible.module_utils.enums import Result, TestStatus
+except ImportError:
+    from plugins.module_utils.enums import Result, TestStatus
+
+
+class SapAutomationQA(ABC):
+    """
+    This class is used to setup the context for the test cases
+    and setup base variables for the test case running in the sap-automation-qa
+    """
+
+    def __init__(self):
+        self.logger = self.setup_logger()
+        self.result = Result().to_dict()
+
+    def setup_logger(self) -> logging.Logger:
+        """
+        This method is used to setup the logger for the test case
+
+        :return: Configured logger instance
+        :rtype: logging.Logger
+        """
+        logger = logging.getLogger("sap-automation-qa")
+        logger.setLevel(logging.INFO)
+        log_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setFormatter(log_format)
+        logger.addHandler(stream_handler)
+        return logger
+
+    def log(self, level: int, message: str):
+        """
+        Logs a message and adds it to the result logs.
+
+        :param level: Logging level (e.g., logging.INFO, logging.ERROR)
+        :type level: int
+        :param message: Message to log
+        :type message: str
+        """
+        self.logger.log(level, message)
+        message.replace("\n", " ")
+        self.result["logs"].append(message)
+
+    def handle_error(self, exception: Exception, stderr: str = ""):
+        """
+        Handles command execution errors by logging and updating the result dictionary.
+
+        :param exception: Exception raised during command execution
+        :type exception: Exception
+        :param stderr: Standard error output from the command
+        :type stderr: str
+        """
+        error_message = f"Error: {exception}."
+        if stderr:
+            error_message += f" More errors: {stderr}"
+        error_message.replace("'", "")
+        self.log(logging.ERROR, error_message)
+        self.result["status"] = TestStatus.ERROR.value
+        self.result["message"] = error_message
+        self.result["logs"].append(error_message)
+        self.result["logs"].append(f"Traceback:\n{traceback.format_exc()}")
+
+    def execute_command_subprocess(self, command: Any, shell_command: bool = False) -> str:
+        """
+        Executes a shell command using subprocess with a timeout and logs output or errors.
+
+        :param command: Shell command to execute
+        :type command: str
+        :param shell_command: Whether the command is a shell command
+        :type shell_command: bool
+        :return: Standard output from the command
+        :rtype: str
+        """
+        command_string = command if isinstance(command, str) else " ".join(command).replace("'", "")
+        self.log(
+            logging.INFO,
+            f"Executing command: {command_string}",
+        )
+        try:
+            command_output = subprocess.run(
+                command,
+                timeout=100,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=shell_command,
+            )
+            stdout = command_output.stdout.decode("utf-8")
+            stderr = command_output.stderr.decode("utf-8")
+
+            if stdout and stderr:
+                return f"{stdout}\nERROR: {stderr}"
+            elif stderr:
+                return stderr
+            else:
+                return stdout
+        except subprocess.TimeoutExpired as ex:
+            self.handle_error(ex, "Command timed out")
+            return f"ERROR: Command timed out after 100 seconds"
+        except subprocess.CalledProcessError as ex:
+            stderr_msg = ex.stderr.decode("utf-8").strip() if ex.stderr else ""
+            error_msg = f"ERROR: Command failed with exit code {ex.returncode}"
+            if stderr_msg:
+                error_msg += f": {stderr_msg}"
+            self.handle_error(ex, stderr_msg)
+            return error_msg
+        except Exception as ex:
+            self.handle_error(ex, "")
+            return f"ERROR: Unexpected error during command execution: {str(ex)}"
+
+    def parse_xml_output(self, xml_output: str) -> ET.Element:
+        """
+        Parses the XML output and returns the root element.
+
+        :param xml_output: XML output to parse
+        :type xml_output: str
+        :return: The root element of the XML output
+        :rtype: ET.Element
+        """
+        if xml_output.startswith("<"):
+            return ET.fromstring(xml_output)
+        return ET.Element("root")
+
+    def get_result(self) -> Dict[str, Any]:
+        """
+        Returns the result dictionary.
+
+        :return: The result dictionary containing the status, message, details, and logs.
+        :rtype: Dict[str, Any]
+        """
+        return self.result
+
+    def parse_yaml_from_content(self, yaml_content: str) -> Optional[Dict[str, Any]]:
+        """
+        Parses a YAML file and returns its content as a dictionary.
+
+        :param yaml_content: Content of the YAML file
+        :type yaml_content: str
+        :return: Content of the YAML file as a dictionary
+        :rtype: Optional[Dict[str, Any]]
+        """
+        try:
+            return yaml.load(yaml_content, Loader=getattr(yaml, "CSafeLoader", yaml.SafeLoader))
+        except yaml.YAMLError as ex:
+            self.log(logging.ERROR, f"Error parsing YAML content: {ex}")
+            return None

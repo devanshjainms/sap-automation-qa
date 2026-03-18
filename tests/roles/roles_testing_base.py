@@ -172,7 +172,7 @@ class RolesTestingBase:
             file_list.extend(additional_files)
 
         for file in file_list:
-            src_file = Path(__file__).parent.parent.parent / f"src/roles/{file}"
+            src_file = Path(__file__).parent.parent.parent / f"roles/{file}"
             dest_file = f"{temp_dir}/project/roles/{file}"
             os.makedirs(os.path.dirname(dest_file), exist_ok=True)
             shutil.copy(src_file, dest_file)

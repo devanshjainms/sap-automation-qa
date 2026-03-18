@@ -32,7 +32,7 @@ class TestDbHaConfigValidation(RolesTestingBaseDB):
         return self.file_operations(
             operation="read",
             file_path=Path(__file__).parent.parent.parent
-            / "src/roles/ha_db_hana/tasks/ha-config.yml",
+            / "roles/ha_db_hana/tasks/ha-config.yml",
         )
 
     @pytest.fixture

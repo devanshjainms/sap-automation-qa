@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
-from src.core.execution.executor import (
+from app.core.execution.executor import (
     AnsibleExecutor,
     _describe_exit_code,
     _tail_file,
@@ -38,24 +38,27 @@ class TestAnsibleExecutor:
         """
         Create executor with a valid playbook stub.
         """
-        playbook_dir = tmp_path / "src"
+        playbook_dir = tmp_path / "playbooks"
         playbook_dir.mkdir()
-        (playbook_dir / "ansible.cfg").write_text("")
+        (tmp_path / "ansible.cfg").write_text("")
         playbook = playbook_dir / "playbook_00_configuration_checks.yml"
         playbook.write_text("---\n- hosts: all\n")
-        return AnsibleExecutor(playbook_dir=playbook_dir)
+        return AnsibleExecutor(
+            playbook_dir=playbook_dir,
+            ansible_cfg=tmp_path / "ansible.cfg",
+        )
 
     @pytest.fixture
     def executor_with_input_api(self, tmp_path: Path) -> AnsibleExecutor:
         """
         Create executor with input-api.yaml for filter tests.
         """
-        playbook_dir = tmp_path / "src"
+        playbook_dir = tmp_path / "playbooks"
         playbook_dir.mkdir(exist_ok=True)
-        (playbook_dir / "ansible.cfg").write_text("")
+        (tmp_path / "ansible.cfg").write_text("")
         playbook = playbook_dir / "playbook_00_ha_db_functional_tests.yml"
         playbook.write_text("---\n- hosts: all\n")
-        vars_dir = playbook_dir / "vars"
+        vars_dir = tmp_path / "vars"
         vars_dir.mkdir()
         (vars_dir / "input-api.yaml").write_text(
             "test_groups:\n"
@@ -71,7 +74,10 @@ class TestAnsibleExecutor:
             "        task_name: primary-node-crash\n"
             "        enabled: true\n"
         )
-        return AnsibleExecutor(playbook_dir=playbook_dir)
+        return AnsibleExecutor(
+            playbook_dir=playbook_dir,
+            ansible_cfg=tmp_path / "ansible.cfg",
+        )
 
     def test_zero_exit_code(self) -> None:
         """
@@ -128,7 +134,7 @@ class TestAnsibleExecutor:
         Verify SIGKILL with empty stderr produces useful msg.
         """
         mock_popen = mocker.patch(
-            "src.core.execution.executor.subprocess.Popen",
+            "app.core.execution.executor.subprocess.Popen",
         )
         mock_popen.return_value = _make_mock_popen(
             mocker,
@@ -153,7 +159,7 @@ class TestAnsibleExecutor:
         Verify stderr is used when available, not signal msg.
         """
         mock_popen = mocker.patch(
-            "src.core.execution.executor.subprocess.Popen",
+            "app.core.execution.executor.subprocess.Popen",
         )
         mock_popen.return_value = _make_mock_popen(
             mocker,
@@ -179,7 +185,7 @@ class TestAnsibleExecutor:
         Verify last stdout is appended when stderr is empty.
         """
         mock_popen = mocker.patch(
-            "src.core.execution.executor.subprocess.Popen",
+            "app.core.execution.executor.subprocess.Popen",
         )
         mock_popen.return_value = _make_mock_popen(
             mocker,
@@ -241,7 +247,7 @@ class TestAnsibleExecutor:
             return proc
 
         mocker.patch(
-            "src.core.execution.executor.subprocess.Popen",
+            "app.core.execution.executor.subprocess.Popen",
             side_effect=fake_popen,
         )
         result = executor.run_test(
@@ -276,7 +282,7 @@ class TestAnsibleExecutor:
             return proc
 
         mocker.patch(
-            "src.core.execution.executor.subprocess.Popen",
+            "app.core.execution.executor.subprocess.Popen",
             side_effect=fake_popen,
         )
         result = executor.run_test(
@@ -299,7 +305,7 @@ class TestAnsibleExecutor:
         Verify no log_file falls back to in-memory capture.
         """
         mock_popen = mocker.patch(
-            "src.core.execution.executor.subprocess.Popen",
+            "app.core.execution.executor.subprocess.Popen",
         )
         mock_popen.return_value = _make_mock_popen(
             mocker,
@@ -383,7 +389,7 @@ class TestAnsibleExecutor:
             return proc
 
         mocker.patch(
-            "src.core.execution.executor.subprocess.Popen",
+            "app.core.execution.executor.subprocess.Popen",
             side_effect=fake_popen,
         )
         executor.run_test(
@@ -415,7 +421,7 @@ class TestAnsibleExecutor:
             return proc
 
         mocker.patch(
-            "src.core.execution.executor.subprocess.Popen",
+            "app.core.execution.executor.subprocess.Popen",
             side_effect=fake_popen,
         )
         executor.run_test(
@@ -447,7 +453,7 @@ class TestAnsibleExecutor:
             return proc
 
         mocker.patch(
-            "src.core.execution.executor.subprocess.Popen",
+            "app.core.execution.executor.subprocess.Popen",
             side_effect=fake_popen,
         )
         executor_with_input_api.run_test(
@@ -483,7 +489,7 @@ class TestAnsibleExecutor:
             return proc
 
         mocker.patch(
-            "src.core.execution.executor.subprocess.Popen",
+            "app.core.execution.executor.subprocess.Popen",
             side_effect=fake_popen,
         )
         executor_with_input_api.run_test(

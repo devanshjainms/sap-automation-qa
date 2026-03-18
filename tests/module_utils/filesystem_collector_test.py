@@ -11,7 +11,7 @@ Tests use pytest with monkeypatch for mocking, avoiding unittest entirely.
 
 import pytest
 from typing import Any, Dict
-from src.module_utils.filesystem_collector import FileSystemCollector
+from plugins.module_utils.filesystem_collector import FileSystemCollector
 
 
 class MockParent:

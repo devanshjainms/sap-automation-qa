@@ -39,7 +39,15 @@ RUN tdnf update -y && tdnf install -y \
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
-COPY src/ ./src/
+COPY app/ ./app/
+COPY plugins/ ./plugins/
+COPY roles/ ./roles/
+COPY playbooks/ ./playbooks/
+COPY vars/ ./vars/
+COPY templates/ ./templates/
+COPY ansible.cfg ./ansible.cfg
+COPY galaxy.yml ./galaxy.yml
+COPY meta/ ./meta/
 COPY VERSION ./VERSION
 
 ENV PATH="/opt/venv/bin:$PATH"
@@ -55,4 +63,4 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/healthz || exit 1
 EXPOSE 8000
-CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.api.app:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,19 @@
+---
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+argument_specs:
+  main:
+    short_description: Configuration validation for SAP workloads on Azure
+    description:
+      - Validates system configuration, cluster settings, and Azure resource alignment.
+      - Supports HANA, SCS, Db2, and application instance configuration checks.
+    options:
+      sap_sid:
+        description: SAP system ID.
+        type: str
+        required: true
+      platform:
+        description: Target platform for configuration checks.
+        type: str
+        required: true

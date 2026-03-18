@@ -6,7 +6,7 @@ Unit tests for the get_package_list module.
 """
 
 import pytest
-from src.modules.get_package_list import PackageListFormatter, main
+from plugins.modules.get_package_list import PackageListFormatter, main
 
 
 class TestPackageListFormatter:
@@ -36,7 +36,7 @@ class TestPackageListFormatter:
         :param package_facts_list: Fixture for creating a package_facts_list.
         :type package_facts_list: dict
         """
-        mock_ansible_module = mocker.patch("src.modules.get_package_list.AnsibleModule")
+        mock_ansible_module = mocker.patch("plugins.modules.get_package_list.AnsibleModule")
         mock_ansible_module.return_value.params = {"package_facts_list": package_facts_list}
 
         formatter = PackageListFormatter(package_facts_list)
@@ -121,7 +121,7 @@ class TestPackageListFormatter:
                 mock_result = kwargs
 
         with monkeypatch.context() as monkey_patch:
-            monkey_patch.setattr("src.modules.get_package_list.AnsibleModule", MockAnsibleModule)
+            monkey_patch.setattr("plugins.modules.get_package_list.AnsibleModule", MockAnsibleModule)
             main()
             assert mock_result["status"] == "PASSED"
             assert len(mock_result["details"]) == 2

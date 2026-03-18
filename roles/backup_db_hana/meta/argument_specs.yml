@@ -1,0 +1,23 @@
+---
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+argument_specs:
+  main:
+    short_description: Execute Azure Backup functional tests for SAP HANA
+    description:
+      - Runs backup and restore test scenarios for SAP HANA databases using Azure Backup.
+      - Supports backup verification, restore to filesystem, restore to DB, and cross-VM restore.
+    options:
+      test_case_name:
+        description: Name of the backup test case to execute (maps to a task file).
+        type: str
+        required: true
+      db_sid:
+        description: SAP HANA system ID.
+        type: str
+        required: true
+      db_instance_number:
+        description: SAP HANA instance number.
+        type: str
+        required: true

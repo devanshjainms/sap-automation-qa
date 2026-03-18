@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  author: "Microsoft Corporation"
+  description: "Shared utility tasks for SAP HA testing (pre/post validation, telemetry, cluster reports)"
+  license: "MIT"
+  min_ansible_version: "2.17"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+        - "10"
+    - name: SLES
+      versions:
+        - "15"
+  galaxy_tags:
+    - azure
+    - sap
+    - utilities
+dependencies: []

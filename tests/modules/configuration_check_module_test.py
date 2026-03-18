@@ -16,8 +16,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.modules.configuration_check_module import ConfigurationCheckModule
-from src.module_utils.enums import (
+from plugins.modules.configuration_check_module import ConfigurationCheckModule
+from plugins.module_utils.enums import (
     TestStatus,
     TestSeverity,
     Check,
@@ -399,7 +399,7 @@ class TestExecuteCheck:
         def mock_collect(check, context):
             return "test"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
             result = config_module.execute_check(sample_check)
             assert isinstance(result, CheckResult)
             assert result.status == TestStatus.SUCCESS.value
@@ -421,7 +421,7 @@ class TestExecuteCheck:
         def mock_collect(check, context):
             return "info_data"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
             result = config_module.execute_check(sample_check)
             assert result.status == TestStatus.INFO.value
 
@@ -441,7 +441,7 @@ class TestExecuteCheck:
             raise Exception("Collection failed")
 
         with patch(
-            "src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect_error
+            "plugins.module_utils.collector.CommandCollector.collect", side_effect=mock_collect_error
         ):
             result = config_module.execute_check(sample_check)
             assert result.status == TestStatus.ERROR.value
@@ -473,7 +473,7 @@ class TestExecuteCheck:
         def mock_collect(check_obj, context):
             return "32000 1024000000 500 32768"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
             result = config_module.execute_check(check)
             assert result.status == TestStatus.SUCCESS.value
             assert result.expected_value == "Min: 32000 1024000000 500 32000"
@@ -505,7 +505,7 @@ class TestExecuteCheck:
         def mock_collect(check_obj, context):
             return "32000 1024000000 500 31999"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
             result = config_module.execute_check(check)
             assert result.status == TestStatus.ERROR.value
             assert result.expected_value == "Min: 32000 1024000000 500 32000"
@@ -522,7 +522,7 @@ class TestExecuteCheckWithRetry:
         def mock_collect(check, context):
             return "test"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
             result = config_module.execute_check_with_retry(sample_check, max_retries=3)
             assert result.status == TestStatus.SUCCESS.value
 
@@ -533,7 +533,7 @@ class TestExecuteCheckWithRetry:
         def mock_collect(check, context):
             return "test"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
             with patch("time.sleep"):  # Skip actual sleep
                 result = config_module.execute_check_with_retry(sample_check, max_retries=3)
                 assert result.status == TestStatus.SUCCESS.value
@@ -546,7 +546,7 @@ class TestExecuteCheckWithRetry:
             raise Exception("Persistent failure")
 
         with patch(
-            "src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect_error
+            "plugins.module_utils.collector.CommandCollector.collect", side_effect=mock_collect_error
         ):
             with patch("time.sleep"):  # Skip actual sleep
                 result = config_module.execute_check_with_retry(sample_check, max_retries=3)
@@ -628,7 +628,7 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", return_value="test"):
             results = config_module.execute_checks(parallel=False)
             assert len(results) == 1
             assert results[0].status == TestStatus.INFO.value
@@ -647,7 +647,7 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", return_value="test"):
             results = config_module.execute_checks(filter_tags=["production"])
             assert len(results) == 1
             assert results[0].check.id == "check_001"
@@ -666,7 +666,7 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", return_value="test"):
             results = config_module.execute_checks(filter_categories=["System"])
             assert len(results) == 1
             assert results[0].check.category == "System"
@@ -786,7 +786,7 @@ checks:
 
         module = ConfigurationCheckModule(mock_ansible_module)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", return_value="test"):
             module.run()
 
         assert len(mock_ansible_module.exit_calls) == 1
@@ -878,7 +878,7 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect") as mock_collect:
+        with patch("plugins.module_utils.collector.CommandCollector.collect") as mock_collect:
             mock_collect.side_effect = lambda check, context: f"test{check.id[-1]}"
             results = config_module.execute_checks_parallel(max_workers=2, enable_retry=False)
             assert len(results) == 2
@@ -896,7 +896,7 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", return_value="test"):
             results = config_module.execute_checks_parallel(max_workers=1, enable_retry=True)
             assert len(results) == 1
 
@@ -925,7 +925,7 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", return_value="test"):
             config_module.execute_checks_parallel(max_workers=1)
             assert "execution_summary" in config_module.result
             assert "total_checks" in config_module.result["execution_summary"]
@@ -996,7 +996,7 @@ class TestEdgeCases:
         """Test executing check with empty context"""
         config_module.set_context({})
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", return_value="test"):
             result = config_module.execute_check(sample_check)
             assert isinstance(result, CheckResult)
 
@@ -1070,7 +1070,7 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
+        with patch("plugins.module_utils.collector.CommandCollector.collect", return_value="test"):
             results = config_module.execute_checks(
                 filter_tags=["production"], filter_categories=["System"]
             )

@@ -1,0 +1,16 @@
+---
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Entry point for the backup_db_hana role.
+# Includes the appropriate task file based on the 'test_case_name' variable.
+#
+# Usage:
+#   roles:
+#     - role: backup_db_hana
+#       vars:
+#         test_case_name: backup-setup-verification
+
+- name:                                 "backup_db_hana: Execute test case"
+  ansible.builtin.include_tasks:        "{{ test_case_name }}.yml"
+  when:                                 test_case_name is defined

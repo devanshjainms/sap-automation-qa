@@ -32,7 +32,7 @@ class TestASCSMigration(RolesTestingBaseSCS):
         return self.file_operations(
             operation="read",
             file_path=Path(__file__).parent.parent.parent
-            / "src/roles/ha_scs/tasks/ascs-migration.yml",
+            / "roles/ha_scs/tasks/ascs-migration.yml",
         )
 
     @pytest.fixture

@@ -6,8 +6,8 @@ Unit tests for the check_indexserver module.
 """
 
 import io
-from src.modules.check_indexserver import IndexServerCheck, main
-from src.module_utils.enums import OperatingSystemFamily, TestStatus
+from plugins.modules.check_indexserver import IndexServerCheck, main
+from plugins.module_utils.enums import OperatingSystemFamily, TestStatus
 
 
 def fake_open_factory(file_content):
@@ -241,10 +241,10 @@ class TestIndexServerCheck:
             return {"os_family": "Suse", "distribution": "SLES", "ansible_os_family": "Suse"}
 
         with monkeypatch.context() as monkey_patch:
-            monkey_patch.setattr("src.modules.check_indexserver.AnsibleModule", MockAnsibleModule)
+            monkey_patch.setattr("plugins.modules.check_indexserver.AnsibleModule", MockAnsibleModule)
             monkey_patch.setattr("builtins.open", fake_open_factory(file_lines))
             monkey_patch.setattr(
-                "src.modules.check_indexserver.ansible_facts", mock_ansible_facts_suse
+                "plugins.modules.check_indexserver.ansible_facts", mock_ansible_facts_suse
             )
             main()
             assert mock_result["status"] == TestStatus.ERROR.value

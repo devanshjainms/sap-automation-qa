@@ -8,10 +8,10 @@ from typing import Any, Callable
 from uuid import uuid4
 import pytest
 from pytest_mock import MockerFixture
-from src.core.models.job import Job, JobStatus, JobEventType
-from src.core.execution.worker import JobWorker
-from src.core.execution.exceptions import WorkspaceLockError
-from src.core.storage.job_store import JobStore
+from app.core.models.job import Job, JobStatus, JobEventType
+from app.core.execution.worker import JobWorker
+from app.core.execution.exceptions import WorkspaceLockError
+from app.core.storage.job_store import JobStore
 
 _POLL_INTERVAL = 0.02
 _POLL_TIMEOUT = 3.0

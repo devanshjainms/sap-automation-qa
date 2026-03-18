@@ -1,0 +1,85 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------
+# |                          HA Configuration Validation                       |
+# +--------------------------------------------------------------------------*/
+- name:                                 "Test Setup Tasks"
+  ansible.builtin.include_role:
+    name:                          misc
+    tasks_from:                    test-case-setup.yml
+
+- name:                                 "Capture cluster configuration snapshot"
+  become:                               true
+  ansible.builtin.shell: >-
+                                        set -o pipefail && {{
+                                          commands
+                                          | selectattr('name', 'equalto', 'ha_cluster_config_dump')
+                                          | map(attribute=(ansible_os_family | upper))
+                                          | list | first | default('')
+                                        }}
+  args:
+    executable:                         /bin/bash
+  register:                             ha_cluster_config_dump_result
+  changed_when:                         false
+  failed_when:                          false
+
+- name:                                 "Prepare cluster configuration payload"
+  ansible.builtin.set_fact:
+    ha_cluster_config_snapshot: |-
+      Command: {{
+        commands
+        | selectattr('name', 'equalto', 'ha_cluster_config_dump')
+        | map(attribute=(ansible_os_family | upper))
+        | list | first | default('Not defined')
+      }}
+      ---
+      {{
+        (ha_cluster_config_dump_result.stdout | default(''))
+        if (ha_cluster_config_dump_result.stdout is defined and (ha_cluster_config_dump_result.stdout | length > 0))
+        else (ha_cluster_config_dump_result.stderr | default('No output captured.'))
+      }}
+
+- name:                                 "Pre Validations: Validate parameters for the SCS nodes"
+  become:                               true
+  become_user:                          root
+  block:
+    - name:                             "Retrieve Virtual Machine name"
+      ansible.builtin.uri:
+        url:                            http://169.254.169.254/metadata/instance?api-version=2021-02-01
+        use_proxy:                      false
+        headers:
+          Metadata:                     true
+      register:                         azure_instance_metadata
+
+    - name:                             "HA Configuration check for the SCS nodes"
+      get_pcmk_properties_scs:
+        sid:                            "{{ sap_sid | upper }}"
+        ascs_instance_number:           "{{ scs_instance_number }}"
+        ers_instance_number:            "{{ ers_instance_number }}"
+        virtual_machine_name:           "{{ azure_instance_metadata.json.compute.name }}"
+        pcmk_constants:                 "{{ lookup('file', 'constants.yaml') | from_yaml }}"
+        fencing_mechanism:              "{{ scs_cluster_type }}"
+        nfs_provider:                   "{{ NFS_provider }}"
+      register:                         test_result
+
+    - name:                             "Set the test case status to PASSED"
+      ansible.builtin.set_fact:
+        test_case_status:               "{{ test_result.status }}"
+        test_case_message:              "{{ test_result.message }}"
+        test_case_details:              "{{ test_result.details }}"
+        test_case_hostname:             "{{ virtual_host }}"
+        test_case_var_log_messages:     "{{ ha_cluster_config_snapshot | default('Cluster configuration snapshot unavailable') }}"
+  rescue:
+    - name:                             "Test case failed"
+      ansible.builtin.set_fact:
+          test_case_status:             "FAILED"
+          test_case_details:            "{{ test_result }}"
+          test_case_message:            "{{ ansible_failed_result }}"
+          test_case_hostname:           "{{ virtual_host }}"
+          test_case_var_log_messages:   "{{ ha_cluster_config_snapshot | default('Cluster configuration snapshot unavailable') }}"
+
+- name:                                 "Post Telemetry Data"
+  ansible.builtin.include_role:
+    name:                          misc
+    tasks_from:                    post-telemetry-data.yml

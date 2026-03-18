@@ -8,9 +8,9 @@ import stat
 from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
-from src.core.execution.exceptions import CredentialProvisionError
-from src.core.execution.ssh_provider import SshCredentialProvider
-from src.core.models.ssh import AuthType, SshCredential
+from app.core.execution.exceptions import CredentialProvisionError
+from app.core.execution.ssh_provider import SshCredentialProvider
+from app.core.models.ssh import AuthType, SshCredential
 
 SECRET_ID = "https://my-kv.vault.azure.net/secrets/ssh-key/abc123"
 
@@ -230,11 +230,11 @@ class TestSshCredentialProvider:
     def test_fetch_secret_sdk_happy_path(self, mocker: MockerFixture) -> None:
         mock_secret = mocker.MagicMock(value="the-secret")
         mock_client_cls = mocker.patch(
-            "src.core.execution.ssh_provider.SecretClient",
+            "app.core.execution.ssh_provider.SecretClient",
         )
         mock_client_cls.return_value.get_secret.return_value = mock_secret
         mock_cred_cls = mocker.patch(
-            "src.core.execution.ssh_provider.ManagedIdentityCredential",
+            "app.core.execution.ssh_provider.ManagedIdentityCredential",
         )
 
         result = SshCredentialProvider._fetch_secret(
@@ -250,7 +250,7 @@ class TestSshCredentialProvider:
 
     def test_fetch_secret_auth_failure_raises(self, mocker: MockerFixture) -> None:
         mocker.patch(
-            "src.core.execution.ssh_provider.ManagedIdentityCredential",
+            "app.core.execution.ssh_provider.ManagedIdentityCredential",
             side_effect=Exception("MSI unavailable"),
         )
         with pytest.raises(CredentialProvisionError, match="retrieval failed"):

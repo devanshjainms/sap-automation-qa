@@ -1,0 +1,42 @@
+---
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+argument_specs:
+  main:
+    short_description: Execute SAP Central Services HA functional tests
+    description:
+      - Runs HA test scenarios for SAP Central Services (ASCS/ERS) on Pacemaker clusters.
+      - Supports both ENSA1 and ENSA2 architectures.
+    options:
+      test_case_name:
+        description: Name of the HA test case to execute (maps to a task file).
+        type: str
+        required: true
+      sap_sid:
+        description: SAP system ID.
+        type: str
+        required: true
+      scs_instance_number:
+        description: SAP Central Services instance number.
+        type: str
+        required: true
+      ers_instance_number:
+        description: SAP Enqueue Replication Server instance number.
+        type: str
+        required: true
+      default_timeout:
+        description: Default wait timeout in seconds.
+        type: int
+        required: false
+        default: 300
+      default_retries:
+        description: Default number of retries for cluster status checks.
+        type: int
+        required: false
+        default: 60
+      default_delay:
+        description: Default delay between retries in seconds.
+        type: int
+        required: false
+        default: 30

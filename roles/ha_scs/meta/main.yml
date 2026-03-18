@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  author: "Microsoft Corporation"
+  description: "SAP Central Services High Availability functional testing for Pacemaker clusters on Azure"
+  license: "MIT"
+  min_ansible_version: "2.17"
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+        - "10"
+    - name: SLES
+      versions:
+        - "15"
+  galaxy_tags:
+    - azure
+    - sap
+    - scs
+    - pacemaker
+    - highavailability
+dependencies: []

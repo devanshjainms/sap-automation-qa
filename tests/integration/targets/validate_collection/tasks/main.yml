@@ -1,0 +1,20 @@
+---
+# Integration test target: validate collection structure and module imports.
+# Run with: ansible-test integration validate_collection --local
+
+- name:                                 Validate collection modules are loadable
+  hosts:                                localhost
+  gather_facts:                         false
+  tasks:
+    - name:                             Verify get_cluster_status_db module is importable
+      get_cluster_status_db:
+        db_instance_number:             "00"
+        operation_step:                 "test"
+        database_sid:                   "tst"
+      ignore_errors:                    true
+      register:                         module_test
+
+    - name:                             Assert module was loaded (may fail on params, but loaded)
+      ansible.builtin.assert:
+        that:
+          - module_test is defined

@@ -8,7 +8,7 @@ Unit tests for the send_telemetry_data module.
 import base64
 import json
 import pytest
-from src.modules.send_telemetry_data import TelemetryDataSender, main
+from plugins.modules.send_telemetry_data import TelemetryDataSender, main
 
 
 class TestTelemetryDataSender:
@@ -230,10 +230,10 @@ class TestTelemetryDataSender:
         telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
         telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
 
-        mock_credential = mocker.patch("src.modules.send_telemetry_data.DefaultAzureCredential")
+        mock_credential = mocker.patch("plugins.modules.send_telemetry_data.DefaultAzureCredential")
         mock_credential.return_value = mocker.Mock()
         mock_client_class = mocker.patch(
-            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+            "plugins.modules.send_telemetry_data.LogAnalyticsManagementClient"
         )
         mock_client = mocker.Mock()
         mock_client_class.return_value = mock_client
@@ -286,7 +286,7 @@ class TestTelemetryDataSender:
         telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
         telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
 
-        mock_credential = mocker.patch("src.modules.send_telemetry_data.DefaultAzureCredential")
+        mock_credential = mocker.patch("plugins.modules.send_telemetry_data.DefaultAzureCredential")
         mock_credential.side_effect = Exception("Credential acquisition failed")
 
         with pytest.raises(Exception, match="Credential acquisition failed"):
@@ -300,11 +300,11 @@ class TestTelemetryDataSender:
         telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
         telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
 
-        mock_credential = mocker.patch("src.modules.send_telemetry_data.DefaultAzureCredential")
+        mock_credential = mocker.patch("plugins.modules.send_telemetry_data.DefaultAzureCredential")
         mock_credential.return_value = mocker.Mock()
 
         mock_client_class = mocker.patch(
-            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+            "plugins.modules.send_telemetry_data.LogAnalyticsManagementClient"
         )
         mock_client = mocker.Mock()
         mock_client_class.return_value = mock_client
@@ -321,11 +321,11 @@ class TestTelemetryDataSender:
         telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
         telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
 
-        mock_credential = mocker.patch("src.modules.send_telemetry_data.DefaultAzureCredential")
+        mock_credential = mocker.patch("plugins.modules.send_telemetry_data.DefaultAzureCredential")
         mock_credential.return_value = mocker.Mock()
 
         mock_client_class = mocker.patch(
-            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+            "plugins.modules.send_telemetry_data.LogAnalyticsManagementClient"
         )
         mock_client = mocker.Mock()
         mock_client_class.return_value = mock_client
@@ -344,11 +344,11 @@ class TestTelemetryDataSender:
         telemetry_data_sender.module_params["laws_resource_group"] = "rg-test"
         telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
 
-        mock_credential = mocker.patch("src.modules.send_telemetry_data.DefaultAzureCredential")
+        mock_credential = mocker.patch("plugins.modules.send_telemetry_data.DefaultAzureCredential")
         mock_credential.return_value = mocker.Mock()
 
         mock_client_class = mocker.patch(
-            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+            "plugins.modules.send_telemetry_data.LogAnalyticsManagementClient"
         )
         mock_client = mocker.Mock()
         mock_client_class.return_value = mock_client
@@ -371,11 +371,11 @@ class TestTelemetryDataSender:
         )
 
         mock_mi_credential = mocker.patch(
-            "src.modules.send_telemetry_data.ManagedIdentityCredential"
+            "plugins.modules.send_telemetry_data.ManagedIdentityCredential"
         )
         mock_mi_credential.return_value = mocker.Mock()
         mock_client_class = mocker.patch(
-            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+            "plugins.modules.send_telemetry_data.LogAnalyticsManagementClient"
         )
         mock_client = mocker.Mock()
         mock_client_class.return_value = mock_client
@@ -399,11 +399,11 @@ class TestTelemetryDataSender:
         telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
         telemetry_data_sender.module_params["user_assigned_identity_client_id"] = ""
         mock_default_credential = mocker.patch(
-            "src.modules.send_telemetry_data.DefaultAzureCredential"
+            "plugins.modules.send_telemetry_data.DefaultAzureCredential"
         )
         mock_default_credential.return_value = mocker.Mock()
         mock_client_class = mocker.patch(
-            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+            "plugins.modules.send_telemetry_data.LogAnalyticsManagementClient"
         )
         mock_client = mocker.Mock()
         mock_client_class.return_value = mock_client
@@ -427,11 +427,11 @@ class TestTelemetryDataSender:
         telemetry_data_sender.module_params["laws_workspace_name"] = "ws-test"
         telemetry_data_sender.module_params["user_assigned_identity_client_id"] = "   "
         mock_default_credential = mocker.patch(
-            "src.modules.send_telemetry_data.DefaultAzureCredential"
+            "plugins.modules.send_telemetry_data.DefaultAzureCredential"
         )
         mock_default_credential.return_value = mocker.Mock()
         mock_client_class = mocker.patch(
-            "src.modules.send_telemetry_data.LogAnalyticsManagementClient"
+            "plugins.modules.send_telemetry_data.LogAnalyticsManagementClient"
         )
         mock_client = mocker.Mock()
         mock_client_class.return_value = mock_client
@@ -533,7 +533,7 @@ class TestTelemetryDataSender:
             supports_check_mode=False,
         )
         monkeypatch.setattr(
-            "src.modules.send_telemetry_data.AnsibleModule",
+            "plugins.modules.send_telemetry_data.AnsibleModule",
             lambda *args, **kwargs: mock_ansible_module,
         )
 

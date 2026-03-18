@@ -3,7 +3,7 @@ Unit tests for the get_azure_lb module.
 """
 
 import pytest
-from src.modules.get_azure_lb import AzureLoadBalancer, main
+from plugins.modules.get_azure_lb import AzureLoadBalancer, main
 
 
 class LoadBalancer:
@@ -63,7 +63,7 @@ class TestAzureLoadBalancer:
         :return: AzureLoadBalancer instance
         :rtype: AzureLoadBalancer
         """
-        patched_client = mocker.patch("src.modules.get_azure_lb.NetworkManagementClient")
+        patched_client = mocker.patch("plugins.modules.get_azure_lb.NetworkManagementClient")
         patched_client.return_value.load_balancers.list_all.return_value = [
             LoadBalancer("test1", "127.0.0.0"),
             LoadBalancer("test", "127.0.0.1"),
@@ -144,7 +144,7 @@ class TestAzureLoadBalancer:
                     "probes": self.probes,
                 }
 
-        patched_client = mocker.patch("src.modules.get_azure_lb.NetworkManagementClient")
+        patched_client = mocker.patch("plugins.modules.get_azure_lb.NetworkManagementClient")
         patched_client.return_value.load_balancers.list_all.return_value = [
             LBWithoutPrivateIP(),
             LoadBalancer("test", "127.0.0.1"),
@@ -201,7 +201,7 @@ class TestAzureLoadBalancer:
                     "probes": self.probes,
                 }
 
-        patched_client = mocker.patch("src.modules.get_azure_lb.NetworkManagementClient")
+        patched_client = mocker.patch("plugins.modules.get_azure_lb.NetworkManagementClient")
         patched_client.return_value.load_balancers.list_all.return_value = [
             LBWithCamelCase(),
         ]
@@ -257,7 +257,7 @@ class TestAzureLoadBalancer:
                     "probes": self.probes,
                 }
 
-        patched_client = mocker.patch("src.modules.get_azure_lb.NetworkManagementClient")
+        patched_client = mocker.patch("plugins.modules.get_azure_lb.NetworkManagementClient")
         patched_client.return_value.load_balancers.list_all.return_value = [
             LBWithNestedProperties(),
         ]
@@ -318,6 +318,6 @@ class TestAzureLoadBalancer:
                 mock_result = kwargs
 
         with monkeypatch.context() as monkey_patch:
-            monkey_patch.setattr("src.modules.get_azure_lb.AnsibleModule", MockAnsibleModule)
+            monkey_patch.setattr("plugins.modules.get_azure_lb.AnsibleModule", MockAnsibleModule)
             main()
             assert mock_result["status"] == "FAILED"

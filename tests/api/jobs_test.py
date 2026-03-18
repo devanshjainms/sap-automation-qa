@@ -8,10 +8,10 @@ import pytest
 from pytest_mock import MockerFixture
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from src.api.routes import jobs
-from src.core.models.job import Job
-from src.core.storage.job_store import JobStore
-from src.core.models.workspace import WorkspaceInfo
+from app.api.routes import jobs
+from app.core.models.job import Job
+from app.core.storage.job_store import JobStore
+from app.core.models.workspace import WorkspaceInfo
 
 
 class TestJobsApi:
@@ -253,11 +253,11 @@ class TestJobsApi:
             WorkspaceInfo(id="WS", name="WS", environment="test", path="/test/WS"),
         ]
         mocker.patch(
-            "src.api.routes.workspaces._load_workspaces_from_directory",
+            "app.api.routes.workspaces._load_workspaces_from_directory",
             return_value=mock_workspaces,
         )
         mocker.patch(
-            "src.api.routes.jobs._load_workspaces_from_directory",
+            "app.api.routes.jobs._load_workspaces_from_directory",
             return_value=mock_workspaces,
         )
 

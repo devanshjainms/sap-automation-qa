@@ -4,8 +4,8 @@
 """Tests for JobStore."""
 
 from pathlib import Path
-from src.core.models.job import Job, JobStatus
-from src.core.storage.job_store import JobStore
+from app.core.models.job import Job, JobStatus
+from app.core.storage.job_store import JobStore
 
 
 class TestJobStore:

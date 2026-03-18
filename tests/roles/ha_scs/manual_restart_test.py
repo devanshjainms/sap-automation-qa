@@ -32,7 +32,7 @@ class TestManualRestart(RolesTestingBaseSCS):
         return self.file_operations(
             operation="read",
             file_path=Path(__file__).parent.parent.parent
-            / "src/roles/ha_scs/tasks/manual-restart.yml",
+            / "roles/ha_scs/tasks/manual-restart.yml",
         )
 
     @pytest.fixture

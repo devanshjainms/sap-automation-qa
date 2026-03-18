@@ -10,7 +10,7 @@ import json
 from typing import Any, Dict
 
 
-from src.module_utils.collector import (
+from plugins.module_utils.collector import (
     AzureDataParser,
     Collector,
     CommandCollector,

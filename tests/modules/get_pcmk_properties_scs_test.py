@@ -7,8 +7,8 @@ Unit tests for the get_pcmk_properties_scs module.
 
 import xml.etree.ElementTree as ET
 import pytest
-from src.modules.get_pcmk_properties_scs import HAClusterValidator, main
-from src.module_utils.enums import OperatingSystemFamily, TestStatus
+from plugins.modules.get_pcmk_properties_scs import HAClusterValidator, main
+from plugins.module_utils.enums import OperatingSystemFamily, TestStatus
 
 DUMMY_XML_RSC = """<rsc_defaults>
   <meta_attributes id="build-resource-defaults">
@@ -462,7 +462,7 @@ class TestHAClusterValidator:
         def mock_ansible_facts(module):
             return {"os_family": "SUSE"}
 
-        import src.modules.get_pcmk_properties_scs as module_under_test
+        import plugins.modules.get_pcmk_properties_scs as module_under_test
 
         original_ansible_module = module_under_test.AnsibleModule
         original_ansible_facts = module_under_test.ansible_facts

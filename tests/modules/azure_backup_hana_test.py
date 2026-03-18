@@ -10,18 +10,18 @@ from types import SimpleNamespace
 from typing import cast
 import pytest
 import yaml
-from src.modules.azure_backup_hana import (
+from plugins.modules.azure_backup_hana import (
     AzureBackupHana,
     run_module,
 )
-from src.module_utils.enums import TestStatus
-from src.module_utils.backup_discovery import (
+from plugins.module_utils.enums import TestStatus
+from plugins.module_utils.backup_discovery import (
     BackupDiscovery,
 )
-from src.module_utils.backup_parameters import (
+from plugins.module_utils.backup_parameters import (
     BackupParameterBuilder,
 )
-from src.module_utils.backup_restore import (
+from plugins.module_utils.backup_restore import (
     BackupRestoreHelper,
 )
 from azure.mgmt.recoveryservicesbackup.models import (
@@ -110,7 +110,6 @@ def _make_poller(
 # Load parameter definitions from the single source of truth.
 _PARAM_YAML = (
     Path(__file__).resolve().parents[2]
-    / "src"
     / "roles"
     / "backup_db_hana"
     / "vars"
@@ -132,7 +131,7 @@ def mock_client(mocker):
 def backup(mock_client, mocker):
     """Create an ``AzureBackupHana`` instance with the SDK client pre-injected."""
     mocker.patch(
-        "src.modules.azure_backup_hana.ManagedIdentityCredential",
+        "plugins.modules.azure_backup_hana.ManagedIdentityCredential",
     )
     instance = AzureBackupHana(
         vault_resource_id=(
@@ -190,10 +189,10 @@ class TestAzureBackupHanaInit:
     def test_creates_client_when_none(self, mocker):
         """Client is created via SDK when ``_client`` is ``None``."""
         mock_cred = mocker.patch(
-            "src.modules.azure_backup_hana.ManagedIdentityCredential",
+            "plugins.modules.azure_backup_hana.ManagedIdentityCredential",
         )
         mock_cls = mocker.patch(
-            "src.modules.azure_backup_hana.RecoveryServicesBackupClient",
+            "plugins.modules.azure_backup_hana.RecoveryServicesBackupClient",
         )
         instance = AzureBackupHana(
             vault_resource_id=(
@@ -216,10 +215,10 @@ class TestAzureBackupHanaInit:
     def test_creates_system_mi_when_no_client_id(self, mocker):
         """System-assigned MI used when ``msi_client_id`` is empty."""
         mock_cred = mocker.patch(
-            "src.modules.azure_backup_hana.ManagedIdentityCredential",
+            "plugins.modules.azure_backup_hana.ManagedIdentityCredential",
         )
         mocker.patch(
-            "src.modules.azure_backup_hana.RecoveryServicesBackupClient",
+            "plugins.modules.azure_backup_hana.RecoveryServicesBackupClient",
         )
         instance = AzureBackupHana(
             vault_resource_id=(
@@ -238,7 +237,7 @@ class TestAzureBackupHanaInit:
     def test_raises_runtime_error_on_auth_failure(self, mocker):
         """``RuntimeError`` raised when credential creation fails."""
         mocker.patch(
-            "src.modules.azure_backup_hana.ManagedIdentityCredential",
+            "plugins.modules.azure_backup_hana.ManagedIdentityCredential",
             side_effect=Exception("auth boom"),
         )
         instance = AzureBackupHana(
@@ -682,7 +681,7 @@ class TestStaticHelpers:
     ):
         """Custom parameter_definitions produce only those rows."""
         mocker.patch(
-            "src.modules.azure_backup_hana.ManagedIdentityCredential",
+            "plugins.modules.azure_backup_hana.ManagedIdentityCredential",
         )
         custom_defs = [
             {
@@ -732,7 +731,7 @@ class TestStaticHelpers:
     ):
         """YAML expected_value_hsr overrides expected_value for HSR."""
         mocker.patch(
-            "src.modules.azure_backup_hana.ManagedIdentityCredential",
+            "plugins.modules.azure_backup_hana.ManagedIdentityCredential",
         )
         custom_defs = [
             {
@@ -951,7 +950,7 @@ class TestStaticHelpers:
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-111",
         )
-        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch("plugins.module_utils.backup_restore.time.sleep")
         mocker.patch.object(
             backup.restore_helper,
             "find_latest_restore_job_id",
@@ -975,7 +974,7 @@ class TestStaticHelpers:
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-222",
         )
-        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch("plugins.module_utils.backup_restore.time.sleep")
         mocker.patch.object(
             backup.restore_helper,
             "find_latest_restore_job_id",
@@ -1000,7 +999,7 @@ class TestStaticHelpers:
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-hsr-1",
         )
-        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch("plugins.module_utils.backup_restore.time.sleep")
         mocker.patch.object(
             backup.restore_helper,
             "find_latest_restore_job_id",
@@ -1034,7 +1033,7 @@ class TestStaticHelpers:
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-olr-1",
         )
-        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch("plugins.module_utils.backup_restore.time.sleep")
         mocker.patch.object(
             backup.restore_helper,
             "find_latest_restore_job_id",
@@ -1084,7 +1083,7 @@ class TestStaticHelpers:
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-fs-1",
         )
-        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch("plugins.module_utils.backup_restore.time.sleep")
         mocker.patch.object(
             backup.restore_helper,
             "find_latest_restore_job_id",
@@ -1109,7 +1108,7 @@ class TestStaticHelpers:
         mock_client.restores.begin_trigger.return_value = _make_poller(
             job_id="job-fs-2",
         )
-        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch("plugins.module_utils.backup_restore.time.sleep")
         mocker.patch.object(
             backup.restore_helper,
             "find_latest_restore_job_id",
@@ -1195,7 +1194,7 @@ class TestStaticHelpers:
     def test_timeout(self, mock_client, mocker):
         """ERROR when polling exceeds ``poll_timeout``."""
         mocker.patch(
-            "src.modules.azure_backup_hana.ManagedIdentityCredential",
+            "plugins.modules.azure_backup_hana.ManagedIdentityCredential",
         )
         instance = AzureBackupHana(
             vault_resource_id=(
@@ -1210,7 +1209,7 @@ class TestStaticHelpers:
         )
         instance._client = mock_client
         mock_client.job_details.get.return_value = _make_job("InProgress")
-        mocker.patch("src.module_utils.backup_restore.time.sleep")
+        mocker.patch("plugins.module_utils.backup_restore.time.sleep")
 
         result = instance.check_restore_job(restore_job_id="j-5")
 
@@ -1363,7 +1362,7 @@ class TestSetJobResultStatus:
                 result_kwargs = kwargs
 
         monkeypatch.setattr(
-            "src.modules.azure_backup_hana.AnsibleModule",
+            "plugins.modules.azure_backup_hana.AnsibleModule",
             FakeModule,
         )
 
@@ -1375,10 +1374,10 @@ class TestSetJobResultStatus:
             _make_recovery_point(),
         ]
         mocker.patch(
-            "src.modules.azure_backup_hana.ManagedIdentityCredential",
+            "plugins.modules.azure_backup_hana.ManagedIdentityCredential",
         )
         mocker.patch(
-            "src.modules.azure_backup_hana.RecoveryServicesBackupClient",
+            "plugins.modules.azure_backup_hana.RecoveryServicesBackupClient",
             return_value=mock_client,
         )
 
@@ -1426,17 +1425,17 @@ class TestSetJobResultStatus:
                 fail_kwargs = kwargs
 
         monkeypatch.setattr(
-            "src.modules.azure_backup_hana.AnsibleModule",
+            "plugins.modules.azure_backup_hana.AnsibleModule",
             FakeModule,
         )
 
         mock_client = mocker.MagicMock()
         mock_client.backup_protected_items.list.side_effect = RuntimeError("boom")
         mocker.patch(
-            "src.modules.azure_backup_hana.ManagedIdentityCredential",
+            "plugins.modules.azure_backup_hana.ManagedIdentityCredential",
         )
         mocker.patch(
-            "src.modules.azure_backup_hana.RecoveryServicesBackupClient",
+            "plugins.modules.azure_backup_hana.RecoveryServicesBackupClient",
             return_value=mock_client,
         )
 

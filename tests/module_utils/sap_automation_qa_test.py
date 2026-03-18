@@ -6,8 +6,8 @@ Unit tests for the sap_automation_qa module.
 """
 
 import xml.etree.ElementTree as ET
-from src.module_utils.sap_automation_qa import SapAutomationQA
-from src.module_utils.enums import TestStatus
+from plugins.module_utils.sap_automation_qa import SapAutomationQA
+from plugins.module_utils.enums import TestStatus
 
 
 class MockLogger:
@@ -93,7 +93,7 @@ class TestSapAutomationQA:
 
         with monkeypatch.context() as monkey_patch:
             monkey_patch.setattr(
-                "src.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
+                "plugins.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
             )
             sap_qa = SapAutomationQA()
             assert sap_qa.logger.name == "sap-automation-qa"
@@ -119,7 +119,7 @@ class TestSapAutomationQA:
 
         with monkeypatch.context() as monkey_patch:
             monkey_patch.setattr(
-                "src.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
+                "plugins.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
             )
             sap_qa = SapAutomationQA()
             sap_qa.log(1, "Test log")
@@ -146,7 +146,7 @@ class TestSapAutomationQA:
 
         with monkeypatch.context() as monkey_patch:
             monkey_patch.setattr(
-                "src.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
+                "plugins.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
             )
             sap_qa = SapAutomationQA()
             sap_qa.handle_error(FileNotFoundError("Test error"))
@@ -175,7 +175,7 @@ class TestSapAutomationQA:
 
         with monkeypatch.context() as monkey_patch:
             monkey_patch.setattr(
-                "src.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
+                "plugins.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
             )
             sap_qa = SapAutomationQA()
 
@@ -208,7 +208,7 @@ class TestSapAutomationQA:
 
         with monkeypatch.context() as monkey_patch:
             monkey_patch.setattr(
-                "src.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
+                "plugins.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
             )
             sap_qa = SapAutomationQA()
             xml_output = "<root></root>"
@@ -236,7 +236,7 @@ class TestSapAutomationQA:
 
         with monkeypatch.context() as monkey_patch:
             monkey_patch.setattr(
-                "src.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
+                "plugins.module_utils.sap_automation_qa.logging.getLogger", mock_get_logger
             )
             sap_qa = SapAutomationQA()
             result = sap_qa.get_result()

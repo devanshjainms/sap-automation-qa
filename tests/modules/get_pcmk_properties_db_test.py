@@ -9,8 +9,8 @@ import builtins
 import io
 import xml.etree.ElementTree as ET
 import pytest
-from src.modules.get_pcmk_properties_db import HAClusterValidator, main
-from src.module_utils.enums import (
+from plugins.modules.get_pcmk_properties_db import HAClusterValidator, main
+from plugins.module_utils.enums import (
     OperatingSystemFamily,
     HanaSRProvider,
     HanaTopology,
@@ -944,7 +944,7 @@ class TestHAClusterValidator:
         def mock_ansible_facts(module):
             return {"os_family": "RedHat"}
 
-        import src.modules.get_pcmk_properties_db as module_under_test
+        import plugins.modules.get_pcmk_properties_db as module_under_test
 
         original_ansible_module = module_under_test.AnsibleModule
         original_ansible_facts = module_under_test.ansible_facts
@@ -995,7 +995,7 @@ class TestHAClusterValidator:
                 raise Exception("First call fails")
             return MockAnsibleModuleFallback(*args, **kwargs)
 
-        import src.modules.get_pcmk_properties_db as module_under_test
+        import plugins.modules.get_pcmk_properties_db as module_under_test
 
         original_ansible_module = module_under_test.AnsibleModule
         original_open = builtins.open

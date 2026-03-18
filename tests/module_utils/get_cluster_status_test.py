@@ -9,8 +9,8 @@ import logging
 import xml.etree.ElementTree as ET
 from typing import Dict, Any
 import pytest
-from src.module_utils.get_cluster_status import BaseClusterStatusChecker
-from src.module_utils.enums import OperatingSystemFamily
+from plugins.module_utils.get_cluster_status import BaseClusterStatusChecker
+from plugins.module_utils.enums import OperatingSystemFamily
 
 
 class TestableBaseClusterChecker(BaseClusterStatusChecker):

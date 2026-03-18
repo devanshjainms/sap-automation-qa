@@ -3,7 +3,7 @@
 
 """Tests for execution exceptions."""
 
-from src.core.execution.exceptions import (
+from app.core.execution.exceptions import (
     ExecutionError,
     WorkspaceLockError,
     JobNotFoundError,

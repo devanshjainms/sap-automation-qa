@@ -4,7 +4,7 @@
 """Tests for Job model."""
 
 import pytest
-from src.core.models.job import Job, JobStatus, JobEventType
+from app.core.models.job import Job, JobStatus, JobEventType
 
 
 class TestJobModel:

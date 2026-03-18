@@ -1,0 +1,16 @@
+---
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Entry point for the misc role.
+# This role provides shared utility tasks for SAP HA testing.
+# Individual tasks are invoked directly via include_role with tasks_from.
+#
+# Usage:
+#   - ansible.builtin.include_role:
+#       name: misc
+#       tasks_from: pre-validations-db.yml
+
+- name:                                 "misc: No default tasks"
+  ansible.builtin.debug:
+    msg:                                "Use tasks_from to invoke specific misc tasks."

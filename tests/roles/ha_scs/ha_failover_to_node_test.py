@@ -32,7 +32,7 @@ class TestHAFailoverToNode(RolesTestingBaseSCS):
         return self.file_operations(
             operation="read",
             file_path=Path(__file__).parent.parent.parent
-            / "src/roles/ha_scs/tasks/ha-failover-to-node.yml",
+            / "roles/ha_scs/tasks/ha-failover-to-node.yml",
         )
 
     @pytest.fixture

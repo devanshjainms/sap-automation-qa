@@ -1,0 +1,52 @@
+---
+namespace: devanshjainms
+name: sap_automation_qa
+version: "1.0.3"
+readme: README.md
+authors:
+  - "Microsoft Corporation"
+description: >-
+  SAP Testing Automation Framework for validating SAP deployments on Microsoft Azure.
+  Provides HA functional testing for SAP HANA and Central Services in Pacemaker clusters,
+  configuration validation, and offline HA validation.
+license_file: LICENSE
+tags:
+  - azure
+  - sap
+  - hana
+  - pacemaker
+  - high_availability
+  - testing
+  - automation
+repository: https://github.com/Azure/sap-automation-qa
+documentation: https://github.com/Azure/sap-automation-qa/tree/main/docs
+issues: https://github.com/Azure/sap-automation-qa/issues
+dependencies: {}
+build_ignore:
+  - app
+  - tests
+  - scripts
+  - deploy
+  - client
+  - docs
+  - templates
+  - WORKSPACES
+  - .github
+  - .venv
+  - .ansible
+  - __pycache__
+  - "*.pyc"
+  - "*.pyo"
+  - pyproject.toml
+  - requirements.in
+  - requirements.txt
+  - vars.yaml
+  - .ansible-lint
+  - .pre-commit-config.yaml
+  - .editorconfig
+  - .dockerignore
+  - .gitignore
+  - .git
+  - CODE_OF_CONDUCT.md
+  - SECURITY.md
+  - SUPPORT.md

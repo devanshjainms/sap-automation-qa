@@ -6,8 +6,8 @@
 from datetime import datetime, timezone
 from pathlib import Path
 import pytest
-from src.core.models.schedule import Schedule
-from src.core.storage.schedule_store import ScheduleStore
+from app.core.models.schedule import Schedule
+from app.core.storage.schedule_store import ScheduleStore
 
 
 class TestScheduleStore:

@@ -1,0 +1,10 @@
+---
+minor_changes:
+  - Restructured repository to Ansible Galaxy collection layout.
+  - Added galaxy.yml and meta/runtime.yml for collection metadata.
+  - Moved modules to plugins/modules/ and module_utils to plugins/module_utils/.
+  - Added DOCUMENTATION, EXAMPLES, and RETURN to configuration_check_module.
+  - Converted cross-role include_tasks to include_role for proper encapsulation.
+  - Moved templates into role files/ and playbooks/templates/ directories.
+  - Added tasks/main.yml entry points for all roles.
+  - Added argument_specs.yml for role input validation.

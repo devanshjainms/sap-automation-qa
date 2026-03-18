@@ -8,8 +8,8 @@ Unit tests for the get_pcmk_properties module.
 import io
 import xml.etree.ElementTree as ET
 import pytest
-from src.module_utils.get_pcmk_properties import BaseHAClusterValidator
-from src.module_utils.enums import OperatingSystemFamily, TestStatus
+from plugins.module_utils.get_pcmk_properties import BaseHAClusterValidator
+from plugins.module_utils.enums import OperatingSystemFamily, TestStatus
 
 DUMMY_XML_RSC = """<rsc_defaults>
   <meta_attributes id="build-resource-defaults">
@@ -241,7 +241,7 @@ class TestBaseHAClusterValidator:
             return ""
 
         monkeypatch.setattr(
-            "src.module_utils.sap_automation_qa.SapAutomationQA.execute_command_subprocess",
+            "plugins.module_utils.sap_automation_qa.SapAutomationQA.execute_command_subprocess",
             mock_execute_command,
         )
 

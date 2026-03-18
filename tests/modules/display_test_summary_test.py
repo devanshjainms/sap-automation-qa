@@ -8,7 +8,7 @@ Unit tests for the display_test_summary module.
 import json
 import pytest
 from typing import List, Optional
-from src.modules.display_test_summary import (
+from plugins.modules.display_test_summary import (
     TestSummaryDisplay,
     _HA_CONFIG_TEST_NAME,
     main,
@@ -266,6 +266,6 @@ class TestModuleEntryPoint:
 
     def test_main_calls_run_module(self, mocker):
         """main() delegates to run_module()."""
-        mock_run = mocker.patch("src.modules.display_test_summary.run_module")
+        mock_run = mocker.patch("plugins.modules.display_test_summary.run_module")
         main()
         mock_run.assert_called_once()

@@ -1,0 +1,3 @@
+---
+# Default variables for ha_db_hana
+# Override these in your inventory, group_vars, or extra_vars.

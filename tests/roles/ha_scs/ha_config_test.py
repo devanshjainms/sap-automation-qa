@@ -31,7 +31,7 @@ class TestASCSHaConfigValidation(RolesTestingBaseSCS):
         """
         return self.file_operations(
             operation="read",
-            file_path=Path(__file__).parent.parent.parent / "src/roles/ha_scs/tasks/ha-config.yml",
+            file_path=Path(__file__).parent.parent.parent / "roles/ha_scs/tasks/ha-config.yml",
         )
 
     @pytest.fixture

@@ -7,8 +7,8 @@ Unit tests for the location_constraints module converted to a class-based approa
 
 import xml.etree.ElementTree as ET
 import pytest
-from src.modules.location_constraints import LocationConstraintsManager, main
-from src.module_utils.enums import OperatingSystemFamily
+from plugins.modules.location_constraints import LocationConstraintsManager, main
+from plugins.module_utils.enums import OperatingSystemFamily
 
 LC_STR = """<constraints>
     <rsc_location id="location-rsc_SAPHana_HDB_HA1" rsc="rsc_SAPHana_HDB_HA1" node="node1" score="INFINITY"/>
@@ -154,10 +154,10 @@ class TestLocationConstraints:
 
         with monkeypatch.context() as monkey_patch:
             monkey_patch.setattr(
-                "src.modules.location_constraints.AnsibleModule", MockAnsibleModule
+                "plugins.modules.location_constraints.AnsibleModule", MockAnsibleModule
             )
             monkey_patch.setattr(
-                "src.modules.location_constraints.ansible_facts", mock_ansible_facts
+                "plugins.modules.location_constraints.ansible_facts", mock_ansible_facts
             )
             main()
             assert mock_result["status"] == "INFO"

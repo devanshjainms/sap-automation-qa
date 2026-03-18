@@ -10,18 +10,18 @@ import pytest
 from pytest_mock import MockerFixture
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from src.api.routes import jobs, schedules
-from src.core.storage.job_store import JobStore
-from src.core.storage.schedule_store import ScheduleStore
-from src.core.execution.worker import JobWorker
-from src.core.models.job import Job
-from src.core.models.schedule import Schedule
-from src.core.models.workspace import WorkspaceInfo
+from app.api.routes import jobs, schedules
+from app.core.storage.job_store import JobStore
+from app.core.storage.schedule_store import ScheduleStore
+from app.core.execution.worker import JobWorker
+from app.core.models.job import Job
+from app.core.models.schedule import Schedule
+from app.core.models.workspace import WorkspaceInfo
 
 
 def create_test_app() -> FastAPI:
     """Create a minimal FastAPI app for testing."""
-    from src.api.routes import (
+    from app.api.routes import (
         health_router,
         jobs_router,
         schedules_router,
@@ -106,7 +106,7 @@ def client(
 ) -> Generator[TestClient, None, None]:
     """Provide a test client with all dependencies configured."""
     mocker.patch(
-        "src.api.routes.workspaces._load_workspaces_from_directory",
+        "app.api.routes.workspaces._load_workspaces_from_directory",
         return_value=[
             WorkspaceInfo(id=ws_id, name=ws_id, environment="test", path=f"/test/{ws_id}")
             for ws_id in (
@@ -121,7 +121,7 @@ def client(
         ],
     )
     mocker.patch(
-        "src.api.routes.jobs._load_workspaces_from_directory",
+        "app.api.routes.jobs._load_workspaces_from_directory",
         return_value=[
             WorkspaceInfo(id=ws_id, name=ws_id, environment="test", path=f"/test/{ws_id}")
             for ws_id in (

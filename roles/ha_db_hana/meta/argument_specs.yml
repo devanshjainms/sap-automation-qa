@@ -1,0 +1,55 @@
+---
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+argument_specs:
+  main:
+    short_description: Execute HANA Database HA functional tests
+    description:
+      - Runs HA test scenarios for SAP HANA databases on Pacemaker clusters.
+      - Supports scale-up, scale-out HSR, and scale-out standby topologies.
+    options:
+      test_case_name:
+        description: Name of the HA test case to execute (maps to a task file).
+        type: str
+        required: true
+      db_sid:
+        description: SAP HANA system ID.
+        type: str
+        required: true
+      db_instance_number:
+        description: SAP HANA instance number.
+        type: str
+        required: true
+      hana_topology:
+        description: HANA topology type.
+        type: str
+        required: false
+        default: scale_up
+        choices:
+          - scale_up
+          - scale_out_hsr
+          - scale_out_standby
+      saphanasr_provider:
+        description: SAPHanaSR provider type.
+        type: str
+        required: false
+        default: SAPHanaSR
+        choices:
+          - SAPHanaSR
+          - SAPHanaSR-angi
+      default_timeout:
+        description: Default wait timeout in seconds.
+        type: int
+        required: false
+        default: 300
+      default_retries:
+        description: Default number of retries for cluster status checks.
+        type: int
+        required: false
+        default: 60
+      default_delay:
+        description: Default delay between retries in seconds.
+        type: int
+        required: false
+        default: 30

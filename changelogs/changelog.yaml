@@ -1,0 +1,12 @@
+---
+ancestor: null
+releases:
+  1.0.2:
+    release_date: "2026-03-17"
+    changes:
+      major_changes:
+        - Restructured repository as an Ansible Galaxy collection (azure.sap_automation_qa).
+        - Moved modules and module_utils to plugins/ directory with collection-aware imports.
+        - Moved playbooks to playbooks/ directory.
+        - Added galaxy.yml, meta/runtime.yml, and role metadata (meta/main.yml, defaults/main.yml).
+        - Separated Python application code (FastAPI/core) into app/ directory.

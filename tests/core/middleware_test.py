@@ -7,7 +7,7 @@ import pytest
 from pytest_mock import MockerFixture
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from src.core.observability.middleware import (
+from app.core.observability.middleware import (
     ObservabilityMiddleware,
     add_observability_middleware,
     CORRELATION_ID_HEADER,

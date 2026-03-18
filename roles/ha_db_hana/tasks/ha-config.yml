@@ -1,0 +1,209 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# /*---------------------------------------------------------------------------
+# |                          HA Configuration Validation                       |
+# +--------------------------------------------------------------------------*/
+- name:                                 "Test Setup Tasks"
+  ansible.builtin.include_role:
+    name:                          misc
+    tasks_from:                    test-case-setup.yml
+
+- name:                                 "Capture cluster configuration snapshot"
+  become:                               true
+  ansible.builtin.shell: >-
+                                        set -o pipefail && {{
+                                          commands
+                                          | selectattr('name', 'equalto', 'ha_cluster_config_dump')
+                                          | map(attribute=(ansible_os_family | upper))
+                                          | list | first | default('')
+                                        }}
+  args:
+    executable:                         /bin/bash
+  register:                             ha_cluster_config_dump_result
+  changed_when:                         false
+  failed_when:                          false
+
+- name:                                 "Prepare cluster configuration payload"
+  ansible.builtin.set_fact:
+    ha_cluster_config_snapshot: |-
+      Command: {{
+        commands
+        | selectattr('name', 'equalto', 'ha_cluster_config_dump')
+        | map(attribute=(ansible_os_family | upper))
+        | list | first | default('Not defined')
+      }}
+      ---
+      {{
+        (ha_cluster_config_dump_result.stdout | default('') | trim)
+        if (ha_cluster_config_dump_result.stdout is defined and (ha_cluster_config_dump_result.stdout | trim | length > 0))
+        else (ha_cluster_config_dump_result.stderr | default('No output captured.'))
+      }}
+
+- name:                                 "Ensure a list of package version is available for logging"
+  no_log:                               true
+  block:
+    - name:                             "Try to collect package facts"
+      ansible.builtin.package_facts:
+  rescue:
+    - name:                             "Package facts collection failed - using empty list"
+      ansible.builtin.set_fact:
+        ansible_facts:
+          packages:                     {}
+      no_log:                           true
+
+- name:                                 "Create package dictionary for telemetry data"
+  become:                               true
+  get_package_list:
+    package_facts_list:                 "{{ ansible_facts.packages }}"
+  register:                             packages_list
+
+- name:                                 "Pre Validations: Validate parameters for the DB nodes"
+  become:                               true
+  become_user:                          root
+  block:
+    - name:                             "Get the SAPHanaSR provider"
+      ansible.builtin.include_role:
+        name:                      misc
+        tasks_from:                get-saphanasr-provider.yml
+
+    - name:                             "Pre validation: Get HANA resource id for saphanasr_angi"
+      when:                             saphanasr_provider | default('SAPHanaSR') in ["SAPHanaSR-angi", "SAPHanaSR-ScaleOut"]
+      block:
+        - name:                         "Pre validation: Get HANA clone resource id for saphanasr_angi"
+          become:                       true
+          ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','get_hana_clone_resource_id_saphanasr_angi')
+                                          | map(attribute=(ansible_os_family|upper))
+                                          | first
+                                        }}
+          args:
+            executable:                 /bin/bash
+          changed_when:                 false
+          register:                     hana_clone_resource_id
+          failed_when:                  hana_clone_resource_id.rc != 0
+
+        - name:                         "Pre validation: Get HANA primitive resource id for saphanasr_angi"
+          become:                       true
+          ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','get_hana_primitive_resource_id_saphanasr_angi')
+                                          | map(attribute=(ansible_os_family|upper))
+                                          | first
+                                        }}
+          args:
+            executable:                 /bin/bash
+          changed_when:                 false
+          register:                     hana_primitive_resource_id
+          failed_when:                  hana_primitive_resource_id.rc != 0
+
+        - name:                         "Pre validation: Set fact the hana_clone_resource_name"
+          ansible.builtin.set_fact:
+            hana_clone_resource_name:   "{{ hana_clone_resource_id.stdout }}"
+            hana_primitive_resource_name: "{{ hana_primitive_resource_id.stdout }}"
+
+    - name:                             "Pre validation: Get HANA Clone resource id"
+      when:                             saphanasr_provider | default('SAPHanaSR') == "SAPHanaSR"
+      block:
+        - name:                         "Try master resource ID"
+          become:                       true
+          ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','get_hana_clone_resource_id')
+                                          | map(attribute=(ansible_os_family|upper))
+                                          | first
+                                        }}
+          args:
+            executable:                 /bin/bash
+          changed_when:                 false
+          register:                     hana_clone_resource_id
+          failed_when:                  hana_clone_resource_id.rc != 0
+      rescue:
+        - name:                         "Try clone resource ID"
+          become:                       true
+          ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','get_hana_clone_resource_id')
+                                          | map(attribute='REDHAT')
+                                          | first
+                                        }}
+          args:
+            executable:                 /bin/bash
+          changed_when:                 false
+          register:                     hana_clone_resource_id
+          failed_when:                  hana_clone_resource_id.rc != 0
+          ignore_errors:                true
+      always:
+        - name:                         "Test Execution: Set the resource name"
+          when:
+                                        - hana_clone_resource_id.rc == 0
+                                        - hana_clone_resource_id.stdout is defined
+                                        - hana_clone_resource_id.stdout | type_debug != 'NoneType'
+                                        - hana_clone_resource_id.stdout | trim | length > 1
+          ansible.builtin.set_fact:
+            hana_clone_resource_name:     "{{ hana_clone_resource_id.stdout }}"
+
+    - name:                             "Pre validation: Get HANA Primitive resource id"
+      when:                             saphanasr_provider | default('SAPHanaSR') == "SAPHanaSR"
+      block:
+        - name:                         "Pre validation: Get HANA Primitive resource id"
+          become:                       true
+          ansible.builtin.shell: >-
+                                        set -o pipefail && {{ commands
+                                          | selectattr('name','equalto','get_hana_primitive_resource_id')
+                                          | map(attribute=(ansible_os_family|upper))
+                                          | first
+                                        }}
+          args:
+            executable:                 /bin/bash
+          changed_when:                 false
+          register:                     hana_primitive_resource_id
+          failed_when:                  hana_primitive_resource_id.rc != 0
+
+        - name:                         "Pre validation: Set fact the hana_primitive_resource_name"
+          ansible.builtin.set_fact:
+            hana_primitive_resource_name: "{{ hana_primitive_resource_id.stdout }}"
+
+    - name:                             "Retrieve Virtual Machine name"
+      ansible.builtin.uri:
+        url:                            http://169.254.169.254/metadata/instance?api-version=2021-02-01
+        use_proxy:                      false
+        headers:
+          Metadata:                     true
+      register:                         azure_instance_metadata
+
+    - name:                             "HA Configuration check for the DB nodes"
+      get_pcmk_properties_db:
+        sid:                            "{{ db_sid | upper }}"
+        instance_number:                "{{ db_instance_number }}"
+        virtual_machine_name:           "{{ azure_instance_metadata.json.compute.name }}"
+        fencing_mechanism:              "{{ database_cluster_type }}"
+        pcmk_constants:                 "{{ lookup('file', 'constants.yaml') | from_yaml }}"
+        saphanasr_provider:             "{{ saphanasr_provider | default('SAPHanaSR') }}"
+        hana_topology:                  "{{ hana_topology | default('scale_up') }}"
+      register:                         test_result
+
+    - name:                             "Set the test case status to PASSED"
+      ansible.builtin.set_fact:
+        test_case_status:               "{{ test_result.status }}"
+        test_case_message:              "{{ test_result.message }}"
+        test_case_details:              "{{ test_result.details }}"
+        test_case_hostname:             "{{ virtual_host }}"
+        package_versions:               "{{ packages_list.details }}"
+        test_case_var_log_messages:     "{{ ha_cluster_config_snapshot | default('Cluster configuration snapshot unavailable') }}"
+
+  rescue:
+    - name:                             "Test case failed"
+      ansible.builtin.set_fact:
+          test_case_status:             "FAILED"
+          test_case_details:            "{{ test_result | default(ansible_failed_result | default('Pre-validation failed')) }}"
+          test_case_message:            "{{ ansible_failed_result }}"
+          test_case_hostname:           "{{ virtual_host }}"
+          package_versions:             "{{ packages_list.details }}"
+          test_case_var_log_messages:   "{{ ha_cluster_config_snapshot | default('Cluster configuration snapshot unavailable') }}"
+
+- name:                                 "Post Telemetry Data"
+  ansible.builtin.include_role:
+    name:                          misc
+    tasks_from:                    post-telemetry-data.yml

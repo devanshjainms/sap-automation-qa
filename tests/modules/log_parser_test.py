@@ -7,8 +7,8 @@ Unit tests for the log_parser module.
 
 import json
 import pytest
-from src.modules.log_parser import LogParser, PCMK_KEYWORDS, SYS_KEYWORDS, main
-from src.module_utils.enums import OperatingSystemFamily
+from plugins.modules.log_parser import LogParser, PCMK_KEYWORDS, SYS_KEYWORDS, main
+from plugins.module_utils.enums import OperatingSystemFamily
 
 
 class TestLogParser:
@@ -97,7 +97,7 @@ class TestLogParser:
         :param mocker: Mocker fixture for mocking functions.
         :type mocker: pytest_mock.MockerFixture
         """
-        mock_ansible_module = mocker.patch("src.modules.log_parser.AnsibleModule")
+        mock_ansible_module = mocker.patch("plugins.modules.log_parser.AnsibleModule")
         mock_ansible_module.return_value.params = {
             "start_time": "2023-01-01 00:00:00",
             "end_time": "2023-01-01 23:59:59",
@@ -163,8 +163,8 @@ class TestLogParser:
             return {"os_family": "RedHat"}
 
         with monkeypatch.context() as monkey_patch:
-            monkey_patch.setattr("src.modules.log_parser.AnsibleModule", MockAnsibleModule)
-            monkey_patch.setattr("src.modules.log_parser.ansible_facts", mock_ansible_facts)
+            monkey_patch.setattr("plugins.modules.log_parser.AnsibleModule", MockAnsibleModule)
+            monkey_patch.setattr("plugins.modules.log_parser.ansible_facts", mock_ansible_facts)
             main()
             assert mock_result["status"] == "FAILED"
 
@@ -273,7 +273,7 @@ class TestLogParser:
             return ""
 
         monkeypatch.setattr(
-            "src.module_utils.sap_automation_qa.SapAutomationQA.execute_command_subprocess",
+            "plugins.module_utils.sap_automation_qa.SapAutomationQA.execute_command_subprocess",
             mock_execute_command,
         )
         log_parser_unknown = LogParser(
@@ -344,9 +344,9 @@ class TestLogParser:
             return {"os_family": "RedHat"}
 
         with monkeypatch.context() as monkey_patch:
-            monkey_patch.setattr("src.modules.log_parser.AnsibleModule", MockAnsibleModule)
-            monkey_patch.setattr("src.modules.log_parser.ansible_facts", mock_ansible_facts)
-            from src.modules.log_parser import run_module
+            monkey_patch.setattr("plugins.modules.log_parser.AnsibleModule", MockAnsibleModule)
+            monkey_patch.setattr("plugins.modules.log_parser.ansible_facts", mock_ansible_facts)
+            from plugins.modules.log_parser import run_module
 
             run_module()
             assert mock_result["status"] == "PASSED"

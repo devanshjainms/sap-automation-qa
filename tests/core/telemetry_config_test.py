@@ -6,8 +6,8 @@
 from pathlib import Path
 from textwrap import dedent
 import pytest
-from src.core.models.telemetry import TelemetryConfig
-from src.core.observability.telemetry_handlers import (
+from app.core.models.telemetry import TelemetryConfig
+from app.core.observability.telemetry_handlers import (
     load_telemetry_config,
     _coalesce,
 )

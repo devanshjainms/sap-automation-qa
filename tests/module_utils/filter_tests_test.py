@@ -10,7 +10,7 @@ import tempfile
 import os
 import pytest
 import yaml
-from src.module_utils.filter_tests import TestFilter
+from plugins.module_utils.filter_tests import TestFilter
 
 
 class TestTestFilter:
@@ -318,7 +318,7 @@ class TestTestFilter:
         with monkeypatch.context() as m:
             m.setattr("sys.argv", ["filter_tests.py"])
             with pytest.raises(SystemExit) as exc_info:
-                from src.module_utils.filter_tests import main
+                from plugins.module_utils.filter_tests import main
 
                 main()
             assert exc_info.value.code == 1
@@ -339,7 +339,7 @@ class TestTestFilter:
         try:
             with monkeypatch.context() as m:
                 m.setattr("sys.argv", ["filter_tests.py", temp_yaml_file])
-                from src.module_utils.filter_tests import main
+                from plugins.module_utils.filter_tests import main
 
                 main()
                 captured = capsys.readouterr()
@@ -362,7 +362,7 @@ class TestTestFilter:
         try:
             with monkeypatch.context() as m:
                 m.setattr("sys.argv", ["filter_tests.py", temp_yaml_file, "HA_DB_HANA"])
-                from src.module_utils.filter_tests import main
+                from plugins.module_utils.filter_tests import main
 
                 main()
                 captured = capsys.readouterr()
@@ -387,7 +387,7 @@ class TestTestFilter:
                 m.setattr(
                     "sys.argv", ["filter_tests.py", temp_yaml_file, "null", "ha-config,azure-lb"]
                 )
-                from src.module_utils.filter_tests import main
+                from plugins.module_utils.filter_tests import main
 
                 main()
                 captured = capsys.readouterr()
@@ -410,7 +410,7 @@ class TestTestFilter:
         try:
             with monkeypatch.context() as m:
                 m.setattr("sys.argv", ["filter_tests.py", temp_yaml_file, "null", "null"])
-                from src.module_utils.filter_tests import main
+                from plugins.module_utils.filter_tests import main
 
                 main()
                 captured = capsys.readouterr()
