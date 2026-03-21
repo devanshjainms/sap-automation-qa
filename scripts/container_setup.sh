@@ -8,6 +8,7 @@ _CONTAINER_PROJECT_ROOT="$(dirname "$_CONTAINER_SCRIPT_DIR")"
 _CONTAINER_DEPLOY_DIR="$_CONTAINER_PROJECT_ROOT/deploy"
 _CONTAINER_ENV_FILE="$_CONTAINER_DEPLOY_DIR/.env"
 _CONTAINER_PORT=8000
+_CONTAINER_MCP_PORT=8001
 _CONTAINER_HEALTH_RETRIES=15
 _CONTAINER_HEALTH_INTERVAL=2
 
@@ -63,8 +64,10 @@ _wait_for_healthy() {
             if [[ "$code" == "200" ]]; then
                 log "INFO" "=== Service is healthy ==="
                 echo ""
-                echo "SAP QA: http://localhost:${_CONTAINER_PORT}"
-                echo "API docs:         http://localhost:${_CONTAINER_PORT}/docs"
+                echo "SAP QA API:   http://localhost:${_CONTAINER_PORT}"
+                echo "SAP MCP:      http://localhost:${_CONTAINER_MCP_PORT}"
+                echo "API docs:     http://localhost:${_CONTAINER_PORT}/docs"
+                echo "Chat CLI:     python scripts/chat.py"
                 echo ""
                 return 0
             fi

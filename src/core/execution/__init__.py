@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Execution layer for running tests."""
+"""Execution layer for running tests and triage evidence collection."""
 
 from src.core.execution.executor import ExecutorProtocol, AnsibleExecutor
 from src.core.execution.worker import JobWorker
@@ -12,6 +12,17 @@ from src.core.execution.exceptions import (
     ExecutionError,
     WorkspaceLockError,
     JobNotFoundError,
+)
+from src.core.execution.command_allow_list import AllowedCommand, CommandAllowList
+from src.core.execution.evidence_collector import (
+    CollectorStrategy,
+    EvidenceCollector,
+    EvidenceDefinition,
+)
+from src.core.execution.triage_executor import (
+    ArtifactWriter,
+    TriageExecutor,
+    TriageExecutorProtocol,
 )
 
 __all__ = [
@@ -25,4 +36,12 @@ __all__ = [
     "ExecutionError",
     "WorkspaceLockError",
     "JobNotFoundError",
+    "AllowedCommand",
+    "CommandAllowList",
+    "CollectorStrategy",
+    "EvidenceCollector",
+    "EvidenceDefinition",
+    "ArtifactWriter",
+    "TriageExecutor",
+    "TriageExecutorProtocol",
 ]

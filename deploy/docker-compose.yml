@@ -16,6 +16,12 @@ services:
                           - LOG_LEVEL=${LOG_LEVEL:-INFO}
                           - SCHEDULER_CHECK_INTERVAL=${SCHEDULER_CHECK_INTERVAL:-60}
                           - PYTHONPATH=/app
+                          - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
+                          - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-}
+                          - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
+                          - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
+                          - STAF_MCP_URL=http://sap-mcp-server:8001
+                          - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
                           - TELEMETRY_DATA_DESTINATION=${TELEMETRY_DATA_DESTINATION:-}
                           - LAWS_WORKSPACE_ID=${LAWS_WORKSPACE_ID:-}
                           - LAWS_SHARED_KEY=${LAWS_SHARED_KEY:-}
@@ -31,6 +37,52 @@ services:
                           - ../vars.yaml:/app/vars.yaml:ro
     healthcheck:
       test:               ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval:           30s
+      timeout:            10s
+      retries:            3
+      start_period:       10s
+    networks:
+                          - sap-qa-network
+    logging:
+      driver:             "json-file"
+      options:
+        max-size:         "10m"
+        max-file:         "3"
+
+  sap-mcp-server:
+    build:
+      context:            ..
+      dockerfile:         deploy/Dockerfile
+    container_name:       sap-mcp-server
+    user:                 "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart:              unless-stopped
+    command:              ["uvicorn", "src.mcp_server.server:http_app", "--host", "0.0.0.0", "--port", "8001"]
+    ports:
+                          - "8001:8001"
+    environment:
+                          - LOG_FORMAT=${LOG_FORMAT:-json}
+                          - LOG_LEVEL=${LOG_LEVEL:-INFO}
+                          - PYTHONPATH=/app
+                          - MCP_HOST=0.0.0.0
+                          - MCP_PORT=8001
+                          - CORE_API_URL=http://sap-qa-service:8000
+                          - DATA_DIR=/app/data
+                          - WORKSPACES_BASE=/app/WORKSPACES/SYSTEM
+                          - AZURE_OPENAI_EMBEDDING_ENDPOINT=${AZURE_OPENAI_EMBEDDING_ENDPOINT:-}
+                          - AZURE_OPENAI_EMBEDDING_DEPLOYMENT=${AZURE_OPENAI_EMBEDDING_DEPLOYMENT:-}
+                          - AZURE_OPENAI_EMBEDDING_API_KEY=${AZURE_OPENAI_EMBEDDING_API_KEY:-}
+                          - EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-768}
+                          - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
+                          - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-}
+                          - MCP_RATE_LIMIT_RPM=${MCP_RATE_LIMIT_RPM:-60}
+    volumes:
+                          - sap-qa-data:/app/data
+                          - ../WORKSPACES:/app/WORKSPACES
+    depends_on:
+      sap-qa-service:
+        condition:        service_healthy
+    healthcheck:
+      test:               ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8001/mcp | grep -qE '^[2-5]'"]
       interval:           30s
       timeout:            10s
       retries:            3

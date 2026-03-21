@@ -1,0 +1,117 @@
+# Command Allow-List for SAP Triage Evidence Collection
+#
+# Only commands matching these patterns may be executed against
+# production SAP systems. This is the primary security boundary.
+#
+# Each entry has:
+#   pattern:              Regex pattern (case-insensitive) matching the command
+#   description:          Human-readable purpose
+#   max_timeout_seconds:  Maximum execution time (default: 30)
+#
+# To add a new command:
+#   1. Add an entry below with the regex pattern
+#   2. Keep patterns as restrictive as possible (anchor with ^)
+#   3. Only allow read-only / diagnostic commands
+#
+# WARNING: Overly broad patterns (e.g. ".*") can allow arbitrary execution.
+
+commands:
+
+  # -- Pacemaker cluster (OS-agnostic base tools) --
+  - pattern: "^crm_mon\\s+"
+    description: "Pacemaker cluster monitor (read-only)"
+    max_timeout_seconds: 30
+
+  - pattern: "^cibadmin\\s+--query"
+    description: "CIB XML query (read-only)"
+    max_timeout_seconds: 30
+
+  - pattern: "^crm_attribute\\s+"
+    description: "Pacemaker node/cluster attribute query"
+    max_timeout_seconds: 30
+
+  # -- Pacemaker cluster (SUSE wrapper) --
+  - pattern: "^crm\\s+(status|configure\\s+show|resource\\s+status)"
+    description: "Pacemaker CRM read-only commands (SUSE)"
+    max_timeout_seconds: 30
+
+  # -- Pacemaker cluster (RHEL wrapper) --
+  - pattern: "^pcs\\s+(status|config|resource\\s+show|property)"
+    description: "Pacemaker PCS read-only commands (RHEL)"
+    max_timeout_seconds: 30
+
+  # -- Corosync --
+  - pattern: "^corosync-cfgtool\\s+-s"
+    description: "Corosync ring status"
+    max_timeout_seconds: 15
+
+  - pattern: "^corosync-quorumtool"
+    description: "Corosync quorum status"
+    max_timeout_seconds: 15
+
+  # -- Kernel / OS --
+  - pattern: "^sysctl\\s+(-a|[\\w.]+)"
+    description: "Kernel parameter query"
+    max_timeout_seconds: 15
+
+  - pattern: "^cat\\s+/proc/(meminfo|sys|version)"
+    description: "Proc filesystem reads"
+    max_timeout_seconds: 10
+
+  - pattern: "^cat\\s+/etc/(os-release|hostname)"
+    description: "OS configuration reads"
+    max_timeout_seconds: 10
+
+  - pattern: "^systemctl\\s+(status|is-active|is-enabled|show)"
+    description: "Systemd service status queries"
+    max_timeout_seconds: 15
+
+  # -- SAP HANA --
+  - pattern: "^SAPHanaSR-showAttr"
+    description: "SAP HANA SR attribute display"
+    max_timeout_seconds: 30
+
+  - pattern: "^hdbnsutil\\s+-sr_state"
+    description: "HANA system replication state"
+    max_timeout_seconds: 30
+
+  # -- SAP Control --
+  - pattern: "^sapcontrol\\s+-nr\\s+\\d+\\s+-function\\s+(GetProcessList|GetSystemInstanceList|GetVersionInfo)"
+    description: "SAP control read-only functions"
+    max_timeout_seconds: 30
+
+  # -- Filesystem / Storage --
+  - pattern: "^df\\s+"
+    description: "Filesystem disk usage"
+    max_timeout_seconds: 10
+
+  - pattern: "^findmnt"
+    description: "Mount point information"
+    max_timeout_seconds: 10
+
+  - pattern: "^lsblk"
+    description: "Block device listing"
+    max_timeout_seconds: 10
+
+  - pattern: "^pvs|^vgs|^lvs"
+    description: "LVM volume information"
+    max_timeout_seconds: 15
+
+  # -- Network --
+  - pattern: "^ip\\s+(addr|route|link)\\s+show"
+    description: "Network interface queries"
+    max_timeout_seconds: 10
+
+  # -- Fencing / SBD --
+  - pattern: "^stonith_admin\\s+(-l|-L|-I)"
+    description: "STONITH device listing (read-only)"
+    max_timeout_seconds: 15
+
+  - pattern: "^sbd\\s+(list|dump|query-watchdog)"
+    description: "SBD device information"
+    max_timeout_seconds: 15
+
+  # -- Text search --
+  - pattern: "^grep\\s+"
+    description: "Text search in files"
+    max_timeout_seconds: 15

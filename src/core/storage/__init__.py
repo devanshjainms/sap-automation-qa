@@ -5,5 +5,16 @@
 
 from src.core.storage.job_store import JobStore
 from src.core.storage.schedule_store import ScheduleStore
+from src.core.storage.conversation_store import ConversationStore
+from src.core.storage.embedding_store import EmbeddingStore
+from src.core.storage.knowledge_graph import KnowledgeGraph
+from src.core.storage.knowledge_store import KnowledgeStore
 
-__all__ = ["JobStore", "ScheduleStore"]
+__all__ = [
+    "JobStore",
+    "ScheduleStore",
+    "ConversationStore",
+    "EmbeddingStore",
+    "KnowledgeGraph",
+    "KnowledgeStore",
+]

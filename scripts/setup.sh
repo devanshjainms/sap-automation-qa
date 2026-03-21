@@ -182,6 +182,12 @@ Container options:
   --username, -u <USER> ACR username
   --password, -p <PASS> ACR password
 
+Agent / Chat:
+  Copy deploy/.env.example to deploy/.env and set AZURE_OPENAI_*
+  variables to enable the AI agent.  Then start with:
+    $(basename "$0") container start
+  Test interactively: python scripts/chat.py
+
 Telemetry / LAWS:
   Update vars.yaml before running setup.
   See docs/TELEMETRY_SETUP.md for details.
