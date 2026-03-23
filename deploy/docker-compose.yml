@@ -35,6 +35,9 @@ services:
                           - sap-qa-data:/app/data
                           - ../WORKSPACES:/app/WORKSPACES
                           - ../vars.yaml:/app/vars.yaml:ro
+    depends_on:
+      sap-mcp-server:
+        condition:        service_healthy
     healthcheck:
       test:               ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
       interval:           30s
@@ -73,20 +76,71 @@ services:
                           - AZURE_OPENAI_EMBEDDING_API_KEY=${AZURE_OPENAI_EMBEDDING_API_KEY:-}
                           - EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-768}
                           - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
-                          - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-}
+                          - MCP_AUTH_MODE=${MCP_AUTH_MODE:-none}
+                          - MCP_API_KEY=${MCP_API_KEY:-}
+                          - MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN:-}
                           - MCP_RATE_LIMIT_RPM=${MCP_RATE_LIMIT_RPM:-60}
     volumes:
                           - sap-qa-data:/app/data
                           - ../WORKSPACES:/app/WORKSPACES
-    depends_on:
-      sap-qa-service:
-        condition:        service_healthy
     healthcheck:
       test:               ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8001/mcp | grep -qE '^[2-5]'"]
       interval:           30s
       timeout:            10s
       retries:            3
       start_period:       10s
+    networks:
+                          - sap-qa-network
+    logging:
+      driver:             "json-file"
+      options:
+        max-size:         "10m"
+        max-file:         "3"
+
+  sap-ui:
+    build:
+      context:            ..
+      dockerfile:         deploy/Dockerfile.ui
+    container_name:       sap-ui
+    restart:              unless-stopped
+    ports:
+                          - "3000:3000"
+    depends_on:
+      sap-qa-service:
+        condition:        service_healthy
+    networks:
+                          - sap-qa-network
+    healthcheck:
+      test:               ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval:           30s
+      timeout:            10s
+      retries:            3
+      start_period:       10s
+    logging:
+      driver:             "json-file"
+      options:
+        max-size:         "10m"
+        max-file:         "3"
+
+  sap-devui:
+    build:
+      context:            ..
+      dockerfile:         deploy/Dockerfile
+    container_name:       sap-devui
+    user:                 "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart:              unless-stopped
+    command:              ["python", "-m", "src.devui.server", "--host", "0.0.0.0", "--port", "8080", "--no-open"]
+    ports:
+                          - "8080:8080"
+    environment:
+                          - PYTHONPATH=/app
+                          - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
+                          - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-}
+                          - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
+                          - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
+    depends_on:
+      sap-qa-service:
+        condition:        service_healthy
     networks:
                           - sap-qa-network
     logging:

@@ -55,4 +55,8 @@ mcp
 agent-framework-core
 agent-framework-azure-ai
 agent-framework-orchestrations
+agent-framework-ag-ui
 openai
+
+# Dev tools (agent debugging)
+agent-framework-devui

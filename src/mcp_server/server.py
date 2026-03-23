@@ -161,6 +161,23 @@ async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
         knowledge_store.save_evidence_definitions(seed_defs)
         logger.info("Loaded %d seed evidence definitions", len(seed_defs))
 
+    from src.core.models.knowledge import Playbook, Reference, Rule
+
+    seed_rules = loader.load_directory("rules", Rule)
+    if seed_rules:
+        count = knowledge_store.save_rules(seed_rules)
+        logger.info("Loaded %d seed rules", count)
+
+    seed_playbooks = loader.load_directory("playbooks", Playbook)
+    if seed_playbooks:
+        count = knowledge_store.save_playbooks(seed_playbooks)
+        logger.info("Loaded %d seed playbooks", count)
+
+    seed_refs = loader.load_directory("references", Reference)
+    if seed_refs:
+        count = knowledge_store.save_references(seed_refs)
+        logger.info("Loaded %d seed references", count)
+
     embedding_provider: EmbeddingProvider | None = None
     embedding_store: EmbeddingStore | None = None
     embed_endpoint = os.environ.get("AZURE_OPENAI_EMBEDDING_ENDPOINT", "")
@@ -209,7 +226,7 @@ async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
     triage_sessions: dict[str, TriageSession] = {}
 
     try:
-        yield SapContext(
+        sap_context = SapContext(
             job_store=job_store,
             knowledge_store=knowledge_store,
             schedule_store=schedule_store,
@@ -239,6 +256,12 @@ async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
             ),
             embedding_provider=embedding_provider,
         )
+        # Set module-level reference for resource handlers (stateless HTTP mode)
+        from src.mcp_server.resources import set_sap_context
+
+        set_sap_context(sap_context)
+
+        yield sap_context
     finally:
         logger.info("MCP server shutting down — releasing resources...")
         if embedding_store is not None:

@@ -49,3 +49,5 @@ __blobstorage__
 
 # Deploy folder (avoid recursive copy)
 deploy/
+!deploy/nginx.conf
+!deploy/Dockerfile.ui

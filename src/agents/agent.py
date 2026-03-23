@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any, Optional
+import asyncio
 import httpx
 from agent_framework import (
     CharacterEstimatorTokenizer,
@@ -335,28 +336,49 @@ class SapAgentFactory:
             ],
         )
 
+    _MCP_CONNECT_RETRIES = 5
+    _MCP_CONNECT_BACKOFF = 2.0  # seconds, doubled each retry
+
     async def _connect_tools(self) -> None:
-        """Create and connect MCPStreamableHTTPTool per agent group."""
-        self._triage_mcp = MCPStreamableHTTPTool(
-            name="sap-triage",
-            url=self._mcp_url,
-            allowed_tools=self.TRIAGE_TOOLS,
-        )
-        await self._triage_mcp.connect()
+        """Create and connect MCPStreamableHTTPTool per agent group.
 
-        self._staf_mcp = MCPStreamableHTTPTool(
-            name="sap-staf",
-            url=self._mcp_url,
-            allowed_tools=self.STAF_TOOLS,
-        )
-        await self._staf_mcp.connect()
+        Retries with exponential backoff so the MCP server has time
+        to start (addresses circular Docker dependency).
+        """
+        import asyncio
 
-        self._ops_mcp = MCPStreamableHTTPTool(
-            name="sap-ops",
-            url=self._mcp_url,
-            allowed_tools=self.OPS_TOOLS,
-        )
-        await self._ops_mcp.connect()
+        groups: list[tuple[str, list[str]]] = [
+            ("sap-triage", self.TRIAGE_TOOLS),
+            ("sap-staf", self.STAF_TOOLS),
+            ("sap-ops", self.OPS_TOOLS),
+        ]
+        connected: list[MCPStreamableHTTPTool] = []
+
+        for name, tools in groups:
+            tool = MCPStreamableHTTPTool(
+                name=name, url=self._mcp_url, allowed_tools=tools,
+            )
+            delay = self._MCP_CONNECT_BACKOFF
+            for attempt in range(1, self._MCP_CONNECT_RETRIES + 1):
+                try:
+                    await tool.connect()
+                    break
+                except Exception:
+                    if attempt == self._MCP_CONNECT_RETRIES:
+                        logger.warning(
+                            "Failed to connect MCP tool %s after %d attempts",
+                            name, attempt,
+                        )
+                        raise
+                    logger.info(
+                        "MCP %s connect attempt %d/%d failed, retrying in %.0fs",
+                        name, attempt, self._MCP_CONNECT_RETRIES, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    delay *= 2
+            connected.append(tool)
+
+        self._triage_mcp, self._staf_mcp, self._ops_mcp = connected
 
         await self._connect_external()
         logger.info("Connected MCP tools: %s", self.tool_counts)

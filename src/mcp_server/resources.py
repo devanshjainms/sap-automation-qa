@@ -21,6 +21,31 @@ from src.mcp_server.server import SapContext, mcp
 
 logger = logging.getLogger(__name__)
 
+# Module-level reference set during lifespan — avoids reliance on
+# ``ctx.request_context.lifespan_context`` which is unavailable in
+# stateless HTTP mode.
+_sap_ctx: SapContext | None = None
+
+
+def set_sap_context(ctx: SapContext) -> None:
+    """Set the module-level SapContext (called from lifespan)."""
+    global _sap_ctx  # noqa: PLW0603
+    _sap_ctx = ctx
+
+
+def _get_sap_ctx(
+    ctx: Context[ServerSession, SapContext] | None = None,
+) -> SapContext:
+    """Resolve SapContext from request context or module-level fallback."""
+    if ctx is not None:
+        try:
+            return ctx.request_context.lifespan_context
+        except AttributeError:
+            pass
+    if _sap_ctx is not None:
+        return _sap_ctx
+    raise RuntimeError("SapContext not available — server not initialized")
+
 
 @mcp.resource("workspace://{workspace_id}/config")
 def get_workspace_config(
@@ -32,8 +57,7 @@ def get_workspace_config(
     Returns the ``sap-parameters.yaml`` content as text so the LLM
     can reason about the system's SID, topology, and HA setup.
     """
-    assert ctx is not None
-    sap: SapContext = ctx.request_context.lifespan_context
+    sap = _get_sap_ctx(ctx)
     config_path = sap.workspaces_base / workspace_id / "sap-parameters.yaml"
 
     if not config_path.exists():
@@ -59,8 +83,7 @@ def get_workspace_hosts(
     Returns host groups and connection details the LLM can use to
     understand the cluster topology.
     """
-    assert ctx is not None
-    sap: SapContext = ctx.request_context.lifespan_context
+    sap = _get_sap_ctx(ctx)
     hosts_path = sap.workspaces_base / workspace_id / "hosts.yaml"
 
     if not hosts_path.exists():
@@ -83,8 +106,7 @@ def get_knowledge_rules(
     Returns a JSON summary of every rule including its ID, name,
     severity, category, and description.
     """
-    assert ctx is not None
-    sap: SapContext = ctx.request_context.lifespan_context
+    sap = _get_sap_ctx(ctx)
     rules = sap.knowledge_store.load_rules()
 
     return json.dumps(
@@ -113,8 +135,7 @@ def get_knowledge_playbooks(
     Returns a JSON summary of every playbook including its ID, name,
     category, and symptoms it addresses.
     """
-    assert ctx is not None
-    sap: SapContext = ctx.request_context.lifespan_context
+    sap = _get_sap_ctx(ctx)
     playbooks = sap.knowledge_store.load_playbooks()
 
     return json.dumps(

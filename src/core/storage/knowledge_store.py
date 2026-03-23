@@ -294,6 +294,16 @@ class KnowledgeStore:
             )
         return playbook
 
+    def save_playbooks(self, playbooks: list[Playbook]) -> int:
+        """Bulk-insert playbooks.
+
+        :param playbooks: Playbooks to persist.
+        :returns: Number of playbooks saved.
+        """
+        for playbook in playbooks:
+            self.save_playbook(playbook)
+        return len(playbooks)
+
     def load_playbooks(self) -> List[Playbook]:
         """Load all playbooks.
 
@@ -343,6 +353,16 @@ class KnowledgeStore:
                 ),
             )
         return ref
+
+    def save_references(self, refs: list[Reference]) -> int:
+        """Bulk-insert references.
+
+        :param refs: References to persist.
+        :returns: Number of references saved.
+        """
+        for ref in refs:
+            self.save_reference(ref)
+        return len(refs)
 
     def load_references(self) -> List[Reference]:
         """Load all references.

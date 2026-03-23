@@ -81,7 +81,10 @@ class SapTokenVerifier:
     def _check_managed_identity(self, token: str) -> AccessToken | None:
         if not token:
             return None
-        logger.info("MI auth: token accepted (JWKS validation not yet implemented)")
+        logger.warning(
+            "MI auth: JWKS validation not implemented — accepting token "
+            "without verification. Do NOT use MCP_AUTH_MODE=mi in production.",
+        )
         return AccessToken(
             token=token,
             client_id=f"mi-{hashlib.sha256(token.encode()).hexdigest()[:12]}",

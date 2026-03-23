@@ -4,13 +4,10 @@
 """Health service for probing MCP servers and LLM connectivity."""
 
 from __future__ import annotations
-
 import asyncio
 import time
 from typing import Any, Dict, Optional
-
 import httpx
-
 from src.core.models.health import ComponentHealth
 
 
@@ -91,7 +88,7 @@ class HealthService:
 
         body = {
             "messages": [{"role": "user", "content": "ping"}],
-            "max_tokens": 1,
+            "max_completion_tokens": 1,
         }
 
         start = time.monotonic()
@@ -131,7 +128,7 @@ class HealthService:
         results: Dict[str, ComponentHealth] = {}
         gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
         for key, result in zip(tasks.keys(), gathered):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 results[key] = ComponentHealth(status="unhealthy", detail=str(result))
             else:
                 results[key] = result

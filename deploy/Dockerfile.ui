@@ -1,0 +1,17 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Stage 1: Build the React frontend
+FROM mcr.microsoft.com/azurelinux/base/nodejs:20 AS build
+WORKDIR /client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY client/ ./
+RUN npm run build
+
+# Stage 2: Serve with nginx
+FROM nginx:stable-alpine
+COPY --from=build /client/dist /usr/share/nginx/html
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 3000
+CMD ["nginx", "-g", "daemon off;"]

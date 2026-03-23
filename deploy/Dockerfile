@@ -16,6 +16,14 @@ RUN python3 -m venv /opt/venv \
         -o requirements.lock requirements.in \
     && pip install --no-cache-dir -r requirements.lock
 
+# Stage 1b: Build frontend
+FROM mcr.microsoft.com/azurelinux/base/nodejs:20 AS frontend
+WORKDIR /client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY client/ ./
+RUN npm run build
+
 # Stage 2: Startup stage
 FROM mcr.microsoft.com/azurelinux/base/python:3.12
 
@@ -39,6 +47,7 @@ RUN tdnf update -y && tdnf install -y \
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
+COPY --from=frontend /client/dist ./static/
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 COPY VERSION ./VERSION
@@ -55,5 +64,5 @@ USER appuser
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/healthz || exit 1
-EXPOSE 8000 8001
+EXPOSE 8000 8001 8080
 CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]

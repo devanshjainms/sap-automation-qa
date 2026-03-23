@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles
+from agent_framework_ag_ui import add_agent_framework_fastapi_endpoint
 from src.core.observability import (
     initialize_logging,
     get_logger,
@@ -37,6 +39,7 @@ from src.api.routes import (
     set_conversation_store,
     set_chat_service,
 )
+from src.agents.ag_ui import create_ag_ui_workflow
 from src.api.routes.health import set_service_status, set_health_service
 from src.core.services.health import HealthService
 from src.api.routes.workspaces import default_workspace_loader
@@ -49,9 +52,10 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 WORKSPACES_BASE = Path(os.environ.get("WORKSPACES_BASE", "WORKSPACES/SYSTEM"))
 PLAYBOOK_DIR = Path(os.environ.get("PLAYBOOK_DIR", "src"))
 SCHEDULER_CHECK_INTERVAL = int(os.environ.get("SCHEDULER_CHECK_INTERVAL", "60"))
-CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(
-    ","
-)
+CORS_ORIGINS = os.environ.get(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://localhost:5173,http://localhost:8000",
+).split(",")
 
 # --- Agent / Chat configuration (optional — chat degrades gracefully) ---
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
@@ -138,7 +142,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 )
                 set_chat_service(ChatService(agent_factory, conversation_store))
                 logger.info("Chat service initialized (agent-driven)")
-            except Exception:
+                try:
+                    ag_ui_workflow = create_ag_ui_workflow(agent_factory)
+                    add_agent_framework_fastapi_endpoint(
+                        app,
+                        ag_ui_workflow,
+                        "/ag-ui",
+                        allow_origins=CORS_ORIGINS,
+                    )
+                    logger.info("AG-UI endpoint registered at /ag-ui")
+                except Exception:
+                    logger.warning(
+                        "Failed to register AG-UI endpoint",
+                        exc_info=True,
+                    )
+            except BaseException:
                 logger.warning(
                     "Failed to initialize agent chat service — "
                     "chat will return placeholder responses",
@@ -208,3 +226,7 @@ app.include_router(jobs_router, prefix=API_V1_PREFIX)
 app.include_router(schedules_router, prefix=API_V1_PREFIX)
 app.include_router(workspaces_router, prefix=API_V1_PREFIX)
 app.include_router(chat_router, prefix=API_V1_PREFIX)
+
+_static_dir = Path(__file__).resolve().parent.parent.parent / "static"
+if _static_dir.is_dir():
+    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")

@@ -39,6 +39,7 @@ class CbrExtract:
         fixes = []
         for f in report.findings:
             fixes.extend(f.remediation)
+        confidence = CbrExtract._compute_confidence(report, fixes)
         return LearnedPattern(
             id=f"LP-{uuid4().hex[:8].upper()}",
             name=query[:80] if query else f"Session {report.session_id[:8]}",
@@ -52,6 +53,28 @@ class CbrExtract:
             fixes=list(dict.fromkeys(fixes))[:10],
             tags=[],
             source="learned",
-            confidence=0.0,
+            confidence=confidence,
             source_sessions=[report.session_id],
         )
+
+    @staticmethod
+    def _compute_confidence(
+        report: TriageReport,
+        fixes: list[str],
+    ) -> float:
+        """Derive a confidence score from report quality signals.
+
+        :param report: Completed triage report.
+        :param fixes: Collected remediation steps.
+        :returns: Confidence in [0.0, 1.0].
+        """
+        score = 0.0
+        if report.finding_count > 0:
+            score += 0.25
+        if report.summary:
+            score += 0.25
+        if any(f.failure_class for f in report.findings):
+            score += 0.25
+        if fixes:
+            score += 0.25
+        return score
