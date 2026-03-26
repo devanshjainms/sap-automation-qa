@@ -39,7 +39,7 @@ test_groups:
           and HANA system replication setup.
         enabled:                    true
         applicability:
-          topology:                 [scale_up, scale_out_hsr, scale_out_standby]
+          topology:                 [scale_up, scale_out_hsr]
 
       - name:                       HA Parameters Validation Offline
         task_name:                  ha-config-offline
@@ -71,7 +71,7 @@ test_groups:
           migration.
         enabled:                    true
         applicability:
-          topology:                 [scale_up, scale_out_hsr]
+          topology:                 [scale_up]
 
       - name:                       HA Functional Test- Primary Node Crash
         task_name:                  primary-node-crash
@@ -87,11 +87,11 @@ test_groups:
       - name:                       HA Functional Test- Block Network Communication
         task_name:                  block-network
         description: |
-          The Block Network test validates cluster behavior during network partition scenarios by
-          implementing iptables rules to block communication between primary and secondary HANA nodes.
-          It verifies split-brain prevention mechanisms, validates proper failover execution when nodes
-          become isolated, and ensures cluster stability and data consistency after network
-          connectivity is restored.
+          The Block Network test validates cluster behavior during network partition scenarios from
+          the primary master node by implementing iptables rules to block communication between
+          primary and secondary HANA nodes. It verifies split-brain prevention mechanisms, validates
+          proper failover execution when nodes become isolated, and ensures cluster stability and data
+          consistency after network connectivity is restored.
         enabled:                    true
         applicability:
           topology:                 [scale_up, scale_out_hsr]
@@ -119,6 +119,17 @@ test_groups:
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
+      - name:                       HA Functional Test- Kill SAP HANA Instance on Primary Worker Node
+        task_name:                  primary-worker-node-kill
+        description: |
+          The Primary Worker Node Kill test validates scale-out HSR resilience by forcefully
+          terminating HANA processes on a worker node in the primary site. The test verifies that the
+          primary and secondary master roles remain stable while the worker node failure is absorbed by
+          the cluster.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
       - name:                       HA Functional Test- Echo B on Primary Node
         task_name:                  primary-echo-b
         description: |
@@ -129,6 +140,16 @@ test_groups:
         enabled:                    true
         applicability:
           topology:                 [scale_up, scale_out_hsr]
+
+      - name:                       HA Functional Test- Echo B on Primary Worker Node
+        task_name:                  primary-worker-echo-b
+        description: |
+          The Primary Worker Echo B test simulates an immediate system crash on a worker node in the
+          primary site of a scale-out HSR cluster. The test verifies that the primary and secondary
+          master roles remain stable while the worker node failure is handled and the cluster recovers.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
 
       - name:                       HA Functional Test- Secondary Node Kill
         task_name:                  secondary-node-kill
@@ -141,6 +162,29 @@ test_groups:
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
+      - name:                       HA Functional Test- Block Network Communication from Secondary Master Node
+        task_name:                  secondary-block-network
+        description: |
+          The Secondary Block Network test validates scale-out HSR behavior when network communication
+          is blocked from the secondary master node. It verifies that the primary site retains the
+          primary role, validates isolation handling for the secondary site, and confirms cluster
+          recovery after network connectivity is restored.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
+
+      - name:                       HA Functional Test- Kill SAP HANA Instance on Secondary Worker Node
+        task_name:                  secondary-worker-node-kill
+        description: |
+          The Secondary Worker Node Kill test validates scale-out HSR resilience by forcefully
+          terminating HANA processes on a worker node in the secondary site. The test verifies that the
+          primary site retains the primary role and that the cluster recovers while site-level roles
+          remain stable.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
       - name:                       HA Functional Test- Echo B on Secondary Node
         task_name:                  secondary-echo-b
         description: |
@@ -151,6 +195,16 @@ test_groups:
         enabled:                    true
         applicability:
           topology:                 [scale_up, scale_out_hsr]
+
+      - name:                       HA Functional Test- Echo B on Secondary Worker Node
+        task_name:                  secondary-worker-echo-b
+        description: |
+          The Secondary Worker Echo B test simulates an uncontrolled system crash on a worker node in
+          the secondary site of a scale-out HSR cluster. The test verifies that the primary site
+          remains primary and that the cluster returns to a stable replicated state after recovery.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
 
       - name:                       HA Functional Test- Freeze File System on Primary Node
         task_name:                  fs-freeze
@@ -184,11 +238,32 @@ test_groups:
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
-      - name:                       HA Functional Test- Block /hana/shared NFS
+      - name:                       HA Functional Test- Crash index server on primary worker node
+        task_name:                  primary-worker-crash-index
+        description: |
+          The Primary Worker Index Server Crash test forcefully terminates the HANA index server on a
+          worker node in the primary site of a scale-out HSR cluster. The test verifies that site-level
+          master roles remain stable while the worker failure is absorbed by the cluster.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
+      - name:                       HA Functional Test- Crash index server on secondary worker node
+        task_name:                  secondary-worker-crash-index
+        description: |
+          The Secondary Worker Index Server Crash test forcefully terminates the HANA index server on a
+          worker node in the secondary site of a scale-out HSR cluster. The test verifies that the
+          primary site retains the primary role and that the cluster returns to a stable replicated
+          state after recovery.
+        enabled:                    true
+        applicability:
+          topology:                 [scale_out_hsr]
+
+      - name:                       HA Functional Test- Block NFS IP on Primary Master Node
         task_name:                  block-hana-shared
         description: |
           Simulates loss of the /hana/shared NFS mount on the primary master
-          nameserver by blocking the NFS server IP via iptables.  The HANA
+          nameserver by blocking the NFS server IP via iptables. The HANA
           resource agent monitoring operation depends on binaries stored on
           /hana/shared; blocking access causes the monitor to fail and triggers
           a HANA resource failover to the secondary site.

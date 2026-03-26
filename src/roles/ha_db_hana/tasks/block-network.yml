@@ -23,9 +23,12 @@
                                             - node_tier == "hana"
                                             - pre_validations_status == "PASSED"
                                             - cluster_status_pre.stonith_action == "reboot"
-                                            - cluster_status_pre.PRIORITY_FENCING_DELAY is defined
-                                            - cluster_status_pre.PRIORITY_FENCING_DELAY != ""
-                                            - cluster_status_pre.PRIORITY_FENCING_DELAY != "unknown"
+                                            - hana_topology == 'scale_out_hsr' or
+                                              (
+                                                cluster_status_pre.PRIORITY_FENCING_DELAY is defined and
+                                                cluster_status_pre.PRIORITY_FENCING_DELAY != "" and
+                                                cluster_status_pre.PRIORITY_FENCING_DELAY != "unknown"
+                                              )
   block:
     - name:                                 "Test Execution: Block Network Communication"
       when:                                 ansible_hostname == cluster_status_pre.primary_node
