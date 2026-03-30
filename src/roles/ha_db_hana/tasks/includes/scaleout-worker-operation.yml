@@ -19,6 +19,7 @@
 
     - name:                             "Test Execution: Run worker operation"
       delegate_to:                      "{{ hana_test_target_worker_node }}"
+      become:                           true
       become_user:                      "{{ hana_test_action_become_user | default(omit) }}"
       ansible.builtin.shell:            "{{ hana_test_action_command }}"
       args:
