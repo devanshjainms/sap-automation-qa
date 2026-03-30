@@ -26,13 +26,15 @@
       when:                                 ansible_hostname == secondary_master_node
       ansible.builtin.set_fact:
         secondary_node_ip:                  "{{ hostvars[secondary_master_node].ansible_host }}"
-        primary_node_ip:                    "{{ hostvars[primary_master_node].ansible_host }}"
+        blocked_ips:                        "{{ cluster_status_pre.primary_site_nodes | map('extract', hostvars, 'ansible_host') | list }}"
 
     - name:                                 "Test Execution: Create firewall on secondary master"
       when:                                 ansible_hostname == secondary_master_node
       ansible.builtin.shell: |
-                                            iptables -A INPUT -s {{ primary_node_ip }} -j DROP;
-                                            iptables -A OUTPUT -d {{ primary_node_ip }} -j DROP
+                                            {% for ip in blocked_ips %}
+                                            iptables -A INPUT -s {{ ip }} -j DROP;
+                                            iptables -A OUTPUT -d {{ ip }} -j DROP;
+                                            {% endfor %}
       register:                             firewall_rule_created
       changed_when:                         firewall_rule_created.rc == 0
       failed_when:                          firewall_rule_created.rc != 0
@@ -61,8 +63,10 @@
     - name:                                 "Test Execution: Remove firewall rule on secondary master"
       when:                                 ansible_hostname == secondary_master_node
       ansible.builtin.shell: |
-                                            iptables -D INPUT -s {{ primary_node_ip }} -j DROP 2>/dev/null;
-                                            iptables -D OUTPUT -d {{ primary_node_ip }} -j DROP 2>/dev/null;
+                                            {% for ip in blocked_ips %}
+                                            iptables -D INPUT -s {{ ip }} -j DROP 2>/dev/null;
+                                            iptables -D OUTPUT -d {{ ip }} -j DROP 2>/dev/null;
+                                            {% endfor %}
                                             true
       register:                             firewall_rule_deleted
       changed_when:                         true

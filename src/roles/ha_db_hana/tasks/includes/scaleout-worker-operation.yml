@@ -8,17 +8,17 @@
                                         - pre_validations_status == "PASSED"
                                         - hana_topology == 'scale_out_hsr'
                                         - hana_test_target_worker_node | default('') != ''
+                                        - ansible_hostname == primary_master_node
                                         - not (hana_test_requires_reboot | default(false)) or
                                           cluster_status_pre.stonith_action == "reboot"
   block:
     - name:                             "Test Execution: Initialize worker operation"
-      when:                             ansible_hostname == primary_master_node
       ansible.builtin.set_fact:
         test_execution_start:           "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
         test_execution_hostname:        "{{ hostvars[hana_test_target_worker_node].ansible_hostname }}"
 
     - name:                             "Test Execution: Run worker operation"
-      when:                             ansible_hostname == hana_test_target_worker_node
+      delegate_to:                      "{{ hana_test_target_worker_node }}"
       become_user:                      "{{ hana_test_action_become_user | default(omit) }}"
       ansible.builtin.shell:            "{{ hana_test_action_command }}"
       args:
@@ -35,31 +35,16 @@
                                            and action_result.rc != 0 }}
 
     - name:                             "Test Execution: Validate worker operation cluster status"
-      when:                             ansible_hostname == primary_master_node
       block:
-        - name:                         "Test Execution: Validate HANA DB cluster status"
-          get_cluster_status_db:
-            db_instance_number:         "{{ db_instance_number }}"
-            operation_step:             "test_execution"
-            database_sid:               "{{ db_sid | lower }}"
-            saphanasr_provider:         "{{ saphanasr_provider | default('SAPHanaSR') }}"
-            hana_clone_resource_name:   "{{ hana_clone_resource_name | default('') }}"
-            hana_primitive_resource_name: "{{ hana_primitive_resource_name | default('') }}"
-            hana_topology:                "{{ hana_topology | default('scale_up') }}"
-          register:                     cluster_status_test_execution
-          retries:                      "{{ default_retries }}"
-          delay:                        "{{ default_delay }}"
-          until: >
-                                        cluster_status_test_execution.primary_node != "" and
-                                        cluster_status_test_execution.secondary_node != "" and
-                                        cluster_status_test_execution.primary_node in cluster_status_pre.primary_site_nodes and
-                                        cluster_status_test_execution.secondary_node in cluster_status_pre.secondary_site_nodes
-
         - name:                         "Test Execution: Wait for the cluster to be in a stable state"
           ansible.builtin.wait_for:
             timeout:                    "{{ default_timeout }}"
 
-        - name:                         "Test Execution: Validate HANA DB cluster status 2"
+        - name:                         "Test Execution: Validate HANA DB cluster status"
+          delegate_to: >-
+                                        {{ (cluster_status_pre.secondary_site_nodes | first)
+                                           if hana_test_target_site_label == 'primary'
+                                           else (cluster_status_pre.primary_site_nodes | first) }}
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "post_failover"
@@ -74,17 +59,33 @@
           until: >
                                         cluster_status_post.primary_node != "" and
                                         cluster_status_post.secondary_node != "" and
-                                        cluster_status_post.primary_node in cluster_status_pre.primary_site_nodes and
-                                        cluster_status_post.secondary_node in cluster_status_pre.secondary_site_nodes
+                                        (
+                                          (hana_test_target_site_label == "primary" and
+                                           cluster_status_post.primary_node in cluster_status_pre.secondary_site_nodes and
+                                           cluster_status_post.secondary_node in cluster_status_pre.primary_site_nodes)
+                                          or
+                                          (hana_test_target_site_label == "secondary" and
+                                           cluster_status_post.primary_node in cluster_status_pre.primary_site_nodes and
+                                           cluster_status_post.secondary_node in cluster_status_pre.secondary_site_nodes)
+                                        )
 
         - name:                         "Test Execution: Determine test execution status"
           ansible.builtin.set_fact:
             test_execution_status:      "{{ 'PASSED' if (
-                                            cluster_status_post.primary_node in cluster_status_pre.primary_site_nodes and
-                                            cluster_status_post.secondary_node in cluster_status_pre.secondary_site_nodes
+                                            (hana_test_target_site_label == 'primary' and
+                                             cluster_status_post.primary_node in cluster_status_pre.secondary_site_nodes and
+                                             cluster_status_post.secondary_node in cluster_status_pre.primary_site_nodes)
+                                            or
+                                            (hana_test_target_site_label == 'secondary' and
+                                             cluster_status_post.primary_node in cluster_status_pre.primary_site_nodes and
+                                             cluster_status_post.secondary_node in cluster_status_pre.secondary_site_nodes)
                                           ) else 'FAILED' }}"
 
         - name:                         "Test Execution: CleanUp any failed resource"
+          delegate_to: >-
+                                        {{ (cluster_status_pre.secondary_site_nodes | first)
+                                           if hana_test_target_site_label == 'primary'
+                                           else (cluster_status_pre.primary_site_nodes | first) }}
           ansible.builtin.command:      crm_resource --cleanup
           register:                     cleanup_failed_resource_post
           changed_when:                 cleanup_failed_resource_post.rc == 0
