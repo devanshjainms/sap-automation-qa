@@ -6,6 +6,7 @@ services:
     build:
       context:            ..
       dockerfile:         deploy/Dockerfile
+    image:                sap-qa:latest
     container_name:       sap-qa-service
     user:                 "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart:              unless-stopped
@@ -21,6 +22,8 @@ services:
                           - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
                           - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
                           - STAF_MCP_URL=http://sap-mcp-server:8001
+                          - OLLAMA_URL=http://sap-ollama:11434
+                          - AZURE_MCP_URL=http://sap-azure-mcp:5000
                           - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
                           - TELEMETRY_DATA_DESTINATION=${TELEMETRY_DATA_DESTINATION:-}
                           - LAWS_WORKSPACE_ID=${LAWS_WORKSPACE_ID:-}
@@ -42,8 +45,66 @@ services:
       test:               ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
       interval:           30s
       timeout:            10s
-      retries:            3
-      start_period:       10s
+      retries:            5
+      start_period:       60s
+    networks:
+                          - sap-qa-network
+    logging:
+      driver:             "json-file"
+      options:
+        max-size:         "10m"
+        max-file:         "3"
+
+  sap-ollama:
+    build:
+      context:            ..
+      dockerfile:         deploy/Dockerfile.ollama
+    container_name:       sap-ollama
+    restart:              unless-stopped
+    ports:
+                          - "11434:11434"
+    environment:
+                          - OLLAMA_HOST=0.0.0.0:11434
+    volumes:
+                          - ollama-data:/root/.ollama
+    healthcheck:
+      test:               ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval:           15s
+      timeout:            10s
+      retries:            10
+      start_period:       60s
+    networks:
+                          - sap-qa-network
+    logging:
+      driver:             "json-file"
+      options:
+        max-size:         "10m"
+        max-file:         "3"
+
+  azure-mcp:
+    image:                mcr.microsoft.com/azure-sdk/azure-mcp:latest
+    container_name:       sap-azure-mcp
+    restart:              unless-stopped
+    command:
+                          - --transport
+                          - http
+                          - --read-only
+                          - --outgoing-auth-strategy
+                          - UseHostingEnvironmentIdentity
+                          - --dangerously-disable-http-incoming-auth
+    ports:
+                          - "8002:5000"
+    environment:
+                          - URLS=http://+:5000
+                          - DOTNET_URLS=http://+:5000
+                          - AZURE_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID:-}
+                          - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+    healthcheck:
+      test:               ["CMD-SHELL", "curl -sf http://localhost:5000/mcp || true"]
+      interval:           30s
+      timeout:            10s
+      retries:            5
+      start_period:       30s
     networks:
                           - sap-qa-network
     logging:
@@ -53,9 +114,7 @@ services:
         max-file:         "3"
 
   sap-mcp-server:
-    build:
-      context:            ..
-      dockerfile:         deploy/Dockerfile
+    image:                sap-qa:latest
     container_name:       sap-mcp-server
     user:                 "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart:              unless-stopped
@@ -75,14 +134,19 @@ services:
                           - AZURE_OPENAI_EMBEDDING_DEPLOYMENT=${AZURE_OPENAI_EMBEDDING_DEPLOYMENT:-}
                           - AZURE_OPENAI_EMBEDDING_API_KEY=${AZURE_OPENAI_EMBEDDING_API_KEY:-}
                           - EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-768}
-                          - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
+                          - OLLAMA_BASE_URL=http://sap-ollama:11434/v1
+                          - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
                           - MCP_AUTH_MODE=${MCP_AUTH_MODE:-none}
                           - MCP_API_KEY=${MCP_API_KEY:-}
                           - MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN:-}
-                          - MCP_RATE_LIMIT_RPM=${MCP_RATE_LIMIT_RPM:-60}
+                          - MCP_RATE_LIMIT_RPM=${MCP_RATE_LIMIT_RPM:-300}
+                          - MCP_RATE_LIMIT_BURST=${MCP_RATE_LIMIT_BURST:-50}
     volumes:
                           - sap-qa-data:/app/data
                           - ../WORKSPACES:/app/WORKSPACES
+    depends_on:
+      sap-ollama:
+        condition:        service_healthy
     healthcheck:
       test:               ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8001/mcp | grep -qE '^[2-5]'"]
       interval:           30s
@@ -123,9 +187,7 @@ services:
         max-file:         "3"
 
   sap-devui:
-    build:
-      context:            ..
-      dockerfile:         deploy/Dockerfile
+    image:                sap-qa:latest
     container_name:       sap-devui
     user:                 "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart:              unless-stopped
@@ -138,9 +200,22 @@ services:
                           - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-}
                           - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
                           - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
+                          - STAF_MCP_URL=http://sap-mcp-server:8001
+                          - DATA_DIR=/app/data
+    volumes:
+                          - sap-qa-data:/app/data
+                          - ../WORKSPACES:/app/WORKSPACES
+    healthcheck:
+      test:               ["CMD-SHELL", "curl -sf http://localhost:8080/ || exit 1"]
+      interval:           30s
+      timeout:            10s
+      retries:            5
+      start_period:       60s
     depends_on:
       sap-qa-service:
-        condition:        service_healthy
+        condition:        service_started
+      sap-mcp-server:
+        condition:        service_started
     networks:
                           - sap-qa-network
     logging:
@@ -151,6 +226,8 @@ services:
 
 volumes:
   sap-qa-data:
+    driver:               local
+  ollama-data:
     driver:               local
 
 networks:

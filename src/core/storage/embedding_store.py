@@ -8,12 +8,16 @@ support cosine-similarity KNN queries directly inside SQLite — no
 external vector database required.
 """
 
-import sqlite3
 import sqlite_vec
 import struct
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+try:
+    import pysqlite3 as sqlite3  # type: ignore[import-untyped]
+except ImportError:
+    import sqlite3
 
 
 def _serialize_f32(vector: List[float]) -> bytes:
@@ -76,7 +80,7 @@ class EmbeddingStore:
     def __init__(
         self,
         db_path: "Path | str",
-        dimensions: int = 384,
+        dimensions: int = 768,
     ) -> None:
         if not isinstance(dimensions, int) or dimensions <= 0:
             raise ValueError(f"dimensions must be a positive integer, " f"got {dimensions!r}")

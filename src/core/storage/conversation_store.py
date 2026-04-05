@@ -187,6 +187,36 @@ class ConversationStore:
         """
         return self._load_messages(str(conversation_id), limit=limit)
 
+    def list_all(
+        self,
+        include_archived: bool = False,
+        limit: int = 50,
+    ) -> List[Conversation]:
+        """List conversations across all workspaces.
+
+        :param include_archived: Whether to include archived conversations.
+        :param limit: Maximum results.
+        :returns: List of conversations (without full message history).
+        """
+        self._conn.row_factory = sqlite3.Row
+        if include_archived:
+            cur = self._conn.execute(
+                "SELECT * FROM conversations " "ORDER BY updated_at DESC LIMIT ?",
+                (limit,),
+            )
+        else:
+            cur = self._conn.execute(
+                "SELECT * FROM conversations "
+                "WHERE status = ? "
+                "ORDER BY updated_at DESC LIMIT ?",
+                (ConversationStatus.ACTIVE.value, limit),
+            )
+
+        results: list[Conversation] = []
+        for row in cur.fetchall():
+            results.append(self._row_to_conversation(dict(row), []))
+        return results
+
     def list_conversations(
         self,
         workspace_id: str,
@@ -220,6 +250,26 @@ class ConversationStore:
         for row in cur.fetchall():
             results.append(self._row_to_conversation(dict(row), []))
         return results
+
+    def update_title(
+        self,
+        conversation_id: UUID | str,
+        title: str,
+    ) -> bool:
+        """Update the title of a conversation.
+
+        :param conversation_id: Conversation identifier.
+        :param title: New title string.
+        :returns: True if conversation was found and updated.
+        """
+        cid = str(conversation_id)
+        now = _dt_to_iso(datetime.now(timezone.utc))
+        with self._conn:
+            cur = self._conn.execute(
+                "UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?",
+                (title, now, cid),
+            )
+        return cur.rowcount > 0
 
     def archive(self, conversation_id: UUID | str) -> bool:
         """Archive a conversation.

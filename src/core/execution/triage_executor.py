@@ -179,7 +179,6 @@ class TriageExecutor:
 
         session_id = str(session.id)
 
-        # Transition: PENDING → COLLECTING
         session.start_collection()
         logger.info(
             "Triage session %s: collecting %d evidence items",
@@ -187,13 +186,10 @@ class TriageExecutor:
             len(evidence_defs),
         )
 
-        # Collect all evidence (partial failure tolerant)
         artifacts = self._collector.collect_all(evidence_defs)
 
-        # Persist artifacts to disk
         self._artifact_writer.write_all(session_id, artifacts)
 
-        # Transition: COLLECTING → ANALYZING
         session.complete_collection(artifacts)
 
         successful = sum(1 for a in artifacts if a.is_usable)

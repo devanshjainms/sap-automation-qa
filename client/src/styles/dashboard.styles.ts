@@ -5,8 +5,11 @@ import { makeStyles, tokens } from "@fluentui/react-components";
 
 export const useStyles = makeStyles({
   page: {
-    maxWidth: "64rem",
-    padding: tokens.spacingHorizontalXL,
+    maxWidth: "960px",
+    width: "100%",
+    marginLeft: "auto",
+    marginRight: "auto",
+    padding: `${tokens.spacingVerticalXL} ${tokens.spacingHorizontalXL}`,
   },
   heading: {
     marginBottom: tokens.spacingVerticalL,
@@ -22,24 +25,6 @@ export const useStyles = makeStyles({
     gridTemplateColumns: "repeat(3, 1fr)",
     gap: tokens.spacingHorizontalM,
   },
-  healthCard: {
-    padding: tokens.spacingHorizontalM,
-  },
-  healthHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-    marginBottom: tokens.spacingVerticalXS,
-  },
-  dot: {
-    width: "8px",
-    height: "8px",
-    borderRadius: "50%",
-    flexShrink: 0,
-  },
-  dotHealthy: { backgroundColor: tokens.colorPaletteGreenForeground1 },
-  dotUnhealthy: { backgroundColor: tokens.colorPaletteRedForeground1 },
-  dotDefault: { backgroundColor: tokens.colorNeutralForeground4 },
   summaryCard: {
     textDecorationLine: "none",
     display: "block",

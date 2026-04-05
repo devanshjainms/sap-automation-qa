@@ -18,7 +18,6 @@ import pytest
 from src.core.models.knowledge import Playbook, Rule
 from src.mcp_server.server import SapContext
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -31,12 +30,8 @@ def tmp_workspaces(tmp_path: Path) -> Path:
 
     ws = base / "WS_A"
     ws.mkdir(parents=True)
-    (ws / "sap-parameters.yaml").write_text(
-        "sap_sid: HA1\ndatabase_high_availability: true\n"
-    )
-    (ws / "hosts.yaml").write_text(
-        "all:\n  hosts:\n    node1:\n    node2:\n"
-    )
+    (ws / "sap-parameters.yaml").write_text("sap_sid: HA1\ndatabase_high_availability: true\n")
+    (ws / "hosts.yaml").write_text("all:\n  hosts:\n    node1:\n    node2:\n")
 
     return base
 
@@ -96,6 +91,7 @@ def _sap(
         workspaces_base=tmp_workspaces,
         core_api_url="http://localhost:8000",
         ssh_provider=MagicMock(),
+        ssh_cache=MagicMock(),
         validator=MagicMock(),
         formatter=MagicMock(),
         retriever=MagicMock(),
@@ -163,9 +159,7 @@ class TestGetWorkspaceConfig:
 class TestGetWorkspaceHosts:
     """Test the workspace hosts resource."""
 
-    def test_returns_parsed_hosts(
-        self, tmp_workspaces: Path, mock_knowledge_store: MagicMock
-    ):
+    def test_returns_parsed_hosts(self, tmp_workspaces: Path, mock_knowledge_store: MagicMock):
         from src.mcp_server.resources import get_workspace_hosts
 
         sap = _sap(tmp_workspaces, mock_knowledge_store)
@@ -177,9 +171,7 @@ class TestGetWorkspaceHosts:
         assert "all" in data
         assert "node1" in data["all"]["hosts"]
 
-    def test_missing_hosts_file(
-        self, tmp_workspaces: Path, mock_knowledge_store: MagicMock
-    ):
+    def test_missing_hosts_file(self, tmp_workspaces: Path, mock_knowledge_store: MagicMock):
         from src.mcp_server.resources import get_workspace_hosts
 
         sap = _sap(tmp_workspaces, mock_knowledge_store)
@@ -213,9 +205,7 @@ class TestGetWorkspaceHosts:
 class TestGetKnowledgeRules:
     """Test the knowledge rules resource."""
 
-    def test_returns_all_rules(
-        self, tmp_workspaces: Path, mock_knowledge_store: MagicMock
-    ):
+    def test_returns_all_rules(self, tmp_workspaces: Path, mock_knowledge_store: MagicMock):
         from src.mcp_server.resources import get_knowledge_rules
 
         sap = _sap(tmp_workspaces, mock_knowledge_store)
@@ -230,9 +220,7 @@ class TestGetKnowledgeRules:
         assert data[0]["tags"] == ["hana", "hsr"]
         assert data[1]["id"] == "DB-HANA-0002"
 
-    def test_empty_knowledge_base(
-        self, tmp_workspaces: Path
-    ):
+    def test_empty_knowledge_base(self, tmp_workspaces: Path):
         from src.mcp_server.resources import get_knowledge_rules
 
         store = MagicMock()
@@ -253,9 +241,7 @@ class TestGetKnowledgeRules:
 class TestGetKnowledgePlaybooks:
     """Test the knowledge playbooks resource."""
 
-    def test_returns_all_playbooks(
-        self, tmp_workspaces: Path, mock_knowledge_store: MagicMock
-    ):
+    def test_returns_all_playbooks(self, tmp_workspaces: Path, mock_knowledge_store: MagicMock):
         from src.mcp_server.resources import get_knowledge_playbooks
 
         sap = _sap(tmp_workspaces, mock_knowledge_store)

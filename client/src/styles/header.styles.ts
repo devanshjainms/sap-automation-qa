@@ -28,21 +28,7 @@ export const useStyles = makeStyles({
   actions: {
     display: "flex",
     alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-  },
-  headerBtn: {
-    color: tokens.colorNeutralForegroundOnBrand,
-    borderTopColor: "rgba(255, 255, 255, 0.3)",
-    borderRightColor: "rgba(255, 255, 255, 0.3)",
-    borderBottomColor: "rgba(255, 255, 255, 0.3)",
-    borderLeftColor: "rgba(255, 255, 255, 0.3)",
-    ":hover": {
-      backgroundColor: "rgba(255, 255, 255, 0.1)",
-      borderTopColor: "rgba(255, 255, 255, 0.5)",
-      borderRightColor: "rgba(255, 255, 255, 0.5)",
-      borderBottomColor: "rgba(255, 255, 255, 0.5)",
-      borderLeftColor: "rgba(255, 255, 255, 0.5)",
-    },
+    gap: "2px",
   },
   themeBtn: {
     color: tokens.colorNeutralForegroundOnBrand,

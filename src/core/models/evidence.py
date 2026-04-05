@@ -16,6 +16,7 @@ class EvidenceType(str, Enum):
     AZURE_METADATA = "azure_metadata"
     CIB_XML = "cib_xml"
     LOG_EXCERPT = "log_excerpt"
+    LOG_OUTPUT = "log_output"
     SAP_PROCESS_LIST = "sap_process_list"
 
 

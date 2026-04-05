@@ -82,31 +82,44 @@ class TestMessage:
         )
         assert msg.metadata["tokens"] == 150
 
-    def test_thinking_field_default_none(self) -> None:
-        """Verify thinking defaults to None."""
-        msg = Message(role=MessageRole.ASSISTANT, content="answer")
-        assert msg.thinking is None
-
-    def test_thinking_field_populated(self) -> None:
-        """Verify assistant message can carry reasoning trace."""
+    def test_metadata_stores_agent_responses(self) -> None:
+        """Verify metadata can store raw agent framework responses."""
+        agent_responses = [
+            {
+                "type": "agent_response",
+                "agent_id": "Triage-Agent",
+                "messages": [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "contents": [
+                            {"type": "text_reasoning", "text": "Checking CIB..."},
+                            {"type": "text", "text": "Root cause found."},
+                        ],
+                    }
+                ],
+            }
+        ]
         msg = Message(
             role=MessageRole.ASSISTANT,
-            content="Root cause is fencing timeout.",
-            thinking="Checked CIB XML → stonith-timeout=30 < 150.",
+            content="Root cause found.",
+            metadata={"agent_responses": agent_responses},
         )
-        assert msg.thinking == "Checked CIB XML → stonith-timeout=30 < 150."
-        assert msg.content == "Root cause is fencing timeout."
+        assert msg.metadata["agent_responses"][0]["agent_id"] == "Triage-Agent"
+        contents = msg.metadata["agent_responses"][0]["messages"][0]["contents"]
+        reasoning = [c for c in contents if c["type"] == "text_reasoning"]
+        assert reasoning[0]["text"] == "Checking CIB..."
 
-    def test_thinking_survives_roundtrip(self) -> None:
-        """Verify thinking field survives JSON serialization."""
+    def test_metadata_survives_roundtrip(self) -> None:
+        """Verify metadata survives JSON serialization."""
         msg = Message(
             role=MessageRole.ASSISTANT,
             content="answer",
-            thinking="step 1 → step 2",
+            metadata={"agent_responses": [{"agent_id": "Triage-Agent"}]},
         )
         data = msg.model_dump()
         restored = Message(**data)
-        assert restored.thinking == "step 1 → step 2"
+        assert restored.metadata["agent_responses"][0]["agent_id"] == "Triage-Agent"
 
     def test_json_roundtrip(self) -> None:
         """Verify message serializes and deserializes."""

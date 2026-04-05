@@ -210,13 +210,26 @@ class EvidenceCollectorDef(BaseModel):
     :param id: Unique definition identifier (e.g. ``EC-SYSCTL-0001``).
     :param type: Collector type (``command``, ``azure``, ``module``).
     :param name: Short name for this definition.
-    :param command: Command string to execute (for ``command``-type).
+    :param command: Default command string to execute (for ``command``-type).
     :param description: Human-readable purpose.
     :param os_family: Which OS families this applies to.
     :param parser: Parser name for output processing.
+    :param source: Analyzer source name this evidence maps to.
+        Must match a key in ``NormalizerRegistry`` (e.g. ``cib_resource``,
+        ``sysctl``, ``command``). Defaults to ``command``.
+    :param evidence_type: Evidence type for the artifact
+        (e.g. ``command_output``, ``cib_xml``, ``log_output``).
     :param cache_ttl_seconds: How long to cache results.
     :param max_timeout_seconds: Maximum execution time.
     :param tags: Searchable tags.
+    :param requires_ha: True if this definition should only run on HA systems.
+    :param metadata: Structured execution metadata. For log sources this
+        includes ``access_method`` (``file``, ``journalctl``, ``grep_filter``,
+        ``dmesg``), ``path_template``, ``timestamp_format`` (``iso``,
+        ``syslog``, ``hana``), ``run_as`` (e.g. ``<sid>adm``),
+        ``service_units`` (journalctl -u args), ``base_filter`` (grep
+        pattern for syslog-based sources), and ``key_patterns`` (useful
+        grep patterns for the LLM).
     """
 
     id: str
@@ -226,6 +239,10 @@ class EvidenceCollectorDef(BaseModel):
     description: str = ""
     os_family: list[str] = Field(default_factory=lambda: ["SUSE", "REDHAT"])
     parser: str = ""
+    source: str = "command"
+    evidence_type: str = "command_output"
     cache_ttl_seconds: int = 300
     max_timeout_seconds: int = 30
     tags: list[str] = Field(default_factory=list)
+    requires_ha: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)

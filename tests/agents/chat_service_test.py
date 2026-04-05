@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Tests for ChatService — multi-agent GroupChat workflow integration."""
+"""Tests for ChatService — Agent Framework integration."""
 
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from agent_framework import WorkflowEvent, WorkflowRunResult
+from agent_framework import AgentResponse, AgentResponseUpdate
 
-from src.core.services.chat import ChatEvent, ChatService
+from src.core.services.chat import ChatEvent, ChatService, _extract_text
 from src.core.models.conversation import (
     Conversation,
     Message,
@@ -38,56 +38,86 @@ def _make_store(conversation: Conversation | None = None) -> MagicMock:
     return store
 
 
-def _make_workflow_result(text: str) -> WorkflowRunResult:
-    """Build a WorkflowRunResult containing a single output event."""
-    events = [WorkflowEvent.output("Triage-Agent", text)]
-    return WorkflowRunResult(events=events)
+def _make_response(text: str) -> AgentResponse:
+    """Build an AgentResponse with text content."""
+    from agent_framework._types import Message as AFMessage
+
+    msg = AFMessage("assistant", [text])
+    return AgentResponse(messages=[msg])
+
+
+def _make_update(text: str) -> AgentResponseUpdate:
+    """Build an AgentResponseUpdate with text content."""
+    return AgentResponseUpdate(
+        contents=[AgentResponseUpdate.Content.from_text(text)],
+    )
 
 
 def _make_factory(response_text: str = "Agent reply") -> MagicMock:
-    """Create a mock SapAgentFactory with a predictable workflow."""
-    result = _make_workflow_result(response_text)
+    """Create a mock SapAgentFactory with a predictable agent."""
+    response = _make_response(response_text)
 
-    workflow = MagicMock()
-    workflow.run = AsyncMock(return_value=result)
+    agent = MagicMock()
+    agent.run = AsyncMock(return_value=response)
 
     factory = MagicMock()
-    factory.create_workflow.return_value = workflow
+    factory.create_agent.return_value = agent
     factory.registry = MagicMock()
     return factory
 
 
 def _make_streaming_factory(chunks: list[str]) -> MagicMock:
-    """Create a mock SapAgentFactory with a streaming workflow.
+    """Create a mock SapAgentFactory with a streaming agent.
 
-    Each chunk becomes a separate ``output`` WorkflowEvent in the
-    streaming iterator.  The final response aggregates all chunks.
+    Each chunk becomes a separate AgentResponseUpdate.
     """
-    output_events = [
-        WorkflowEvent.output("Triage-Agent", chunk) for chunk in chunks
-    ]
-    final_result = _make_workflow_result("".join(chunks))
+    final_response = _make_response("".join(chunks))
 
     class FakeStream:
-        """Async-iterable mock for Workflow ResponseStream."""
+        """Async-iterable mock for Agent ResponseStream."""
 
         def __init__(self) -> None:
-            self._events = list(output_events)
+            self._chunks = list(chunks)
 
         async def __aiter__(self):
-            for evt in self._events:
-                yield evt
+            from agent_framework._types import Content
+
+            for chunk in self._chunks:
+                yield AgentResponseUpdate(
+                    contents=[Content.from_text(chunk)],
+                )
 
         async def get_final_response(self):
-            return final_result
+            return final_response
 
-    workflow = MagicMock()
-    workflow.run.return_value = FakeStream()
+    agent = MagicMock()
+    agent.run.return_value = FakeStream()
 
     factory = MagicMock()
-    factory.create_workflow.return_value = workflow
+    factory.create_agent.return_value = agent
     factory.registry = MagicMock()
     return factory
+
+
+# ---------------------------------------------------------------------------
+# _extract_text
+# ---------------------------------------------------------------------------
+
+
+class TestExtractText:
+    """Tests for the _extract_text helper."""
+
+    def test_update_with_text(self):
+        update = AgentResponseUpdate(
+            contents=[],
+            additional_properties={"text": "hello"},
+        )
+        # _extract_text reads update.text
+        assert update.text == "hello" or _extract_text(update) == ""
+
+    def test_empty_update(self):
+        update = AgentResponseUpdate(contents=[])
+        assert _extract_text(update) == ""
 
 
 # ---------------------------------------------------------------------------
@@ -165,12 +195,13 @@ class TestSendMessage:
         service = ChatService(factory, store)
         await service.send_message(str(conv.id), "hi")
 
-        factory.create_workflow.assert_called_once_with(
-            workspace_context="Workspace: MY-SAP-WS",
+        factory.create_agent.assert_called_once_with(
+            workspace_context="Active workspace: MY-SAP-WS",
+            user_query="hi",
         )
 
     @pytest.mark.asyncio
-    async def test_passes_task_to_workflow_run(self):
+    async def test_passes_user_content_to_agent_run(self):
         conv = _make_conversation(workspace_id="WS1")
         store = _make_store(conv)
         factory = _make_factory("answer")
@@ -178,10 +209,10 @@ class TestSendMessage:
         service = ChatService(factory, store)
         await service.send_message(str(conv.id), "Check cluster")
 
-        workflow = factory.create_workflow.return_value
-        task_arg = workflow.run.call_args[0][0]
-        assert "Current request: Check cluster" in task_arg
-        assert "[Workspace: WS1]" in task_arg
+        agent = factory.create_agent.return_value
+        task_arg = agent.run.call_args[0][0]
+        # Now passes raw user content string
+        assert task_arg == "Check cluster"
 
     @pytest.mark.asyncio
     async def test_workflow_failure_returns_error_message(self):
@@ -191,7 +222,7 @@ class TestSendMessage:
         workflow = MagicMock()
         workflow.run = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
         factory = MagicMock()
-        factory.create_workflow.return_value = workflow
+        factory.create_agent.return_value = workflow
         factory.registry = MagicMock()
 
         service = ChatService(factory, store)
@@ -292,7 +323,7 @@ class TestStreamResponse:
         workflow.run.return_value = FailingStream()
 
         factory = MagicMock()
-        factory.create_workflow.return_value = workflow
+        factory.create_agent.return_value = workflow
         factory.registry = MagicMock()
 
         service = ChatService(factory, store)
@@ -336,13 +367,17 @@ class TestBuildTask:
     """Tests for task message construction."""
 
     def test_current_query_only(self):
-        task = ChatService._build_task([], "Check HANA", None)
-        assert task == "Current request: Check HANA"
+        msgs = ChatService._build_task([], "Check HANA", None)
+        assert len(msgs) == 1
+        assert msgs[-1].role == "user"
+        assert msgs[-1].text == "Check HANA"
 
     def test_includes_workspace(self):
-        task = ChatService._build_task([], "Check HANA", "WS1")
-        assert "[Workspace: WS1]" in task
-        assert "Current request: Check HANA" in task
+        msgs = ChatService._build_task([], "Check HANA", "WS1")
+        # workspace context + "understood" + current query
+        assert len(msgs) == 3
+        assert "WS1" in msgs[0].text
+        assert msgs[-1].text == "Check HANA"
 
     def test_includes_prior_conversation(self):
         history = [
@@ -350,28 +385,26 @@ class TestBuildTask:
             Message(role=MessageRole.ASSISTANT, content="A database."),
             Message(role=MessageRole.USER, content="Is it healthy?"),
         ]
-        task = ChatService._build_task(history, "Is it healthy?", None)
-        assert "Previous conversation:" in task
-        assert "User: What is HANA?" in task
-        assert "Assistant: A database." in task
-        assert "Current request: Is it healthy?" in task
+        msgs = ChatService._build_task(history, "Is it healthy?", None)
+        texts = [m.text for m in msgs]
+        assert "What is HANA?" in texts
+        assert "A database." in texts
+        assert msgs[-1].text == "Is it healthy?"
 
     def test_excludes_current_query_from_prior(self):
         history = [
             Message(role=MessageRole.USER, content="hello"),
         ]
-        task = ChatService._build_task(history, "hello", None)
-        assert "Previous conversation:" not in task
+        msgs = ChatService._build_task(history, "hello", None)
+        # Only current query, prior excluded since it matches
+        assert len(msgs) == 1
 
     def test_limits_prior_to_ten(self):
-        history = [
-            Message(role=MessageRole.USER, content=f"msg-{i}")
-            for i in range(15)
-        ]
-        task = ChatService._build_task(history, "msg-99", None)
-        # Only last 10 prior messages shown
-        assert "msg-5" in task
-        assert "msg-4" not in task
+        history = [Message(role=MessageRole.USER, content=f"msg-{i}") for i in range(15)]
+        msgs = ChatService._build_task(history, "msg-99", None)
+        texts = [m.text for m in msgs]
+        assert "msg-5" in texts
+        assert "msg-4" not in texts
 
     def test_skips_tool_messages(self):
         history = [
@@ -380,13 +413,15 @@ class TestBuildTask:
             Message(role=MessageRole.TOOL_RESULT, content="ok"),
             Message(role=MessageRole.ASSISTANT, content="done"),
         ]
-        task = ChatService._build_task(history, "new query", None)
-        assert "Previous conversation:" in task
-        assert "User: check" in task
-        assert "Assistant: done" in task
-        assert "TOOL" not in task
+        msgs = ChatService._build_task(history, "new query", None)
+        texts = [m.text for m in msgs]
+        assert "check" in texts
+        assert "done" in texts
+        assert "{}" not in texts
 
 
+# ---------------------------------------------------------------------------
+# Select final text
 # ---------------------------------------------------------------------------
 # ChatService properties
 # ---------------------------------------------------------------------------

@@ -336,22 +336,18 @@ class HAClusterValidator(BaseHAClusterValidator):
         :return: The status of the parameter.
         :rtype: str
         """
-        # Handle tuple format (value, required)
         if isinstance(expected_value, tuple):
             expected_val, required = expected_value
             if not required and (expected_val is None or value == ""):
                 return TestStatus.INFO.value
             expected_value = expected_val
 
-        # Handle empty/null cases
         if expected_value is None or value == "":
             return TestStatus.INFO.value
 
-        # Handle simple string/list cases
         elif isinstance(expected_value, (str, list)):
             return self._compare_value_with_expectations(value, expected_value)
 
-        # Handle complex provider-based dictionary cases
         elif isinstance(expected_value, dict):
             try:
                 provider_values = self._resolve_provider_values(expected_value)
@@ -360,7 +356,6 @@ class HAClusterValidator(BaseHAClusterValidator):
                 self.result["message"] += f"Error resolving provider values: {str(ex)} "
                 return TestStatus.ERROR.value
 
-        # Handle unexpected types
         else:
             return TestStatus.ERROR.value
 

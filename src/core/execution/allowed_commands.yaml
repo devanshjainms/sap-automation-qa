@@ -115,3 +115,33 @@ commands:
   - pattern: "^grep\\s+"
     description: "Text search in files"
     max_timeout_seconds: 15
+
+  # -- Log files --
+  - pattern: "^tail\\s+"
+    description: "View end of log files"
+    max_timeout_seconds: 10
+
+  - pattern: "^head\\s+"
+    description: "View start of files"
+    max_timeout_seconds: 10
+
+  - pattern: "^journalctl\\s+"
+    description: "Systemd journal queries"
+    max_timeout_seconds: 30
+
+  # -- HANA additional --
+  - pattern: "^HDB\\s+(info|version)"
+    description: "HANA instance information"
+    max_timeout_seconds: 15
+
+  - pattern: "^python\\s+.*systemReplicationStatus"
+    description: "HANA system replication status script"
+    max_timeout_seconds: 30
+
+  - pattern: "^su\\s+-\\s+\\w+adm\\s+-c"
+    description: "Run command as SAP admin user via su"
+    max_timeout_seconds: 30
+
+  - pattern: "^sudo\\s+-u\\s+\\w+adm\\s+"
+    description: "Run command as SAP admin user via sudo"
+    max_timeout_seconds: 30

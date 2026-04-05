@@ -10,7 +10,7 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 from pydantic import AnyHttpUrl
@@ -23,6 +23,7 @@ from src.core.analyzer.analyzer import Analyzer
 from src.core.execution.command_allow_list import CommandAllowList
 from src.core.execution.evidence_collector import EvidenceCollector
 from src.core.execution.ssh_provider import SshCredentialProvider
+from src.core.execution.ssh_cache import SshCredentialCache
 from src.core.execution.triage_executor import ArtifactWriter, TriageExecutor
 from src.core.knowledge.learning import LearningPipeline
 from src.core.knowledge.loader import JsonlLoader
@@ -36,10 +37,13 @@ from src.core.storage.job_store import JobStore
 from src.core.storage.knowledge_graph import KnowledgeGraph
 from src.core.storage.knowledge_store import KnowledgeStore
 from src.core.storage.schedule_store import ScheduleStore
+from src.core.models.knowledge import Playbook, Reference, Rule
 from src.mcp_server.auth import create_token_verifier
 from src.mcp_server.validation import InputValidator
 from src.mcp_server.rate_limit import McpRateLimiter
 from src.agents.providers.embedding_adapter import EmbeddingAdapter
+from src.core.execution.ssh_collector import SshCollectorStrategy
+from src.core.models.evidence import CollectorType
 
 logger = logging.getLogger(__name__)
 
@@ -47,21 +51,18 @@ logger = logging.getLogger(__name__)
 MCP_PORT = int(os.environ.get("MCP_PORT", "8001"))
 
 
-def _embed_seed_knowledge(
+def _sync_embed_seed_knowledge(
     store: KnowledgeStore,
     embedding_store: EmbeddingStore,
-    provider: EmbeddingProvider,
+    provider: "EmbeddingAdapter",
 ) -> None:
-    """One-time embedding of seed rules and playbooks.
-
-    Skips items that already have an embedding stored.
-
-    :param store: Knowledge store to read rules/playbooks from.
-    :param embedding_store: Vector store to write embeddings to.
-    :param provider: Embedding provider for text→vector conversion.
+    """
+    Synchronous seed embedding — safe to call at module level.
     """
     rules = store.load_rules()
     playbooks = store.load_playbooks()
+    evidence_defs = store.load_evidence_definitions()
+    references = store.load_references()
 
     to_embed: list[tuple[str, str, str]] = []
     for rule in rules:
@@ -72,6 +73,17 @@ def _embed_seed_knowledge(
         if not embedding_store.has(pb.id, "playbook"):
             text = f"{pb.name} {pb.description} " f"{' '.join(pb.symptoms)} {' '.join(pb.tags)}"
             to_embed.append((pb.id, "playbook", text))
+    for ed in evidence_defs:
+        if not embedding_store.has(ed.id, "evidence"):
+            text = f"{ed.name} {ed.description} {ed.command} {' '.join(ed.tags)}"
+            to_embed.append((ed.id, "evidence", text))
+    for ref in references:
+        if not embedding_store.has(ref.id, "reference"):
+            text = (
+                f"{ref.title} {ref.summary} "
+                f"{' '.join(ref.failure_classes)} {' '.join(ref.tags)}"
+            )
+            to_embed.append((ref.id, "reference", text))
 
     if not to_embed:
         return
@@ -85,7 +97,7 @@ def _embed_seed_knowledge(
 
     for (item_id, item_type, _), vec in zip(to_embed, vectors):
         embedding_store.store(item_id, item_type, vec)
-    logger.info("Embedded %d seed items (rules + playbooks)", len(to_embed))
+    logger.info("Embedded %d seed items (rules + playbooks + evidence + references)", len(to_embed))
 
 
 MCP_HOST = os.environ.get("MCP_HOST", "0.0.0.0")
@@ -117,6 +129,7 @@ class SapContext:
     workspaces_base: Path
     core_api_url: str
     ssh_provider: SshCredentialProvider
+    ssh_cache: SshCredentialCache
     validator: InputValidator
     formatter: ReportFormatter
     retriever: HybridRetriever
@@ -137,13 +150,11 @@ def create_rate_limiter(app: Callable) -> McpRateLimiter:
     )
 
 
-@asynccontextmanager
-async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
-    """Initialize and tear down shared services.
+_shared_context: SapContext | None = None
 
-    :param server: The ``FastMCP`` server instance.
-    :yields: A :class:`SapContext` accessible in every tool handler.
-    """
+
+def _init_shared_context() -> SapContext:
+    """Build the shared SapContext once (called at import time)."""
     logger.info("MCP server starting — initializing services...")
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -160,8 +171,6 @@ async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
     if seed_defs:
         knowledge_store.save_evidence_definitions(seed_defs)
         logger.info("Loaded %d seed evidence definitions", len(seed_defs))
-
-    from src.core.models.knowledge import Playbook, Reference, Rule
 
     seed_rules = loader.load_directory("rules", Rule)
     if seed_rules:
@@ -188,7 +197,6 @@ async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
 
     try:
         if embed_endpoint and embed_deployment:
-
             af_client = AzureOpenAIEmbeddingClient(
                 endpoint=embed_endpoint,
                 deployment_name=embed_deployment,
@@ -197,7 +205,6 @@ async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
             embedding_provider = EmbeddingAdapter(af_client, dimensions=embed_dims)
             logger.info("Embedding provider: Azure OpenAI (%s)", embed_deployment)
         else:
-
             af_client = OpenAIEmbeddingClient(
                 model_id=ollama_model,
                 base_url=ollama_url,
@@ -216,7 +223,11 @@ async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
         embedding_store = None
 
     if embedding_provider is not None and embedding_store is not None:
-        _embed_seed_knowledge(knowledge_store, embedding_store, embedding_provider)
+        _sync_embed_seed_knowledge(
+            knowledge_store,
+            embedding_store,
+            embedding_provider,
+        )
 
     retriever = HybridRetriever(
         store=knowledge_store,
@@ -225,51 +236,59 @@ async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
     )
     triage_sessions: dict[str, TriageSession] = {}
 
-    try:
-        sap_context = SapContext(
-            job_store=job_store,
-            knowledge_store=knowledge_store,
-            schedule_store=schedule_store,
-            scheduler_service=None,
-            analyzer=Analyzer(),
-            triage_executor=TriageExecutor(
-                collector=EvidenceCollector(allow_list=CommandAllowList()),
-                artifact_writer=ArtifactWriter(base_dir=artifact_dir),
-            ),
-            triage_sessions=triage_sessions,
+    evidence_collector = EvidenceCollector(allow_list=CommandAllowList.default())
+    evidence_collector.register_strategy(CollectorType.SSH, SshCollectorStrategy())
+
+    ssh_provider = SshCredentialProvider(workspaces_base=WORKSPACES_BASE)
+
+    ctx = SapContext(
+        job_store=job_store,
+        knowledge_store=knowledge_store,
+        schedule_store=schedule_store,
+        scheduler_service=None,
+        analyzer=Analyzer(),
+        triage_executor=TriageExecutor(
+            collector=evidence_collector,
+            artifact_writer=ArtifactWriter(base_dir=artifact_dir),
+        ),
+        triage_sessions=triage_sessions,
+        workspaces_base=WORKSPACES_BASE,
+        core_api_url=CORE_API_URL,
+        ssh_provider=ssh_provider,
+        ssh_cache=SshCredentialCache(ssh_provider),
+        validator=InputValidator(
             workspaces_base=WORKSPACES_BASE,
-            core_api_url=CORE_API_URL,
-            ssh_provider=SshCredentialProvider(workspaces_base=WORKSPACES_BASE),
-            validator=InputValidator(
-                workspaces_base=WORKSPACES_BASE,
-                sessions=triage_sessions,
-                job_store=job_store,
-            ),
-            formatter=ReportFormatter(),
+            sessions=triage_sessions,
+            job_store=job_store,
+        ),
+        formatter=ReportFormatter(),
+        retriever=retriever,
+        learning_pipeline=LearningPipeline(
+            store=knowledge_store,
+            graph=knowledge_graph,
             retriever=retriever,
-            learning_pipeline=LearningPipeline(
-                store=knowledge_store,
-                graph=knowledge_graph,
-                retriever=retriever,
-                embedding_store=embedding_store,
-                embedding_provider=embedding_provider,
-            ),
+            embedding_store=embedding_store,
             embedding_provider=embedding_provider,
-        )
-        # Set module-level reference for resource handlers (stateless HTTP mode)
-        from src.mcp_server.resources import set_sap_context
+        ),
+        embedding_provider=embedding_provider,
+    )
+    logger.info("MCP server initialized successfully")
+    return ctx
 
-        set_sap_context(sap_context)
 
-        yield sap_context
-    finally:
-        logger.info("MCP server shutting down — releasing resources...")
-        if embedding_store is not None:
-            embedding_store.close()
-        knowledge_graph.close()
-        schedule_store.close()
-        knowledge_store.close()
-        job_store.close()
+_shared_context = _init_shared_context()
+
+
+@asynccontextmanager
+async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
+    """
+    Yield the pre-built shared context on each request.
+
+    :param server: The ``FastMCP`` server instance.
+    :yields: The shared :class:`SapContext`.
+    """
+    assert _shared_context is not None, "Shared context not initialized"
+    yield _shared_context
 
 
 _token_verifier = create_token_verifier()
@@ -299,14 +318,13 @@ mcp = FastMCP(
     token_verifier=_token_verifier,
 )
 
-# Register tools, resources, and prompts.
-# These imports MUST come after ``mcp`` and ``SapContext`` are defined
-# because the decorator modules import them back from this module.
 import src.mcp_server.tools  # noqa: E402, F401
 import src.mcp_server.resources  # noqa: E402
 import src.mcp_server.prompts  # noqa: E402
 
-# Build the HTTP application exposed via uvicorn.
+if _shared_context is not None:
+    src.mcp_server.resources.set_sap_context(_shared_context)
+
 _mcp_asgi = mcp.streamable_http_app()
 http_app = create_rate_limiter(_mcp_asgi)
 

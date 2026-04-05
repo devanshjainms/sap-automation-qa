@@ -147,20 +147,21 @@ class EvidenceCollector:
         :param definition: What to collect.
         :returns: The evidence artifact.
         """
-        # Check cache first
         cached = self._get_cached(definition.definition_id)
         if cached is not None:
             return cached
 
-        # Validate command against allow-list for command-based collectors
         if self._requires_command_validation(definition):
             if not self._allow_list.is_allowed(definition.command):
+                logger.warning(
+                    "Command rejected by allow-list: %s (definition=%s)",
+                    definition.command[:80],
+                    definition.definition_id,
+                )
                 return self._make_rejected_artifact(definition)
 
-        # Delegate to registered strategy
         artifact = self._execute_strategy(definition)
 
-        # Cache successful results
         if artifact.is_usable:
             self._set_cached(definition.definition_id, artifact)
 

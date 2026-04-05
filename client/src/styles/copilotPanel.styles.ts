@@ -62,6 +62,46 @@ export const useStyles = makeStyles({
     whiteSpace: "pre-wrap",
     overflowWrap: "break-word",
   },
+  activitiesDisclosure: {
+    marginBottom: tokens.spacingVerticalXS,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground4,
+  },
+  activitiesSummary: {
+    cursor: "pointer",
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground4,
+    paddingBottom: tokens.spacingVerticalXS,
+    ":hover": {
+      color: tokens.colorNeutralForeground1,
+    },
+  },
+  activitiesList: {
+    marginBottom: tokens.spacingVerticalXS,
+    lineHeight: "1.6",
+  },
+  activityItem: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground4,
+  },
+  thinkingRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalS,
+    paddingTop: tokens.spacingVerticalXS,
+    paddingBottom: tokens.spacingVerticalXS,
+    color: tokens.colorNeutralForeground4,
+    fontStyle: "italic",
+    fontSize: tokens.fontSizeBase200,
+    animationName: {
+      from: { opacity: 0.4 },
+      to: { opacity: 1 },
+    },
+    animationDuration: "1.2s",
+    animationIterationCount: "infinite",
+    animationDirection: "alternate",
+    animationTimingFunction: "ease-in-out",
+  },
   spinnerRow: {
     display: "flex",
     paddingTop: tokens.spacingVerticalXS,

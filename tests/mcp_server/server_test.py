@@ -70,9 +70,20 @@ def mock_job_store() -> MagicMock:
 @pytest.fixture()
 def mock_knowledge_store() -> MagicMock:
     """Knowledge store with empty data."""
+    from src.core.models.knowledge import EvidenceCollectorDef
+
     store = MagicMock()
     store.load_rules.return_value = []
     store.load_playbooks.return_value = []
+    store.load_evidence_definitions.return_value = [
+        EvidenceCollectorDef(
+            id="EC-OS-RELEASE-0001",
+            name="OS Release",
+            command="cat /etc/os-release",
+            description="OS release identification",
+            tags=["os", "version"],
+        ),
+    ]
     store.close.return_value = None
     return store
 
@@ -118,6 +129,7 @@ def sap_context(
         workspaces_base=tmp_workspaces,
         core_api_url="http://localhost:8000",
         ssh_provider=ssh_provider,
+        ssh_cache=MagicMock(),
         validator=validator,
         formatter=MagicMock(),
         retriever=MagicMock(),
@@ -149,11 +161,14 @@ class TestServerRegistration:
             "get_schedule_jobs",
             "get_triage_report",
             "get_workspace",
+            "list_evidence_catalog",
             "list_jobs",
             "list_schedules",
             "list_workspaces",
             "query_knowledge",
+            "record_investigation_outcome",
             "run_analysis",
+            "run_evidence_collector",
             "run_staf_test",
             "trigger_schedule",
             "update_schedule",
@@ -162,6 +177,23 @@ class TestServerRegistration:
     def test_tools_have_descriptions(self):
         for tool in mcp._tool_manager.list_tools():
             assert tool.description, f"Tool {tool.name} has no description"
+
+    def test_tools_have_titles(self):
+        for tool in mcp._tool_manager.list_tools():
+            assert tool.title, f"Tool {tool.name} has no title"
+
+    def test_tools_have_annotations(self):
+        for tool in mcp._tool_manager.list_tools():
+            ann = tool.annotations
+            assert ann is not None, f"Tool {tool.name} has no annotations"
+            assert ann.readOnlyHint is not None, f"Tool {tool.name} missing readOnlyHint"
+            assert ann.destructiveHint is not None, f"Tool {tool.name} missing destructiveHint"
+            assert ann.idempotentHint is not None, f"Tool {tool.name} missing idempotentHint"
+            assert ann.openWorldHint is not None, f"Tool {tool.name} missing openWorldHint"
+
+    def test_tools_have_icons(self):
+        for tool in mcp._tool_manager.list_tools():
+            assert tool.icons, f"Tool {tool.name} has no icons"
 
     def test_tools_have_input_schemas(self):
         for tool in mcp._tool_manager.list_tools():
@@ -214,10 +246,10 @@ class TestListWorkspacesTool:
 
     @pytest.mark.asyncio
     async def test_lists_workspaces_from_directory(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage import list_workspaces
+        from src.mcp_server.tools.workspace_ops import WorkspaceOpsTools
 
         ctx = _make_ctx(sap_context)
-        result = await list_workspaces(ctx=ctx)
+        result = await WorkspaceOpsTools.list_workspaces(ctx=ctx)
 
         assert result["total"] == 2
         ids = sorted(ws["id"] for ws in result["workspaces"])
@@ -225,11 +257,11 @@ class TestListWorkspacesTool:
 
     @pytest.mark.asyncio
     async def test_empty_directory(self, sap_context: SapContext, tmp_path: Path):
-        from src.mcp_server.tools.triage import list_workspaces
+        from src.mcp_server.tools.workspace_ops import WorkspaceOpsTools
 
         sap_context.workspaces_base = tmp_path / "nonexistent"
         ctx = _make_ctx(sap_context)
-        result = await list_workspaces(ctx=ctx)
+        result = await WorkspaceOpsTools.list_workspaces(ctx=ctx)
 
         assert result["total"] == 0
         assert result["workspaces"] == []
@@ -240,10 +272,10 @@ class TestGetJobStatusTool:
 
     @pytest.mark.asyncio
     async def test_returns_job_status(self, sap_context: SapContext):
-        from src.mcp_server.tools.staf import get_job_status
+        from src.mcp_server.tools.jobs_ops import JobOpsTools
 
         ctx = _make_ctx(sap_context)
-        result = await get_job_status(job_id="job-001", ctx=ctx)
+        result = await JobOpsTools.get_job_status(job_id="job-001", ctx=ctx)
 
         assert result["job_id"] == "job-001"
         assert result["status"] == "completed"
@@ -251,13 +283,13 @@ class TestGetJobStatusTool:
 
     @pytest.mark.asyncio
     async def test_missing_job_raises(self, sap_context: SapContext):
-        from src.mcp_server.tools.staf import get_job_status
+        from src.mcp_server.tools.jobs_ops import JobOpsTools
 
         sap_context.job_store.get.return_value = None  # type: ignore[union-attr]
         ctx = _make_ctx(sap_context)
 
         with pytest.raises(ToolError, match="not found"):
-            await get_job_status(job_id="missing", ctx=ctx)
+            await JobOpsTools.get_job_status(job_id="missing", ctx=ctx)
 
 
 class TestGetJobResultsTool:
@@ -265,10 +297,10 @@ class TestGetJobResultsTool:
 
     @pytest.mark.asyncio
     async def test_returns_results(self, sap_context: SapContext):
-        from src.mcp_server.tools.staf import get_job_results
+        from src.mcp_server.tools.jobs_ops import JobOpsTools
 
         ctx = _make_ctx(sap_context)
-        result = await get_job_results(job_id="job-001", ctx=ctx)
+        result = await JobOpsTools.get_job_results(job_id="job-001", ctx=ctx)
 
         assert result["exit_code"] == 0
         assert result["result"] == {"passed": 5, "failed": 0, "exit_code": 0}
@@ -279,10 +311,10 @@ class TestQueryKnowledgeTool:
 
     @pytest.mark.asyncio
     async def test_returns_empty_on_no_match(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage import query_knowledge
+        from src.mcp_server.tools.retrieval import RetrievalTools
 
         ctx = _make_ctx(sap_context)
-        result = await query_knowledge(query="nonexistent", ctx=ctx)
+        result = await RetrievalTools.query_knowledge(query="nonexistent", ctx=ctx)
 
         assert result["total_rules"] == 0
         assert result["total_playbooks"] == 0
@@ -293,23 +325,23 @@ class TestGetTriageReportTool:
 
     @pytest.mark.asyncio
     async def test_missing_session_raises(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage import get_triage_report
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
 
         ctx = _make_ctx(sap_context)
         with pytest.raises(ToolError, match="not found"):
-            await get_triage_report(session_id="missing", ctx=ctx)
+            await TriageAnalyzerTools.get_triage_report(session_id="missing", ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_session_without_report(self, sap_context: SapContext):
         from src.core.models.triage import TriageSession
-        from src.mcp_server.tools.triage import get_triage_report
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
 
         session = TriageSession(workspace_id="WS_A")
         sid = str(session.id)
         sap_context.triage_sessions[sid] = session
 
         ctx = _make_ctx(sap_context)
-        result = await get_triage_report(session_id=sid, ctx=ctx)
+        result = await TriageAnalyzerTools.get_triage_report(session_id=sid, ctx=ctx)
 
         assert result["report"] is None
         assert "not yet complete" in result["message"]
@@ -322,7 +354,7 @@ class TestCollectEvidenceTool:
     async def test_returns_session_id_with_host_and_credentials(
         self, sap_context: SapContext, tmp_workspaces: Path
     ):
-        from src.mcp_server.tools.triage import collect_evidence
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
 
         # Place a fake SSH key so credential provisioning succeeds.
         (tmp_workspaces / "WS_A" / "ssh_key.ppk").write_text("fake-key")
@@ -332,16 +364,15 @@ class TestCollectEvidenceTool:
         sap_context.triage_executor.collect.return_value = []
 
         ctx = _make_ctx(sap_context)
-        result = await collect_evidence(workspace_id="WS_A", ctx=ctx)
+        result = await TriageAnalyzerTools.collect_evidence(workspace_id="WS_A", ctx=ctx)
 
         assert "session_id" in result
         assert result["session_id"] in sap_context.triage_sessions
-        assert result["target_host"] == "node1"
-        assert result["hosts_discovered"] == ["node1"]
+        assert "node1" in result["hosts_targeted"]
 
     @pytest.mark.asyncio
     async def test_fails_when_no_hosts(self, sap_context: SapContext, tmp_path: Path):
-        from src.mcp_server.tools.triage import collect_evidence
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
 
         # Create a workspace with no hosts.yaml.
         empty_ws = sap_context.workspaces_base / "EMPTY"
@@ -350,24 +381,23 @@ class TestCollectEvidenceTool:
 
         ctx = _make_ctx(sap_context)
         with pytest.raises(ToolError, match="No hosts found"):
-            await collect_evidence(workspace_id="EMPTY", ctx=ctx)
+            await TriageAnalyzerTools.collect_evidence(workspace_id="EMPTY", ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_fails_when_no_ssh_credentials(
         self, sap_context: SapContext, tmp_workspaces: Path
     ):
-        from src.mcp_server.tools.triage import collect_evidence
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
 
         # WS_A has hosts.yaml but no ssh_key — should fail gracefully.
+        sap_context.ssh_cache.provision.return_value = None
         ctx = _make_ctx(sap_context)
         with pytest.raises(ToolError, match="No SSH credentials"):
-            await collect_evidence(workspace_id="WS_A", ctx=ctx)
+            await TriageAnalyzerTools.collect_evidence(workspace_id="WS_A", ctx=ctx)
 
     @pytest.mark.asyncio
-    async def test_handles_collection_failure(
-        self, sap_context: SapContext, tmp_workspaces: Path
-    ):
-        from src.mcp_server.tools.triage import collect_evidence
+    async def test_handles_collection_failure(self, sap_context: SapContext, tmp_workspaces: Path):
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
 
         (tmp_workspaces / "WS_A" / "ssh_key.ppk").write_text("fake-key")
         sap_context.triage_executor = MagicMock()
@@ -375,14 +405,14 @@ class TestCollectEvidenceTool:
 
         ctx = _make_ctx(sap_context)
         with pytest.raises(ToolError, match="SSH failed"):
-            await collect_evidence(workspace_id="WS_A", ctx=ctx)
+            await TriageAnalyzerTools.collect_evidence(workspace_id="WS_A", ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_builds_evidence_definitions_with_host(
         self, sap_context: SapContext, tmp_workspaces: Path
     ):
         from src.core.models.knowledge import EvidenceCollectorDef
-        from src.mcp_server.tools.triage import collect_evidence
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
 
         (tmp_workspaces / "WS_A" / "ssh_key.ppk").write_text("fake-key")
         sap_context.triage_executor = MagicMock()
@@ -397,7 +427,7 @@ class TestCollectEvidenceTool:
         ]
 
         ctx = _make_ctx(sap_context)
-        await collect_evidence(workspace_id="WS_A", ctx=ctx)
+        await TriageAnalyzerTools.collect_evidence(workspace_id="WS_A", ctx=ctx)
 
         # Verify the executor received definitions with actual host set.
         call_args = sap_context.triage_executor.collect.call_args
@@ -409,17 +439,131 @@ class TestCollectEvidenceTool:
             assert d.collector_type == CollectorType.SSH
 
 
+    @pytest.mark.asyncio
+    async def test_filters_ha_definitions_for_non_ha_workspace(
+        self, sap_context: SapContext, tmp_workspaces: Path
+    ):
+        """When workspace has no HA, definitions with requires_ha are filtered."""
+        from src.core.models.knowledge import EvidenceCollectorDef
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+
+        (tmp_workspaces / "WS_A" / "ssh_key.ppk").write_text("fake-key")
+        sap_context.triage_executor = MagicMock()
+        sap_context.triage_executor.collect.return_value = []
+
+        ha_def = EvidenceCollectorDef(
+            id="EC-CLUSTER-MON-0001",
+            name="Cluster Status",
+            command="crm_mon -1rR",
+            description="Pacemaker cluster status",
+            tags=["pacemaker", "cluster", "ha"],
+            requires_ha=True,
+        )
+        os_def = EvidenceCollectorDef(
+            id="EC-OS-RELEASE-0001",
+            name="OS Release",
+            command="cat /etc/os-release",
+            description="OS release identification",
+            tags=["os", "version"],
+        )
+        sap_context.knowledge_store.load_evidence_definitions.return_value = [ha_def, os_def]
+
+        # WS_A has no database_high_availability in sap-parameters.yaml.
+        ctx = _make_ctx(sap_context)
+        await TriageAnalyzerTools.collect_evidence(workspace_id="WS_A", ctx=ctx)
+
+        call_args = sap_context.triage_executor.collect.call_args
+        defs = call_args[0][1]
+        # Only the non-HA definition should survive.
+        commands = [d.command for d in defs]
+        assert "cat /etc/os-release" in commands
+        assert "crm_mon -1rR" not in commands
+
+    @pytest.mark.asyncio
+    async def test_keeps_ha_definitions_for_ha_workspace(
+        self, sap_context: SapContext, tmp_workspaces: Path
+    ):
+        """When workspace has HA enabled, HA definitions are kept."""
+        from src.core.models.knowledge import EvidenceCollectorDef
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+
+        (tmp_workspaces / "WS_B" / "ssh_key.ppk").write_text("fake-key")
+        sap_context.triage_executor = MagicMock()
+        sap_context.triage_executor.collect.return_value = []
+
+        ha_def = EvidenceCollectorDef(
+            id="EC-CLUSTER-MON-0001",
+            name="Cluster Status",
+            command="crm_mon -1rR",
+            description="Pacemaker cluster status",
+            tags=["pacemaker", "cluster", "ha"],
+            requires_ha=True,
+        )
+        os_def = EvidenceCollectorDef(
+            id="EC-OS-RELEASE-0001",
+            name="OS Release",
+            command="cat /etc/os-release",
+            description="OS release identification",
+            tags=["os", "version"],
+        )
+        sap_context.knowledge_store.load_evidence_definitions.return_value = [ha_def, os_def]
+
+        # WS_B has database_high_availability: true.
+        ctx = _make_ctx(sap_context)
+        await TriageAnalyzerTools.collect_evidence(workspace_id="WS_B", ctx=ctx)
+
+        call_args = sap_context.triage_executor.collect.call_args
+        defs = call_args[0][1]
+        commands = [d.command for d in defs]
+        assert "crm_mon -1rR" in commands
+        assert "cat /etc/os-release" in commands
+
+    @pytest.mark.asyncio
+    async def test_explicit_definitions_bypass_ha_filter(
+        self, sap_context: SapContext, tmp_workspaces: Path
+    ):
+        """Explicit definitions param bypasses topology filtering."""
+        from src.core.models.knowledge import EvidenceCollectorDef
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+
+        (tmp_workspaces / "WS_A" / "ssh_key.ppk").write_text("fake-key")
+        sap_context.triage_executor = MagicMock()
+        sap_context.triage_executor.collect.return_value = []
+
+        ha_def = EvidenceCollectorDef(
+            id="EC-CLUSTER-MON-0001",
+            name="Cluster Status",
+            command="crm_mon -1rR",
+            description="Pacemaker cluster status",
+            tags=["pacemaker", "cluster", "ha"],
+            requires_ha=True,
+        )
+        sap_context.knowledge_store.load_evidence_definitions.return_value = [ha_def]
+
+        # WS_A has no HA, but we explicitly request the HA definition.
+        ctx = _make_ctx(sap_context)
+        await TriageAnalyzerTools.collect_evidence(
+            workspace_id="WS_A",
+            definitions=["EC-CLUSTER-MON-0001"],
+            ctx=ctx,
+        )
+
+        call_args = sap_context.triage_executor.collect.call_args
+        defs = call_args[0][1]
+        assert any(d.command == "crm_mon -1rR" for d in defs)
+
+
 class TestRunAnalysisTool:
     """Test run_analysis tool."""
 
     @pytest.mark.asyncio
     async def test_missing_session_raises(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage import run_analysis
+        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
 
         ctx = _make_ctx(sap_context)
 
         with pytest.raises(ToolError, match="not found"):
-            await run_analysis(session_id="missing", ctx=ctx)
+            await TriageAnalyzerTools.run_analysis(session_id="missing", ctx=ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -430,11 +574,114 @@ class TestRunAnalysisTool:
 class TestWorkspaceHelpers:
     """Test _load_workspace_hosts and _load_workspace_params."""
 
-    def test_load_hosts_flat_inventory(self, tmp_workspaces: Path):
+    def test_load_hosts_all_wrapper(self, tmp_workspaces: Path):
         from src.mcp_server.tools._helpers import load_workspace_hosts
 
         hosts = load_workspace_hosts(tmp_workspaces, "WS_A")
         assert hosts == ["node1"]
+
+    def test_load_hosts_flat_ansible_inventory(self, tmp_path: Path):
+        """Flat Ansible inventory without 'all:' wrapper (production format)."""
+        from src.mcp_server.tools._helpers import load_workspace_hosts
+
+        base = tmp_path / "SYSTEM"
+        ws = base / "FLAT"
+        ws.mkdir(parents=True)
+        (ws / "hosts.yaml").write_text(
+            "R11_DB:\n"
+            "  hosts:\n"
+            "    r11dhdb00l030:\n"
+            "      ansible_host: 172.235.1.12\n"
+            "      ansible_user: azureadm\n"
+            "    r11dhdb00l130:\n"
+            "      ansible_host: 172.235.1.13\n"
+            "      ansible_user: azureadm\n"
+            "R11_SCS:\n"
+            "  hosts:\n"
+            "    r11scs00l306:\n"
+            "      ansible_host: 172.235.2.19\n"
+        )
+        hosts = load_workspace_hosts(base, "FLAT")
+        assert sorted(hosts) == [
+            "172.235.1.12",
+            "172.235.1.13",
+            "172.235.2.19",
+        ]
+
+    def test_load_host_details_flat_inventory(self, tmp_path: Path):
+        """Host details include ansible_host, ansible_user, become_user, and name."""
+        from src.mcp_server.tools._helpers import load_workspace_host_details
+
+        base = tmp_path / "SYSTEM"
+        ws = base / "DETAIL"
+        ws.mkdir(parents=True)
+        (ws / "hosts.yaml").write_text(
+            "DB:\n"
+            "  hosts:\n"
+            "    dbhost:\n"
+            "      ansible_host: 10.0.0.1\n"
+            "      ansible_user: azureadm\n"
+            "      become_user: root\n"
+            "  vars:\n"
+            "    node_tier: hana\n"
+        )
+        details = load_workspace_host_details(base, "DETAIL")
+        assert len(details) == 1
+        assert details[0]["name"] == "dbhost"
+        assert details[0]["ansible_host"] == "10.0.0.1"
+        assert details[0]["ansible_user"] == "azureadm"
+        assert details[0]["become_user"] == "root"
+        assert details[0]["node_tier"] == "hana"
+
+    def test_load_host_details_multi_tier(self, tmp_path: Path):
+        """Multiple groups with different node_tiers."""
+        from src.mcp_server.tools._helpers import load_workspace_host_details
+
+        base = tmp_path / "SYSTEM"
+        ws = base / "MULTI"
+        ws.mkdir(parents=True)
+        (ws / "hosts.yaml").write_text(
+            "DB:\n"
+            "  hosts:\n"
+            "    db1:\n"
+            "      ansible_host: 10.0.0.1\n"
+            "    db2:\n"
+            "      ansible_host: 10.0.0.2\n"
+            "  vars:\n"
+            "    node_tier: hana\n"
+            "SCS:\n"
+            "  hosts:\n"
+            "    scs1:\n"
+            "      ansible_host: 10.0.0.3\n"
+            "  vars:\n"
+            "    node_tier: scs\n"
+            "ERS:\n"
+            "  hosts:\n"
+            "    ers1:\n"
+            "      ansible_host: 10.0.0.4\n"
+            "  vars:\n"
+            "    node_tier: ers\n"
+        )
+        details = load_workspace_host_details(base, "MULTI")
+        assert len(details) == 4
+        tiers = [d["node_tier"] for d in details]
+        assert tiers == ["hana", "hana", "scs", "ers"]
+        # Filter by tier
+        db_hosts = [d for d in details if d["node_tier"] == "hana"]
+        assert len(db_hosts) == 2
+        scs_hosts = [d for d in details if d["node_tier"] in ("scs", "ers")]
+        assert len(scs_hosts) == 2
+
+    def test_load_hosts_falls_back_to_key_name(self, tmp_path: Path):
+        """When no ansible_host is set, the inventory key is used."""
+        from src.mcp_server.tools._helpers import load_workspace_hosts
+
+        base = tmp_path / "SYSTEM"
+        ws = base / "NOIP"
+        ws.mkdir(parents=True)
+        (ws / "hosts.yaml").write_text("G:\n  hosts:\n    myhost:\n")
+        hosts = load_workspace_hosts(base, "NOIP")
+        assert hosts == ["myhost"]
 
     def test_load_hosts_grouped_inventory(self, tmp_path: Path):
         from src.mcp_server.tools._helpers import load_workspace_hosts

@@ -23,13 +23,9 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/* ── Health ─────────────────────────────────────────────────── */
-
 export function getHealth(): Promise<HealthResponse> {
   return fetchJson<HealthResponse>("/healthz");
 }
-
-/* ── Jobs ──────────────────────────────────────────────────── */
 
 export async function listJobs(params?: {
   workspace_id?: string;
@@ -65,8 +61,6 @@ export function getJobLog(
   ).then((r) => r.text());
 }
 
-/* ── Schedules ─────────────────────────────────────────────── */
-
 export async function listSchedules(): Promise<Schedule[]> {
   const res = await fetchJson<{ schedules: Schedule[]; total: number } | Schedule[]>(
     `${BASE}/schedules`,
@@ -101,8 +95,6 @@ export function triggerSchedule(id: string): Promise<void> {
   );
 }
 
-/* ── Workspaces ────────────────────────────────────────────── */
-
 export async function listWorkspaces(): Promise<Workspace[]> {
   const res = await fetchJson<{ workspaces: Workspace[]; total: number } | Workspace[]>(
     `${BASE}/workspaces`,
@@ -110,19 +102,20 @@ export async function listWorkspaces(): Promise<Workspace[]> {
   return Array.isArray(res) ? res : res.workspaces;
 }
 
-/* ── Chat ──────────────────────────────────────────────────── */
-
-export function createConversation(workspaceId: string): Promise<Conversation> {
+export function createConversation(): Promise<Conversation> {
   return fetchJson<Conversation>(`${BASE}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ workspace_id: workspaceId }),
+    body: JSON.stringify({}),
   });
 }
 
-export function listConversations(workspaceId?: string): Promise<Conversation[]> {
+export async function listConversations(workspaceId?: string): Promise<Conversation[]> {
   const qs = workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : "";
-  return fetchJson<Conversation[]>(`${BASE}/chat${qs}`);
+  const res = await fetchJson<{ conversations: Conversation[]; total: number } | Conversation[]>(
+    `${BASE}/chat${qs}`,
+  );
+  return Array.isArray(res) ? res : res.conversations;
 }
 
 export function getConversation(id: string): Promise<Conversation & { messages: Message[] }> {
@@ -135,27 +128,44 @@ export function sendMessage(conversationId: string, content: string): Promise<Me
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ message: content }),
+    },
+  );
+}
+
+export function saveMessage(
+  conversationId: string,
+  role: "user" | "assistant",
+  content: string,
+): Promise<void> {
+  return fetchJson(
+    `${BASE}/chat/${encodeURIComponent(conversationId)}/messages/save`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role, content }),
     },
   );
 }
 
 /**
- * Stream an assistant response via SSE.
- * Yields `{ event, data }` objects for each SSE frame.
+ * Stream an assistant response via AG-UI protocol at /ag-ui.
+ * Yields parsed AG-UI SSE events with `type` and event data.
  */
-export async function* streamMessage(
-  conversationId: string,
-  content: string,
-): AsyncGenerator<{ event: string; data: string }> {
-  const res = await fetch(
-    `${BASE}/chat/${encodeURIComponent(conversationId)}/messages/stream`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    },
-  );
+export async function* streamAgUI(
+  threadId: string,
+  messages: Array<{ id: string; role: string; content: string }>,
+): AsyncGenerator<{ type: string; [key: string]: unknown }> {
+  const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const res = await fetch("/ag-ui", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      thread_id: threadId,
+      run_id: runId,
+      messages,
+    }),
+  });
   if (!res.ok || !res.body) {
     throw new Error(`${res.status}: ${await res.text().catch(() => res.statusText)}`);
   }
@@ -174,7 +184,13 @@ export async function* streamMessage(
       if (line.startsWith("event: ")) {
         currentEvent = line.slice(7).trim();
       } else if (line.startsWith("data: ")) {
-        yield { event: currentEvent, data: line.slice(6) };
+        try {
+          const data = JSON.parse(line.slice(6));
+          data._event = currentEvent;
+          yield data;
+        } catch {
+          // skip malformed JSON
+        }
         currentEvent = "message";
       }
     }

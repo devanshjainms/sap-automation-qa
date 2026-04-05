@@ -108,9 +108,13 @@ CREATE TABLE IF NOT EXISTS evidence_definitions (
     description         TEXT NOT NULL DEFAULT '',
     os_family           TEXT NOT NULL DEFAULT '["SUSE", "REDHAT"]',
     parser              TEXT NOT NULL DEFAULT '',
+    source              TEXT NOT NULL DEFAULT 'command',
+    evidence_type       TEXT NOT NULL DEFAULT 'command_output',
+    requires_ha         INTEGER NOT NULL DEFAULT 0,
     cache_ttl_seconds   INTEGER NOT NULL DEFAULT 300,
     max_timeout_seconds INTEGER NOT NULL DEFAULT 30,
-    tags                TEXT NOT NULL DEFAULT '[]'
+    tags                TEXT NOT NULL DEFAULT '[]',
+    metadata            TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE INDEX IF NOT EXISTS idx_rules_category
@@ -596,9 +600,10 @@ class KnowledgeStore:
             self._conn.execute(
                 """INSERT OR REPLACE INTO evidence_definitions
                    (id, type, name, command, description,
-                    os_family, parser, cache_ttl_seconds,
-                    max_timeout_seconds, tags)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    os_family, parser, source, evidence_type,
+                    requires_ha, cache_ttl_seconds,
+                    max_timeout_seconds, tags, metadata)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     definition.id,
                     definition.type,
@@ -607,9 +612,13 @@ class KnowledgeStore:
                     definition.description,
                     json.dumps(definition.os_family),
                     definition.parser,
+                    definition.source,
+                    definition.evidence_type,
+                    int(definition.requires_ha),
                     definition.cache_ttl_seconds,
                     definition.max_timeout_seconds,
                     json.dumps(definition.tags),
+                    json.dumps(definition.metadata),
                 ),
             )
         return definition
@@ -657,7 +666,11 @@ class KnowledgeStore:
             description=data["description"],
             os_family=json.loads(data["os_family"]),
             parser=data["parser"],
+            source=data.get("source", "command"),
+            evidence_type=data.get("evidence_type", "command_output"),
+            requires_ha=bool(data.get("requires_ha", 0)),
             cache_ttl_seconds=data["cache_ttl_seconds"],
             max_timeout_seconds=data["max_timeout_seconds"],
             tags=json.loads(data["tags"]),
+            metadata=json.loads(data.get("metadata", "{}")),
         )

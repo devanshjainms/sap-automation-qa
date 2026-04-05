@@ -4,22 +4,23 @@
 """Chat service — bridges the API layer with Agent Framework execution.
 
 ``ChatService`` is the glue between the REST chat endpoints and the
-multi-agent GroupChat workflow.  It formats conversation history into
-a task message for the workflow, streams ``WorkflowEvent`` outputs
-back to the caller, and persists the final assistant reply.
+Agent Framework.  It formats conversation history, streams
+``AgentResponseUpdate`` events back to the caller in real time
+(including tool calls and reasoning), and persists the final reply.
 """
 
 from __future__ import annotations
-
 import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator
+
 from agent_framework import (
+    AgentResponse,
+    AgentResponseUpdate,
     ResponseStream,
-    WorkflowEvent,
-    WorkflowRunResult,
 )
+from agent_framework._types import Message as AFMessage
 from src.agents.agent import SapAgentFactory
 from src.core.models.conversation import (
     Message,
@@ -30,11 +31,83 @@ from src.core.storage.conversation_store import ConversationStore
 logger = logging.getLogger(__name__)
 
 
+def _extract_text(update: AgentResponseUpdate) -> str:
+    """Extract visible text from a streaming update.
+
+    :param update: An ``AgentResponseUpdate`` from the agent stream.
+    :returns: Extracted text, or empty string.
+    """
+    return update.text or ""
+
+
+def _extract_thinking(update: AgentResponseUpdate) -> str:
+    """Extract ``text_reasoning`` content from an update.
+
+    :param update: An ``AgentResponseUpdate``.
+    :returns: Concatenated reasoning text, or empty string.
+    """
+    parts: list[str] = []
+    for content in update.contents:
+        if content.type == "text_reasoning" and content.text:
+            parts.append(content.text)
+    return "\n".join(parts)
+
+
+def _extract_activities(update: AgentResponseUpdate) -> list[dict[str, Any]]:
+    """Extract tool activity from a streaming update.
+
+    Captures both ``function_call`` (what's being called) and
+    ``function_result`` (what came back) content types to give the
+    UI a complete picture of agent investigation steps.
+
+    :param update: An ``AgentResponseUpdate``.
+    :returns: List of activity dicts with ``type`` and details.
+    """
+    activities: list[dict[str, Any]] = []
+    for c in update.contents:
+        d = c.to_dict()
+        if c.type == "function_call":
+            name = d.get("name", "")
+            args_str = d.get("arguments", "")
+            if not name:
+                continue
+            try:
+                args = json.loads(args_str) if args_str else {}
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+            desc = name
+            if name == "run_evidence_collector" and args.get("definition_id"):
+                desc = args["definition_id"]
+            elif name == "get_workspace" and args.get("workspace_id"):
+                desc = f"workspace {args['workspace_id']}"
+            elif name == "query_knowledge" and args.get("query"):
+                desc = f"search: {args['query'][:50]}"
+            activities.append(
+                {
+                    "phase": "call",
+                    "tool": name,
+                    "description": desc,
+                }
+            )
+        elif c.type == "function_result":
+            result_text = d.get("result", "")
+            preview = result_text[:200] if result_text else ""
+            activities.append(
+                {
+                    "phase": "result",
+                    "tool": d.get("call_id", ""),
+                    "preview": preview,
+                }
+            )
+    return activities
+
+
 @dataclass(frozen=True)
 class ChatEvent:
     """Event emitted during streaming chat processing.
 
-    :param event_type: Type of event (``token``, ``done``, ``error``).
+    :param event_type: ``token``, ``thinking``, ``activity``,
+        ``done``, or ``error``.
     :param data: Event payload dict.
     """
 
@@ -50,9 +123,12 @@ class ChatEvent:
 
 
 class ChatService:
-    """Bridges the chat API with Agent Framework workflow execution.
+    """Bridges the chat API with Agent Framework execution.
 
-    :param factory: Agent factory for creating per-turn workflows.
+    Uses ``Agent.run(stream=True)`` directly for real-time streaming
+    of tool calls, reasoning, and text. No workflow buffering.
+
+    :param factory: Agent factory for creating per-turn agents.
     :param conversation_store: Persistence layer for conversations.
     """
 
@@ -68,6 +144,7 @@ class ChatService:
     ) -> None:
         self._factory = factory
         self._store = conversation_store
+        self._sessions: dict[str, Any] = {}
 
     @property
     def factory(self) -> SapAgentFactory:
@@ -88,24 +165,39 @@ class ChatService:
         """
         conv = self._validate_conversation(conversation_id)
         self._store.add_message(
-            conversation_id, Message(role=MessageRole.USER, content=user_content)
+            conversation_id,
+            Message(role=MessageRole.USER, content=user_content),
         )
-        history = self._store.get_history(conversation_id)
-        task = self._build_task(history, user_content, conv.workspace_id)
-        workflow = self._factory.create_workflow(
+        agent = self._factory.create_agent(
             workspace_context=self._workspace_context(conv.workspace_id),
+            user_query=user_content,
         )
+        session = self._sessions.get(conversation_id)
+        if session is None:
+            session = agent.create_session()
+            self._sessions[conversation_id] = session
         try:
-            result: WorkflowRunResult = await workflow.run(task)
-            outputs = result.get_outputs()
-            reply_text = str(outputs[-1]) if outputs else ""
+            response: AgentResponse = await agent.run(
+                user_content,
+                session=session,
+            )
+            reply_text = response.text or ""
+            metadata: dict[str, Any] = {
+                "agent_responses": [response.to_dict()],
+            }
         except Exception:
             logger.exception(
-                "Workflow execution failed for conversation %s",
+                "Agent execution failed for conversation %s",
                 conversation_id,
             )
             reply_text = self._ERROR_REPLY
-        assistant_msg = Message(role=MessageRole.ASSISTANT, content=reply_text)
+            metadata = {}
+
+        assistant_msg = Message(
+            role=MessageRole.ASSISTANT,
+            content=reply_text,
+            metadata=metadata,
+        )
         self._store.add_message(conversation_id, assistant_msg)
         return assistant_msg
 
@@ -114,57 +206,93 @@ class ChatService:
         conversation_id: str,
         user_content: str,
     ) -> AsyncGenerator[ChatEvent, None]:
-        """Stream the workflow response as incremental events.
+        """Stream the agent response as incremental events.
 
-        Each specialist agent output is emitted as a ``token`` event.
-        The final assembled text is emitted as ``done``.
+        Uses ``Agent.run(stream=True)`` for real-time delivery of
+        tool calls, reasoning tokens, and text — no buffering.
 
         :param conversation_id: Conversation identifier.
         :param user_content: User message text.
-        :yields: ChatEvent with ``event_type`` of ``token``, ``done``, or ``error``.
+        :yields: ``ChatEvent`` instances in real time.
         :raises ValueError: If conversation not found or archived.
         """
         conv = self._validate_conversation(conversation_id)
         self._store.add_message(
-            conversation_id, Message(role=MessageRole.USER, content=user_content)
+            conversation_id,
+            Message(role=MessageRole.USER, content=user_content),
         )
-        history = self._store.get_history(conversation_id)
-        task = self._build_task(history, user_content, conv.workspace_id)
-        workflow = self._factory.create_workflow(
+        agent = self._factory.create_agent(
             workspace_context=self._workspace_context(conv.workspace_id),
+            user_query=user_content,
         )
-        full_text = ""
+        session = self._sessions.get(conversation_id)
+        if session is None:
+            session = agent.create_session()
+            self._sessions[conversation_id] = session
+        streamed_text = ""
+        metadata: dict[str, Any] = {}
         try:
-            stream: ResponseStream[WorkflowEvent, WorkflowRunResult] = workflow.run(
-                task, stream=True
+            stream: ResponseStream[AgentResponseUpdate, AgentResponse] = agent.run(
+                user_content, stream=True, session=session
             )
-            async for event in stream:
-                if event.type == "output":
-                    chunk = str(event.data) if event.data else ""
-                    if chunk:
-                        full_text += chunk
-                        yield ChatEvent(event_type="token", data={"text": chunk})
 
-            result = await stream.get_final_response()
-            if not full_text:
-                outputs = result.get_outputs()
-                full_text = str(outputs[-1]) if outputs else ""
+            async for update in stream:
+                for act in _extract_activities(update):
+                    yield ChatEvent(
+                        event_type="activity",
+                        data=act,
+                    )
 
-            yield ChatEvent(event_type="done", data={"text": full_text})
+                reasoning = _extract_thinking(update)
+                if reasoning:
+                    yield ChatEvent(
+                        event_type="thinking",
+                        data={"agent": "SAP-Agent", "text": reasoning},
+                    )
+
+                chunk = _extract_text(update)
+                if chunk:
+                    streamed_text += chunk
+                    yield ChatEvent(
+                        event_type="token",
+                        data={"agent": "SAP-Agent", "text": chunk},
+                    )
+
+            response = await stream.get_final_response()
+            self._sessions[conversation_id] = session
+            logger.info(
+                "Agent produced %d chars: %.200s",
+                len(response.text or ""),
+                response.text or "",
+            )
+
+            metadata = {"agent_responses": [response.to_dict()]}
+
+            if response.text:
+                streamed_text = response.text
+
+            yield ChatEvent(
+                event_type="done",
+                data={"text": streamed_text},
+            )
 
         except Exception as exc:
             logger.exception(
-                "Workflow streaming failed for conversation %s",
+                "Agent streaming failed for conversation %s",
                 conversation_id,
             )
-            if not full_text:
-                full_text = self._ERROR_REPLY
+            if not streamed_text:
+                streamed_text = self._ERROR_REPLY
             yield ChatEvent(
                 event_type="error",
-                data={"error": str(exc), "text": full_text},
+                data={"error": str(exc), "text": streamed_text},
             )
 
-        assistant_msg = Message(role=MessageRole.ASSISTANT, content=full_text)
+        assistant_msg = Message(
+            role=MessageRole.ASSISTANT,
+            content=streamed_text,
+            metadata=metadata,
+        )
         self._store.add_message(conversation_id, assistant_msg)
 
     def _validate_conversation(self, conversation_id: str) -> Any:
@@ -188,39 +316,46 @@ class ChatService:
         :param workspace_id: Active workspace identifier.
         :returns: Context string or empty.
         """
-        return f"Workspace: {workspace_id}" if workspace_id else ""
+        if workspace_id:
+            return f"Active workspace: {workspace_id}"
+        return (
+            "No workspace is set for this conversation. "
+            "If the user mentions a system by name or identifier "
+            "(e.g. 'X02', 'S11', 'PRD'), use `list_workspaces` to "
+            "find the matching workspace and proceed autonomously."
+        )
 
     @staticmethod
     def _build_task(
         history: list[Message],
         current_query: str,
         workspace_id: str | None,
-    ) -> str:
-        """Format conversation history and current query as a task.
+    ) -> list[AFMessage]:
+        """Format conversation history as Agent Framework messages.
 
-        The task string is passed to ``Workflow.run()`` as the initial
-        message for the GroupChat orchestrator.
+        Returns a list of ``AFMessage`` objects so the LLM sees proper
+        user/assistant turns — including context from prior exchanges
+        (workspace IDs, tool results, etc.).
 
         :param history: Fitted conversation history.
         :param current_query: Current user message.
         :param workspace_id: Active workspace identifier.
-        :returns: Formatted task string.
+        :returns: List of chat messages for the agent.
         """
-        parts: list[str] = []
+        messages: list[AFMessage] = []
+
         if workspace_id:
-            parts.append(f"[Workspace: {workspace_id}]")
+            messages.append(AFMessage("user", [f"[Context: Active workspace is {workspace_id}]"]))
+            messages.append(AFMessage("assistant", ["Understood."]))
 
         prior = [
             m
             for m in history
             if m.role in (MessageRole.USER, MessageRole.ASSISTANT) and m.content != current_query
         ]
-        if prior:
-            parts.append("Previous conversation:")
-            for msg in prior[-10:]:
-                role = "User" if msg.role == MessageRole.USER else "Assistant"
-                parts.append(f"  {role}: {msg.content}")
-            parts.append("")
+        for msg in prior[-10:]:
+            role = "user" if msg.role == MessageRole.USER else "assistant"
+            messages.append(AFMessage(role, [msg.content]))
 
-        parts.append(f"Current request: {current_query}")
-        return "\n".join(parts)
+        messages.append(AFMessage("user", [current_query]))
+        return messages

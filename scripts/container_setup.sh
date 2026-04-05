@@ -175,7 +175,7 @@ container_update() {
             "Dockerfile not found in $_CONTAINER_DEPLOY_DIR"
         log "INFO" "Rebuilding Docker image..."
         docker compose -f "$_CONTAINER_DEPLOY_DIR/docker-compose.yml" \
-            build --pull
+            build
     fi
 
     log "INFO" "Restarting container with updated image..."

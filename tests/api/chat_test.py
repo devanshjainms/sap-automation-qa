@@ -14,6 +14,8 @@ from src.api.routes.chat import (
     router as chat_router,
     set_chat_service,
     set_conversation_store,
+    get_conversation_store,
+    _extract_parts,
 )
 from src.core.models.conversation import Message, MessageRole
 from src.core.storage.conversation_store import ConversationStore
@@ -262,3 +264,141 @@ class TestStreamMessage:
             json={"message": "should fail"},
         )
         assert resp.status_code == 400
+
+
+class TestToolCallsOnReload:
+    """Tests that tool calls from af_messages metadata appear on reload."""
+
+    def test_tool_calls_appear_on_reload(self, chat_client):
+        """Tool calls from af_messages metadata show on GET /chat/{id}."""
+        create_resp = chat_client.post("/api/v1/chat", json={"workspace_id": "WS"})
+        conv_id = create_resp.json()["id"]
+
+        # Directly add a message with af_messages metadata.
+        from src.core.storage.conversation_store import ConversationStore
+
+        store = get_conversation_store()
+        store.add_message(
+            conv_id,
+            Message(role=MessageRole.USER, content="check cluster"),
+        )
+        store.add_message(
+            conv_id,
+            Message(
+                role=MessageRole.ASSISTANT,
+                content="Cluster looks good.",
+                metadata={
+                    "af_messages": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "contents": [
+                                {
+                                    "type": "function_call",
+                                    "call_id": "c1",
+                                    "name": "run_evidence_collector",
+                                    "arguments": '{"definition_id":"EC-CLUSTER-MON-0001"}',
+                                }
+                            ],
+                        },
+                        {
+                            "type": "message",
+                            "role": "tool",
+                            "contents": [
+                                {
+                                    "type": "function_result",
+                                    "call_id": "c1",
+                                    "result": "OK",
+                                }
+                            ],
+                        },
+                    ]
+                },
+            ),
+        )
+
+        resp = chat_client.get(f"/api/v1/chat/{conv_id}")
+        assert resp.status_code == 200
+        msgs = resp.json()["messages"]
+
+        assistant_msgs = [m for m in msgs if m["role"] == "assistant"]
+        assert len(assistant_msgs) == 1
+        assert "toolCalls" in assistant_msgs[0]
+        assert assistant_msgs[0]["toolCalls"][0]["name"] == "run_evidence_collector"
+        assert assistant_msgs[0]["toolCalls"][0]["result"] == "OK"
+        # Parts should also be present.
+        assert "parts" in assistant_msgs[0]
+        parts = assistant_msgs[0]["parts"]
+        assert any(p["type"] == "tool_call" for p in parts)
+
+
+class TestExtractParts:
+    """Tests for _extract_parts helper — interleaved text + tool calls."""
+
+    def test_empty_metadata(self):
+        assert _extract_parts({}) == []
+        assert _extract_parts(None) == []
+
+    def test_text_then_tool_then_text(self):
+        metadata = {
+            "af_messages": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "contents": [
+                        {"type": "text", "text": "Let me check."},
+                        {
+                            "type": "function_call",
+                            "call_id": "c1",
+                            "name": "list_workspaces",
+                            "arguments": "{}",
+                        },
+                    ],
+                },
+                {
+                    "type": "message",
+                    "role": "tool",
+                    "contents": [
+                        {
+                            "type": "function_result",
+                            "call_id": "c1",
+                            "result": "done",
+                        }
+                    ],
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "contents": [
+                        {"type": "text", "text": "Here are the results."},
+                    ],
+                },
+            ]
+        }
+        parts = _extract_parts(metadata)
+        assert len(parts) == 3
+        assert parts[0] == {"type": "text", "content": "Let me check."}
+        assert parts[1]["type"] == "tool_call"
+        assert parts[1]["toolCall"]["name"] == "list_workspaces"
+        assert parts[1]["toolCall"]["result"] == "done"
+        assert parts[2] == {"type": "text", "content": "Here are the results."}
+
+    def test_skips_tool_role_messages(self):
+        """Tool role messages produce results but not parts themselves."""
+        metadata = {
+            "af_messages": [
+                {
+                    "type": "message",
+                    "role": "tool",
+                    "contents": [
+                        {
+                            "type": "function_result",
+                            "call_id": "c1",
+                            "result": "data",
+                        }
+                    ],
+                },
+            ]
+        }
+        parts = _extract_parts(metadata)
+        assert parts == []

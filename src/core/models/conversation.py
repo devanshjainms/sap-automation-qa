@@ -16,7 +16,6 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
@@ -49,12 +48,15 @@ class Message(BaseModel):
 
     :param id: Unique message identifier.
     :param role: Who produced this message.
-    :param content: Message text content.
-    :param thinking: Optional LLM reasoning trace shown before the response.
+    :param content: Message text content (orchestrator's final response).
     :param timestamp: When the message was created.
-    :param triage_session_id: Optional link to the triage session that this message triggered.
+    :param triage_session_id: Optional link to the triage session.
     :param tool_name: Tool name (for TOOL_CALL/TOOL_RESULT messages).
-    :param metadata: Additional context (token count, model, etc.).
+    :param metadata: For assistant messages holds the raw agent
+        framework outputs as ``{"agent_responses": [<AgentResponse.to_dict()>, ...]}``.
+        Each entry preserves the full framework schema including
+        ``text_reasoning`` content blocks, tool calls, usage, and
+        agent identity.  UI/API layers parse what they need.
     """
 
     model_config = ConfigDict(use_enum_values=True)
@@ -157,10 +159,10 @@ class Conversation(BaseModel):
 class CreateConversationRequest(BaseModel):
     """Request to create a new conversation.
 
-    :param workspace_id: SAP system workspace for this conversation.
+    :param workspace_id: Optional SAP system workspace for this conversation.
     """
 
-    workspace_id: str
+    workspace_id: str = ""
 
 
 class SendMessageRequest(BaseModel):

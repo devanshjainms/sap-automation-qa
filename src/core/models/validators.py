@@ -32,6 +32,7 @@ class ValidatorResult:
     :param actual: Actual value found in evidence.
     :param validator_type: Which validator strategy was used.
     :param message: Human-readable description of the result.
+    :param skipped: True when evidence source was unavailable.
     """
 
     passed: bool
@@ -40,6 +41,7 @@ class ValidatorResult:
     actual: Any = None
     validator_type: ValidatorType = ValidatorType.EXACT_MATCH
     message: str = ""
+    skipped: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dictionary for JSON storage.
@@ -47,7 +49,7 @@ class ValidatorResult:
         :returns: Dictionary representation of the result.
         :rtype: dict[str, Any]
         """
-        return {
+        d = {
             "passed": self.passed,
             "rule_id": self.rule_id,
             "expected": self.expected,
@@ -55,3 +57,6 @@ class ValidatorResult:
             "validator_type": self.validator_type.value,
             "message": self.message,
         }
+        if self.skipped:
+            d["skipped"] = True
+        return d

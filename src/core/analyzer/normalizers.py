@@ -439,19 +439,14 @@ class NormalizerRegistry:
         """
         registry = cls()
 
-        # Kernel parameters
         registry.register("sysctl", SysctlNormalizer())
 
-        # CIB sections — each source gets a section-specific normalizer
-        # that strips prefixes so rule parameters match directly.
         cib_normalizers = {section: CibSectionNormalizer(section) for section in CIB_SOURCES}
         registry.register_group(list(CIB_SOURCES), cib_normalizers)
 
-        # Key-value sources
         registry.register("corosync-cmapctl", KeyValueNormalizer("corosync-cmapctl", "="))
         registry.register("global_ini", KeyValueNormalizer("global_ini", "="))
 
-        # Command output and Azure LB — treated as generic key-value
         registry.register("command", KeyValueNormalizer("command", "="))
         registry.register("azure_lb", KeyValueNormalizer("azure_lb", "="))
 

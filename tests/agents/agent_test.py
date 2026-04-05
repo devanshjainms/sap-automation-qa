@@ -17,7 +17,6 @@ from src.core.models.mcp_config import (
     McpServersConfig,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers — mock MCPStreamableHTTPTool
 # ---------------------------------------------------------------------------
@@ -42,42 +41,34 @@ class TestSapAgentFactory:
     """Tests for the ``SapAgentFactory`` class."""
 
     @pytest.mark.asyncio
-    async def test_create_connects_three_mcp_tools(self) -> None:
-        """Factory creates and connects triage, staf, and ops MCP tools."""
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_cls:
-            mock_cls.return_value = _make_mock_mcp_tool()
+    async def test_create_connects_mcp_tools(self) -> None:
+        """Factory creates SAP MCP + Microsoft Learn MCP tools."""
+        fake_tool = MagicMock()
+        fake_tool.name = "fake_tool"
+        with (
+            patch("src.agents.agent.MCPStreamableHTTPTool") as mock_cls,
+            patch(
+                "src.agents.agent._mcp_server._tool_manager.list_tools",
+                return_value=[fake_tool],
+            ),
+        ):
+            mock_cls.return_value = _make_mock_mcp_tool("sap-tools")
 
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
                 endpoint="https://x.openai.azure.com",
             )
 
-        assert mock_cls.call_count == 3
-        calls = mock_cls.call_args_list
-        assert calls[0][1]["name"] == "sap-triage"
-        assert calls[0][1]["url"] == "http://test:8001/mcp"
-        assert calls[0][1]["allowed_tools"] == (
-            SapAgentFactory.TRIAGE_TOOLS
-        )
-        assert calls[1][1]["name"] == "sap-staf"
-        assert calls[1][1]["allowed_tools"] == (
-            SapAgentFactory.STAF_TOOLS
-        )
-        assert calls[2][1]["name"] == "sap-ops"
-        assert calls[2][1]["allowed_tools"] == (
-            SapAgentFactory.OPS_TOOLS
-        )
-        assert (
-            mock_cls.return_value.connect.await_count == 3
-        )
+        # SAP MCP + Microsoft Learn MCP = 2 connections
+        assert mock_cls.call_count == 2
+        sap_call = mock_cls.call_args_list[0]
+        assert sap_call[1]["name"] == "sap-tools"
+        assert sap_call[1]["url"] == "http://test:8001/mcp"
+        assert sap_call[1]["allowed_tools"] == ["fake_tool"]
 
     @pytest.mark.asyncio
     async def test_mcp_url_property(self) -> None:
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_cls:
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_cls:
             mock_cls.return_value = _make_mock_mcp_tool()
             factory = await SapAgentFactory.create(
                 mcp_url="http://custom:9999/mcp",
@@ -86,189 +77,142 @@ class TestSapAgentFactory:
 
     @pytest.mark.asyncio
     async def test_tool_counts(self) -> None:
-        """tool_counts returns per-group function counts."""
-        triage = _make_mock_mcp_tool("sap-triage", 6)
-        staf = _make_mock_mcp_tool("sap-staf", 9)
-        ops = _make_mock_mcp_tool("sap-ops", 7)
+        """tool_counts returns function count."""
+        tool = _make_mock_mcp_tool("sap-tools", 20)
 
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_cls:
-            mock_cls.side_effect = [triage, staf, ops]
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_cls:
+            mock_cls.return_value = tool
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
             )
 
         counts = factory.tool_counts
-        assert counts["triage"] == 6
-        assert counts["staf"] == 9
-        assert counts["ops"] == 7
+        assert counts["sap"] == 20
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
-    async def test_create_workflow_returns_workflow(
-        self, mock_client_cls: MagicMock,
+    async def test_create_agent_returns_agent(
+        self,
+        mock_client_cls: MagicMock,
     ) -> None:
-        """create_workflow builds a GroupChat workflow."""
+        """create_agent returns the agent from as_agent()."""
         mock_agent = MagicMock()
         mock_client_cls.return_value.as_agent.return_value = mock_agent
 
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_mcp:
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch(
-            "src.agents.agent.GroupChatBuilder"
-        ) as mock_gcb:
-            mock_workflow = MagicMock()
-            mock_gcb.return_value.build.return_value = mock_workflow
-            result = factory.create_workflow()
-
-        assert result is mock_workflow
+        result = factory.create_agent()
+        assert result is mock_agent
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
-    async def test_create_workflow_builds_four_agents(
-        self, mock_client_cls: MagicMock,
+    async def test_create_agent_builds_one_agent(
+        self,
+        mock_client_cls: MagicMock,
     ) -> None:
-        """create_workflow creates 4 agents: triage, staf, ops, router."""
+        """create_agent creates a single SAP-Agent."""
         mock_client_cls.return_value.as_agent.return_value = MagicMock()
 
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_mcp:
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.GroupChatBuilder") as mock_gcb:
-            mock_gcb.return_value.build.return_value = MagicMock()
-            factory.create_workflow()
+        factory.create_agent()
 
-        # 3 specialist + 1 orchestrator = 4 as_agent calls
-        assert (
-            mock_client_cls.return_value.as_agent.call_count == 4
-        )
-        names = [
-            c[1]["name"]
-            for c in mock_client_cls.return_value.as_agent.call_args_list
-        ]
-        assert names == [
-            "Triage-Agent",
-            "STAF-Agent",
-            "Ops-Agent",
-            "SAP-Router",
-        ]
+        assert mock_client_cls.return_value.as_agent.call_count == 1
+        name = mock_client_cls.return_value.as_agent.call_args[1]["name"]
+        assert name == "SAP-Agent"
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
-    async def test_specialist_agents_receive_mcp_tools(
-        self, mock_client_cls: MagicMock,
+    async def test_agent_receives_mcp_tool(
+        self,
+        mock_client_cls: MagicMock,
     ) -> None:
-        """Each specialist gets its MCPStreamableHTTPTool in tools=."""
+        """The agent gets the MCPStreamableHTTPTool in tools=."""
         mock_client_cls.return_value.as_agent.return_value = MagicMock()
 
-        triage_mcp = _make_mock_mcp_tool("sap-triage")
-        staf_mcp = _make_mock_mcp_tool("sap-staf")
-        ops_mcp = _make_mock_mcp_tool("sap-ops")
+        mcp_tool = _make_mock_mcp_tool("sap-tools")
 
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_cls:
-            mock_cls.side_effect = [triage_mcp, staf_mcp, ops_mcp]
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_cls:
+            mock_cls.return_value = mcp_tool
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.GroupChatBuilder") as mock_gcb:
-            mock_gcb.return_value.build.return_value = MagicMock()
-            factory.create_workflow()
+        factory.create_agent()
 
-        calls = mock_client_cls.return_value.as_agent.call_args_list
-        # Triage agent gets triage MCP tool
-        assert calls[0][1]["tools"] == [triage_mcp]
-        # STAF agent gets staf MCP tool
-        assert calls[1][1]["tools"] == [staf_mcp]
-        # Ops agent gets ops MCP tool
-        assert calls[2][1]["tools"] == [ops_mcp]
-        # Orchestrator gets no tools
-        assert "tools" not in calls[3][1]
+        call = mock_client_cls.return_value.as_agent.call_args
+        assert mcp_tool in call[1]["tools"]
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
-    async def test_workspace_context_appended(
-        self, mock_client_cls: MagicMock,
+    async def test_workspace_context_provider_added(
+        self,
+        mock_client_cls: MagicMock,
     ) -> None:
-        """Workspace context is appended to agent instructions."""
+        """Workspace context is injected via a context provider."""
         mock_client_cls.return_value.as_agent.return_value = MagicMock()
 
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_mcp:
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.GroupChatBuilder") as mock_gcb:
-            mock_gcb.return_value.build.return_value = MagicMock()
-            factory.create_workflow(
+            factory.create_agent(
                 workspace_context="Workspace: PRD",
             )
 
-        for call in (
-            mock_client_cls.return_value.as_agent.call_args_list
-        ):
-            assert "Workspace: PRD" in call[1]["instructions"]
+        call = mock_client_cls.return_value.as_agent.call_args
+        providers = call[1]["context_providers"]
+        # WorkspaceContextProvider should be present (no ConversationHistoryProvider in tests)
+        from src.agents.agent import WorkspaceContextProvider
+
+        assert any(isinstance(p, WorkspaceContextProvider) for p in providers)
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
-    async def test_all_agents_receive_compaction_strategy(
-        self, mock_client_cls: MagicMock,
+    async def test_agent_receives_compaction_strategy(
+        self,
+        mock_client_cls: MagicMock,
     ) -> None:
-        """Every agent (specialists + orchestrator) gets a compaction strategy."""
+        """Agent gets a compaction strategy."""
         mock_client_cls.return_value.as_agent.return_value = MagicMock()
 
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_mcp:
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.GroupChatBuilder") as mock_gcb:
-            mock_gcb.return_value.build.return_value = MagicMock()
-            factory.create_workflow()
+            factory.create_agent()
 
-        for call in mock_client_cls.return_value.as_agent.call_args_list:
-            strategy = call[1].get("compaction_strategy")
-            assert strategy is not None, (
-                f"Agent {call[1]['name']} missing compaction_strategy"
-            )
-            assert isinstance(strategy, TokenBudgetComposedStrategy)
+        call = mock_client_cls.return_value.as_agent.call_args
+        strategy = call[1].get("compaction_strategy")
+        assert isinstance(strategy, TokenBudgetComposedStrategy)
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
     async def test_client_receives_kwargs(
-        self, mock_client_cls: MagicMock,
+        self,
+        mock_client_cls: MagicMock,
     ) -> None:
         """AzureOpenAIChatClient receives endpoint/deployment/key."""
         mock_client_cls.return_value.as_agent.return_value = MagicMock()
 
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_mcp:
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
@@ -278,23 +222,17 @@ class TestSapAgentFactory:
                 api_version="2025-01-01",
             )
 
-        with patch("src.agents.agent.GroupChatBuilder") as mock_gcb:
-            mock_gcb.return_value.build.return_value = MagicMock()
-            factory.create_workflow()
+            factory.create_agent()
 
         client_kwargs = mock_client_cls.call_args[1]
-        assert client_kwargs["endpoint"] == (
-            "https://my.openai.azure.com"
-        )
+        assert client_kwargs["endpoint"] == "https://my.openai.azure.com"
         assert client_kwargs["deployment_name"] == "gpt-4o"
         assert client_kwargs["api_key"] == "key-123"
         assert client_kwargs["api_version"] == "2025-01-01"
 
     @pytest.mark.asyncio
     async def test_omits_none_client_kwargs(self) -> None:
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_mcp:
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
@@ -303,32 +241,25 @@ class TestSapAgentFactory:
         assert "api_key" not in factory._client_kwargs
 
     @pytest.mark.asyncio
-    async def test_close_shuts_all_tools(self) -> None:
-        """close() calls close on triage, staf, ops MCP tools."""
-        triage = _make_mock_mcp_tool("sap-triage")
-        staf = _make_mock_mcp_tool("sap-staf")
-        ops = _make_mock_mcp_tool("sap-ops")
+    async def test_close_shuts_tool(self) -> None:
+        """close() calls close on MCP tools."""
+        tool = _make_mock_mcp_tool("sap-tools")
 
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_cls:
-            mock_cls.side_effect = [triage, staf, ops]
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_cls:
+            mock_cls.return_value = tool
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
             )
 
         await factory.close()
 
-        triage.close.assert_awaited_once()
-        staf.close.assert_awaited_once()
-        ops.close.assert_awaited_once()
+        # SAP MCP tool closed; mslearn closed via _external_mcps
+        assert tool.close.await_count >= 1
 
     @pytest.mark.asyncio
     async def test_async_context_manager(self) -> None:
         """Can be used as ``async with`` context manager."""
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_mcp:
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_tool = _make_mock_mcp_tool()
             mock_mcp.return_value = mock_tool
             factory = await SapAgentFactory.create(
@@ -338,7 +269,7 @@ class TestSapAgentFactory:
         async with factory as f:
             assert f is factory
 
-        assert mock_tool.close.await_count == 3
+        assert mock_tool.close.await_count >= 1
 
 
 # ---------------------------------------------------------------------------
@@ -404,9 +335,7 @@ class TestSapAgentFactoryExternal:
                 kwargs.get("name", ""),
             )
             if kwargs.get("name") == "broken":
-                tool.connect.side_effect = ConnectionError(
-                    "refused"
-                )
+                tool.connect.side_effect = ConnectionError("refused")
             return tool
 
         with patch(
@@ -446,9 +375,7 @@ class TestSapAgentFactoryExternal:
                 "src.agents.agent.MCPStreamableHTTPTool",
                 side_effect=_capture,
             ),
-            patch.dict(
-                "os.environ", {"MY_TOKEN": "secret-123"}
-            ),
+            patch.dict("os.environ", {"MY_TOKEN": "secret-123"}),
         ):
             await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
@@ -456,9 +383,7 @@ class TestSapAgentFactoryExternal:
             )
 
         # Find the call for the "secure" external server
-        ext_call = next(
-            k for k in captured_kwargs if k.get("name") == "secure"
-        )
+        ext_call = next(k for k in captured_kwargs if k.get("name") == "secure")
         http_client = ext_call.get("http_client")
         assert http_client is not None
         auth_header = http_client.headers.get("authorization")
@@ -477,15 +402,145 @@ class TestSapAgentFactoryExternal:
             ]
         )
 
-        with patch(
-            "src.agents.agent.MCPStreamableHTTPTool"
-        ) as mock_cls:
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_cls:
             mock_cls.return_value = _make_mock_mcp_tool()
             factory = await SapAgentFactory.create(
                 mcp_url="http://test:8001/mcp",
                 mcp_config=config,
             )
 
-        # Only 3 local tools created (no external)
-        assert mock_cls.call_count == 3
+        # SAP MCP + Microsoft Learn MCP (no external disabled)
+        assert mock_cls.call_count == 2
         assert "off" not in factory.tool_counts
+
+
+# ---------------------------------------------------------------------------
+# Tests — Agentic execution loop configuration
+# ---------------------------------------------------------------------------
+
+
+class TestAgenticLoopConfiguration:
+    """Tests for the agentic loop settings in create_agent."""
+
+    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @pytest.mark.asyncio
+    async def test_max_iterations_uses_default_max_rounds(
+        self,
+        mock_client_cls: MagicMock,
+    ) -> None:
+        """max_iterations matches GENERAL config max_rounds (30)."""
+        mock_client_cls.return_value.as_agent.return_value = MagicMock()
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        factory.create_agent()
+
+        call = mock_client_cls.return_value.as_agent.call_args
+        fic = call[1]["function_invocation_configuration"]
+        assert fic["max_iterations"] == 30
+
+    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @pytest.mark.asyncio
+    async def test_consecutive_errors_limit_set(
+        self,
+        mock_client_cls: MagicMock,
+    ) -> None:
+        """max_consecutive_errors_per_request is configured."""
+        mock_client_cls.return_value.as_agent.return_value = MagicMock()
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        factory.create_agent()
+
+        call = mock_client_cls.return_value.as_agent.call_args
+        fic = call[1]["function_invocation_configuration"]
+        assert fic["max_consecutive_errors_per_request"] == 5
+
+    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @pytest.mark.asyncio
+    async def test_detailed_errors_disabled(
+        self,
+        mock_client_cls: MagicMock,
+    ) -> None:
+        """include_detailed_errors is False (middleware handles errors)."""
+        mock_client_cls.return_value.as_agent.return_value = MagicMock()
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        factory.create_agent()
+
+        call = mock_client_cls.return_value.as_agent.call_args
+        fic = call[1]["function_invocation_configuration"]
+        assert fic["include_detailed_errors"] is False
+
+    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @pytest.mark.asyncio
+    async def test_instructions_contain_agentic_loop(
+        self,
+        mock_client_cls: MagicMock,
+    ) -> None:
+        """System prompt enforces Plan/Act/Observe/Reflect loop."""
+        mock_client_cls.return_value.as_agent.return_value = MagicMock()
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        factory.create_agent()
+
+        call = mock_client_cls.return_value.as_agent.call_args
+        instructions = call[1]["instructions"]
+        assert "ABSOLUTE RULES" in instructions
+        assert "ALWAYS start using tools IMMEDIATELY" in instructions
+        assert "Think out loud" in instructions
+        assert "How to work" in instructions
+        assert "Reminders" in instructions
+
+    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @pytest.mark.asyncio
+    async def test_middleware_wired(
+        self,
+        mock_client_cls: MagicMock,
+    ) -> None:
+        """Both middleware classes are passed to the agent."""
+        mock_client_cls.return_value.as_agent.return_value = MagicMock()
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        factory.create_agent()
+
+        call = mock_client_cls.return_value.as_agent.call_args
+        middleware = call[1]["middleware"]
+        from src.agents.providers.middleware import (
+            AgentExceptionMiddleware,
+            FunctionGuardMiddleware,
+            OutputSanitizationMiddleware,
+        )
+
+        types = [type(m) for m in middleware]
+        assert AgentExceptionMiddleware in types
+        assert FunctionGuardMiddleware in types
+        assert OutputSanitizationMiddleware in types

@@ -6,15 +6,18 @@ import {
   Button,
   Text,
   Tooltip,
-  mergeClasses,
 } from "@fluentui/react-components";
 import {
   Add24Regular,
   WeatherMoon24Regular,
   WeatherSunny24Regular,
+  HeartPulse20Regular,
+  Wrench20Regular,
 } from "@fluentui/react-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useStyles } from "../../styles/header.styles";
+
+const DEVUI_URL = `${window.location.protocol}//${window.location.hostname}:8080`;
 
 export function Header() {
   const navigate = useNavigate();
@@ -44,14 +47,30 @@ export function Header() {
       <div className={classes.actions}>
         <Tooltip content="New chat" relationship="label">
           <Button
-            appearance="outline"
+            appearance="subtle"
             size="small"
             icon={<Add24Regular />}
-            className={mergeClasses(classes.headerBtn)}
+            className={classes.themeBtn}
             onClick={() => navigate("/")}
-          >
-            New chat
-          </Button>
+          />
+        </Tooltip>
+        <Tooltip content="Service Status" relationship="label">
+          <Button
+            appearance="subtle"
+            size="small"
+            icon={<HeartPulse20Regular />}
+            className={classes.themeBtn}
+            onClick={() => navigate("/status")}
+          />
+        </Tooltip>
+        <Tooltip content="Agent DevUI" relationship="label">
+          <Button
+            appearance="subtle"
+            size="small"
+            icon={<Wrench20Regular />}
+            className={classes.themeBtn}
+            onClick={() => window.open(DEVUI_URL, "_blank", "noopener,noreferrer")}
+          />
         </Tooltip>
         <Tooltip
           content={isDark ? "Switch to light mode" : "Switch to dark mode"}

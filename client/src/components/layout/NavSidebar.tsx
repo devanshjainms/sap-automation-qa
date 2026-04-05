@@ -1,38 +1,42 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   Text,
-  Divider,
   mergeClasses,
 } from "@fluentui/react-components";
 import {
-  Chat24Regular,
   DataBarVertical24Regular,
   ClipboardTask24Regular,
   CalendarClock24Regular,
   BuildingMultiple24Regular,
-  Wrench24Regular,
-  Open16Regular,
+  ChevronDown16Regular,
+  ChevronRight16Regular,
 } from "@fluentui/react-icons";
 import { useApi } from "../../hooks/useApi";
 import { listConversations } from "../../lib/api";
 import { useStyles } from "../../styles/navSidebar.styles";
 
 const NAV_ITEMS = [
-  { to: "/", icon: <Chat24Regular />, label: "New chat", end: true },
   { to: "/dashboard", icon: <DataBarVertical24Regular />, label: "Dashboard", end: false },
   { to: "/jobs", icon: <ClipboardTask24Regular />, label: "Jobs", end: false },
   { to: "/schedules", icon: <CalendarClock24Regular />, label: "Schedules", end: false },
   { to: "/workspaces", icon: <BuildingMultiple24Regular />, label: "Workspaces", end: false },
 ] as const;
 
-const DEVUI_URL = `${window.location.protocol}//${window.location.hostname}:8080`;
+const INITIAL_VISIBLE = 10;
 
 export function NavSidebar() {
   const { data: conversations } = useApi(listConversations, []);
   const classes = useStyles();
+  const [expanded, setExpanded] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+
+  const allChats = conversations ?? [];
+  const visibleChats = allChats.slice(0, visibleCount);
+  const hasMore = allChats.length > visibleCount;
 
   return (
     <nav className={classes.nav}>
@@ -53,57 +57,56 @@ export function NavSidebar() {
         ))}
       </ul>
 
-      <Divider />
-
       <div className={classes.historySection}>
-        <Text
-          size={100}
-          weight="semibold"
-          className={classes.historyTitle}
-          as="p"
+        <button
+          type="button"
+          className={classes.historyToggle}
+          onClick={() => setExpanded((v) => !v)}
         >
-          CHATS
-        </Text>
-        <div className={classes.historyList}>
-          {(conversations ?? []).length === 0 ? (
-            <Text
-              size={200}
-              className={classes.historyEmpty}
-              as="p"
-            >
-              No conversations yet.
-            </Text>
-          ) : (
-            (conversations ?? []).map((c) => (
-              <NavLink
-                key={c.id}
-                to={`/chat/${c.id}`}
-                className={({ isActive }) =>
-                  mergeClasses(
-                    classes.historyItem,
-                    isActive && classes.historyItemActive,
-                  )
-                }
+          {expanded ? <ChevronDown16Regular /> : <ChevronRight16Regular />}
+          <Text size={100} weight="semibold">
+            CHATS
+          </Text>
+        </button>
+        {expanded && (
+          <div className={classes.historyList}>
+            {allChats.length === 0 ? (
+              <Text
+                size={200}
+                className={classes.historyEmpty}
+                as="p"
               >
-                {c.title || `Chat ${c.id.slice(0, 6)}`}
-              </NavLink>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className={classes.footer}>
-        <a
-          href={DEVUI_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={classes.footerLink}
-          title="Open Agent DevUI"
-        >
-          <Wrench24Regular />
-          <span>DevUI</span>
-          <Open16Regular className={classes.externalIcon} />
-        </a>
+                No conversations yet.
+              </Text>
+            ) : (
+              <>
+                {visibleChats.map((c) => (
+                  <NavLink
+                    key={c.id}
+                    to={`/chat/${c.id}`}
+                    className={({ isActive }) =>
+                      mergeClasses(
+                        classes.historyItem,
+                        isActive && classes.historyItemActive,
+                      )
+                    }
+                  >
+                    {c.title || `Chat ${c.id.slice(0, 6)}`}
+                  </NavLink>
+                ))}
+                {hasMore && (
+                  <button
+                    type="button"
+                    className={classes.loadMore}
+                    onClick={() => setVisibleCount((v) => v + INITIAL_VISIBLE)}
+                  >
+                    Load more
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </nav>
   );

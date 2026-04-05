@@ -1,32 +1,32 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-# Stage 1: Build stage — resolve and install deps for Python 3.12
+# syntax=docker/dockerfile:1
+
+# ---------------------------------------------------------------------------
+# Stage 1: Build stage — install Python deps into an isolated venv
+# ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/azurelinux/base/python:3.12 AS builder
 WORKDIR /build
-RUN tdnf update -y && tdnf install -y \
-    gcc \
-    libffi-devel \
-    && tdnf clean all
-COPY requirements.in .
-RUN python3 -m venv /opt/venv \
-    && . /opt/venv/bin/activate \
-    && pip install --no-cache-dir pip-tools \
-    && pip-compile --strip-extras --no-header \
-        -o requirements.lock requirements.in \
-    && pip install --no-cache-dir -r requirements.lock
 
-# Stage 1b: Build frontend
-FROM mcr.microsoft.com/azurelinux/base/nodejs:20 AS frontend
-WORKDIR /client
-COPY client/package.json client/package-lock.json ./
-RUN npm ci --ignore-scripts
-COPY client/ ./
-RUN npm run build
+RUN tdnf install -y gcc libffi-devel && tdnf clean all
 
-# Stage 2: Startup stage
+# Copy only the lockfile — layer is cached until requirements-prod.txt changes
+COPY requirements-prod.txt .
+
+RUN python3 -m venv /opt/venv && . /opt/venv/bin/activate \
+    && pip install --upgrade pip
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    . /opt/venv/bin/activate \
+    && pip install -r requirements-prod.txt
+
+# ---------------------------------------------------------------------------
+# Stage 2: Runtime
+# ---------------------------------------------------------------------------
 FROM mcr.microsoft.com/azurelinux/base/python:3.12
 
+# Layer 1 — OS packages (rarely changes)
 RUN tdnf update -y && tdnf install -y \
     openssh-clients \
     git \
@@ -35,9 +35,14 @@ RUN tdnf update -y && tdnf install -y \
     gawk \
     shadow-utils \
     && tdnf clean all \
-    && ln -sf /usr/bin/python3 /usr/bin/python \
-    && pip install --no-cache-dir azure-cli \
-    && groupadd --gid 1000 appgroup \
+    && ln -sf /usr/bin/python3 /usr/bin/python
+
+# Layer 2 — azure-cli (cached independently from source code changes)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install azure-cli
+
+# Layer 3 — non-root user
+RUN groupadd --gid 1000 appgroup \
     && useradd --uid 1000 --gid appgroup --shell /bin/bash \
         --create-home --home-dir /app appuser \
     && mkdir -p /app/.ssh \
@@ -46,19 +51,19 @@ RUN tdnf update -y && tdnf install -y \
 
 WORKDIR /app
 
-COPY --from=builder /opt/venv /opt/venv
-COPY --from=frontend /client/dist ./static/
-COPY src/ ./src/
-COPY scripts/ ./scripts/
-COPY VERSION ./VERSION
+# Layer 4 — Python venv (changes only when dependencies change)
+COPY --from=builder --chown=appuser:appgroup /opt/venv /opt/venv
+
+# Layer 5 — source code (changes most frequently — keep last)
+COPY --chown=appuser:appgroup src/ ./src/
+COPY --chown=appuser:appgroup scripts/ ./scripts/
+COPY --chown=appuser:appgroup VERSION ./VERSION
 
 ENV PATH="/opt/venv/bin:$PATH"
 ENV VIRTUAL_ENV=/opt/venv
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV HOME=/app
-
-RUN chown -R appuser:appgroup /opt/venv /app
 
 USER appuser
 

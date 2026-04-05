@@ -354,13 +354,14 @@ class TestValidateMany:
         assert results[0].passed is True
         assert results[1].passed is False
 
-    def test_missing_source_fails(self) -> None:
+    def test_missing_source_skipped(self) -> None:
         rules = [_rule(source="sysctl", parameter="a", expected="1")]
         data_map = {}
         results = RuleValidator().validate_many(rules, data_map)
         assert len(results) == 1
-        assert results[0].passed is False
-        assert "no evidence" in results[0].message.lower()
+        assert results[0].passed is True
+        assert results[0].skipped is True
+        assert "skipped" in results[0].message.lower()
 
     def test_mixed_sources(self) -> None:
         rules = [

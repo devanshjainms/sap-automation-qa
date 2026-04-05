@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import pytest
 
-from src.agents.cbr import CbrExtract
+from src.agents.cbr import CbrExtract, InvestigationOutcome
 from src.core.models.failure import FailureClass, Severity
-from src.core.models.knowledge import LearnedPattern
-from src.core.models.triage import TriageFinding, TriageReport
+from src.core.models.knowledge import ExperienceEntry, LearnedPattern
+from src.core.models.triage import TriageFinding, TriageReport, TriageSession
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -81,3 +81,96 @@ class TestCbrExtract:
         pattern = CbrExtract.extract(_report())
         assert isinstance(pattern, LearnedPattern)
         assert pattern.id.startswith("LP-")
+
+
+# ---------------------------------------------------------------------------
+# InvestigationOutcome
+# ---------------------------------------------------------------------------
+
+
+class TestInvestigationOutcome:
+    def test_values(self):
+        assert InvestigationOutcome.CORRECT.value == "correct"
+        assert InvestigationOutcome.PARTIAL.value == "partial"
+        assert InvestigationOutcome.INCORRECT.value == "incorrect"
+
+    def test_parse_valid(self):
+        assert InvestigationOutcome("correct") == InvestigationOutcome.CORRECT
+        assert InvestigationOutcome("partial") == InvestigationOutcome.PARTIAL
+        assert InvestigationOutcome("incorrect") == InvestigationOutcome.INCORRECT
+
+    def test_parse_invalid_raises(self):
+        with pytest.raises(ValueError):
+            InvestigationOutcome("invalid")
+
+
+# ---------------------------------------------------------------------------
+# build_experience
+# ---------------------------------------------------------------------------
+
+
+def _session_with_report() -> TriageSession:
+    """Build a TriageSession with a completed report."""
+    session = TriageSession(workspace_id="PRD-01")
+    session.start_collection()
+    session.complete_collection([])
+    report = _report()
+    session.complete_analysis(report)
+    return session
+
+
+class TestBuildExperience:
+    def test_correct_outcome(self):
+        session = _session_with_report()
+        exp = CbrExtract.build_experience(
+            session=session,
+            outcome=InvestigationOutcome.CORRECT,
+            root_cause_found=True,
+        )
+        assert isinstance(exp, ExperienceEntry)
+        assert exp.session_id == str(session.id)
+        assert exp.system_id == "PRD-01"
+        assert exp.trigger == "agent_investigation"
+        assert exp.resolution_applied is True
+        assert exp.operator_feedback == "correct"
+        assert exp.root_cause_found is True
+
+    def test_partial_outcome(self):
+        session = _session_with_report()
+        exp = CbrExtract.build_experience(
+            session=session,
+            outcome=InvestigationOutcome.PARTIAL,
+        )
+        assert exp.resolution_applied is False
+        assert exp.operator_feedback == "partial"
+        assert exp.root_cause_found is False
+
+    def test_incorrect_outcome(self):
+        session = _session_with_report()
+        exp = CbrExtract.build_experience(
+            session=session,
+            outcome=InvestigationOutcome.INCORRECT,
+        )
+        assert exp.resolution_applied is False
+        assert exp.operator_feedback == "incorrect"
+
+    def test_no_report(self):
+        session = TriageSession(workspace_id="DEV-01")
+        exp = CbrExtract.build_experience(
+            session=session,
+            outcome=InvestigationOutcome.CORRECT,
+        )
+        assert exp.duration_seconds == 0.0
+        assert exp.rules_fired == 0
+        assert exp.rules_failed == 0
+
+    def test_report_fields_propagated(self):
+        session = _session_with_report()
+        exp = CbrExtract.build_experience(
+            session=session,
+            outcome=InvestigationOutcome.CORRECT,
+        )
+        report = session.report
+        assert exp.duration_seconds == report.duration_seconds
+        assert exp.rules_fired == report.rules_evaluated
+        assert exp.rules_failed == report.finding_count

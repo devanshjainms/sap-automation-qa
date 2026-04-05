@@ -97,20 +97,15 @@ class LearningPipeline:
         :param gaps: Optional knowledge gaps identified during triage.
         :returns: The stored (new or reinforced) learned pattern.
         """
-        # Step 1: Consolidate (de-duplicate)
         pattern = self._consolidate(candidate)
 
-        # Step 2: Revise (outcome-weighted confidence update)
         pattern = self._revise(pattern, experience)
 
-        # Step 3: Store (SQLite + embedding)
         self._store.save_learned_pattern(pattern)
         self._embed(pattern)
 
-        # Step 4: Link
         self._link(pattern)
 
-        # Step 5: Log
         self._store.log_experience(experience)
         for gap in gaps or []:
             self._store.log_gap(gap)
@@ -139,19 +134,16 @@ class LearningPipeline:
         best = existing[0]
 
         if best.relevance >= _NEAR_DUPLICATE_THRESHOLD:
-            # Near-duplicate: reinforce existing pattern
             assert isinstance(best.item, LearnedPattern)
             return self._reinforce(best.item, candidate)
 
         if best.relevance >= _RELATED_THRESHOLD:
-            # Related: store as new, cross-reference
             if best.item_id not in candidate.related_patterns:
                 updated = candidate.model_dump()
                 updated["related_patterns"] = candidate.related_patterns + [best.item_id]
                 updated["confidence"] = _INITIAL_CONFIDENCE
                 return LearnedPattern.model_validate(updated)
 
-        # Novel: store with initial confidence
         candidate_dict = candidate.model_dump()
         candidate_dict["confidence"] = _INITIAL_CONFIDENCE
         return LearnedPattern.model_validate(candidate_dict)

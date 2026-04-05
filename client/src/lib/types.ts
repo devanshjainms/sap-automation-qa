@@ -66,9 +66,34 @@ export interface Conversation {
   updated_at: string;
 }
 
+export interface ToolCall {
+  name: string;
+  args: string;
+  result: string;
+}
+
+export interface ToolMeta {
+  name: string;
+  title: string;
+  description: string;
+  annotations: {
+    readOnlyHint: boolean | null;
+    destructiveHint: boolean | null;
+    idempotentHint: boolean | null;
+    openWorldHint: boolean | null;
+  } | null;
+  icons: { src: string }[];
+}
+
+export type MessagePart =
+  | { type: "text"; content: string }
+  | { type: "tool_call"; toolCall: ToolCall };
+
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system" | "tool_call" | "tool_result";
   content: string;
   timestamp: string;
+  toolCalls?: ToolCall[];
+  parts?: MessagePart[];
 }

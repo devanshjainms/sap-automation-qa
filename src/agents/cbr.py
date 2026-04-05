@@ -10,12 +10,26 @@ After a triage session completes, ``CbrExtract`` builds a
 """
 
 from __future__ import annotations
+import enum
 import logging
 from uuid import uuid4
-from src.core.models.knowledge import LearnedPattern
-from src.core.models.triage import TriageReport
+from src.core.models.knowledge import ExperienceEntry, LearnedPattern
+from src.core.models.triage import TriageReport, TriageSession
 
 logger = logging.getLogger(__name__)
+
+
+class InvestigationOutcome(enum.Enum):
+    """Operator-reported outcome of an investigation.
+
+    :cvar CORRECT: The investigation was accurate and useful.
+    :cvar PARTIAL: The investigation was partially correct.
+    :cvar INCORRECT: The investigation was wrong or misleading.
+    """
+
+    CORRECT = "correct"
+    PARTIAL = "partial"
+    INCORRECT = "incorrect"
 
 
 class CbrExtract:
@@ -78,3 +92,30 @@ class CbrExtract:
         if fixes:
             score += 0.25
         return score
+
+    @staticmethod
+    def build_experience(
+        session: TriageSession,
+        outcome: InvestigationOutcome,
+        root_cause_found: bool = False,
+    ) -> ExperienceEntry:
+        """Build an :class:`ExperienceEntry` from a session + operator feedback.
+
+        :param session: Completed triage session.
+        :param outcome: Operator-reported result quality.
+        :param root_cause_found: Whether a root cause was identified.
+        :returns: Experience entry for the learning pipeline.
+        """
+        report = session.report
+        return ExperienceEntry(
+            session_id=str(session.id),
+            system_id=session.workspace_id,
+            trigger="agent_investigation",
+            duration_seconds=report.duration_seconds if report else 0.0,
+            patterns_matched=[],
+            rules_fired=report.rules_evaluated if report else 0,
+            rules_failed=report.finding_count if report else 0,
+            root_cause_found=root_cause_found,
+            resolution_applied=(outcome == InvestigationOutcome.CORRECT),
+            operator_feedback=outcome.value,
+        )

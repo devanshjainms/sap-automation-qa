@@ -67,14 +67,12 @@ def _classify_failure(rule: Rule) -> FailureClass:
     :param rule: The rule that failed validation.
     :returns: Best-guess failure classification.
     """
-    # Check tags first (more specific)
     for tag in rule.tags:
         tag_lower = tag.lower()
         for keyword, fc in _TAG_TO_FAILURE.items():
             if keyword in tag_lower:
                 return fc
 
-    # Fall back to category
     category_lower = rule.category.lower()
     for keyword, fc in _CATEGORY_TO_FAILURE.items():
         if keyword in category_lower:
@@ -129,6 +127,9 @@ class ReportBuilder:
         findings = self._build_findings(results, rule_map)
         summary = self._build_summary(findings, len(results))
 
+        skipped = sum(1 for r in results if r.skipped)
+        passed = sum(1 for r in results if r.passed and not r.skipped)
+
         return TriageReport(
             session_id=session_id,
             workspace_id=workspace_id,
@@ -136,6 +137,8 @@ class ReportBuilder:
             summary=summary,
             evidence_count=evidence_count,
             rules_evaluated=len(results),
+            rules_passed=passed,
+            rules_skipped=skipped,
             duration_seconds=duration_seconds,
         )
 
@@ -146,13 +149,16 @@ class ReportBuilder:
     ) -> list[TriageFinding]:
         """Convert failed validation results into findings.
 
+        Skipped results (missing evidence source) are excluded —
+        they are tracked separately in the report counts.
+
         :param results: All validation results.
         :param rule_map: Lookup map for rule metadata.
-        :returns: Findings for failed validations only.
+        :returns: Findings for actual failures only.
         """
         findings: list[TriageFinding] = []
         for result in results:
-            if result.passed:
+            if result.passed or result.skipped:
                 continue
             rule = rule_map.get(result.rule_id)
             finding = self._result_to_finding(result, rule)

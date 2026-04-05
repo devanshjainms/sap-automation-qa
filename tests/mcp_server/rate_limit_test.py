@@ -17,7 +17,6 @@ from starlette.testclient import TestClient
 
 from src.mcp_server.rate_limit import McpRateLimiter, _TokenBucket
 
-
 # ---------------------------------------------------------------------------
 # _TokenBucket unit tests
 # ---------------------------------------------------------------------------
@@ -78,6 +77,7 @@ class TestTokenBucket:
 # ---------------------------------------------------------------------------
 # McpRateLimiter middleware tests
 # ---------------------------------------------------------------------------
+
 
 async def _ok(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})

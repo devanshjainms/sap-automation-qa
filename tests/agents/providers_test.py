@@ -13,7 +13,6 @@ from src.agents.providers import (
     FunctionTool,
 )
 
-
 # ---------------------------------------------------------------------------
 # MessageRole (still live in core/models/conversation.py)
 # ---------------------------------------------------------------------------

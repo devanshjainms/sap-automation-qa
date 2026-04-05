@@ -33,6 +33,7 @@ pandas
 
 # Vector search
 sqlite-vec
+pysqlite3-binary
 
 # Core utilities
 jmespath

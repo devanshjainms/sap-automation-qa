@@ -19,7 +19,13 @@ from src.core.knowledge.retrieval import (
 from src.core.models.embedding import EmbeddingProvider
 from src.core.storage.embedding_store import EmbeddingStore
 from src.core.storage.knowledge_store import KnowledgeStore
-from src.core.models.knowledge import LearnedPattern, Playbook, Rule
+from src.core.models.knowledge import (
+    EvidenceCollectorDef,
+    LearnedPattern,
+    Playbook,
+    Reference,
+    Rule,
+)
 from src.core.models.system import Applicability, SystemProperties
 
 DIMS = 4
@@ -486,3 +492,231 @@ class TestProtocolConformance:
     def test_fake_provider_satisfies_protocol(self, emb_provider: _FakeEmbeddingProvider) -> None:
         """_FakeEmbeddingProvider must be a valid EmbeddingProvider."""
         assert isinstance(emb_provider, EmbeddingProvider)
+
+
+class TestSearchEvidenceDefinitions:
+    """Tests for evidence definition search and scoring."""
+
+    def test_keyword_ranking(
+        self, store: KnowledgeStore, retriever: HybridRetriever
+    ) -> None:
+        """Evidence definitions matching query keywords rank higher."""
+        store.save_evidence_definition(
+            EvidenceCollectorDef(
+                id="EC-HANA-SR",
+                name="hana_sr_attributes",
+                description="SAP HANA system replication",
+                command="SAPHanaSR-showAttr",
+                tags=["hana", "hsr", "replication"],
+            )
+        )
+        store.save_evidence_definition(
+            EvidenceCollectorDef(
+                id="EC-DF",
+                name="filesystem_usage",
+                description="Filesystem disk usage",
+                command="df -hT",
+                tags=["filesystem", "storage"],
+            )
+        )
+        results = retriever.search_evidence_definitions(query="hana replication")
+        assert results[0].item_id == "EC-HANA-SR"
+        assert results[0].relevance > results[1].relevance
+
+    def test_empty_query_returns_all(
+        self, store: KnowledgeStore, retriever: HybridRetriever
+    ) -> None:
+        """Empty query returns all definitions with relevance=1.0."""
+        store.save_evidence_definition(
+            EvidenceCollectorDef(id="EC-1", name="a")
+        )
+        store.save_evidence_definition(
+            EvidenceCollectorDef(id="EC-2", name="b")
+        )
+        results = retriever.search_evidence_definitions(query="")
+        assert len(results) == 2
+        assert all(r.relevance == 1.0 for r in results)
+
+    def test_limit(
+        self, store: KnowledgeStore, retriever: HybridRetriever
+    ) -> None:
+        """Limit parameter caps results."""
+        for i in range(10):
+            store.save_evidence_definition(
+                EvidenceCollectorDef(id=f"EC-{i}", name=f"def {i}")
+            )
+        results = retriever.search_evidence_definitions(limit=3)
+        assert len(results) == 3
+
+    def test_command_text_included_in_scoring(
+        self, store: KnowledgeStore, retriever: HybridRetriever
+    ) -> None:
+        """The command field contributes to keyword matching."""
+        store.save_evidence_definition(
+            EvidenceCollectorDef(
+                id="EC-CRM",
+                name="cluster_status",
+                command="crm_mon -1rR",
+                tags=["pacemaker"],
+            )
+        )
+        store.save_evidence_definition(
+            EvidenceCollectorDef(
+                id="EC-IP",
+                name="network",
+                command="ip addr show",
+                tags=["network"],
+            )
+        )
+        results = retriever.search_evidence_definitions(query="crm_mon pacemaker")
+        assert results[0].item_id == "EC-CRM"
+
+    def test_vector_ranking(
+        self,
+        store: KnowledgeStore,
+        emb_store: EmbeddingStore,
+        emb_provider: _FakeEmbeddingProvider,
+        vec_retriever: HybridRetriever,
+    ) -> None:
+        """Evidence definitions use vector similarity when available."""
+        store.save_evidence_definition(
+            EvidenceCollectorDef(
+                id="EC-HANA",
+                name="hana check",
+                tags=["hana"],
+            )
+        )
+        store.save_evidence_definition(
+            EvidenceCollectorDef(
+                id="EC-SCS",
+                name="scs check",
+                tags=["scs"],
+            )
+        )
+        emb_store.store("EC-HANA", "evidence", emb_provider.embed("hana"))
+        emb_store.store("EC-SCS", "evidence", emb_provider.embed("scs"))
+
+        results = vec_retriever.search_evidence_definitions(query="hana")
+        assert results[0].item_id == "EC-HANA"
+
+
+class TestSearchReferences:
+    """Tests for reference search and category filtering."""
+
+    def test_keyword_ranking(
+        self, store: KnowledgeStore, retriever: HybridRetriever
+    ) -> None:
+        """References matching query rank higher."""
+        store.save_reference(
+            Reference(
+                id="REF-SBD",
+                title="SBD Log",
+                category="log_file",
+                failure_classes=["FENCING_NOT_TRIGGERED"],
+                summary="SBD fencing watchdog",
+                tags=["sbd", "fencing"],
+            )
+        )
+        store.save_reference(
+            Reference(
+                id="REF-NFS",
+                title="NFS Config",
+                category="azure_doc",
+                summary="ANF NFS mount options",
+                tags=["nfs", "anf"],
+            )
+        )
+        results = retriever.search_references(query="fencing sbd watchdog")
+        assert results[0].item_id == "REF-SBD"
+        assert results[0].relevance > results[1].relevance
+
+    def test_category_filter(
+        self, store: KnowledgeStore, retriever: HybridRetriever
+    ) -> None:
+        """Category filter restricts to matching references."""
+        store.save_reference(
+            Reference(id="LOG-1", title="Pacemaker Log", category="log_file")
+        )
+        store.save_reference(
+            Reference(id="DOC-1", title="Azure Doc", category="azure_doc")
+        )
+        results = retriever.search_references(category="log_file")
+        assert len(results) == 1
+        assert results[0].item_id == "LOG-1"
+
+    def test_empty_query_returns_all(
+        self, store: KnowledgeStore, retriever: HybridRetriever
+    ) -> None:
+        """Empty query with no category returns all references."""
+        store.save_reference(Reference(id="R-1", title="a"))
+        store.save_reference(Reference(id="R-2", title="b"))
+        results = retriever.search_references(query="")
+        assert len(results) == 2
+
+    def test_failure_classes_in_scoring(
+        self, store: KnowledgeStore, retriever: HybridRetriever
+    ) -> None:
+        """failure_classes text contributes to keyword matching."""
+        store.save_reference(
+            Reference(
+                id="REF-FENCE",
+                title="Fence Agent Log",
+                failure_classes=["FENCING_NOT_TRIGGERED", "AZURE_API_FAILURE"],
+                summary="Azure fence agent log",
+                tags=["azure", "fencing"],
+            )
+        )
+        store.save_reference(
+            Reference(
+                id="REF-KERNEL",
+                title="Kernel Messages",
+                failure_classes=["NODE_CRASH", "NFS_TIMEOUT"],
+                summary="Kernel ring buffer",
+                tags=["kernel", "dmesg"],
+            )
+        )
+        results = retriever.search_references(
+            query="FENCING_NOT_TRIGGERED azure"
+        )
+        assert results[0].item_id == "REF-FENCE"
+
+    def test_limit(
+        self, store: KnowledgeStore, retriever: HybridRetriever
+    ) -> None:
+        """Limit parameter caps results."""
+        for i in range(10):
+            store.save_reference(
+                Reference(id=f"R-{i}", title=f"ref {i}", category="log_file")
+            )
+        results = retriever.search_references(limit=5)
+        assert len(results) == 5
+
+    def test_vector_ranking(
+        self,
+        store: KnowledgeStore,
+        emb_store: EmbeddingStore,
+        emb_provider: _FakeEmbeddingProvider,
+        vec_retriever: HybridRetriever,
+    ) -> None:
+        """References use vector similarity when available."""
+        store.save_reference(
+            Reference(
+                id="REF-HANA",
+                title="HANA Trace",
+                category="log_file",
+                tags=["hana"],
+            )
+        )
+        store.save_reference(
+            Reference(
+                id="REF-SCS",
+                title="SCS Log",
+                category="log_file",
+                tags=["scs"],
+            )
+        )
+        emb_store.store("REF-HANA", "reference", emb_provider.embed("hana"))
+        emb_store.store("REF-SCS", "reference", emb_provider.embed("scs"))
+
+        results = vec_retriever.search_references(query="hana")
+        assert results[0].item_id == "REF-HANA"

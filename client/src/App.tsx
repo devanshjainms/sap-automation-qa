@@ -10,6 +10,7 @@ import { Jobs } from "./pages/Jobs";
 import { JobDetailPage } from "./pages/JobDetailPage";
 import { Schedules } from "./pages/Schedules";
 import { Workspaces } from "./pages/Workspaces";
+import { Status } from "./pages/Status";
 
 export function App() {
   return (
@@ -24,6 +25,7 @@ export function App() {
             <Route path="jobs/:id" element={<JobDetailPage />} />
             <Route path="schedules" element={<Schedules />} />
             <Route path="workspaces" element={<Workspaces />} />
+            <Route path="status" element={<Status />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -328,36 +328,36 @@ class TestStaticHelpers:
     @pytest.mark.parametrize(
         "source_vm, container, server_name, expected",
         [
-            ("", "HanaHSRContainer;hsrtestxn02", "n02dhdb00a5678", True),
+            ("", "HanaHSRContainer;hsrdjwp2r11", "r11dhdb00l130", True),
             ("", "VMAppContainer;Compute;rg;vm", "hanavm01", True),
             (
-                "testx-eus2-sap99-n01_n01dhdb_z1_00a1234",
-                "VMAppContainer;compute;testx-eus2-sap99-n01;"
-                "testx-eus2-sap99-n01_n01dhdb_z1_00a1234",
-                "n01dhdb00a1234",
+                "djwp2-sece-sap01-r06_r06dhdb_z1_00l0974",
+                "VMAppContainer;compute;djwp2-sece-sap01-r06;"
+                "djwp2-sece-sap01-r06_r06dhdb_z1_00l0974",
+                "r06dhdb00l097",
                 True,
             ),
             (
-                "testx-eus2-sap99-n01_n01dhdb_z1_00a1234",
+                "djwp2-sece-sap01-r06_r06dhdb_z1_00l0974",
                 "VMAppContainer;compute;other-rg;some-other-vm",
                 "othervm01",
                 False,
             ),
             (
-                "testx-eus2-sap99-n01_n01dhdb_z1_00a1234",
-                "HanaHSRContainer;hsrtestxn01",
-                "n01dhdb00a1234",
+                "djwp2-sece-sap01-r06_r06dhdb_z1_00l0974",
+                "HanaHSRContainer;hsrdjwp2r06",
+                "r06dhdb00l097",
                 True,
             ),
             (
-                "testx-eus2-sap99-n01_n01dhdb_z1_00a1234",
-                "HanaHSRContainer;hsrtestxn02",
-                "n02dhdb00a5678",
+                "djwp2-sece-sap01-r06_r06dhdb_z1_00l0974",
+                "HanaHSRContainer;hsrdjwp2r11",
+                "r11dhdb00l130",
                 False,
             ),
             (
-                "testx-eus2-sap99-n01_n01dhdb_z1_00a1234",
-                "HanaHSRContainer;hsrtestxn01",
+                "djwp2-sece-sap01-r06_r06dhdb_z1_00l0974",
+                "HanaHSRContainer;hsrdjwp2r06",
                 "",
                 False,
             ),

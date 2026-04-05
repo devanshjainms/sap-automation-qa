@@ -112,20 +112,12 @@ class TestDeterministicFormat:
 
     def test_failure_class_displayed(self):
         fmt = ReportFormatter()
-        md = fmt.format(
-            _report(
-                findings=[
-                    _finding(failure_class=FailureClass.NETWORK_ISOLATION)
-                ]
-            )
-        )
+        md = fmt.format(_report(findings=[_finding(failure_class=FailureClass.NETWORK_ISOLATION)]))
         assert "network_isolation" in md.lower()
 
     def test_unknown_failure_class_hidden(self):
         fmt = ReportFormatter()
-        md = fmt.format(
-            _report(findings=[_finding(failure_class=FailureClass.UNKNOWN)])
-        )
+        md = fmt.format(_report(findings=[_finding(failure_class=FailureClass.UNKNOWN)]))
         assert "Failure class" not in md
 
 
@@ -198,9 +190,7 @@ class TestFindingsAsText:
         assert text == "No findings."
 
     def test_findings_serialized(self):
-        text = ReportFormatter._findings_as_text(
-            _report(findings=[_finding()])
-        )
+        text = ReportFormatter._findings_as_text(_report(findings=[_finding()]))
         assert "HIGH" in text
         assert "Test finding" in text
         assert "Fix step 1" in text

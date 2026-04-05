@@ -1,0 +1,22 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Pre-pulls the embedding model so it is baked into the image.
+FROM ollama/ollama:latest
+
+ARG EMBEDDING_MODEL=nomic-embed-text
+
+# Install curl for healthcheck and build-time readiness probe.
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Start the server in the background, pull the model, then stop.
+RUN ollama serve & \
+    SERVER_PID=$! && \
+    for i in $(seq 1 30); do \
+        curl -sf http://localhost:11434/api/tags > /dev/null 2>&1 && break; \
+        sleep 1; \
+    done && \
+    ollama pull "${EMBEDDING_MODEL}" && \
+    kill $SERVER_PID && \
+    wait $SERVER_PID 2>/dev/null || true

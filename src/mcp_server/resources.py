@@ -65,7 +65,6 @@ def get_workspace_config(
 
     content = config_path.read_text(encoding="utf-8")
 
-    # Parse and return as structured JSON for easier LLM consumption
     try:
         data = yaml.safe_load(content) or {}
         return json.dumps(data, indent=2, default=str)

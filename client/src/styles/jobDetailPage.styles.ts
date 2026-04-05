@@ -5,8 +5,11 @@ import { makeStyles, tokens } from "@fluentui/react-components";
 
 export const useStyles = makeStyles({
   page: {
-    maxWidth: "56rem",
-    padding: tokens.spacingHorizontalXL,
+    maxWidth: "960px",
+    width: "100%",
+    marginLeft: "auto",
+    marginRight: "auto",
+    padding: `${tokens.spacingVerticalXL} ${tokens.spacingHorizontalXL}`,
   },
   breadcrumb: {
     display: "flex",

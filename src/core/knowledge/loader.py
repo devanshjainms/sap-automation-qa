@@ -58,7 +58,6 @@ class JsonlLoader:
                     data = json.loads(stripped)
                     items.append(model.model_validate(data))
                 except (json.JSONDecodeError, ValueError):
-                    # Skip malformed lines — logged but not fatal
                     continue
         return items
 

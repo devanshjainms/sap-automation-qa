@@ -197,8 +197,6 @@ class SCSClusterStatusChecker(BaseClusterStatusChecker):
                                 result["ascs_node"] = node_name
                             break
 
-            # If node attributes do not report correct ASCS/ERS nodes, exit
-            # and return empty values
             if result["ascs_node"] == "" and result["ers_node"] == "":
                 return self.result
 

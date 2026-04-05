@@ -3,9 +3,10 @@
 
 """Chat API routes — conversation CRUD and message exchange."""
 
+import json
 import logging
 from typing import Any, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from src.core.services.chat import ChatService
 from src.core.models.conversation import (
@@ -16,6 +17,7 @@ from src.core.models.conversation import (
     SendMessageRequest,
 )
 from src.core.storage.conversation_store import ConversationStore
+from src.mcp_server.server import mcp
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -72,8 +74,110 @@ def _summarize(conv: Conversation) -> dict[str, Any]:
 
 
 def _detail(conv: Conversation) -> dict[str, Any]:
-    """Serialize a Conversation with full message history."""
-    return conv.model_dump(mode="json", exclude={"metadata"})
+    """Serialize a Conversation with full message history.
+
+    Extracts interleaved ``parts`` (text + tool calls in order) from
+    ``metadata.af_messages`` so the frontend can render them one after
+    the other — similar to GitHub Copilot's sequential tool display.
+    """
+    data = conv.model_dump(mode="json", exclude={"metadata"})
+    for msg in data.get("messages", []):
+        msg.pop("metadata", None)
+    for conv_msg, api_msg in zip(conv.messages, data.get("messages", [])):
+        if conv_msg.role != MessageRole.ASSISTANT:
+            continue
+        parts = _extract_parts(conv_msg.metadata)
+        if parts:
+            api_msg["parts"] = parts
+            api_msg["toolCalls"] = [p["toolCall"] for p in parts if p["type"] == "tool_call"]
+    data["tools"] = _get_tool_metadata()
+    return data
+
+
+def _get_tool_metadata() -> list[dict[str, Any]]:
+    """Read MCP tool metadata — single source of truth from decorators.
+
+    :returns: List of ``{name, title, description, annotations, icons}``
+        dicts, or empty list if the MCP server is not loaded.
+    """
+    try:
+        tools = mcp._tool_manager.list_tools()
+        result = []
+        for t in sorted(tools, key=lambda x: x.name):
+            annotations = None
+            if t.annotations:
+                annotations = {
+                    "readOnlyHint": t.annotations.readOnlyHint,
+                    "destructiveHint": t.annotations.destructiveHint,
+                    "idempotentHint": t.annotations.idempotentHint,
+                    "openWorldHint": t.annotations.openWorldHint,
+                }
+            icons = []
+            if t.icons:
+                icons = [{"src": icon.src} for icon in t.icons]
+            result.append(
+                {
+                    "name": t.name,
+                    "title": t.title or t.name,
+                    "description": t.description or "",
+                    "annotations": annotations,
+                    "icons": icons,
+                }
+            )
+        return result
+    except Exception:
+        logger.debug("Could not load MCP tool metadata", exc_info=True)
+        return []
+
+
+def _extract_parts(metadata: dict) -> list[dict[str, Any]]:
+    """Build an interleaved list of text and tool-call parts from af_messages.
+
+    Walks the AF message sequence in order and emits:
+    * ``{"type": "text", "content": "..."}`` for text blocks
+    * ``{"type": "tool_call", "toolCall": {"name", "args", "result"}}``
+
+    :param metadata: Message metadata dict.
+    :returns: Ordered list of parts the frontend renders sequentially.
+    """
+    if not metadata:
+        return []
+    af_msgs = metadata.get("af_messages", [])
+    if not af_msgs:
+        return []
+
+    results_by_id: dict[str, str] = {}
+    for m in af_msgs:
+        for c in m.get("contents", []):
+            if c.get("type") == "function_result" and c.get("call_id"):
+                result = c.get("result", "")
+                if isinstance(result, dict):
+                    result = json.dumps(result, indent=2)
+                results_by_id[c["call_id"]] = str(result)[:2000]
+
+    parts: list[dict[str, Any]] = []
+    for m in af_msgs:
+        if m.get("role") != "assistant":
+            continue
+        for c in m.get("contents", []):
+            ctype = c.get("type")
+            if ctype == "text":
+                text = c.get("text", "").strip()
+                if text:
+                    parts.append({"type": "text", "content": text})
+            elif ctype == "function_call":
+                call_id = c.get("call_id", "")
+                parts.append(
+                    {
+                        "type": "tool_call",
+                        "toolCall": {
+                            "name": c.get("name", ""),
+                            "args": c.get("arguments", ""),
+                            "result": results_by_id.get(call_id, ""),
+                        },
+                    }
+                )
+    return parts
 
 
 @router.post("", status_code=201)
@@ -93,7 +197,7 @@ async def create_conversation(
 
 @router.get("")
 async def list_conversations(
-    workspace_id: str = Query(..., description="Filter by workspace"),
+    workspace_id: str = Query(None, description="Filter by workspace"),
     include_archived: bool = Query(False, description="Include archived"),
     limit: int = Query(50, ge=1, le=200, description="Max results"),
 ) -> dict[str, Any]:
@@ -102,17 +206,21 @@ async def list_conversations(
     :param workspace_id: Workspace to list conversations for.
     :param include_archived: Whether to include archived conversations.
     :param limit: Maximum results.
-    :returns: List of conversations.
+    :returns: Paginated response with total count and conversations.
     """
-    conversations = get_conversation_store().list_conversations(
-        workspace_id=workspace_id,
-        include_archived=include_archived,
-        limit=limit,
-    )
-    return {
-        "conversations": [_summarize(c) for c in conversations],
-        "total": len(conversations),
-    }
+    if workspace_id is None:
+        conversations = get_conversation_store().list_all(
+            include_archived=include_archived,
+            limit=limit,
+        )
+    else:
+        conversations = get_conversation_store().list_conversations(
+            workspace_id=workspace_id,
+            include_archived=include_archived,
+            limit=limit,
+        )
+    items = [_summarize(c) for c in conversations]
+    return {"total": len(items), "conversations": items}
 
 
 @router.get("/{conversation_id}")
@@ -189,6 +297,31 @@ async def send_message(
     )
     store.add_message(conversation_id, assistant_msg)
     return assistant_msg.model_dump(mode="json", exclude={"metadata"})
+
+
+@router.post("/{conversation_id}/messages/save", status_code=201)
+async def save_message(
+    conversation_id: str,
+    request: Request,
+) -> dict[str, str]:
+    """Save a message without running the agent.
+
+    Used by AG-UI flow to persist messages to ConversationStore.
+
+    :param conversation_id: Conversation to save the message in.
+    :param request: JSON body with ``role`` and ``content``.
+    :returns: Acknowledgement.
+    """
+    store = get_conversation_store()
+    conv = store.get(conversation_id)
+    if conv is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    body = await request.json()
+    role_str = body.get("role", "user")
+    content = body.get("content", "")
+    role = MessageRole.USER if role_str == "user" else MessageRole.ASSISTANT
+    store.add_message(conversation_id, Message(role=role, content=content))
+    return {"status": "saved"}
 
 
 @router.post("/{conversation_id}/messages/stream")

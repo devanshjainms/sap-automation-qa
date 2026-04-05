@@ -9,6 +9,7 @@ import yaml
 from fastapi import APIRouter, HTTPException
 from src.core.observability import get_logger
 from src.core.models.workspace import WorkspaceInfo, WorkspaceListResponse
+from src.core.services.workspace_discovery import load_workspaces_from_directory
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
@@ -28,47 +29,14 @@ def set_workspace_loader(loader: Callable[[str], Dict[str, Any]]) -> None:
 def _load_workspaces_from_directory(base_dir: str = "WORKSPACES/SYSTEM") -> List[WorkspaceInfo]:
     """Load workspaces from WORKSPACES/SYSTEM directory structure.
 
+    .. deprecated:: Use :func:`src.core.services.workspace_discovery.load_workspaces_from_directory`.
+
     :param base_dir: Base directory containing workspace subdirectories.
     :type base_dir: str
     :returns: List of discovered workspace information.
     :rtype: List[WorkspaceInfo]
     """
-    workspaces = []
-    base_path = Path(base_dir)
-
-    if not base_path.exists():
-        logger.warning(f"Workspaces directory not found: {base_dir}")
-        return workspaces
-
-    for workspace_dir in base_path.iterdir():
-        if not workspace_dir.is_dir() or workspace_dir.name.startswith("."):
-            continue
-        hosts_file = workspace_dir / "hosts.yaml"
-        params_file = workspace_dir / "sap-parameters.yaml"
-
-        if not hosts_file.exists() and not params_file.exists():
-            continue
-
-        sap_sid = ""
-
-        if params_file.exists():
-            try:
-                with open(params_file) as f:
-                    params = yaml.safe_load(f) or {}
-                sap_sid = params.get("sap_sid", "")
-            except Exception as e:
-                logger.warning(f"Failed to load sap-parameters for {workspace_dir.name}: {e}")
-
-        workspaces.append(
-            WorkspaceInfo(
-                id=workspace_dir.name,
-                name=sap_sid or workspace_dir.name,
-                environment=workspace_dir.name.split("-")[0] if "-" in workspace_dir.name else "",
-                path=str(workspace_dir),
-            )
-        )
-
-    return workspaces
+    return load_workspaces_from_directory(base_dir)
 
 
 @router.get("", response_model=WorkspaceListResponse)

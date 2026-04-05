@@ -47,18 +47,29 @@ export const useStyles = makeStyles({
     },
   },
   historySection: {
-    flex: "1",
     display: "flex",
     flexDirection: "column",
     paddingLeft: tokens.spacingHorizontalXS,
     paddingRight: tokens.spacingHorizontalXS,
-    paddingTop: tokens.spacingVerticalXS,
+    paddingTop: tokens.spacingVerticalS,
     overflowY: "auto",
     minHeight: 0,
+    flex: "1",
   },
-  historyTitle: {
+  historyToggle: {
+    display: "flex",
+    alignItems: "center",
+    gap: tokens.spacingHorizontalXS,
     paddingLeft: tokens.spacingHorizontalM,
     paddingBottom: tokens.spacingVerticalXS,
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase100,
+    ":hover": {
+      color: tokens.colorNeutralForeground1,
+    },
   },
   historyList: {
     display: "flex",
@@ -67,6 +78,7 @@ export const useStyles = makeStyles({
   },
   historyEmpty: {
     padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalM}`,
+    color: tokens.colorNeutralForeground4,
   },
   historyItem: {
     display: "block",
@@ -89,30 +101,23 @@ export const useStyles = makeStyles({
     color: tokens.colorBrandForeground1,
     fontWeight: tokens.fontWeightSemibold,
   },
-  footer: {
-    marginTop: "auto",
-    padding: tokens.spacingHorizontalXS,
-    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
-  },
-  footerLink: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+  loadMore: {
+    display: "block",
+    width: "100%",
+    padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalM}`,
+    marginTop: tokens.spacingVerticalXXS,
+    background: "none",
+    border: "none",
     borderRadius: tokens.borderRadiusMedium,
-    fontSize: tokens.fontSizeBase300,
-    textDecorationLine: "none",
+    fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground3,
+    cursor: "pointer",
+    textAlign: "left",
     transitionProperty: "background-color, color",
     transitionDuration: "150ms",
     ":hover": {
       backgroundColor: tokens.colorNeutralBackground1Hover,
       color: tokens.colorNeutralForeground1,
     },
-  },
-  externalIcon: {
-    marginLeft: "auto",
-    fontSize: "12px",
-    opacity: 0.5,
   },
 });

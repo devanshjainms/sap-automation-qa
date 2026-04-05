@@ -13,7 +13,7 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
-from agent_framework_ag_ui import add_agent_framework_fastapi_endpoint
+from src.agents.ag_ui import register_ag_ui
 from src.core.observability import (
     initialize_logging,
     get_logger,
@@ -39,12 +39,17 @@ from src.api.routes import (
     set_conversation_store,
     set_chat_service,
 )
-from src.agents.ag_ui import create_ag_ui_workflow
+from src.agents.ag_ui import register_ag_ui
 from src.api.routes.health import set_service_status, set_health_service
 from src.core.services.health import HealthService
 from src.api.routes.workspaces import default_workspace_loader
 from src.core.storage.conversation_store import ConversationStore
+from src.core.storage.knowledge_store import KnowledgeStore
+from src.core.storage.embedding_store import EmbeddingStore
+from src.core.knowledge.retrieval import HybridRetriever
 from src.core.services.mcp_config_loader import load_mcp_servers_config
+from src.agents.agent import SapAgentFactory
+from src.core.services.chat import ChatService
 
 API_V1_PREFIX = "/api/v1"
 LOG_FORMAT = os.environ.get("LOG_FORMAT", "console")
@@ -63,6 +68,8 @@ AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "")
 AZURE_OPENAI_API_KEY = os.environ.get("AZURE_OPENAI_API_KEY", "")
 AZURE_OPENAI_API_VERSION = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
 STAF_MCP_URL = os.environ.get("STAF_MCP_URL", "http://localhost:8001")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "")
+AZURE_MCP_URL = os.environ.get("AZURE_MCP_URL", "")
 
 telemetry_config = load_telemetry_config()
 initialize_logging(
@@ -71,6 +78,29 @@ initialize_logging(
     telemetry_config=telemetry_config,
 )
 logger = get_logger(__name__)
+
+
+def _build_retriever() -> HybridRetriever | None:
+    """Create a read-only HybridRetriever from the shared knowledge DB.
+
+    The MCP server seeds the database at startup; we only read here.
+    Returns ``None`` if the DB has not been created yet.
+    """
+    kb_path = DATA_DIR / "knowledge.db"
+    if not kb_path.exists():
+        logger.warning("knowledge.db not found — KB injection disabled")
+        return None
+    knowledge_store = KnowledgeStore(db_path=kb_path)
+    embed_path = DATA_DIR / "embeddings.db"
+    embedding_store = None
+    if embed_path.exists():
+        dims = int(os.environ.get("EMBEDDING_DIMENSIONS", "768"))
+        embedding_store = EmbeddingStore(db_path=embed_path, dimensions=dims)
+    return HybridRetriever(
+        store=knowledge_store,
+        embedding_store=embedding_store,
+        embedding_provider=None,
+    )
 
 
 @asynccontextmanager
@@ -128,13 +158,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         set_conversation_store(conversation_store)
         if AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_DEPLOYMENT:
             try:
-                from src.agents.agent import SapAgentFactory
-                from src.core.services.chat import ChatService
-
                 mcp_config = load_mcp_servers_config()
+                retriever = _build_retriever()
                 agent_factory = await SapAgentFactory.create(
                     mcp_url=STAF_MCP_URL.rstrip("/") + "/mcp",
                     mcp_config=mcp_config,
+                    conversation_store=conversation_store,
+                    retriever=retriever,
                     endpoint=AZURE_OPENAI_ENDPOINT,
                     deployment_name=AZURE_OPENAI_DEPLOYMENT,
                     api_key=AZURE_OPENAI_API_KEY or None,
@@ -143,14 +173,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 set_chat_service(ChatService(agent_factory, conversation_store))
                 logger.info("Chat service initialized (agent-driven)")
                 try:
-                    ag_ui_workflow = create_ag_ui_workflow(agent_factory)
-                    add_agent_framework_fastapi_endpoint(
+                    register_ag_ui(
                         app,
-                        ag_ui_workflow,
+                        agent_factory,
                         "/ag-ui",
                         allow_origins=CORS_ORIGINS,
                     )
-                    logger.info("AG-UI endpoint registered at /ag-ui")
                 except Exception:
                     logger.warning(
                         "Failed to register AG-UI endpoint",
@@ -176,6 +204,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 llm_deployment=AZURE_OPENAI_DEPLOYMENT,
                 llm_api_key=AZURE_OPENAI_API_KEY,
                 llm_api_version=AZURE_OPENAI_API_VERSION,
+                ollama_url=OLLAMA_URL,
+                azure_mcp_url=AZURE_MCP_URL,
             )
         )
 

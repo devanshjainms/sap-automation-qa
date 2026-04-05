@@ -2,9 +2,9 @@
 # Licensed under the MIT License.
 
 """
-SAP Agent factory — composes a multi-agent GroupChat workflow.
+SAP Agent factory — creates agents wired to MCP tools.
 
-Each specialist agent connects to the SAP MCP server over HTTP using
+The agent connects to the SAP MCP server over HTTP using
 ``MCPStreamableHTTPTool`` from the Agent Framework.  All tool
 invocations traverse the full MCP protocol — no internal API access.
 """
@@ -16,6 +16,9 @@ from typing import Any, Optional
 import asyncio
 import httpx
 from agent_framework import (
+    Agent,
+    AgentSession,
+    BaseContextProvider,
     CharacterEstimatorTokenizer,
     CompactionStrategy,
     FunctionInvocationConfiguration,
@@ -23,15 +26,33 @@ from agent_framework import (
     SlidingWindowStrategy,
     TokenBudgetComposedStrategy,
     ToolResultCompactionStrategy,
-    Workflow,
 )
 from agent_framework.azure import AzureOpenAIChatClient
-from agent_framework.orchestrations import GroupChatBuilder
+from src.mcp_server.server import mcp as _mcp_server
+from agent_framework._types import Message as AFMessage
+from src.agents.providers.middleware import (
+    AgentExceptionMiddleware,
+    FunctionGuardMiddleware,
+    InvestigationChatMiddleware,
+    OutputSanitizationMiddleware,
+)
+from src.agents.agent_config import (
+    AgentConfig,
+    InvestigationIntent,
+    classify,
+    config_for_intent,
+)
+from src.agents.prompt_modules import assemble
+from src.agents.providers.history_provider import ConversationHistoryProvider
+from src.agents.providers.knowledge_provider import KnowledgeContextProvider
+from src.core.knowledge.retrieval import HybridRetriever
 from src.core.models.mcp_config import (
     BearerAuth,
     McpServerEntry,
     McpServersConfig,
 )
+from src.core.storage.conversation_store import ConversationStore
+from src.core.models.workspace import WorkspaceContextProvider
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +62,12 @@ DEFAULT_MCP_URL = "http://localhost:{port}/mcp".format(
 
 
 class SapAgentFactory:
-    """Creates a multi-agent GroupChat workflow wired to MCP servers.
+    """Creates a single-agent workflow wired to MCP tools.
 
-    Each specialist agent receives an ``MCPStreamableHTTPTool``
-    configured with ``allowed_tools`` so that only the relevant
-    subset of tools is visible.  All tool invocations traverse the
-    MCP protocol end-to-end.
+    One agent receives all SAP tools (triage, STAF, ops) via a single
+    ``MCPStreamableHTTPTool``.  This avoids the multi-agent relay
+    overhead (orchestrator → specialist → orchestrator) and keeps the
+    LLM's response as the final output — no lossy relay layer.
 
     :param mcp_url: URL of the SAP MCP server endpoint.
     :param mcp_config: External MCP server configuration.
@@ -56,98 +77,22 @@ class SapAgentFactory:
     :param api_version: API version string.
     """
 
-    DEFAULT_MAX_ROUNDS = 10
+    DEFAULT_MAX_ROUNDS = 75
     DEFAULT_TOKEN_BUDGET = 120_000
+    _MAX_CONSECUTIVE_ERRORS = 5
 
-    TRIAGE_TOOLS = [
-        "collect_evidence",
-        "run_analysis",
-        "get_triage_report",
-        "query_knowledge",
-        "list_workspaces",
-        "get_workspace",
-    ]
-
-    STAF_TOOLS = [
-        "run_staf_test",
-        "get_job_status",
-        "get_job_results",
-        "list_jobs",
-        "cancel_job",
-        "get_job_events",
-        "get_job_log",
-        "list_workspaces",
-        "get_workspace",
-    ]
-
-    OPS_TOOLS = [
-        "create_schedule",
-        "list_schedules",
-        "get_schedule",
-        "update_schedule",
-        "delete_schedule",
-        "trigger_schedule",
-        "get_schedule_jobs",
-    ]
-
-    _TRIAGE_INSTRUCTIONS = (
-        "You are the Triage specialist for SAP infrastructure on Azure.\n"
-        "Your job is to investigate SAP system issues by collecting "
-        "evidence from cluster nodes, analyzing it against known rules "
-        "and playbooks, and providing actionable findings with severity "
-        "and remediation steps.\n\n"
-        "Workflow:\n"
-        "1. Collect evidence (logs, cluster state, configs).\n"
-        "2. Analyze evidence against the knowledge base.\n"
-        "3. Report findings with severity and remediation.\n\n"
-        "All your tools are read-only — no writes to production systems."
-    )
-
-    _STAF_INSTRUCTIONS = (
-        "You are the STAF (SAP Testing Automation Framework) specialist.\n"
-        "Your job is to run HA functional tests, configuration checks, "
-        "and manage test jobs.\n\n"
-        "Capabilities:\n"
-        "- Launch STAF test jobs (HA failover, config checks).\n"
-        "- Monitor job status and retrieve results.\n"
-        "- Cancel running jobs and stream job events/logs.\n\n"
-        "Always confirm the workspace and test group before launching "
-        "a test. Report results clearly with pass/fail counts."
-    )
-
-    _OPS_INSTRUCTIONS = (
-        "You are the Operations specialist for SAP test scheduling.\n"
-        "Your job is to manage recurring test schedules: create, list, "
-        "update, delete, trigger, and inspect schedule-triggered jobs.\n\n"
-        "Capabilities:\n"
-        "- CRUD on cron-based schedules.\n"
-        "- Immediate schedule triggering.\n"
-        "- Listing jobs spawned by a schedule.\n\n"
-        "Validate cron expressions and workspace IDs before creating "
-        "schedules. Show next-run-time when reporting schedule details."
-    )
-
-    _ORCHESTRATOR_INSTRUCTIONS = (
-        "You are SAP-Router, the orchestrator for a team of SAP "
-        "infrastructure specialists.\n\n"
-        "Your participants:\n"
-        "- **Triage-Agent**: Investigation, diagnostics, evidence "
-        "collection, analysis, knowledge-base queries.\n"
-        "- **STAF-Agent**: Running tests, checking job status/results, "
-        "cancelling jobs, reading job logs.\n"
-        "- **Ops-Agent**: Schedule management (create, list, update, "
-        "delete, trigger schedules).\n\n"
-        "Route each user turn to the specialist whose expertise best "
-        "matches the request. If a query spans multiple domains, engage "
-        "agents in sequence. Summarize the final answer before "
-        "terminating the conversation."
-    )
+    _MCP_CONNECT_RETRIES = 5
+    _MCP_CONNECT_BACKOFF = 2.0
+    _MSLEARN_MCP_URL = "https://learn.microsoft.com/api/mcp"
+    _AZURE_MCP_URL = os.environ.get("AZURE_MCP_URL", "")
 
     def __init__(
         self,
         *,
         mcp_url: str = DEFAULT_MCP_URL,
         mcp_config: Optional[McpServersConfig] = None,
+        conversation_store: Optional[ConversationStore] = None,
+        retriever: Optional[HybridRetriever] = None,
         endpoint: Optional[str] = None,
         deployment_name: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -155,16 +100,37 @@ class SapAgentFactory:
     ) -> None:
         self._mcp_url = mcp_url
         self._mcp_config = mcp_config or McpServersConfig()
+        self._conversation_store = conversation_store
+        self._retriever = retriever
         self._client_kwargs = self._build_client_kwargs(
             endpoint,
             deployment_name,
             api_key,
             api_version,
         )
-        self._triage_mcp: Optional[MCPStreamableHTTPTool] = None
-        self._staf_mcp: Optional[MCPStreamableHTTPTool] = None
-        self._ops_mcp: Optional[MCPStreamableHTTPTool] = None
+        self._mcp_tool: Optional[MCPStreamableHTTPTool] = None
         self._external_mcps: list[MCPStreamableHTTPTool] = []
+
+    async def __aenter__(self) -> SapAgentFactory:
+        return self
+
+    async def __aexit__(self, *exc: Any) -> None:
+        await self.close()
+
+    @property
+    def mcp_url(self) -> str:
+        """The SAP MCP server URL."""
+        return self._mcp_url
+
+    @property
+    def tool_counts(self) -> dict[str, int]:
+        """Tool counts (after connection)."""
+        counts: dict[str, int] = {}
+        if self._mcp_tool:
+            counts["sap"] = len(self._mcp_tool.functions)
+        for tool in self._external_mcps:
+            counts[tool.name] = len(tool.functions)
+        return counts
 
     @classmethod
     async def create(
@@ -172,6 +138,8 @@ class SapAgentFactory:
         *,
         mcp_url: str = DEFAULT_MCP_URL,
         mcp_config: Optional[McpServersConfig] = None,
+        conversation_store: Optional[ConversationStore] = None,
+        retriever: Optional[HybridRetriever] = None,
         endpoint: Optional[str] = None,
         deployment_name: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -181,6 +149,8 @@ class SapAgentFactory:
 
         :param mcp_url: URL of the SAP MCP server endpoint.
         :param mcp_config: External MCP server configuration.
+        :param conversation_store: SQLite conversation persistence.
+        :param retriever: Knowledge retriever for proactive KB injection.
         :param endpoint: Azure OpenAI endpoint URL.
         :param deployment_name: Deployment / model name.
         :param api_key: API key (omit for managed-identity auth).
@@ -190,6 +160,8 @@ class SapAgentFactory:
         factory = cls(
             mcp_url=mcp_url,
             mcp_config=mcp_config,
+            conversation_store=conversation_store,
+            retriever=retriever,
             endpoint=endpoint,
             deployment_name=deployment_name,
             api_key=api_key,
@@ -198,210 +170,24 @@ class SapAgentFactory:
         await factory._connect_tools()
         return factory
 
-    @property
-    def mcp_url(self) -> str:
-        """The SAP MCP server URL."""
-        return self._mcp_url
-
-    @property
-    def tool_counts(self) -> dict[str, int]:
-        """Tool counts per agent group (after connection)."""
-        counts: dict[str, int] = {}
-        if self._triage_mcp:
-            counts["triage"] = len(self._triage_mcp.functions)
-        if self._staf_mcp:
-            counts["staf"] = len(self._staf_mcp.functions)
-        if self._ops_mcp:
-            counts["ops"] = len(self._ops_mcp.functions)
-        for tool in self._external_mcps:
-            counts[tool.name] = len(tool.functions)
-        return counts
-
-    def create_workflow(
-        self,
-        *,
-        workspace_context: Optional[str] = None,
-        max_rounds: int = DEFAULT_MAX_ROUNDS,
-    ) -> Workflow:
-        """Create a multi-agent GroupChat workflow for one conversation.
-
-        :param workspace_context: Per-conversation context string (e.g. ``"Workspace: X02"``).
-        :param max_rounds: Maximum orchestrator rounds before stopping.
-        :returns: Configured ``Workflow`` instance.
-        """
-        client = AzureOpenAIChatClient(**self._client_kwargs)
-        ctx_suffix = f"\n\n{workspace_context}" if workspace_context else ""
-        compaction = self._build_compaction_strategy()
-
-        triage_agent = client.as_agent(
-            name="Triage-Agent",
-            description=(
-                "Investigation specialist: evidence collection, "
-                "analysis, diagnostics, knowledge-base queries."
-            ),
-            instructions=self._TRIAGE_INSTRUCTIONS + ctx_suffix,
-            tools=[self._triage_mcp],
-            function_invocation_configuration=(FunctionInvocationConfiguration(max_iterations=15)),
-            compaction_strategy=compaction,
-        )
-
-        staf_agent = client.as_agent(
-            name="STAF-Agent",
-            description=(
-                "Test execution specialist: run STAF tests, "
-                "check job status/results, manage running jobs."
-            ),
-            instructions=self._STAF_INSTRUCTIONS + ctx_suffix,
-            tools=[self._staf_mcp],
-            function_invocation_configuration=(FunctionInvocationConfiguration(max_iterations=15)),
-            compaction_strategy=compaction,
-        )
-
-        ops_agent = client.as_agent(
-            name="Ops-Agent",
-            description=(
-                "Operations specialist: schedule CRUD, " "triggering, and schedule-job inspection."
-            ),
-            instructions=self._OPS_INSTRUCTIONS + ctx_suffix,
-            tools=[self._ops_mcp],
-            function_invocation_configuration=(FunctionInvocationConfiguration(max_iterations=10)),
-            compaction_strategy=compaction,
-        )
-
-        orchestrator = client.as_agent(
-            name="SAP-Router",
-            description="Routes user queries to specialist agents.",
-            instructions=(self._ORCHESTRATOR_INSTRUCTIONS + ctx_suffix),
-            compaction_strategy=compaction,
-        )
-
-        workflow = GroupChatBuilder(
-            participants=[triage_agent, staf_agent, ops_agent],
-            orchestrator_agent=orchestrator,
-            max_rounds=max_rounds,
-            intermediate_outputs=True,
-        ).build()
-
-        logger.info(
-            "Created GroupChat workflow with 3 agents, " "max_rounds=%d, tools: %s",
-            max_rounds,
-            self.tool_counts,
-        )
-        return workflow
-
-    async def close(self) -> None:
-        """Shut down all MCP tool connections."""
-        for tool in (
-            self._triage_mcp,
-            self._staf_mcp,
-            self._ops_mcp,
-        ):
-            if tool:
-                try:
-                    await tool.close()
-                except Exception:
-                    logger.debug(
-                        "Error closing MCP tool",
-                        exc_info=True,
-                    )
-        for tool in self._external_mcps:
-            try:
-                await tool.close()
-            except Exception:
-                logger.debug(
-                    "Error closing external MCP tool",
-                    exc_info=True,
-                )
-        self._external_mcps.clear()
-
-    async def __aenter__(self) -> SapAgentFactory:
-        return self
-
-    async def __aexit__(self, *exc: Any) -> None:
-        await self.close()
-
-    def _build_compaction_strategy(self) -> CompactionStrategy:
-        """
-        Build a token-budget compaction strategy for agent context.
-
-        :returns: Composed compaction strategy.
-        """
-        tokenizer = CharacterEstimatorTokenizer()
-        return TokenBudgetComposedStrategy(
-            token_budget=self.DEFAULT_TOKEN_BUDGET,
-            tokenizer=tokenizer,
-            strategies=[
-                ToolResultCompactionStrategy(keep_last_tool_call_groups=2),
-                SlidingWindowStrategy(keep_last_groups=20),
-            ],
-        )
-
-    _MCP_CONNECT_RETRIES = 5
-    _MCP_CONNECT_BACKOFF = 2.0  # seconds, doubled each retry
-
-    async def _connect_tools(self) -> None:
-        """Create and connect MCPStreamableHTTPTool per agent group.
-
-        Retries with exponential backoff so the MCP server has time
-        to start (addresses circular Docker dependency).
-        """
-        import asyncio
-
-        groups: list[tuple[str, list[str]]] = [
-            ("sap-triage", self.TRIAGE_TOOLS),
-            ("sap-staf", self.STAF_TOOLS),
-            ("sap-ops", self.OPS_TOOLS),
-        ]
-        connected: list[MCPStreamableHTTPTool] = []
-
-        for name, tools in groups:
-            tool = MCPStreamableHTTPTool(
-                name=name, url=self._mcp_url, allowed_tools=tools,
-            )
-            delay = self._MCP_CONNECT_BACKOFF
-            for attempt in range(1, self._MCP_CONNECT_RETRIES + 1):
-                try:
-                    await tool.connect()
-                    break
-                except Exception:
-                    if attempt == self._MCP_CONNECT_RETRIES:
-                        logger.warning(
-                            "Failed to connect MCP tool %s after %d attempts",
-                            name, attempt,
-                        )
-                        raise
-                    logger.info(
-                        "MCP %s connect attempt %d/%d failed, retrying in %.0fs",
-                        name, attempt, self._MCP_CONNECT_RETRIES, delay,
-                    )
-                    await asyncio.sleep(delay)
-                    delay *= 2
-            connected.append(tool)
-
-        self._triage_mcp, self._staf_mcp, self._ops_mcp = connected
-
-        await self._connect_external()
-        logger.info("Connected MCP tools: %s", self.tool_counts)
-
-    async def _connect_external(self) -> None:
-        """Connect to external MCP servers from configuration."""
-        for entry in self._mcp_config.enabled_servers:
-            try:
-                tool = self._build_external_mcp(entry)
-                await tool.connect()
-                self._external_mcps.append(tool)
-                logger.info(
-                    "Connected external MCP %s: %d tools",
-                    entry.name,
-                    len(tool.functions),
-                )
-            except Exception:
-                logger.warning(
-                    "Failed to connect to MCP server %s at %s",
-                    entry.name,
-                    entry.url,
-                    exc_info=True,
-                )
+    @staticmethod
+    def _build_client_kwargs(
+        endpoint: Optional[str],
+        deployment_name: Optional[str],
+        api_key: Optional[str],
+        api_version: Optional[str],
+    ) -> dict[str, Any]:
+        """Build kwargs for ``AzureOpenAIChatClient``."""
+        kwargs: dict[str, Any] = {}
+        if endpoint:
+            kwargs["endpoint"] = endpoint
+        if deployment_name:
+            kwargs["deployment_name"] = deployment_name
+        if api_key:
+            kwargs["api_key"] = api_key
+        if api_version:
+            kwargs["api_version"] = api_version
+        return kwargs
 
     @staticmethod
     def _build_external_mcp(
@@ -428,21 +214,223 @@ class SapAgentFactory:
             **kwargs,
         )
 
-    @staticmethod
-    def _build_client_kwargs(
-        endpoint: Optional[str],
-        deployment_name: Optional[str],
-        api_key: Optional[str],
-        api_version: Optional[str],
-    ) -> dict[str, Any]:
-        """Build kwargs for ``AzureOpenAIChatClient``."""
-        kwargs: dict[str, Any] = {}
-        if endpoint:
-            kwargs["endpoint"] = endpoint
-        if deployment_name:
-            kwargs["deployment_name"] = deployment_name
-        if api_key:
-            kwargs["api_key"] = api_key
-        if api_version:
-            kwargs["api_version"] = api_version
-        return kwargs
+    _TITLE_PROMPT = (
+        "Summarize the following user question in at most 8 words. "
+        "Return ONLY the title text, no quotes or punctuation at the end.\n\n"
+        "User question: {text}"
+    )
+
+    async def _generate_title(self, user_text: str) -> str:
+        """Generate a short conversation title via a lightweight LLM call.
+
+        :param user_text: The first user message in the conversation.
+        :returns: A short title string (≤8 words).
+        """
+        client = AzureOpenAIChatClient(**self._client_kwargs)
+        prompt = self._TITLE_PROMPT.format(text=user_text[:200])
+        response = await client.get_response(
+            messages=[AFMessage("user", [prompt])],
+            options={"max_tokens": 30, "temperature": 0},
+        )
+        return response.text or user_text[:80]
+
+    def _build_compaction_strategy(
+        self,
+        token_budget: int | None = None,
+    ) -> CompactionStrategy:
+        """Build a token-budget compaction strategy for agent context.
+
+        :param token_budget: Overrides ``DEFAULT_TOKEN_BUDGET``.
+        :returns: Composed compaction strategy.
+        """
+        budget = token_budget or self.DEFAULT_TOKEN_BUDGET
+        tokenizer = CharacterEstimatorTokenizer()
+        return TokenBudgetComposedStrategy(
+            token_budget=budget,
+            tokenizer=tokenizer,
+            strategies=[
+                ToolResultCompactionStrategy(keep_last_tool_call_groups=10),
+                SlidingWindowStrategy(keep_last_groups=30),
+            ],
+        )
+
+    async def _connect_primary(self) -> MCPStreamableHTTPTool:
+        """Connect to the SAP MCP server with exponential backoff.
+
+        :returns: Connected MCP tool.
+        :raises Exception: After all retries are exhausted.
+        """
+        tool = MCPStreamableHTTPTool(
+            name="sap-tools",
+            url=self._mcp_url,
+            allowed_tools=sorted(t.name for t in _mcp_server._tool_manager.list_tools()),
+        )
+        delay = self._MCP_CONNECT_BACKOFF
+        for attempt in range(1, self._MCP_CONNECT_RETRIES + 1):
+            try:
+                await tool.connect()
+                return tool
+            except Exception:
+                if attempt == self._MCP_CONNECT_RETRIES:
+                    logger.warning(
+                        "Failed to connect MCP tool after %d attempts",
+                        attempt,
+                    )
+                    raise
+                logger.info(
+                    "MCP connect attempt %d/%d failed, retrying in %.0fs",
+                    attempt,
+                    self._MCP_CONNECT_RETRIES,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                delay *= 2
+        return tool
+
+    async def _try_connect_mcp(self, tool: MCPStreamableHTTPTool) -> bool:
+        """Try to connect an optional MCP server.
+
+        :param tool: Pre-built MCP tool to connect.
+        :returns: True if connected successfully.
+        """
+        try:
+            await tool.connect()
+            self._external_mcps.append(tool)
+            logger.info("Connected %s MCP: %d tools", tool.name, len(tool.functions))
+            return True
+        except Exception:
+            logger.warning(
+                "%s MCP unavailable — continuing without it",
+                tool.name,
+                exc_info=True,
+            )
+            return False
+
+    async def _connect_tools(self) -> None:
+        """Connect to the SAP MCP server and all optional MCP servers."""
+        self._mcp_tool = await self._connect_primary()
+
+        optional: list[MCPStreamableHTTPTool] = [
+            MCPStreamableHTTPTool(
+                name="microsoft-learn",
+                url=self._MSLEARN_MCP_URL,
+                allowed_tools=[
+                    "microsoft_docs_search",
+                    "microsoft_docs_fetch",
+                    "microsoft_code_sample_search",
+                ],
+            ),
+        ]
+        if self._AZURE_MCP_URL:
+            optional.append(
+                MCPStreamableHTTPTool(
+                    name="azure",
+                    url=self._AZURE_MCP_URL,
+                    load_prompts=False,
+                )
+            )
+
+        for entry in self._mcp_config.enabled_servers:
+            optional.append(self._build_external_mcp(entry))
+
+        for tool in optional:
+            await self._try_connect_mcp(tool)
+
+        logger.info("Connected MCP tools: %s", self.tool_counts)
+
+    def create_agent(
+        self,
+        *,
+        workspace_context: Optional[str] = None,
+        user_query: Optional[str] = None,
+        config: Optional[AgentConfig] = None,
+    ) -> Agent:
+        """Create an agent with an agentic execution loop.
+
+        When *config* is ``None`` the intent is auto-classified from
+        *user_query* and the matching :class:`AgentConfig` is used.
+
+        :param workspace_context: Per-conversation context string.
+        :param user_query: First user message for intent classification
+            and proactive KB injection.
+        :param config: Explicit agent configuration. Auto-detected when
+            ``None``.
+        :returns: Configured ``Agent`` instance.
+        """
+        if config is None:
+            intent = classify(user_query or "")
+            config = config_for_intent(intent)
+
+        instructions = assemble(config.module_names)
+
+        client = AzureOpenAIChatClient(**self._client_kwargs)
+        providers: list[Any] = []
+
+        if self._conversation_store:
+            providers.append(
+                ConversationHistoryProvider(
+                    self._conversation_store,
+                    title_generator=self._generate_title,
+                )
+            )
+        if workspace_context:
+            providers.append(WorkspaceContextProvider(workspace_context))
+        if config.inject_kb and self._retriever:
+            providers.append(
+                KnowledgeContextProvider(
+                    retriever=self._retriever,
+                    user_query=user_query,
+                )
+            )
+
+        agent = client.as_agent(
+            name="SAP-Agent",
+            description=(
+                "SAP configuration and infrastructure specialist for Azure. "
+                "Investigates system health, runs diagnostics, "
+                "manages Azure's SAP Testing Automation Framework tests and schedules."
+            ),
+            instructions=instructions,
+            tools=[t for t in [self._mcp_tool] + self._external_mcps if t is not None],
+            middleware=[
+                AgentExceptionMiddleware(),
+                *(
+                    [InvestigationChatMiddleware(min_evidence=config.min_evidence)]
+                    if config.min_evidence > 0
+                    else []
+                ),
+                OutputSanitizationMiddleware(),
+                FunctionGuardMiddleware(),
+            ],
+            function_invocation_configuration=FunctionInvocationConfiguration(
+                max_iterations=config.max_rounds,
+                max_consecutive_errors_per_request=self._MAX_CONSECUTIVE_ERRORS,
+                include_detailed_errors=False,
+            ),
+            compaction_strategy=self._build_compaction_strategy(
+                token_budget=config.token_budget,
+            ),
+            context_providers=providers,
+        )
+
+        logger.info(
+            "Created agent intent=%s modules=%d tools=%s",
+            config.intent.value,
+            len(config.module_names),
+            self.tool_counts,
+        )
+        return agent
+
+    async def close(self) -> None:
+        """Shut down all MCP tool connections."""
+        if self._mcp_tool:
+            try:
+                await self._mcp_tool.close()
+            except Exception:
+                logger.debug("Error closing MCP tool", exc_info=True)
+        for tool in self._external_mcps:
+            try:
+                await tool.close()
+            except Exception:
+                logger.debug("Error closing external MCP tool", exc_info=True)
+        self._external_mcps.clear()

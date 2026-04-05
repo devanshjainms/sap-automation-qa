@@ -233,9 +233,10 @@ class RuleValidator:
             if data is None:
                 results.append(
                     ValidatorResult(
-                        passed=False,
+                        passed=True,
                         rule_id=rule.id,
-                        message=f"No evidence for source '{source}'",
+                        skipped=True,
+                        message=f"Skipped: no evidence for source '{source}'",
                     )
                 )
                 continue

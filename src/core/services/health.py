@@ -19,6 +19,8 @@ class HealthService:
     :param llm_deployment: Deployment name for the health probe.
     :param llm_api_key: API key (omit for managed-identity).
     :param llm_api_version: Azure OpenAI API version.
+    :param ollama_url: Ollama base URL (empty = unconfigured).
+    :param azure_mcp_url: Azure MCP server base URL (empty = unconfigured).
     :param timeout: HTTP timeout in seconds for each probe.
     """
 
@@ -29,6 +31,8 @@ class HealthService:
         llm_deployment: str = "",
         llm_api_key: str = "",
         llm_api_version: str = "2024-12-01-preview",
+        ollama_url: str = "",
+        azure_mcp_url: str = "",
         timeout: float = 5.0,
     ) -> None:
         self._mcp_urls = mcp_urls or {}
@@ -36,6 +40,8 @@ class HealthService:
         self._llm_deployment = llm_deployment
         self._llm_api_key = llm_api_key
         self._llm_api_version = llm_api_version
+        self._ollama_url = ollama_url.rstrip("/")
+        self._azure_mcp_url = azure_mcp_url.rstrip("/")
         self._timeout = timeout
 
     async def check_mcp(self, name: str, url: str) -> ComponentHealth:
@@ -88,7 +94,7 @@ class HealthService:
 
         body = {
             "messages": [{"role": "user", "content": "ping"}],
-            "max_completion_tokens": 1,
+            "max_completion_tokens": 5,
         }
 
         start = time.monotonic()
@@ -115,6 +121,39 @@ class HealthService:
                 detail=str(exc),
             )
 
+    async def check_url(
+        self,
+        url: str,
+        path: str = "/",
+        label: str = "",
+    ) -> ComponentHealth:
+        """Probe a URL with a simple GET request.
+
+        Any HTTP response means the service is reachable.
+
+        :param url: Base URL of the service.
+        :param path: Path to probe.
+        :param label: Display label for the component.
+        :returns: Component health result.
+        """
+        start = time.monotonic()
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                resp = await client.get(f"{url}{path}")
+                latency = (time.monotonic() - start) * 1000
+                return ComponentHealth(
+                    status="healthy",
+                    latency_ms=round(latency, 1),
+                    detail=f"{label} reachable (HTTP {resp.status_code})",
+                )
+        except Exception as exc:
+            latency = (time.monotonic() - start) * 1000
+            return ComponentHealth(
+                status="unhealthy",
+                latency_ms=round(latency, 1),
+                detail=str(exc),
+            )
+
     async def check_all(self) -> Dict[str, ComponentHealth]:
         """Run all health probes in parallel.
 
@@ -124,6 +163,18 @@ class HealthService:
         for name, url in self._mcp_urls.items():
             tasks[f"mcp:{name}"] = self.check_mcp(name, url)
         tasks["llm"] = self.check_llm()
+        if self._ollama_url:
+            tasks["ollama"] = self.check_url(
+                self._ollama_url,
+                "/api/tags",
+                "Ollama",
+            )
+        if self._azure_mcp_url:
+            tasks["azure_mcp"] = self.check_url(
+                self._azure_mcp_url,
+                "/mcp",
+                "Azure MCP",
+            )
 
         results: Dict[str, ComponentHealth] = {}
         gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)

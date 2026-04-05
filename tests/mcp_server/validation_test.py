@@ -65,9 +65,7 @@ class TestWorkspaceId:
         with pytest.raises(ToolError, match="not found"):
             validator.workspace_id("MISSING")
 
-    def test_dots_and_hyphens_allowed(
-        self, tmp_path: Path, validator: InputValidator
-    ):
+    def test_dots_and_hyphens_allowed(self, tmp_path: Path, validator: InputValidator):
         (tmp_path / "my-workspace.v2").mkdir()
         validator.workspace_id("my-workspace.v2")
 

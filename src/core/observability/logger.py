@@ -13,8 +13,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING, Union
-from src.core.observability.context import ObservabilityContextManager
+from typing import Any, Optional, Union
+from src.core.observability.context import ObservabilityContextManager, clear_context
 from src.core.observability.events import (
     ServiceEvent,
     ExecutionEvent,
@@ -321,6 +321,13 @@ class LoggerFactory:
             service_name,
             telemetry_config,
         )
+        cls._configure_logger(
+            "src.agents",
+            level,
+            log_format,
+            service_name,
+            telemetry_config,
+        )
         cls._initialized = True
 
     @classmethod
@@ -445,6 +452,4 @@ def get_logger(name: str) -> StructuredLogger:
 
 def clear_correlation_id() -> None:
     """Clear correlation ID from context."""
-    from src.core.observability.context import clear_context
-
     clear_context()

@@ -113,6 +113,8 @@ class TriageReport(BaseModel):
     summary: str = ""
     evidence_count: int = 0
     rules_evaluated: int = 0
+    rules_passed: int = 0
+    rules_skipped: int = 0
     duration_seconds: Optional[float] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

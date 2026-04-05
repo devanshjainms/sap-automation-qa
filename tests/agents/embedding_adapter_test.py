@@ -15,7 +15,6 @@ from agent_framework import BaseEmbeddingClient, Embedding, GeneratedEmbeddings
 from src.agents.providers.embedding_adapter import EmbeddingAdapter
 from src.core.models.embedding import EmbeddingProvider
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -49,7 +48,9 @@ class FailingClient(BaseEmbeddingClient[str, list[float], Any]):
     def __init__(self) -> None:
         super().__init__()
 
-    async def get_embeddings(self, values: Sequence[str], *, options: Any = None) -> GeneratedEmbeddings:
+    async def get_embeddings(
+        self, values: Sequence[str], *, options: Any = None
+    ) -> GeneratedEmbeddings:
         raise ConnectionError("API is down")
 
 

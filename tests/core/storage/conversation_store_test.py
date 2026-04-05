@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Tests for ConversationStore — CRUD, archival, message ordering, thinking."""
+"""Tests for ConversationStore — CRUD, archival, message ordering, metadata."""
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,15 +36,15 @@ def _make_conversation(
 def _make_message(
     role: MessageRole = MessageRole.USER,
     content: str = "Hello",
-    thinking: str | None = None,
     triage_session_id: str | None = None,
+    metadata: dict | None = None,
 ) -> Message:
     """Build a minimal message."""
     return Message(
         role=role,
         content=content,
-        thinking=thinking,
         triage_session_id=triage_session_id,
+        metadata=metadata or {},
     )
 
 
@@ -188,30 +188,49 @@ class TestGetHistory:
         assert store.get_history(conv.id) == []
 
 
-# ─── Thinking column ──────────────────────────────────────────
+# ─── Metadata persistence ─────────────────────────────────────
 
 
-class TestThinkingColumn:
-    """Tests for nullable thinking field persistence."""
+class TestMetadataPersistence:
+    """Tests for metadata field (agent_responses) persistence."""
 
-    def test_thinking_stored_and_retrieved(self, store: ConversationStore) -> None:
-        """Verify thinking is persisted in the messages table."""
+    def test_metadata_stored_and_retrieved(self, store: ConversationStore) -> None:
+        """Verify metadata with agent_responses round-trips through SQLite."""
         conv = _make_conversation()
         store.create(conv)
 
         msg = _make_message(
             role=MessageRole.ASSISTANT,
             content="The root cause is fencing timeout.",
-            thinking="I need to check the corosync logs for timeout evidence.",
+            metadata={
+                "agent_responses": [
+                    {
+                        "type": "agent_response",
+                        "agent_id": "Triage-Agent",
+                        "messages": [
+                            {
+                                "type": "message",
+                                "role": "assistant",
+                                "contents": [
+                                    {"type": "text_reasoning", "text": "Checking CIB..."},
+                                    {"type": "text", "text": "Fencing timeout."},
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
         )
         store.add_message(conv.id, msg)
 
         history = store.get_history(conv.id)
         assert len(history) == 1
-        assert history[0].thinking == ("I need to check the corosync logs for timeout evidence.")
+        responses = history[0].metadata.get("agent_responses", [])
+        assert len(responses) == 1
+        assert responses[0]["agent_id"] == "Triage-Agent"
 
-    def test_thinking_null_when_absent(self, store: ConversationStore) -> None:
-        """Verify thinking is None for messages without it."""
+    def test_metadata_empty_when_absent(self, store: ConversationStore) -> None:
+        """Verify metadata defaults to empty dict."""
         conv = _make_conversation()
         store.create(conv)
 
@@ -219,7 +238,7 @@ class TestThinkingColumn:
         store.add_message(conv.id, msg)
 
         history = store.get_history(conv.id)
-        assert history[0].thinking is None
+        assert history[0].metadata == {}
 
 
 # ─── List conversations ───────────────────────────────────────
@@ -298,6 +317,39 @@ class TestArchive:
     def test_archive_nonexistent_returns_false(self, store: ConversationStore) -> None:
         """Verify archiving nonexistent conversation returns False."""
         assert store.archive("no-such-id") is False
+
+
+# ─── Update title ─────────────────────────────────────────────
+
+
+class TestUpdateTitle:
+    """Tests for update_title()."""
+
+    def test_update_title_sets_value(self, store: ConversationStore) -> None:
+        """Verify update_title persists the new title."""
+        conv = _make_conversation(title="")
+        store.create(conv)
+
+        assert store.update_title(conv.id, "X02 SCS Cluster Health")
+
+        loaded = store.get(conv.id)
+        assert loaded is not None
+        assert loaded.title == "X02 SCS Cluster Health"
+
+    def test_update_title_overwrites_existing(self, store: ConversationStore) -> None:
+        """Verify update_title replaces an existing title."""
+        conv = _make_conversation(title="old title")
+        store.create(conv)
+
+        store.update_title(conv.id, "new title")
+
+        loaded = store.get(conv.id)
+        assert loaded is not None
+        assert loaded.title == "new title"
+
+    def test_update_title_nonexistent_returns_false(self, store: ConversationStore) -> None:
+        """Verify update_title returns False for missing conversation."""
+        assert store.update_title("no-such-id", "title") is False
 
 
 # ─── Triage session linkage ───────────────────────────────────

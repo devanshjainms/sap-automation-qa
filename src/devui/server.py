@@ -2,33 +2,60 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Launch Agent Framework DevUI for interactive agent debugging.
-
-Registers SAP specialist agents from the Agent Framework for visual
-debugging, tracing, and interactive testing via the DevUI web interface.
-"""
+"""Launch Agent Framework DevUI backed by real SAP multi-agent workflow."""
 
 from __future__ import annotations
 import argparse
+import asyncio
+import logging
 import os
 import sys
-from agent_framework.azure import AzureOpenAIChatClient
-from agent_framework_devui import serve
+from pathlib import Path
+from agent_framework_devui import DevServer
+from src.agents.agent import SapAgentFactory
+from src.core.services.mcp_config_loader import load_mcp_servers_config
+
+logger = logging.getLogger(__name__)
+
+STAF_MCP_URL = os.environ.get("STAF_MCP_URL", "http://localhost:8001")
+DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
+
+
+async def _build_factory() -> SapAgentFactory:
+    """Create and connect the agent factory with MCP tools.
+
+    :returns: Initialised factory with MCP connections.
+    """
+    mcp_config = load_mcp_servers_config()
+    return await SapAgentFactory.create(
+        mcp_url=STAF_MCP_URL.rstrip("/") + "/mcp",
+        mcp_config=mcp_config,
+        endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
+        deployment_name=os.environ.get("AZURE_OPENAI_DEPLOYMENT", ""),
+        api_key=os.environ.get("AZURE_OPENAI_API_KEY", "") or None,
+        api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
+    )
 
 
 def main() -> None:
-    """Parse CLI args and launch DevUI."""
+    """Parse CLI args and launch DevUI with real agents."""
     parser = argparse.ArgumentParser(description="SAP Agent DevUI server")
     parser.add_argument("--port", type=int, default=8080, help="Port (default: 8080)")
     parser.add_argument("--host", default="127.0.0.1", help="Host (default: 127.0.0.1)")
-    parser.add_argument("--tracing", action="store_true", help="Enable OpenTelemetry tracing")
-    parser.add_argument("--no-open", action="store_true", help="Don't auto-open browser")
+    parser.add_argument(
+        "--tracing",
+        action="store_true",
+        help="Enable OpenTelemetry tracing",
+    )
+    parser.add_argument(
+        "--no-open",
+        action="store_true",
+        help="Don't auto-open browser",
+    )
     args = parser.parse_args()
 
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
     deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "")
-    api_key = os.environ.get("AZURE_OPENAI_API_KEY", "")
-
     if not endpoint or not deployment:
         print(
             "ERROR: Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_DEPLOYMENT "
@@ -37,37 +64,29 @@ def main() -> None:
         )
         sys.exit(1)
 
-    client_kwargs: dict = {"endpoint": endpoint, "deployment_name": deployment}
-    if api_key:
-        client_kwargs["api_key"] = api_key
+    factory = asyncio.run(_build_factory())
+    agent = factory.create_agent()
 
-    client = AzureOpenAIChatClient(**client_kwargs)
+    print(f"Starting DevUI on http://{args.host}:{args.port} " f"(tools: {factory.tool_counts})")
 
-    triage = client.as_agent(
-        name="Triage-Agent",
-        description="Evidence collection, analysis, diagnostics.",
-        instructions="You are the Triage specialist for SAP infrastructure on Azure.",
-    )
-    staf = client.as_agent(
-        name="STAF-Agent",
-        description="Test execution, job status and results.",
-        instructions="You are the STAF specialist for SAP HA testing.",
-    )
-    ops = client.as_agent(
-        name="Ops-Agent",
-        description="Schedule CRUD, triggering, inspection.",
-        instructions="You are the Operations specialist for SAP test scheduling.",
-    )
-
-    print(f"Starting DevUI on http://{args.host}:{args.port}")
-    print("Registered agents: Triage-Agent, STAF-Agent, Ops-Agent")
-
-    serve(
-        entities=[triage, staf, ops],
+    server = DevServer(
         port=args.port,
         host=args.host,
-        auto_open=not args.no_open,
-        instrumentation_enabled=args.tracing,
+        cors_origins=["*"],
+        ui_enabled=True,
+        mode="developer",
+    )
+    server.set_pending_entities([agent])
+
+    app = server.create_app()
+
+    import uvicorn
+
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=args.port,
+        log_level="info",
     )
 
 

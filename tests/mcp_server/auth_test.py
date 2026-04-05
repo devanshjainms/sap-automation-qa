@@ -12,7 +12,6 @@ import pytest
 
 from src.mcp_server.auth import SapTokenVerifier, create_token_verifier
 
-
 # ---------------------------------------------------------------------------
 # Constructor validation
 # ---------------------------------------------------------------------------

@@ -14,7 +14,7 @@ from typing import Optional
 from src.core.analyzer.normalizers import NormalizedData, NormalizerRegistry
 from src.core.analyzer.report import ReportBuilder
 from src.core.analyzer.validators import RuleValidator
-from src.core.models.evidence import EvidenceArtifact
+from src.core.models.evidence import EvidenceArtifact, EvidenceType
 from src.core.models.knowledge import Playbook, Reference, Rule
 from src.core.models.system import SystemProperties
 from src.core.models.triage import TriageReport, TriageSession
@@ -190,8 +190,6 @@ class Analyzer:
         In an agentic/MCP architecture, source metadata should be set
         :returns: Inferred source name.
         """
-        from src.core.models.evidence import EvidenceType
-
         if artifact.evidence_type == EvidenceType.CIB_XML:
             return "cib_resource"
         if artifact.evidence_type == EvidenceType.LOG_EXCERPT:

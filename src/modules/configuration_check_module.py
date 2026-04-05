@@ -876,7 +876,6 @@ class ConfigurationCheckModule(SapAutomationQA):
             :rtype: Any
             """
             if isinstance(value, str):
-                # Replace {{ CONTEXT.property }} with <CONTEXT.property> to neutralize templates
                 return re.sub(
                     r"\{\{\s*CONTEXT\.[^}]+\s*\}\}",
                     lambda m: m.group(0).replace("{{", "<").replace("}}", ">"),

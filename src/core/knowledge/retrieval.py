@@ -15,7 +15,13 @@ _logger = logging.getLogger(__name__)
 from src.core.models.embedding import EmbeddingProvider
 from src.core.storage.embedding_store import EmbeddingStore
 from src.core.storage.knowledge_store import KnowledgeStore
-from src.core.models.knowledge import LearnedPattern, Playbook, Rule
+from src.core.models.knowledge import (
+    EvidenceCollectorDef,
+    LearnedPattern,
+    Playbook,
+    Reference,
+    Rule,
+)
 from src.core.models.system import SystemProperties
 
 # Scoring weights from Section 7.3.1
@@ -330,3 +336,106 @@ class HybridRetriever:
 
         age_days = max(0.0, (now - last_seen).total_seconds() / 86400.0)
         return math.exp(-0.693 * age_days / _RECENCY_HALF_LIFE_DAYS)
+
+    # ------------------------------------------------------------------
+    # Evidence definitions
+    # ------------------------------------------------------------------
+
+    def search_evidence_definitions(
+        self,
+        query: str = "",
+        limit: int = 15,
+    ) -> List[ScoredResult]:
+        """Rank evidence definitions by relevance to an investigation query.
+
+        Uses the same hybrid scoring as other search methods.  Seed
+        definitions have ``confidence=1.0`` and ``recency=1.0`` so the
+        composite score depends primarily on relevance.
+
+        :param query: Investigation context or symptom description.
+        :param limit: Maximum results to return.
+        :returns: Scored results sorted by score descending.
+        """
+        defs = self._store.load_evidence_definitions()
+        vector_scores = self._vector_scores(
+            query, [d.id for d in defs], "evidence",
+        )
+
+        results: list[ScoredResult] = []
+        for d in defs:
+            relevance = vector_scores.get(
+                d.id,
+                self._keyword_relevance(
+                    query,
+                    [d.name, d.description, d.command] + d.tags,
+                ),
+            )
+            score = _WEIGHT_RELEVANCE * relevance + _WEIGHT_CONFIDENCE * 1.0
+            results.append(
+                ScoredResult(
+                    item_id=d.id,
+                    item_type="evidence",
+                    score=score,
+                    relevance=relevance,
+                    confidence=1.0,
+                    recency=1.0,
+                    item=d,
+                )
+            )
+        results.sort(key=lambda r: r.score, reverse=True)
+        return results[:limit]
+
+    # ------------------------------------------------------------------
+    # References (log files, SAP notes, Azure docs)
+    # ------------------------------------------------------------------
+
+    def search_references(
+        self,
+        query: str = "",
+        category: str = "",
+        limit: int = 10,
+    ) -> List[ScoredResult]:
+        """Rank references by relevance, optionally filtered by category.
+
+        For log investigation, pass ``category="log_file"`` to restrict
+        results to log file references only.
+
+        :param query: Search query (symptoms, error descriptions).
+        :param category: Optional category filter (e.g. ``log_file``).
+        :param limit: Maximum results to return.
+        :returns: Scored results sorted by score descending.
+        """
+        refs = self._store.load_references()
+        if category:
+            cat_lower = category.lower()
+            refs = [r for r in refs if r.category.lower() == cat_lower]
+
+        vector_scores = self._vector_scores(
+            query, [r.id for r in refs], "reference",
+        )
+
+        results: list[ScoredResult] = []
+        for ref in refs:
+            relevance = vector_scores.get(
+                ref.id,
+                self._keyword_relevance(
+                    query,
+                    [ref.title, ref.summary]
+                    + ref.failure_classes
+                    + ref.tags,
+                ),
+            )
+            score = _WEIGHT_RELEVANCE * relevance + _WEIGHT_CONFIDENCE * 1.0
+            results.append(
+                ScoredResult(
+                    item_id=ref.id,
+                    item_type="reference",
+                    score=score,
+                    relevance=relevance,
+                    confidence=1.0,
+                    recency=1.0,
+                    item=ref,
+                )
+            )
+        results.sort(key=lambda r: r.score, reverse=True)
+        return results[:limit]
