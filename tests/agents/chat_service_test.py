@@ -61,7 +61,7 @@ def _make_factory(response_text: str = "Agent reply") -> MagicMock:
     agent.run = AsyncMock(return_value=response)
 
     factory = MagicMock()
-    factory.create_agent.return_value = agent
+    factory.create_workflow.return_value = agent
     factory.registry = MagicMock()
     return factory
 
@@ -94,7 +94,7 @@ def _make_streaming_factory(chunks: list[str]) -> MagicMock:
     agent.run.return_value = FakeStream()
 
     factory = MagicMock()
-    factory.create_agent.return_value = agent
+    factory.create_workflow.return_value = agent
     factory.registry = MagicMock()
     return factory
 
@@ -195,7 +195,7 @@ class TestSendMessage:
         service = ChatService(factory, store)
         await service.send_message(str(conv.id), "hi")
 
-        factory.create_agent.assert_called_once_with(
+        factory.create_workflow.assert_called_once_with(
             workspace_context="Active workspace: MY-SAP-WS",
             user_query="hi",
         )
@@ -209,7 +209,7 @@ class TestSendMessage:
         service = ChatService(factory, store)
         await service.send_message(str(conv.id), "Check cluster")
 
-        agent = factory.create_agent.return_value
+        agent = factory.create_workflow.return_value
         task_arg = agent.run.call_args[0][0]
         # Now passes raw user content string
         assert task_arg == "Check cluster"
@@ -222,7 +222,7 @@ class TestSendMessage:
         workflow = MagicMock()
         workflow.run = AsyncMock(side_effect=RuntimeError("LLM unavailable"))
         factory = MagicMock()
-        factory.create_agent.return_value = workflow
+        factory.create_workflow.return_value = workflow
         factory.registry = MagicMock()
 
         service = ChatService(factory, store)
@@ -323,7 +323,7 @@ class TestStreamResponse:
         workflow.run.return_value = FailingStream()
 
         factory = MagicMock()
-        factory.create_agent.return_value = workflow
+        factory.create_workflow.return_value = workflow
         factory.registry = MagicMock()
 
         service = ChatService(factory, store)

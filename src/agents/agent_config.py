@@ -72,8 +72,6 @@ class AgentConfig:
     :param module_names: Prompt modules to include in instructions.
     :param max_rounds: Maximum agent tool-call iterations.
     :param token_budget: Token budget for compaction.
-    :param min_evidence: Minimum evidence items before the chat
-        middleware stops nudging for more tool calls.
     :param inject_kb: Whether to inject proactive KB context.
     """
 
@@ -81,7 +79,6 @@ class AgentConfig:
     module_names: list[str] = field(default_factory=list)
     max_rounds: int = 75
     token_budget: int = 120_000
-    min_evidence: int = 3
     inject_kb: bool = False
 
 
@@ -105,7 +102,6 @@ TRIAGE_CONFIG = AgentConfig(
     module_names=list(_ALL_MODULES),
     max_rounds=75,
     token_budget=120_000,
-    min_evidence=3,
     inject_kb=True,
 )
 
@@ -121,7 +117,6 @@ TEST_CONFIG = AgentConfig(
     ],
     max_rounds=50,
     token_budget=80_000,
-    min_evidence=1,
     inject_kb=False,
 )
 
@@ -138,7 +133,6 @@ KNOWLEDGE_CONFIG = AgentConfig(
     ],
     max_rounds=30,
     token_budget=60_000,
-    min_evidence=1,
     inject_kb=True,
 )
 
@@ -154,7 +148,6 @@ GENERAL_CONFIG = AgentConfig(
     ],
     max_rounds=30,
     token_budget=60_000,
-    min_evidence=0,
     inject_kb=False,
 )
 

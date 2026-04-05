@@ -91,31 +91,10 @@ class TestSapAgentFactory:
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
-    async def test_create_agent_returns_agent(
+    async def test_create_workflow_returns_workflow(
         self,
         mock_client_cls: MagicMock,
     ) -> None:
-        """create_agent returns the agent from as_agent()."""
-        mock_agent = MagicMock()
-        mock_client_cls.return_value.as_agent.return_value = mock_agent
-
-        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
-            mock_mcp.return_value = _make_mock_mcp_tool()
-            factory = await SapAgentFactory.create(
-                mcp_url="http://test:8001/mcp",
-                endpoint="https://x.openai.azure.com",
-            )
-
-        result = factory.create_agent()
-        assert result is mock_agent
-
-    @patch("src.agents.agent.AzureOpenAIChatClient")
-    @pytest.mark.asyncio
-    async def test_create_agent_builds_one_agent(
-        self,
-        mock_client_cls: MagicMock,
-    ) -> None:
-        """create_agent creates a single SAP-Agent."""
         mock_client_cls.return_value.as_agent.return_value = MagicMock()
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
@@ -125,11 +104,30 @@ class TestSapAgentFactory:
                 endpoint="https://x.openai.azure.com",
             )
 
-        factory.create_agent()
+        result = factory.create_workflow()
+        assert result is not None
 
-        assert mock_client_cls.return_value.as_agent.call_count == 1
-        name = mock_client_cls.return_value.as_agent.call_args[1]["name"]
-        assert name == "SAP-Agent"
+    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @pytest.mark.asyncio
+    async def test_create_workflow_builds_three_agents(
+        self,
+        mock_client_cls: MagicMock,
+    ) -> None:
+        mock_client_cls.return_value.as_agent.return_value = MagicMock()
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        factory.create_workflow()
+
+        assert mock_client_cls.return_value.as_agent.call_count == 3
+        calls = mock_client_cls.return_value.as_agent.call_args_list
+        names = [c[1]["name"] for c in calls]
+        assert set(names) == {"Planner", "Executor", "Analyst"}
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
@@ -149,7 +147,7 @@ class TestSapAgentFactory:
                 endpoint="https://x.openai.azure.com",
             )
 
-        factory.create_agent()
+        factory.create_workflow()
 
         call = mock_client_cls.return_value.as_agent.call_args
         assert mcp_tool in call[1]["tools"]
@@ -170,7 +168,7 @@ class TestSapAgentFactory:
                 endpoint="https://x.openai.azure.com",
             )
 
-            factory.create_agent(
+            factory.create_workflow(
                 workspace_context="Workspace: PRD",
             )
 
@@ -197,7 +195,7 @@ class TestSapAgentFactory:
                 endpoint="https://x.openai.azure.com",
             )
 
-            factory.create_agent()
+            factory.create_workflow()
 
         call = mock_client_cls.return_value.as_agent.call_args
         strategy = call[1].get("compaction_strategy")
@@ -222,7 +220,7 @@ class TestSapAgentFactory:
                 api_version="2025-01-01",
             )
 
-            factory.create_agent()
+            factory.create_workflow()
 
         client_kwargs = mock_client_cls.call_args[1]
         assert client_kwargs["endpoint"] == "https://my.openai.azure.com"
@@ -438,7 +436,7 @@ class TestAgenticLoopConfiguration:
                 endpoint="https://x.openai.azure.com",
             )
 
-        factory.create_agent()
+        factory.create_workflow()
 
         call = mock_client_cls.return_value.as_agent.call_args
         fic = call[1]["function_invocation_configuration"]
@@ -460,7 +458,7 @@ class TestAgenticLoopConfiguration:
                 endpoint="https://x.openai.azure.com",
             )
 
-        factory.create_agent()
+        factory.create_workflow()
 
         call = mock_client_cls.return_value.as_agent.call_args
         fic = call[1]["function_invocation_configuration"]
@@ -482,7 +480,7 @@ class TestAgenticLoopConfiguration:
                 endpoint="https://x.openai.azure.com",
             )
 
-        factory.create_agent()
+        factory.create_workflow()
 
         call = mock_client_cls.return_value.as_agent.call_args
         fic = call[1]["function_invocation_configuration"]
@@ -504,7 +502,7 @@ class TestAgenticLoopConfiguration:
                 endpoint="https://x.openai.azure.com",
             )
 
-        factory.create_agent()
+        factory.create_workflow()
 
         call = mock_client_cls.return_value.as_agent.call_args
         instructions = call[1]["instructions"]
@@ -530,7 +528,7 @@ class TestAgenticLoopConfiguration:
                 endpoint="https://x.openai.azure.com",
             )
 
-        factory.create_agent()
+        factory.create_workflow()
 
         call = mock_client_cls.return_value.as_agent.call_args
         middleware = call[1]["middleware"]

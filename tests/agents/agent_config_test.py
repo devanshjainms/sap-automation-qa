@@ -79,7 +79,6 @@ class TestAgentConfig:
         cfg = config_for_intent(InvestigationIntent.TRIAGE)
         assert cfg is TRIAGE_CONFIG
         assert cfg.inject_kb is True
-        assert cfg.min_evidence == 3
         assert "how_to_investigate" in cfg.module_names
 
     def test_test_config(self) -> None:

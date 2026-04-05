@@ -30,10 +30,10 @@ from agent_framework import (
 from agent_framework.azure import AzureOpenAIChatClient
 from src.mcp_server.server import mcp as _mcp_server
 from agent_framework._types import Message as AFMessage
+from agent_framework_orchestrations import SequentialBuilder
 from src.agents.providers.middleware import (
     AgentExceptionMiddleware,
     FunctionGuardMiddleware,
-    InvestigationChatMiddleware,
     OutputSanitizationMiddleware,
 )
 from src.agents.agent_config import (
@@ -338,31 +338,25 @@ class SapAgentFactory:
 
         logger.info("Connected MCP tools: %s", self.tool_counts)
 
-    def create_agent(
+    def create_workflow(
         self,
         *,
         workspace_context: Optional[str] = None,
         user_query: Optional[str] = None,
         config: Optional[AgentConfig] = None,
-    ) -> Agent:
-        """Create an agent with an agentic execution loop.
-
-        When *config* is ``None`` the intent is auto-classified from
-        *user_query* and the matching :class:`AgentConfig` is used.
+    ) -> Any:
+        """Create a sequential workflow planner -> executor -> analyst.
 
         :param workspace_context: Per-conversation context string.
-        :param user_query: First user message for intent classification
-            and proactive KB injection.
-        :param config: Explicit agent configuration. Auto-detected when
-            ``None``.
-        :returns: Configured ``Agent`` instance.
+        :param user_query: First user message for intent classification.
+        :param config: Explicit agent configuration.
+        :returns: Built Workflow instance.
         """
         if config is None:
             intent = classify(user_query or "")
             config = config_for_intent(intent)
 
         instructions = assemble(config.module_names)
-
         client = AzureOpenAIChatClient(**self._client_kwargs)
         providers: list[Any] = []
 
@@ -383,43 +377,45 @@ class SapAgentFactory:
                 )
             )
 
-        agent = client.as_agent(
-            name="SAP-Agent",
-            description=(
-                "SAP configuration and infrastructure specialist for Azure. "
-                "Investigates system health, runs diagnostics, "
-                "manages Azure's SAP Testing Automation Framework tests and schedules."
-            ),
-            instructions=instructions,
-            tools=[t for t in [self._mcp_tool] + self._external_mcps if t is not None],
-            middleware=[
-                AgentExceptionMiddleware(),
-                *(
-                    [InvestigationChatMiddleware(min_evidence=config.min_evidence)]
-                    if config.min_evidence > 0
-                    else []
-                ),
-                OutputSanitizationMiddleware(),
-                FunctionGuardMiddleware(),
-            ],
-            function_invocation_configuration=FunctionInvocationConfiguration(
-                max_iterations=config.max_rounds,
-                max_consecutive_errors_per_request=self._MAX_CONSECUTIVE_ERRORS,
-                include_detailed_errors=False,
-            ),
-            compaction_strategy=self._build_compaction_strategy(
-                token_budget=config.token_budget,
-            ),
+        all_tools = [t for t in [self._mcp_tool] + self._external_mcps if t is not None]
+        compaction = self._build_compaction_strategy(token_budget=config.token_budget)
+        func_config = FunctionInvocationConfiguration(
+            max_iterations=config.max_rounds,
+            max_consecutive_errors_per_request=self._MAX_CONSECUTIVE_ERRORS,
+            include_detailed_errors=False,
+        )
+
+        planner = client.as_agent(
+            name="Planner",
+            description="Analyzes request and formulates an investigation plan.",
+            instructions=instructions + "\n\n**ROLE: PLANNER**\nYou determine what evidence must be collected based on the catalog. Do not execute tools unless necessary for planning. Pass your checklist to the executor.",
+            tools=all_tools,
+            middleware=[AgentExceptionMiddleware(), OutputSanitizationMiddleware(), FunctionGuardMiddleware()],
+            function_invocation_configuration=func_config,
+            compaction_strategy=compaction,
             context_providers=providers,
         )
 
-        logger.info(
-            "Created agent intent=%s modules=%d tools=%s",
-            config.intent.value,
-            len(config.module_names),
-            self.tool_counts,
+        executor = client.as_agent(
+            name="Executor",
+            description="Executes tools based on the plan.",
+            instructions=instructions + "\n\n**ROLE: EXECUTOR**\nYou receive a plan. Execute all the tool calls necessary to gather the required evidence. Do not summarize; just collect.",
+            tools=all_tools,
+            middleware=[AgentExceptionMiddleware(), OutputSanitizationMiddleware(), FunctionGuardMiddleware()],
+            function_invocation_configuration=func_config,
         )
-        return agent
+
+        analyst = client.as_agent(
+            name="Analyst",
+            description="Analyzes results and generates final report.",
+            instructions=instructions + "\n\n**ROLE: ANALYST**\nRead the findings from the Executor and produce the final response/diagnosis for the user.",
+            tools=[],
+            middleware=[AgentExceptionMiddleware(), OutputSanitizationMiddleware()],
+            function_invocation_configuration=func_config,
+        )
+
+        logger.info("Created workflow intent=%s", config.intent.value)
+        return SequentialBuilder(participants=[planner, executor, analyst]).build()
 
     async def close(self) -> None:
         """Shut down all MCP tool connections."""

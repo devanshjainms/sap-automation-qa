@@ -5,7 +5,7 @@
 
 ``ChatService`` is the glue between the REST chat endpoints and the
 Agent Framework.  It formats conversation history, streams
-``AgentResponseUpdate`` events back to the caller in real time
+events back to the caller in real time
 (including tool calls and reasoning), and persists the final reply.
 """
 
@@ -125,10 +125,9 @@ class ChatEvent:
 class ChatService:
     """Bridges the chat API with Agent Framework execution.
 
-    Uses ``Agent.run(stream=True)`` directly for real-time streaming
-    of tool calls, reasoning, and text. No workflow buffering.
+    Uses formalized sequential workflows for execution.
 
-    :param factory: Agent factory for creating per-turn agents.
+    :param factory: Agent factory for creating workflows.
     :param conversation_store: Persistence layer for conversations.
     """
 
@@ -168,26 +167,24 @@ class ChatService:
             conversation_id,
             Message(role=MessageRole.USER, content=user_content),
         )
-        agent = self._factory.create_agent(
+        workflow = self._factory.create_workflow(
             workspace_context=self._workspace_context(conv.workspace_id),
             user_query=user_content,
         )
-        session = self._sessions.get(conversation_id)
-        if session is None:
-            session = agent.create_session()
-            self._sessions[conversation_id] = session
         try:
-            response: AgentResponse = await agent.run(
-                user_content,
-                session=session,
-            )
-            reply_text = response.text or ""
-            metadata: dict[str, Any] = {
-                "agent_responses": [response.to_dict()],
-            }
+            response = await workflow.run(message=user_content, stream=False)
+            reply_text = ""
+            if hasattr(response, "output") and response.output:
+                if isinstance(response.output, list) and hasattr(response.output[-1], 'content'):
+                    reply_text = str(response.output[-1].content)
+                elif hasattr(response.output, "text"):
+                    reply_text = response.output.text or ""
+                elif isinstance(response.output, str):
+                    reply_text = response.output
+            metadata: dict[str, Any] = {}
         except Exception:
             logger.exception(
-                "Agent execution failed for conversation %s",
+                "Workflow execution failed for conversation %s",
                 conversation_id,
             )
             reply_text = self._ERROR_REPLY
@@ -206,10 +203,7 @@ class ChatService:
         conversation_id: str,
         user_content: str,
     ) -> AsyncGenerator[ChatEvent, None]:
-        """Stream the agent response as incremental events.
-
-        Uses ``Agent.run(stream=True)`` for real-time delivery of
-        tool calls, reasoning tokens, and text — no buffering.
+        """Stream the workflow response as incremental events.
 
         :param conversation_id: Conversation identifier.
         :param user_content: User message text.
@@ -221,56 +215,52 @@ class ChatService:
             conversation_id,
             Message(role=MessageRole.USER, content=user_content),
         )
-        agent = self._factory.create_agent(
+        workflow = self._factory.create_workflow(
             workspace_context=self._workspace_context(conv.workspace_id),
             user_query=user_content,
         )
-        session = self._sessions.get(conversation_id)
-        if session is None:
-            session = agent.create_session()
-            self._sessions[conversation_id] = session
         streamed_text = ""
         metadata: dict[str, Any] = {}
         try:
-            stream: ResponseStream[AgentResponseUpdate, AgentResponse] = agent.run(
-                user_content, stream=True, session=session
-            )
+            stream = workflow.run(message=user_content, stream=True)
 
-            async for update in stream:
-                for act in _extract_activities(update):
-                    yield ChatEvent(
-                        event_type="activity",
-                        data=act,
-                    )
+            async for event in stream:
+                # Handle streaming from multiple agents in the workflow graph
+                if event.type == "data" and isinstance(event.data, AgentResponseUpdate):
+                    update = event.data
+                    agent_name = event.executor_id or "SAP-Agent"
+                    
+                    for act in _extract_activities(update):
+                        yield ChatEvent(
+                            event_type="activity",
+                            data=act,
+                        )
 
-                reasoning = _extract_thinking(update)
-                if reasoning:
-                    yield ChatEvent(
-                        event_type="thinking",
-                        data={"agent": "SAP-Agent", "text": reasoning},
-                    )
+                    reasoning = _extract_thinking(update)
+                    if reasoning:
+                        yield ChatEvent(
+                            event_type="thinking",
+                            data={"agent": agent_name, "text": reasoning},
+                        )
 
-                chunk = _extract_text(update)
-                if chunk:
-                    streamed_text += chunk
-                    yield ChatEvent(
-                        event_type="token",
-                        data={"agent": "SAP-Agent", "text": chunk},
-                    )
+                    chunk = _extract_text(update)
+                    if chunk:
+                        streamed_text += chunk
+                        yield ChatEvent(
+                            event_type="token",
+                            data={"agent": agent_name, "text": chunk},
+                        )
 
             response = await stream.get_final_response()
-            self._sessions[conversation_id] = session
-            logger.info(
-                "Agent produced %d chars: %.200s",
-                len(response.text or ""),
-                response.text or "",
-            )
-
-            metadata = {"agent_responses": [response.to_dict()]}
-
-            if response.text:
-                streamed_text = response.text
-
+            if hasattr(response, "output") and response.output:
+                if isinstance(response.output, list) and hasattr(response.output[-1], 'content'):
+                    streamed_text = str(response.output[-1].content)
+                elif hasattr(response.output, "text") and response.output.text:
+                    streamed_text = response.output.text
+                elif isinstance(response.output, str):
+                    streamed_text = response.output
+            
+            logger.info("Workflow produced stream of %d chars.", len(streamed_text))
             yield ChatEvent(
                 event_type="done",
                 data={"text": streamed_text},
@@ -278,7 +268,7 @@ class ChatService:
 
         except Exception as exc:
             logger.exception(
-                "Agent streaming failed for conversation %s",
+                "Workflow streaming failed for conversation %s",
                 conversation_id,
             )
             if not streamed_text:
@@ -332,10 +322,6 @@ class ChatService:
         workspace_id: str | None,
     ) -> list[AFMessage]:
         """Format conversation history as Agent Framework messages.
-
-        Returns a list of ``AFMessage`` objects so the LLM sees proper
-        user/assistant turns — including context from prior exchanges
-        (workspace IDs, tool results, etc.).
 
         :param history: Fitted conversation history.
         :param current_query: Current user message.

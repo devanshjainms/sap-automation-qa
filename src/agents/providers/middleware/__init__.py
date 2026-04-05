@@ -16,9 +16,7 @@ Middleware layers (outer → inner):
 4. **FunctionGuardMiddleware** — wraps each tool invocation.
 """
 
-from src.agents.providers.middleware.chat_middleware import (
-    InvestigationChatMiddleware,
-)
+
 from src.agents.providers.middleware.exception_middleware import (
     AgentExceptionMiddleware,
 )
@@ -35,7 +33,7 @@ __all__ = [
     "AgentExceptionMiddleware",
     "ErrorCategory",
     "FunctionGuardMiddleware",
-    "InvestigationChatMiddleware",
+
     "OutputSanitizationMiddleware",
     "_classify",
 ]
