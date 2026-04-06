@@ -29,17 +29,6 @@ html, body, #root {
 
 /* ── CopilotKit dark-mode overrides for hardcoded Tailwind whites ── */
 
-/* Reasoning / thinking section — expanded by default, VS Code style */
-.cpk-reasoning-expanded [data-state="closed"] {
-  display: block !important;
-}
-.cpk-reasoning-expanded [data-state="closed"] > [class*="content"],
-.cpk-reasoning-expanded [data-state="closed"] + div {
-  display: block !important;
-  max-height: none !important;
-  opacity: 1 !important;
-}
-
 /* Tool-call cards — override bg-white from CopilotKit defaults */
 .dark [data-copilotkit] [data-variant] {
   background-color: var(--card) !important;

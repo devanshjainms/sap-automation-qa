@@ -49,9 +49,6 @@ function SapChatInner() {
           assistantMessage: {
             toolCallsView: "cpk-tool-calls-dark",
           },
-          reasoningMessage: {
-            className: "cpk-reasoning-expanded",
-          },
         }}
         labels={{
           modalHeaderTitle: "SAP Assistant",
