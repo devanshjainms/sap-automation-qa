@@ -72,26 +72,6 @@ export interface ToolCall {
   result: string;
 }
 
-export interface ToolMeta {
-  name: string;
-  title: string;
-  description: string;
-  parameters: {
-    properties?: Record<
-      string,
-      { title?: string; type?: string; description?: string }
-    >;
-    required?: string[];
-  };
-  annotations: {
-    readOnlyHint: boolean | null;
-    destructiveHint: boolean | null;
-    idempotentHint: boolean | null;
-    openWorldHint: boolean | null;
-  } | null;
-  icons: { src: string }[];
-}
-
 export type MessagePart =
   | { type: "text"; content: string }
   | { type: "tool_call"; toolCall: ToolCall };

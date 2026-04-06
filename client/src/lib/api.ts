@@ -9,7 +9,6 @@ import type {
   Job,
   Message,
   Schedule,
-  ToolMeta,
   Workspace,
 } from "./types";
 
@@ -149,8 +148,5 @@ export function saveMessage(
   );
 }
 
-export function getToolMetadata(): Promise<ToolMeta[]> {
-  return fetchJson<ToolMeta[]>(`${BASE}/chat/tools`);
-}
 
 

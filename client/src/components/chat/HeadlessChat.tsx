@@ -3,8 +3,8 @@
 
 /**
  * Chat component using CopilotKit's built-in ``CopilotChat`` for message
- * handling and tool-call rendering. Tool calls use CopilotKit's native
- * ``WildcardToolCallRender`` which provides a compact, Copilot-like UI.
+ * handling and tool-call rendering.  ``useDefaultRenderTool`` enables
+ * CopilotKit's native expandable tool-call cards for all backend tools.
  */
 
 import {
@@ -12,6 +12,7 @@ import {
   CopilotChat,
   HttpAgent,
   useAgentContext,
+  useDefaultRenderTool,
 } from "@copilotkit/react-core/v2";
 import { useParams } from "react-router-dom";
 import { useStyles } from "../../styles/headlessChat.styles";
@@ -27,6 +28,9 @@ function SapChatInner() {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const classes = useStyles();
 
+  /* Enable CopilotKit's built-in expandable tool-call cards for all tools */
+  useDefaultRenderTool();
+
   /* Provide app context to the agent */
   useAgentContext({
     description: "Current SAP workspace context",
@@ -39,6 +43,7 @@ function SapChatInner() {
     <div className={classes.container}>
       <CopilotChat
         agentId="sap-agent"
+        threadId={conversationId}
         className="copilot-chat-fullpage"
         labels={{
           modalHeaderTitle: "SAP Assistant",
