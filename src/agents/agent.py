@@ -344,12 +344,14 @@ class SapAgentFactory:
         workspace_context: Optional[str] = None,
         user_query: Optional[str] = None,
         config: Optional[AgentConfig] = None,
+        thread_id: Optional[str] = None,
     ) -> Any:
         """Create a sequential workflow planner -> executor -> analyst.
 
         :param workspace_context: Per-conversation context string.
         :param user_query: First user message for intent classification.
         :param config: Explicit agent configuration.
+        :param thread_id: AG-UI thread ID for conversation persistence.
         :returns: Built Workflow instance.
         """
         if config is None:
@@ -357,20 +359,40 @@ class SapAgentFactory:
             config = config_for_intent(intent)
 
         instructions = assemble(config.module_names)
+        executor_instructions = assemble([
+            "core_identity",
+            "absolute_rules",
+            "tools_reference",
+        ])
+        analyst_instructions = assemble([
+            "core_identity",
+            "absolute_rules",
+            "reminders",
+        ])
         client = AzureOpenAIChatClient(**self._client_kwargs)
-        providers: list[Any] = []
+        planner_providers: list[Any] = []
+        load_only_providers: list[Any] = []
 
         if self._conversation_store:
-            providers.append(
+            planner_providers.append(
                 ConversationHistoryProvider(
                     self._conversation_store,
                     title_generator=self._generate_title,
+                    conversation_id=thread_id,
+                    save_enabled=False,
+                )
+            )
+            load_only_providers.append(
+                ConversationHistoryProvider(
+                    self._conversation_store,
+                    conversation_id=thread_id,
+                    save_enabled=False,
                 )
             )
         if workspace_context:
-            providers.append(WorkspaceContextProvider(workspace_context))
+            planner_providers.append(WorkspaceContextProvider(workspace_context))
         if config.inject_kb and self._retriever:
-            providers.append(
+            planner_providers.append(
                 KnowledgeContextProvider(
                     retriever=self._retriever,
                     user_query=user_query,
@@ -388,34 +410,78 @@ class SapAgentFactory:
         planner = client.as_agent(
             name="Planner",
             description="Analyzes request and formulates an investigation plan.",
-            instructions=instructions + "\n\n**ROLE: PLANNER**\nYou determine what evidence must be collected based on the catalog. Do not execute tools unless necessary for planning. Pass your checklist to the executor.",
+            instructions=instructions
+            + (
+                "\n\n**ROLE: PLANNER**\n"
+                "You determine what evidence must be collected. "
+                "Call `list_workspaces` and `get_workspace` to "
+                "identify the target system, then produce a concise "
+                "numbered checklist for the Executor.\n"
+                "Your output feeds DIRECTLY into the next agent in the "
+                "pipeline. The user will NOT see your output or reply "
+                "to it. NEVER ask for confirmation, approval, or say "
+                "'waiting for your go-ahead' or 'please confirm'. "
+                "Just produce the plan and stop."
+            ),
             tools=all_tools,
-            middleware=[AgentExceptionMiddleware(), OutputSanitizationMiddleware(), FunctionGuardMiddleware()],
+            middleware=[
+                AgentExceptionMiddleware(),
+                OutputSanitizationMiddleware(),
+                FunctionGuardMiddleware(),
+            ],
             function_invocation_configuration=func_config,
             compaction_strategy=compaction,
-            context_providers=providers,
+            context_providers=planner_providers,
         )
 
         executor = client.as_agent(
             name="Executor",
             description="Executes tools based on the plan.",
-            instructions=instructions + "\n\n**ROLE: EXECUTOR**\nYou receive a plan. Execute all the tool calls necessary to gather the required evidence. Do not summarize; just collect.",
+            instructions=executor_instructions
+            + (
+                "\n\n**ROLE: EXECUTOR**\n"
+                "You receive a plan from the Planner. Your ONLY job is "
+                "to execute tool calls. Start calling tools IMMEDIATELY "
+                "— do not plan, do not reason, do not write text. "
+                "Just call the tools specified in the plan.\n"
+                "Typical sequence: `collect_evidence` then `run_analysis`.\n"
+                "NEVER produce text output without a tool call. "
+                "NEVER ask the user anything. Just execute."
+            ),
             tools=all_tools,
-            middleware=[AgentExceptionMiddleware(), OutputSanitizationMiddleware(), FunctionGuardMiddleware()],
+            middleware=[
+                AgentExceptionMiddleware(),
+                OutputSanitizationMiddleware(),
+                FunctionGuardMiddleware(),
+            ],
             function_invocation_configuration=func_config,
+            context_providers=load_only_providers,
         )
 
         analyst = client.as_agent(
             name="Analyst",
             description="Analyzes results and generates final report.",
-            instructions=instructions + "\n\n**ROLE: ANALYST**\nRead the findings from the Executor and produce the final response/diagnosis for the user.",
+            instructions=analyst_instructions
+            + (
+                "\n\n**ROLE: ANALYST**\n"
+                "Read all evidence collected by the Executor and produce "
+                "a clear, evidence-backed diagnosis for the user. "
+                "Include specific command output excerpts and concrete "
+                "remediation steps. This is the FINAL response the user "
+                "sees — do NOT ask follow-up questions or request "
+                "confirmation."
+            ),
             tools=[],
             middleware=[AgentExceptionMiddleware(), OutputSanitizationMiddleware()],
             function_invocation_configuration=func_config,
+            context_providers=load_only_providers,
         )
 
         logger.info("Created workflow intent=%s", config.intent.value)
-        return SequentialBuilder(participants=[planner, executor, analyst]).build()
+        return SequentialBuilder(
+            participants=[planner, executor, analyst],
+            intermediate_outputs=True,
+        ).build()
 
     async def close(self) -> None:
         """Shut down all MCP tool connections."""

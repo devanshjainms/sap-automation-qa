@@ -37,7 +37,6 @@ from src.api.routes import (
     set_scheduler_service,
     set_workspace_loader,
     set_conversation_store,
-    set_chat_service,
 )
 from src.agents.ag_ui import register_ag_ui
 from src.api.routes.health import set_service_status, set_health_service
@@ -49,7 +48,6 @@ from src.core.storage.embedding_store import EmbeddingStore
 from src.core.knowledge.retrieval import HybridRetriever
 from src.core.services.mcp_config_loader import load_mcp_servers_config
 from src.agents.agent import SapAgentFactory
-from src.core.services.chat import ChatService
 
 API_V1_PREFIX = "/api/v1"
 LOG_FORMAT = os.environ.get("LOG_FORMAT", "console")
@@ -170,14 +168,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     api_key=AZURE_OPENAI_API_KEY or None,
                     api_version=AZURE_OPENAI_API_VERSION,
                 )
-                set_chat_service(ChatService(agent_factory, conversation_store))
-                logger.info("Chat service initialized (agent-driven)")
+                logger.info("Agent factory initialized")
                 try:
                     register_ag_ui(
                         app,
                         agent_factory,
                         "/ag-ui",
                         allow_origins=CORS_ORIGINS,
+                        conversation_store=conversation_store,
                     )
                 except Exception:
                     logger.warning(

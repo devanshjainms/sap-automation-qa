@@ -211,3 +211,78 @@ class TestTitleGeneration:
         store = MagicMock()
         provider = ConversationHistoryProvider(store)
         assert provider._title_generator is None
+
+
+class TestConversationIdAndSaveEnabled:
+    """Validate conversation_id and save_enabled parameters."""
+
+    def test_explicit_conversation_id_returned(self):
+        """_get_conv_id returns explicit conversation_id when set."""
+        store = MagicMock()
+        provider = ConversationHistoryProvider(
+            store,
+            conversation_id="explicit-123",
+        )
+        session = MagicMock()
+        context = MagicMock()
+        context.service_session_id = "should-be-ignored"
+        assert provider._get_conv_id(session, context) == "explicit-123"
+
+    def test_fallback_to_session_when_no_explicit_id(self):
+        """_get_conv_id falls back to session lookup when no explicit id."""
+        store = MagicMock()
+        provider = ConversationHistoryProvider(store)
+        session = MagicMock()
+        session.service_session_id = "from-session"
+        context = MagicMock(spec=[])
+        context.session_id = ""
+        assert provider._get_conv_id(session, context) == "from-session"
+
+    @pytest.mark.asyncio
+    async def test_save_disabled_skips_after_run(self):
+        """after_run is a no-op when save_enabled=False."""
+        store = MagicMock()
+        provider = ConversationHistoryProvider(
+            store,
+            conversation_id="conv-1",
+            save_enabled=False,
+        )
+        await provider.after_run(
+            agent=MagicMock(),
+            session=MagicMock(),
+            context=MagicMock(),
+            state={},
+        )
+        store.add_message.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_save_enabled_saves_messages(self):
+        """after_run saves messages when save_enabled=True."""
+        store = MagicMock()
+        store.add_message = MagicMock()
+
+        provider = ConversationHistoryProvider(
+            store,
+            conversation_id="conv-2",
+            save_enabled=True,
+        )
+
+        msg = MagicMock()
+        msg.role = "user"
+        msg.text = "hello"
+
+        context = MagicMock()
+        context.input_messages = [msg]
+        response = MagicMock()
+        response.messages = []
+        response.text = "response text"
+        context.response = response
+        context.context_messages = {}
+
+        await provider.after_run(
+            agent=MagicMock(),
+            session=MagicMock(),
+            context=context,
+            state={},
+        )
+        assert store.add_message.call_count >= 1

@@ -65,7 +65,7 @@ def main() -> None:
         sys.exit(1)
 
     factory = asyncio.run(_build_factory())
-    agent = factory.create_agent()
+    agent = factory.create_workflow()
 
     print(f"Starting DevUI on http://{args.host}:{args.port} " f"(tools: {factory.tool_counts})")
 

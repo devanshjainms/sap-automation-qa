@@ -1,20 +1,21 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Chat API routes — conversation CRUD and message exchange."""
+"""Chat API routes — conversation CRUD only.
+
+Agent execution happens exclusively through the AG-UI endpoint
+(``/ag-ui``).  These routes provide the persistence layer:
+create, list, get, and archive conversations.
+"""
 
 import json
 import logging
 from typing import Any, Optional
-from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
-from src.core.services.chat import ChatService
+from fastapi import APIRouter, HTTPException, Query
 from src.core.models.conversation import (
     Conversation,
     CreateConversationRequest,
-    Message,
     MessageRole,
-    SendMessageRequest,
 )
 from src.core.storage.conversation_store import ConversationStore
 from src.mcp_server.server import mcp
@@ -23,7 +24,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 _conversation_store: Optional[ConversationStore] = None
-_chat_service: Optional[ChatService] = None
 
 
 def set_conversation_store(store: ConversationStore) -> None:
@@ -33,15 +33,6 @@ def set_conversation_store(store: ConversationStore) -> None:
     """
     global _conversation_store
     _conversation_store = store
-
-
-def set_chat_service(service: ChatService) -> None:
-    """Inject the chat service (called from lifespan).
-
-    :param service: ChatService instance wired with an agent factory.
-    """
-    global _chat_service
-    _chat_service = service
 
 
 def get_conversation_store() -> ConversationStore:
@@ -56,14 +47,6 @@ def get_conversation_store() -> ConversationStore:
             detail="Conversation store not initialized",
         )
     return _conversation_store
-
-
-def get_chat_service() -> Optional[ChatService]:
-    """Get the chat service, or None if not configured.
-
-    :returns: ChatService if agent is wired, else None.
-    """
-    return _chat_service
 
 
 def _summarize(conv: Conversation) -> dict[str, Any]:
@@ -132,10 +115,6 @@ def _get_tool_metadata() -> list[dict[str, Any]]:
 
 def _extract_parts(metadata: dict) -> list[dict[str, Any]]:
     """Build an interleaved list of text and tool-call parts from af_messages.
-
-    Walks the AF message sequence in order and emits:
-    * ``{"type": "text", "content": "..."}`` for text blocks
-    * ``{"type": "tool_call", "toolCall": {"name", "args", "result"}}``
 
     :param metadata: Message metadata dict.
     :returns: Ordered list of parts the frontend renders sequentially.
@@ -254,115 +233,6 @@ async def get_messages(
 
     messages = store.get_history(conversation_id, limit=limit)
     return [m.model_dump(mode="json", exclude={"metadata"}) for m in messages]
-
-
-@router.post("/{conversation_id}/messages", status_code=201)
-async def send_message(
-    conversation_id: str,
-    request: SendMessageRequest,
-) -> dict[str, Any]:
-    """Send a user message and get the assistant response.
-
-    When the ``ChatService`` is configured (agent factory wired), the
-    message is processed by the Agent Framework.  Otherwise a
-    placeholder response is returned.
-
-    :param conversation_id: Conversation to send the message in.
-    :param request: Message content.
-    :returns: The assistant response message.
-    """
-    store = get_conversation_store()
-    conv = store.get(conversation_id)
-    if conv is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.is_archived:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot add messages to an archived conversation",
-        )
-
-    service = get_chat_service()
-    if service is not None:
-        assistant_msg = await service.send_message(conversation_id, request.message)
-        return assistant_msg.model_dump(mode="json", exclude={"metadata"})
-
-    store.add_message(conversation_id, Message(role=MessageRole.USER, content=request.message))
-    assistant_msg = Message(
-        role=MessageRole.ASSISTANT,
-        content=(
-            "Chat service is not configured. Set AZURE_OPENAI_ENDPOINT "
-            "and AZURE_OPENAI_DEPLOYMENT to enable agent-driven responses."
-        ),
-        metadata={"phase": "unconfigured"},
-    )
-    store.add_message(conversation_id, assistant_msg)
-    return assistant_msg.model_dump(mode="json", exclude={"metadata"})
-
-
-@router.post("/{conversation_id}/messages/save", status_code=201)
-async def save_message(
-    conversation_id: str,
-    request: Request,
-) -> dict[str, str]:
-    """Save a message without running the agent.
-
-    Used by AG-UI flow to persist messages to ConversationStore.
-
-    :param conversation_id: Conversation to save the message in.
-    :param request: JSON body with ``role`` and ``content``.
-    :returns: Acknowledgement.
-    """
-    store = get_conversation_store()
-    conv = store.get(conversation_id)
-    if conv is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    body = await request.json()
-    role_str = body.get("role", "user")
-    content = body.get("content", "")
-    role = MessageRole.USER if role_str == "user" else MessageRole.ASSISTANT
-    store.add_message(conversation_id, Message(role=role, content=content))
-    return {"status": "saved"}
-
-
-@router.post("/{conversation_id}/messages/stream")
-async def stream_message(
-    conversation_id: str,
-    request: SendMessageRequest,
-) -> StreamingResponse:
-    """Stream the assistant response as Server-Sent Events.
-
-    :param conversation_id: Conversation to stream in.
-    :param request: Message content.
-    :returns: SSE streaming response.
-    """
-    conv = get_conversation_store().get(conversation_id)
-    if conv is None:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if conv.is_archived:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot add messages to an archived conversation",
-        )
-
-    service = get_chat_service()
-    if service is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Chat service not configured — agent is unavailable",
-        )
-
-    async def event_generator():
-        async for event in service.stream_response(conversation_id, request.message):
-            yield event.to_sse()
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
 
 
 @router.post("/{conversation_id}/archive")

@@ -34,12 +34,23 @@ class ConversationHistoryProvider(BaseHistoryProvider):
     metadata field so the agent sees full context on follow-up turns.
 
     :param store: The SQLite-backed conversation store.
+    :param title_generator: Async callable that generates a title.
+    :param conversation_id: Explicit conversation ID — bypasses
+        session-based lookup.  Used by workflow-level callers that
+        know the AG-UI ``thread_id`` up-front.
+    :param save_enabled: When ``False`` the provider only loads
+        history; ``after_run`` becomes a no-op.  Useful for agents
+        inside a sequential workflow where persistence is handled
+        at the workflow boundary.
     """
 
     def __init__(
         self,
         store: ConversationStore,
         title_generator: TitleGenerator | None = None,
+        *,
+        conversation_id: str | None = None,
+        save_enabled: bool = True,
     ) -> None:
         super().__init__(
             "conversation-store",
@@ -49,6 +60,8 @@ class ConversationHistoryProvider(BaseHistoryProvider):
         )
         self._store = store
         self._title_generator = title_generator
+        self._conversation_id = conversation_id
+        self._save_enabled = save_enabled
 
     async def before_run(
         self,
@@ -92,6 +105,9 @@ class ConversationHistoryProvider(BaseHistoryProvider):
         state: dict[str, Any],
     ) -> None:
         """Save messages to SQLite after agent runs."""
+        if not self._save_enabled:
+            return
+
         conv_id = self._get_conv_id(session, context)
         if not conv_id:
             return
@@ -158,6 +174,8 @@ class ConversationHistoryProvider(BaseHistoryProvider):
         :param user_text: First user message text.
         """
         try:
+            if self._title_generator is None:
+                return
             title = await self._title_generator(user_text)
             title = str(title).strip().strip('"').strip("'")[:80]
             if title:
@@ -222,8 +240,9 @@ class ConversationHistoryProvider(BaseHistoryProvider):
 
         return msg_dict
 
-    @staticmethod
-    def _get_conv_id(session: AgentSession, context: SessionContext) -> str:
+    def _get_conv_id(self, session: AgentSession, context: SessionContext) -> str:
+        if self._conversation_id:
+            return self._conversation_id
         if hasattr(context, "service_session_id") and context.service_session_id:
             return context.service_session_id
         if hasattr(session, "service_session_id") and session.service_session_id:

@@ -102,6 +102,17 @@ export const useStyles = makeStyles({
     animationDirection: "alternate",
     animationTimingFunction: "ease-in-out",
   },
+  thinkingTextBody: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground4,
+    fontStyle: "italic",
+    whiteSpace: "pre-wrap",
+    overflowWrap: "break-word",
+    maxHeight: "4.8em",
+    overflow: "hidden",
+    lineHeight: tokens.lineHeightBase200,
+    marginBottom: tokens.spacingVerticalXS,
+  },
   spinnerRow: {
     display: "flex",
     paddingTop: tokens.spacingVerticalXS,

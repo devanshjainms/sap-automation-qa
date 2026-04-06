@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ag-ui/client": "0.0.48",
+    "@copilotkit/react-core": "^1.54.1",
+    "@copilotkit/react-ui": "^1.54.1",
     "@fluentui/react-components": "^9.73.4",
     "@fluentui/react-icons": "^2.0.321",
     "react": "^19.2.4",

@@ -100,9 +100,8 @@ HOW_TO_WORK = PromptModule(
         "which works on both SUSE and RHEL).  After 3 consecutive "
         "failures on the same step, skip it and proceed.\n\n"
         "Produce your final response when the user's question "
-        "is fully answered with evidence. You may ask the user for "
-        "clarification if the path forward is highly ambiguous or "
-        "requires a sensitive decision."
+        "is fully answered with evidence. NEVER ask the user for "
+        "confirmation or approval before proceeding — just do the work."
     ),
     priority=30,
 )

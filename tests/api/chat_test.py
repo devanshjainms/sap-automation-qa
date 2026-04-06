@@ -1,18 +1,18 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Tests for chat API routes (conversation CRUD + message sending)."""
+"""Tests for chat API routes (conversation CRUD only).
 
-from unittest.mock import AsyncMock, MagicMock
+Agent execution tests live in the AG-UI / agent layer.
+These tests verify conversation persistence endpoints.
+"""
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.core.services.chat import ChatService
 from src.api.routes.chat import (
     router as chat_router,
-    set_chat_service,
     set_conversation_store,
     get_conversation_store,
     _extract_parts,
@@ -26,7 +26,6 @@ def chat_client(tmp_path):
     """Provide a test client with chat routes and a fresh ConversationStore."""
     store = ConversationStore(db_path=tmp_path / "test_conversations.db")
     set_conversation_store(store)
-    set_chat_service(None)
 
     app = FastAPI()
     app.include_router(chat_router, prefix="/api/v1")
@@ -34,28 +33,6 @@ def chat_client(tmp_path):
     with TestClient(app) as client:
         yield client
 
-    store.close()
-
-
-@pytest.fixture
-def agent_chat_client(tmp_path):
-    """Provide a test client with a mocked ChatService wired in."""
-    store = ConversationStore(db_path=tmp_path / "test_conversations.db")
-    set_conversation_store(store)
-
-    mock_service = MagicMock(spec=ChatService)
-    mock_service.send_message = AsyncMock(
-        return_value=Message(role=MessageRole.ASSISTANT, content="Agent says hello"),
-    )
-    set_chat_service(mock_service)
-
-    app = FastAPI()
-    app.include_router(chat_router, prefix="/api/v1")
-
-    with TestClient(app) as client:
-        yield client, mock_service
-
-    set_chat_service(None)
     store.close()
 
 
@@ -110,90 +87,39 @@ class TestGetConversation:
         assert resp.status_code == 404
 
 
-class TestSendMessage:
-    """Tests for POST /api/v1/chat/{id}/messages."""
-
-    def test_send_fallback_when_no_service(self, chat_client):
-        create_resp = chat_client.post("/api/v1/chat", json={"workspace_id": "WS"})
-        conv_id = create_resp.json()["id"]
-
-        resp = chat_client.post(
-            f"/api/v1/chat/{conv_id}/messages",
-            json={"message": "Why is HANA down?"},
-        )
-        assert resp.status_code == 201
-        data = resp.json()
-        assert data["role"] == "assistant"
-        assert "not configured" in data["content"]
-
-    def test_send_with_agent_service(self, agent_chat_client):
-        client, mock_service = agent_chat_client
-        create_resp = client.post("/api/v1/chat", json={"workspace_id": "WS"})
-        conv_id = create_resp.json()["id"]
-
-        resp = client.post(
-            f"/api/v1/chat/{conv_id}/messages",
-            json={"message": "Check HANA"},
-        )
-        assert resp.status_code == 201
-        data = resp.json()
-        assert data["role"] == "assistant"
-        assert data["content"] == "Agent says hello"
-        mock_service.send_message.assert_awaited_once_with(conv_id, "Check HANA")
-
-    def test_send_updates_title(self, chat_client):
-        create_resp = chat_client.post("/api/v1/chat", json={"workspace_id": "WS"})
-        conv_id = create_resp.json()["id"]
-
-        chat_client.post(
-            f"/api/v1/chat/{conv_id}/messages",
-            json={"message": "First question about HANA"},
-        )
-
-        detail = chat_client.get(f"/api/v1/chat/{conv_id}").json()
-        assert "First question" in detail["title"]
-
-    def test_send_to_nonexistent_conversation(self, chat_client):
-        resp = chat_client.post(
-            "/api/v1/chat/nonexistent/messages",
-            json={"message": "hello"},
-        )
-        assert resp.status_code == 404
-
-    def test_send_empty_message_rejected(self, chat_client):
-        create_resp = chat_client.post("/api/v1/chat", json={"workspace_id": "WS"})
-        conv_id = create_resp.json()["id"]
-
-        resp = chat_client.post(
-            f"/api/v1/chat/{conv_id}/messages",
-            json={"message": ""},
-        )
-        assert resp.status_code == 422
-
-
 class TestGetMessages:
     """Tests for GET /api/v1/chat/{id}/messages."""
 
-    def test_get_messages_ordered(self, chat_client):
+    def test_get_messages_empty(self, chat_client):
         create_resp = chat_client.post("/api/v1/chat", json={"workspace_id": "WS"})
         conv_id = create_resp.json()["id"]
 
-        chat_client.post(
-            f"/api/v1/chat/{conv_id}/messages",
-            json={"message": "First"},
-        )
-        chat_client.post(
-            f"/api/v1/chat/{conv_id}/messages",
-            json={"message": "Second"},
+        resp = chat_client.get(f"/api/v1/chat/{conv_id}/messages")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    def test_get_messages_returns_stored(self, chat_client):
+        create_resp = chat_client.post("/api/v1/chat", json={"workspace_id": "WS"})
+        conv_id = create_resp.json()["id"]
+
+        store = get_conversation_store()
+        store.add_message(conv_id, Message(role=MessageRole.USER, content="hello"))
+        store.add_message(
+            conv_id,
+            Message(role=MessageRole.ASSISTANT, content="hi there"),
         )
 
         resp = chat_client.get(f"/api/v1/chat/{conv_id}/messages")
         assert resp.status_code == 200
         messages = resp.json()
-        # 2 user + 2 assistant = 4 messages
-        assert len(messages) == 4
+        assert len(messages) == 2
         assert messages[0]["role"] == "user"
-        assert messages[0]["content"] == "First"
+        assert messages[0]["content"] == "hello"
+        assert messages[1]["role"] == "assistant"
+
+    def test_get_messages_not_found(self, chat_client):
+        resp = chat_client.get("/api/v1/chat/nonexistent/messages")
+        assert resp.status_code == 404
 
 
 class TestArchiveConversation:
@@ -222,49 +148,6 @@ class TestArchiveConversation:
         resp = chat_client.post(f"/api/v1/chat/{conv_id}/archive")
         assert resp.status_code == 400
 
-    def test_send_to_archived_fails(self, chat_client):
-        create_resp = chat_client.post("/api/v1/chat", json={"workspace_id": "WS"})
-        conv_id = create_resp.json()["id"]
-        chat_client.post(f"/api/v1/chat/{conv_id}/archive")
-
-        resp = chat_client.post(
-            f"/api/v1/chat/{conv_id}/messages",
-            json={"message": "should fail"},
-        )
-        assert resp.status_code == 400
-
-
-class TestStreamMessage:
-    """Tests for POST /api/v1/chat/{id}/messages/stream."""
-
-    def test_stream_returns_503_without_service(self, chat_client):
-        create_resp = chat_client.post("/api/v1/chat", json={"workspace_id": "WS"})
-        conv_id = create_resp.json()["id"]
-
-        resp = chat_client.post(
-            f"/api/v1/chat/{conv_id}/messages/stream",
-            json={"message": "hello"},
-        )
-        assert resp.status_code == 503
-
-    def test_stream_not_found(self, chat_client):
-        resp = chat_client.post(
-            "/api/v1/chat/nonexistent/messages/stream",
-            json={"message": "hello"},
-        )
-        assert resp.status_code == 404
-
-    def test_stream_archived_fails(self, chat_client):
-        create_resp = chat_client.post("/api/v1/chat", json={"workspace_id": "WS"})
-        conv_id = create_resp.json()["id"]
-        chat_client.post(f"/api/v1/chat/{conv_id}/archive")
-
-        resp = chat_client.post(
-            f"/api/v1/chat/{conv_id}/messages/stream",
-            json={"message": "should fail"},
-        )
-        assert resp.status_code == 400
-
 
 class TestToolCallsOnReload:
     """Tests that tool calls from af_messages metadata appear on reload."""
@@ -273,9 +156,6 @@ class TestToolCallsOnReload:
         """Tool calls from af_messages metadata show on GET /chat/{id}."""
         create_resp = chat_client.post("/api/v1/chat", json={"workspace_id": "WS"})
         conv_id = create_resp.json()["id"]
-
-        # Directly add a message with af_messages metadata.
-        from src.core.storage.conversation_store import ConversationStore
 
         store = get_conversation_store()
         store.add_message(
@@ -326,14 +206,13 @@ class TestToolCallsOnReload:
         assert "toolCalls" in assistant_msgs[0]
         assert assistant_msgs[0]["toolCalls"][0]["name"] == "run_evidence_collector"
         assert assistant_msgs[0]["toolCalls"][0]["result"] == "OK"
-        # Parts should also be present.
         assert "parts" in assistant_msgs[0]
         parts = assistant_msgs[0]["parts"]
         assert any(p["type"] == "tool_call" for p in parts)
 
 
 class TestExtractParts:
-    """Tests for _extract_parts helper — interleaved text + tool calls."""
+    """Tests for _extract_parts helper - interleaved text + tool calls."""
 
     def test_empty_metadata(self):
         assert _extract_parts({}) == []

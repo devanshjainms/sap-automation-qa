@@ -18,3 +18,27 @@ html, body, #root {
   background: rgba(128, 128, 128, 0.4);
   border-radius: 3px;
 }
+
+/* ── CopilotKit full-page chat ──────────────────────────────── */
+.copilot-chat-fullpage {
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ── FluentUI → CopilotKit brand color alignment ──────────── */
+/* CopilotKit v2 ships sensible neutral light/dark defaults.
+   We only override the brand (primary) color so the send
+   button and accents match the FluentUI Azure blue palette.   */
+[data-copilotkit] {
+  --primary: #0f6cbd;
+  --primary-foreground: #ffffff;
+  --ring: #0f6cbd;
+}
+.dark [data-copilotkit],
+[data-copilotkit].dark {
+  --primary: #479ef5;
+  --primary-foreground: #ffffff;
+  --ring: #479ef5;
+}

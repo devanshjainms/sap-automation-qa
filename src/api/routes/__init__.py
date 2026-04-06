@@ -11,7 +11,7 @@ from src.api.routes.schedules import (
     set_scheduler_service,
 )
 from src.api.routes.workspaces import router as workspaces_router, set_workspace_loader
-from src.api.routes.chat import router as chat_router, set_conversation_store, set_chat_service
+from src.api.routes.chat import router as chat_router, set_conversation_store
 
 __all__ = [
     "health_router",
@@ -25,6 +25,5 @@ __all__ = [
     "set_scheduler_service",
     "set_workspace_loader",
     "set_conversation_store",
-    "set_chat_service",
     "set_health_service",
 ]
