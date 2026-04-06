@@ -27,78 +27,20 @@ html, body, #root {
   box-shadow: none;
 }
 
-/* ── CopilotKit dark-mode overrides for hardcoded Tailwind whites ── */
-
-/* Tool-call cards — override bg-white from CopilotKit defaults */
-.dark [data-copilotkit] [data-variant] {
-  background-color: var(--card) !important;
-  color: var(--card-foreground) !important;
-  border-color: var(--border) !important;
-}
-
-/* Tool-call header badges (Done/Running) */
-.dark [data-copilotkit] .cpk-tool-calls-dark [class*="bg-"] {
-  background-color: var(--secondary) !important;
-}
-
-/* Tool-call argument blocks (the pre/code sections) */
-.dark [data-copilotkit] pre,
-.dark [data-copilotkit] code {
-  background-color: #1a1a1a !important;
-  color: #d4d4d4 !important;
-}
-
-/* User message bubble — blend with dark theme */
-.dark [data-copilotkit] [data-streamdown] {
-  background-color: var(--secondary) !important;
-  color: var(--foreground) !important;
-}
-
-/* Light mode: keep default CopilotKit palette, align accent color */
+/*
+ * CopilotKit v2 has built-in dark mode via `.dark [data-copilotkit]`.
+ * We only override the brand accent to match FluentUI's blue.
+ * Everything else (card, background, borders) uses CopilotKit defaults.
+ */
 [data-copilotkit] {
   --primary: #0f6cbd;
   --primary-foreground: #ffffff;
   --ring: #0f6cbd;
 }
 
-/* Dark mode: match VS Code's dark editor / GitHub Copilot Chat feel */
 .dark [data-copilotkit],
 [data-copilotkit].dark {
-  /* Core surfaces — VS Code editor background */
-  --background: #1e1e1e;
-  --foreground: #cccccc;
-
-  /* Cards & popovers — slightly lifted from background */
-  --card: #252526;
-  --card-foreground: #cccccc;
-  --popover: #252526;
-  --popover-foreground: #cccccc;
-
-  /* Primary — FluentUI brand blue */
   --primary: #479ef5;
   --primary-foreground: #ffffff;
-
-  /* Secondary & muted — VS Code activity bar / sidebar tones */
-  --secondary: #2d2d2d;
-  --secondary-foreground: #cccccc;
-  --muted: #2d2d2d;
-  --muted-foreground: #858585;
-
-  /* Accent — subtle hover highlight */
-  --accent: #37373d;
-  --accent-foreground: #cccccc;
-
-  /* Borders & input — VS Code panel border */
-  --border: #3c3c3c;
-  --input: #3c3c3c;
   --ring: #479ef5;
-
-  /* CopilotKit internal tokens — override for dark mode */
-  --cpk-color-white: #1e1e1e;
-  --cpk-color-black: #cccccc;
-  --radius: 6px;
-
-  /* Destructive */
-  --destructive: #f44747;
-  --destructive-foreground: #f44747;
 }
