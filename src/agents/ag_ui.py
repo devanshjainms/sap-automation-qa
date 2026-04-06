@@ -16,7 +16,6 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID
-
 from fastapi import FastAPI
 from ag_ui.core.events import (
     StepStartedEvent,
@@ -80,8 +79,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
         self._factory = factory
         self._store = conversation_store
 
-    # Steps whose text is shown as ephemeral "thinking" rather than
-    # permanent assistant text.  Tool calls pass through unchanged.
     _THINKING_STEPS = frozenset({"Planner", "Executor"})
 
     async def run(
@@ -113,16 +110,11 @@ class SapWorkflow(AgentFrameworkWorkflow):
         open_tool_call_ids: list[str] = []
 
         async for event in super().run(input_data):
-            # Close any open tool calls when a non-args event arrives.
-            # The agent_framework emits TOOL_CALL_START/ARGS for
-            # backend-executed tools but omits TOOL_CALL_END, which
-            # leaves CopilotKit stuck waiting for tool completion.
             if open_tool_call_ids and not isinstance(event, ToolCallArgsEvent):
                 for tc_id in open_tool_call_ids:
                     yield ToolCallEndEvent(tool_call_id=tc_id)
                 open_tool_call_ids.clear()
 
-            # Track open tool calls.
             if isinstance(event, ToolCallStartEvent):
                 open_tool_call_ids.append(event.tool_call_id)
                 yield event
@@ -138,8 +130,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 yield event
                 continue
 
-            # Close thinking messages even after the step ends,
-            # because TextMessageEndEvent may arrive after StepFinishedEvent.
             if isinstance(event, TextMessageEndEvent):
                 if event.message_id in thinking_msg_ids:
                     thinking_msg_ids.discard(event.message_id)
@@ -149,7 +139,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
                         thinking_step_open = False
                     continue
 
-            # Convert internal agent text to thinking events.
             if current_step in self._THINKING_STEPS:
                 if isinstance(event, TextMessageStartEvent):
                     thinking_msg_ids.add(event.message_id)
@@ -163,7 +152,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
                         yield ThinkingTextMessageContentEvent(delta=event.delta)
                         continue
 
-            # Capture Analyst text for persistence.
             if isinstance(event, TextMessageContentEvent):
                 assistant_chunks.append(event.delta)
 
@@ -194,9 +182,7 @@ class SapWorkflow(AgentFrameworkWorkflow):
             existing = self._store.get(thread_id)
             if existing:
                 return
-            self._store.create(
-                Conversation(id=UUID(thread_id), workspace_id="")
-            )
+            self._store.create(Conversation(id=UUID(thread_id), workspace_id=""))
             logger.info("Created conversation %s", thread_id[:8])
         except Exception:
             logger.debug(

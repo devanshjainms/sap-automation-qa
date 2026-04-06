@@ -28,9 +28,6 @@ html, body, #root {
 }
 
 /* ── FluentUI → CopilotKit brand color alignment ──────────── */
-/* CopilotKit v2 ships sensible neutral light/dark defaults.
-   We only override the brand (primary) color so the send
-   button and accents match the FluentUI Azure blue palette.   */
 [data-copilotkit] {
   --primary: #0f6cbd;
   --primary-foreground: #ffffff;

@@ -76,6 +76,13 @@ export interface ToolMeta {
   name: string;
   title: string;
   description: string;
+  parameters: {
+    properties?: Record<
+      string,
+      { title?: string; type?: string; description?: string }
+    >;
+    required?: string[];
+  };
   annotations: {
     readOnlyHint: boolean | null;
     destructiveHint: boolean | null;

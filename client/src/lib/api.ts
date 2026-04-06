@@ -9,6 +9,7 @@ import type {
   Job,
   Message,
   Schedule,
+  ToolMeta,
   Workspace,
 } from "./types";
 
@@ -148,51 +149,8 @@ export function saveMessage(
   );
 }
 
-/**
- * Stream an assistant response via AG-UI protocol at /ag-ui.
- * Yields parsed AG-UI SSE events with `type` and event data.
- */
-export async function* streamAgUI(
-  threadId: string,
-  messages: Array<{ id: string; role: string; content: string }>,
-): AsyncGenerator<{ type: string; [key: string]: unknown }> {
-  const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const res = await fetch("/ag-ui", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      thread_id: threadId,
-      run_id: runId,
-      messages,
-    }),
-  });
-  if (!res.ok || !res.body) {
-    throw new Error(`${res.status}: ${await res.text().catch(() => res.statusText)}`);
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let currentEvent = "message";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (line.startsWith("event: ")) {
-        currentEvent = line.slice(7).trim();
-      } else if (line.startsWith("data: ")) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          data._event = currentEvent;
-          yield data;
-        } catch {
-          // skip malformed JSON
-        }
-        currentEvent = "message";
-      }
-    }
-  }
+export function getToolMetadata(): Promise<ToolMeta[]> {
+  return fetchJson<ToolMeta[]>(`${BASE}/chat/tools`);
 }
+
+

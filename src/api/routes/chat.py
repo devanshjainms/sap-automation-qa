@@ -80,8 +80,12 @@ def _detail(conv: Conversation) -> dict[str, Any]:
 def _get_tool_metadata() -> list[dict[str, Any]]:
     """Read MCP tool metadata — single source of truth from decorators.
 
-    :returns: List of ``{name, title, description, annotations, icons}``
-        dicts, or empty list if the MCP server is not loaded.
+    Includes the full JSON Schema ``parameters`` so the frontend can
+    render parameter names, types, and required indicators without
+    duplicating any tool knowledge.
+
+    :returns: List of tool metadata dicts sorted by name,
+        or empty list if the MCP server is not loaded.
     """
     try:
         tools = mcp._tool_manager.list_tools()
@@ -103,6 +107,7 @@ def _get_tool_metadata() -> list[dict[str, Any]]:
                     "name": t.name,
                     "title": t.title or t.name,
                     "description": t.description or "",
+                    "parameters": t.parameters or {},
                     "annotations": annotations,
                     "icons": icons,
                 }
@@ -157,6 +162,15 @@ def _extract_parts(metadata: dict) -> list[dict[str, Any]]:
                     }
                 )
     return parts
+
+
+@router.get("/tools")
+async def get_tools() -> list[dict[str, Any]]:
+    """Return MCP tool metadata — single source of truth for the UI.
+
+    :returns: Sorted list of ``{name, title, description, annotations, icons}``.
+    """
+    return _get_tool_metadata()
 
 
 @router.post("", status_code=201)
