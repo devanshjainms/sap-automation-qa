@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { makeStyles, tokens } from "@fluentui/react-components";
+import { makeStyles } from "@fluentui/react-components";
 
 export const useStyles = makeStyles({
   container: {
@@ -9,115 +9,5 @@ export const useStyles = makeStyles({
     flexDirection: "column",
     height: "100%",
     overflow: "hidden",
-  },
-  messages: {
-    flex: "1",
-    overflowY: "auto",
-    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalL}`,
-    display: "flex",
-    flexDirection: "column",
-    gap: tokens.spacingVerticalM,
-  },
-  welcome: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    height: "100%",
-    gap: tokens.spacingVerticalL,
-    padding: "2rem",
-    textAlign: "center",
-  },
-  welcomeTitle: {
-    fontSize: tokens.fontSizeBase500,
-    fontWeight: tokens.fontWeightSemibold,
-  },
-  suggestions: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: tokens.spacingHorizontalS,
-    justifyContent: "center",
-    maxWidth: "600px",
-  },
-  userBubble: {
-    alignSelf: "flex-end",
-    maxWidth: "75%",
-    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
-    borderRadius: tokens.borderRadiusMedium,
-    backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundOnBrand,
-    fontSize: tokens.fontSizeBase300,
-    lineHeight: tokens.lineHeightBase300,
-    whiteSpace: "pre-wrap",
-    overflowWrap: "break-word",
-  },
-  assistantBubble: {
-    alignSelf: "flex-start",
-    maxWidth: "85%",
-    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
-    borderRadius: tokens.borderRadiusMedium,
-    backgroundColor: tokens.colorNeutralBackground3,
-    color: tokens.colorNeutralForeground1,
-    fontSize: tokens.fontSizeBase300,
-    lineHeight: tokens.lineHeightBase300,
-    whiteSpace: "pre-wrap",
-    overflowWrap: "break-word",
-  },
-  toolCallCard: {
-    marginTop: tokens.spacingVerticalXS,
-    marginBottom: tokens.spacingVerticalXS,
-    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
-    borderRadius: tokens.borderRadiusMedium,
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
-    backgroundColor: tokens.colorNeutralBackground2,
-  },
-  toolCallHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-    marginBottom: tokens.spacingVerticalXS,
-  },
-  toolCallArgs: {
-    fontFamily: tokens.fontFamilyMonospace,
-    fontSize: tokens.fontSizeBase200,
-    whiteSpace: "pre-wrap",
-    overflowWrap: "break-word",
-    maxHeight: "8rem",
-    overflowY: "auto",
-    margin: 0,
-    marginTop: tokens.spacingVerticalXS,
-    padding: tokens.spacingHorizontalS,
-    borderRadius: tokens.borderRadiusSmall,
-    backgroundColor: tokens.colorNeutralBackground1,
-  },
-  thinkingRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-    color: tokens.colorNeutralForeground4,
-    fontStyle: "italic",
-    fontSize: tokens.fontSizeBase200,
-    animationName: {
-      from: { opacity: 0.4 },
-      to: { opacity: 1 },
-    },
-    animationDuration: "1.2s",
-    animationIterationCount: "infinite",
-    animationDirection: "alternate",
-    animationTimingFunction: "ease-in-out",
-  },
-  inputRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: tokens.spacingHorizontalS,
-    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalL}`,
-    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
-    flexShrink: 0,
-  },
-  input: {
-    flex: "1",
-  },
-  generativeUiWrapper: {
-    marginTop: tokens.spacingVerticalXS,
   },
 });

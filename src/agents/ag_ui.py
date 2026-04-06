@@ -15,7 +15,7 @@ import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 from fastapi import FastAPI
 from ag_ui.core.events import (
     StepStartedEvent,
@@ -31,6 +31,7 @@ from ag_ui.core.events import (
     ToolCallStartEvent,
     ToolCallArgsEvent,
     ToolCallEndEvent,
+    ToolCallResultEvent,
     RunFinishedEvent,
 )
 from ag_ui.core.events import BaseEvent
@@ -108,16 +109,44 @@ class SapWorkflow(AgentFrameworkWorkflow):
         thinking_msg_ids: set[str] = set()
         thinking_step_open: bool = False
         open_tool_call_ids: list[str] = []
+        tool_call_names: dict[str, str] = {}
 
         async for event in super().run(input_data):
-            if open_tool_call_ids and not isinstance(event, ToolCallArgsEvent):
+            # Auto-close tool calls that the upstream forgot to END.
+            # If upstream provides its own TOOL_CALL_END, we skip auto-close.
+            if open_tool_call_ids and not isinstance(
+                event, (ToolCallArgsEvent, ToolCallEndEvent)
+            ):
                 for tc_id in open_tool_call_ids:
                     yield ToolCallEndEvent(tool_call_id=tc_id)
+                    yield ToolCallResultEvent(
+                        message_id=str(uuid4()),
+                        tool_call_id=tc_id,
+                        content=f"{tool_call_names.get(tc_id, 'tool')} completed",
+                        role="tool",
+                    )
                 open_tool_call_ids.clear()
 
+            # Track open tool calls.
             if isinstance(event, ToolCallStartEvent):
                 open_tool_call_ids.append(event.tool_call_id)
+                tool_call_names[event.tool_call_id] = (
+                    event.tool_call_name or "tool"
+                )
                 yield event
+                continue
+
+            # Upstream-provided TOOL_CALL_END — emit result after it.
+            if isinstance(event, ToolCallEndEvent):
+                if event.tool_call_id in open_tool_call_ids:
+                    open_tool_call_ids.remove(event.tool_call_id)
+                yield event
+                yield ToolCallResultEvent(
+                    message_id=str(uuid4()),
+                    tool_call_id=event.tool_call_id,
+                    content=f"{tool_call_names.get(event.tool_call_id, 'tool')} completed",
+                    role="tool",
+                )
                 continue
 
             # Track which agent step we're inside.
@@ -160,6 +189,12 @@ class SapWorkflow(AgentFrameworkWorkflow):
         # Close any tool calls still open at end of stream.
         for tc_id in open_tool_call_ids:
             yield ToolCallEndEvent(tool_call_id=tc_id)
+            yield ToolCallResultEvent(
+                message_id=str(uuid4()),
+                tool_call_id=tc_id,
+                content=f"{tool_call_names.get(tc_id, 'tool')} completed",
+                role="tool",
+            )
 
         if self._store and thread_id:
             if user_text:
