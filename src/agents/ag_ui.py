@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 from fastapi import FastAPI
 from ag_ui.core.events import (
@@ -33,8 +33,14 @@ from ag_ui.core.events import (
     ToolCallEndEvent,
     ToolCallResultEvent,
     RunFinishedEvent,
+    MessagesSnapshotEvent,
 )
 from ag_ui.core.events import BaseEvent
+from ag_ui.core.types import (
+    Message as AGMessage,
+    UserMessage as AGUserMessage,
+    AssistantMessage as AGAssistantMessage,
+)
 from agent_framework_ag_ui import (
     AgentFrameworkWorkflow,
     add_agent_framework_fastapi_endpoint,
@@ -80,7 +86,7 @@ class SapWorkflow(AgentFrameworkWorkflow):
         self._factory = factory
         self._store = conversation_store
 
-    _THINKING_STEPS = frozenset({"Planner", "Executor"})
+    _THINKING_STEPS = frozenset({"Planner"})
 
     async def run(
         self,
@@ -99,10 +105,21 @@ class SapWorkflow(AgentFrameworkWorkflow):
         :yields: AG-UI events from the underlying workflow.
         """
         thread_id = input_data.get("thread_id", "")
+        run_id = input_data.get("run_id", str(uuid4()))
         user_text = self._extract_user_text(input_data)
 
         if self._store and thread_id:
             self._ensure_conversation(thread_id)
+
+        snapshot = self._build_messages_snapshot(thread_id)
+        if snapshot:
+            yield snapshot
+            if not user_text:
+                yield RunFinishedEvent(
+                    thread_id=thread_id,
+                    run_id=run_id,
+                )
+                return
 
         assistant_chunks: list[str] = []
         current_step: str = ""
@@ -112,11 +129,7 @@ class SapWorkflow(AgentFrameworkWorkflow):
         tool_call_names: dict[str, str] = {}
 
         async for event in super().run(input_data):
-            # Auto-close tool calls that the upstream forgot to END.
-            # If upstream provides its own TOOL_CALL_END, we skip auto-close.
-            if open_tool_call_ids and not isinstance(
-                event, (ToolCallArgsEvent, ToolCallEndEvent)
-            ):
+            if open_tool_call_ids and not isinstance(event, (ToolCallArgsEvent, ToolCallEndEvent)):
                 for tc_id in open_tool_call_ids:
                     yield ToolCallEndEvent(tool_call_id=tc_id)
                     yield ToolCallResultEvent(
@@ -127,16 +140,12 @@ class SapWorkflow(AgentFrameworkWorkflow):
                     )
                 open_tool_call_ids.clear()
 
-            # Track open tool calls.
             if isinstance(event, ToolCallStartEvent):
                 open_tool_call_ids.append(event.tool_call_id)
-                tool_call_names[event.tool_call_id] = (
-                    event.tool_call_name or "tool"
-                )
+                tool_call_names[event.tool_call_id] = event.tool_call_name or "tool"
                 yield event
                 continue
 
-            # Upstream-provided TOOL_CALL_END — emit result after it.
             if isinstance(event, ToolCallEndEvent):
                 if event.tool_call_id in open_tool_call_ids:
                     open_tool_call_ids.remove(event.tool_call_id)
@@ -149,7 +158,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 )
                 continue
 
-            # Track which agent step we're inside.
             if isinstance(event, StepStartedEvent):
                 current_step = event.step_name or ""
                 yield event
@@ -178,7 +186,9 @@ class SapWorkflow(AgentFrameworkWorkflow):
                     continue
                 if isinstance(event, TextMessageContentEvent):
                     if event.message_id in thinking_msg_ids:
-                        yield ThinkingTextMessageContentEvent(delta=event.delta)
+                        yield ThinkingTextMessageContentEvent(
+                            delta=event.delta,
+                        )
                         continue
 
             if isinstance(event, TextMessageContentEvent):
@@ -186,7 +196,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
 
             yield event
 
-        # Close any tool calls still open at end of stream.
         for tc_id in open_tool_call_ids:
             yield ToolCallEndEvent(tool_call_id=tc_id)
             yield ToolCallResultEvent(
@@ -225,6 +234,44 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 thread_id[:8],
                 exc_info=True,
             )
+
+    def _build_messages_snapshot(
+        self,
+        thread_id: str,
+    ) -> MessagesSnapshotEvent | None:
+        """Build a ``MessagesSnapshotEvent`` from stored conversation history.
+
+        Returns ``None`` when there is no store, no thread, or no prior
+        messages.
+        """
+        if not self._store or not thread_id:
+            return None
+        try:
+            stored = self._store.get_history(thread_id)
+            if not stored:
+                return None
+            ag_msgs: list[AGUserMessage | AGAssistantMessage] = []
+            for msg in stored:
+                if msg.role == MessageRole.USER:
+                    ag_msgs.append(AGUserMessage(id=str(uuid4()), content=msg.content))
+                elif msg.role == MessageRole.ASSISTANT:
+                    ag_msgs.append(AGAssistantMessage(id=str(uuid4()), content=msg.content))
+            if not ag_msgs:
+                return None
+            logger.debug(
+                "Replaying %d messages for thread %s",
+                len(ag_msgs),
+                thread_id[:8],
+            )
+            return MessagesSnapshotEvent(
+                messages=cast(list[AGMessage], ag_msgs),
+            )
+        except Exception:
+            logger.debug(
+                "Could not build messages snapshot",
+                exc_info=True,
+            )
+            return None
 
     def _save_user_message(self, conv_id: str, text: str) -> None:
         """Persist the user message."""

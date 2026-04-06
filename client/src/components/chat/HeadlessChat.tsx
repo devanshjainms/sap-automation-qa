@@ -45,6 +45,14 @@ function SapChatInner() {
         agentId="sap-agent"
         threadId={conversationId}
         className="copilot-chat-fullpage"
+        messageView={{
+          assistantMessage: {
+            toolCallsView: "cpk-tool-calls-dark",
+          },
+          reasoningMessage: {
+            className: "cpk-reasoning-expanded",
+          },
+        }}
         labels={{
           modalHeaderTitle: "SAP Assistant",
           welcomeMessageText:
