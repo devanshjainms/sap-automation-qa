@@ -108,11 +108,26 @@ class SapWorkflow(AgentFrameworkWorkflow):
         run_id = input_data.get("run_id", str(uuid4()))
         user_text = self._extract_user_text(input_data)
 
+        logger.info(
+            "AG-UI run: thread_id=%r, run_id=%s, user_text=%s, "
+            "msg_count=%d, keys=%s",
+            thread_id,
+            run_id[:12] if run_id else "(none)",
+            bool(user_text),
+            len(input_data.get("messages", [])),
+            list(input_data.keys()),
+        )
+
         if self._store and thread_id:
             self._ensure_conversation(thread_id)
 
         snapshot = self._build_messages_snapshot(thread_id)
         if snapshot:
+            logger.info(
+                "Replaying snapshot with %d messages for thread %s",
+                len(snapshot.messages),
+                thread_id[:12],
+            )
             yield snapshot
             if not user_text:
                 yield RunFinishedEvent(
@@ -160,9 +175,11 @@ class SapWorkflow(AgentFrameworkWorkflow):
 
             if isinstance(event, StepStartedEvent):
                 current_step = event.step_name or ""
+                logger.info("Step started: %r", current_step)
                 yield event
                 continue
             if isinstance(event, StepFinishedEvent):
+                logger.info("Step finished: %r", current_step)
                 current_step = ""
                 yield event
                 continue
