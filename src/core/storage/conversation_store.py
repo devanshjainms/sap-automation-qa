@@ -1,20 +1,26 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""SQLite-backed storage for conversations and messages."""
+"""SQLite-backed storage for conversations and messages.
+
+Messages are persisted as serialised Agent Framework ``Message``
+dicts -- the canonical message type used across the agent stack.
+Each row stores a single AF message JSON blob alongside a
+``conversation_id`` foreign key and a ``timestamp`` for ordering.
+"""
 
 import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
-from uuid import UUID
+from typing import Any, List, Optional
+from uuid import UUID, uuid4
+
+from agent_framework import Message as AFMessage
 
 from src.core.models.conversation import (
     Conversation,
     ConversationStatus,
-    Message,
-    MessageRole,
 )
 
 _CONVERSATIONS_SCHEMA = """
@@ -33,12 +39,8 @@ CREATE TABLE IF NOT EXISTS messages (
     id                  TEXT PRIMARY KEY,
     conversation_id     TEXT NOT NULL,
     role                TEXT NOT NULL,
-    content             TEXT NOT NULL,
-    thinking            TEXT,
+    af_message          TEXT NOT NULL DEFAULT '{}',
     timestamp           TEXT NOT NULL,
-    triage_session_id   TEXT,
-    tool_name           TEXT,
-    metadata            TEXT NOT NULL DEFAULT '{}',
     FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
 
@@ -63,16 +65,12 @@ def _dt_to_iso(dt: Optional[datetime]) -> Optional[str]:
 
 
 class ConversationStore:
-    """SQLite-backed repository for conversations and messages.
+    """SQLite-backed repository for conversations and AF messages.
 
     :param db_path: Path to the SQLite database file.
     """
 
     def __init__(self, db_path: Path | str = "data/conversations.db") -> None:
-        """Initialize the conversation store.
-
-        :param db_path: Path to SQLite database file.
-        """
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -85,10 +83,15 @@ class ConversationStore:
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(_CONVERSATIONS_SCHEMA)
+        self._migrate_legacy_messages()
 
     def close(self) -> None:
         """Close the database connection."""
         self._conn.close()
+
+    # ------------------------------------------------------------------
+    # Conversation CRUD
+    # ------------------------------------------------------------------
 
     def create(self, conversation: Conversation) -> Conversation:
         """Create a new conversation.
@@ -117,8 +120,6 @@ class ConversationStore:
                     json.dumps(conversation.metadata, default=str),
                 ),
             )
-            for msg in conversation.messages:
-                self._insert_message(str(conversation.id), msg)
         return conversation
 
     def get(self, conversation_id: UUID | str) -> Optional[Conversation]:
@@ -135,57 +136,8 @@ class ConversationStore:
         if not row:
             return None
 
-        conv_data = dict(row)
-        messages = self._load_messages(str(conversation_id))
-        return self._row_to_conversation(conv_data, messages)
-
-    def add_message(
-        self,
-        conversation_id: UUID | str,
-        message: Message,
-    ) -> Message:
-        """Add a message to an existing conversation.
-
-        :param conversation_id: Conversation to add to.
-        :param message: Message to add.
-        :returns: The added message.
-        :raises ValueError: If conversation not found or archived.
-        """
-        conv = self.get(conversation_id)
-        if conv is None:
-            raise ValueError(f"Conversation {conversation_id} not found")
-        if conv.is_archived:
-            raise ValueError("Cannot add messages to an archived conversation")
-
-        cid = str(conversation_id)
-        now = _dt_to_iso(datetime.now(timezone.utc))
-
-        with self._conn:
-            self._insert_message(cid, message)
-
-            updates = {"updated_at": now}
-            if not conv.title and message.role == MessageRole.USER:
-                updates["title"] = message.content[:80]
-
-            set_clause = ", ".join(f"{k} = ?" for k in updates)
-            self._conn.execute(
-                f"UPDATE conversations SET {set_clause} WHERE id = ?",
-                (*updates.values(), cid),
-            )
-        return message
-
-    def get_history(
-        self,
-        conversation_id: UUID | str,
-        limit: Optional[int] = None,
-    ) -> List[Message]:
-        """Get ordered messages for a conversation.
-
-        :param conversation_id: Conversation identifier.
-        :param limit: Optional limit on number of messages returned.
-        :returns: List of messages ordered by timestamp.
-        """
-        return self._load_messages(str(conversation_id), limit=limit)
+        msg_dicts = self._load_af_messages(str(conversation_id))
+        return self._row_to_conversation(dict(row), msg_dicts)
 
     def list_all(
         self,
@@ -196,26 +148,21 @@ class ConversationStore:
 
         :param include_archived: Whether to include archived conversations.
         :param limit: Maximum results.
-        :returns: List of conversations (without full message history).
+        :returns: List of conversations (without message history).
         """
         self._conn.row_factory = sqlite3.Row
         if include_archived:
             cur = self._conn.execute(
-                "SELECT * FROM conversations " "ORDER BY updated_at DESC LIMIT ?",
+                "SELECT * FROM conversations ORDER BY updated_at DESC LIMIT ?",
                 (limit,),
             )
         else:
             cur = self._conn.execute(
                 "SELECT * FROM conversations "
-                "WHERE status = ? "
-                "ORDER BY updated_at DESC LIMIT ?",
+                "WHERE status = ? ORDER BY updated_at DESC LIMIT ?",
                 (ConversationStatus.ACTIVE.value, limit),
             )
-
-        results: list[Conversation] = []
-        for row in cur.fetchall():
-            results.append(self._row_to_conversation(dict(row), []))
-        return results
+        return [self._row_to_conversation(dict(r), []) for r in cur.fetchall()]
 
     def list_conversations(
         self,
@@ -228,14 +175,13 @@ class ConversationStore:
         :param workspace_id: Workspace identifier.
         :param include_archived: Whether to include archived conversations.
         :param limit: Maximum results.
-        :returns: List of conversations (without full message history).
+        :returns: List of conversations (without message history).
         """
         self._conn.row_factory = sqlite3.Row
         if include_archived:
             cur = self._conn.execute(
                 "SELECT * FROM conversations "
-                "WHERE workspace_id = ? "
-                "ORDER BY updated_at DESC LIMIT ?",
+                "WHERE workspace_id = ? ORDER BY updated_at DESC LIMIT ?",
                 (workspace_id, limit),
             )
         else:
@@ -245,17 +191,9 @@ class ConversationStore:
                 "ORDER BY updated_at DESC LIMIT ?",
                 (workspace_id, ConversationStatus.ACTIVE.value, limit),
             )
+        return [self._row_to_conversation(dict(r), []) for r in cur.fetchall()]
 
-        results: list[Conversation] = []
-        for row in cur.fetchall():
-            results.append(self._row_to_conversation(dict(row), []))
-        return results
-
-    def update_title(
-        self,
-        conversation_id: UUID | str,
-        title: str,
-    ) -> bool:
+    def update_title(self, conversation_id: UUID | str, title: str) -> bool:
         """Update the title of a conversation.
 
         :param conversation_id: Conversation identifier.
@@ -287,76 +225,171 @@ class ConversationStore:
         now = _dt_to_iso(datetime.now(timezone.utc))
         with self._conn:
             self._conn.execute(
-                "UPDATE conversations SET status = ?, updated_at = ? " "WHERE id = ?",
-                (
-                    ConversationStatus.ARCHIVED.value,
-                    now,
-                    str(conversation_id),
-                ),
+                "UPDATE conversations SET status = ?, updated_at = ? WHERE id = ?",
+                (ConversationStatus.ARCHIVED.value, now, str(conversation_id)),
             )
         return True
 
-    def _insert_message(self, conversation_id: str, msg: Message) -> None:
-        """Insert a single message row."""
-        self._conn.execute(
-            """INSERT INTO messages
-               (id, conversation_id, role, content, thinking,
-                timestamp, triage_session_id, tool_name, metadata)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                str(msg.id),
-                conversation_id,
-                msg.role if isinstance(msg.role, str) else msg.role.value,
-                msg.content,
-                msg.thinking,
-                _dt_to_iso(msg.timestamp),
-                msg.triage_session_id,
-                msg.tool_name,
-                json.dumps(msg.metadata, default=str),
-            ),
-        )
+    # ------------------------------------------------------------------
+    # Message operations (AF Message)
+    # ------------------------------------------------------------------
 
-    def _load_messages(
+    def add_message(
+        self,
+        conversation_id: UUID | str,
+        af_msg: AFMessage,
+    ) -> AFMessage:
+        """Add an AF message to an existing conversation.
+
+        :param conversation_id: Conversation to add to.
+        :param af_msg: Agent Framework Message to persist.
+        :returns: The added message.
+        :raises ValueError: If conversation not found or archived.
+        """
+        conv = self.get(conversation_id)
+        if conv is None:
+            raise ValueError(f"Conversation {conversation_id} not found")
+        if conv.is_archived:
+            raise ValueError("Cannot add messages to an archived conversation")
+
+        cid = str(conversation_id)
+        now = _dt_to_iso(datetime.now(timezone.utc))
+
+        with self._conn:
+            msg_id = af_msg.message_id or str(uuid4())
+            self._conn.execute(
+                """INSERT INTO messages
+                   (id, conversation_id, role, af_message, timestamp)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (
+                    msg_id,
+                    cid,
+                    af_msg.role,
+                    json.dumps(af_msg.to_dict(), default=str),
+                    now,
+                ),
+            )
+
+            updates: dict[str, Any] = {"updated_at": now}
+            if not conv.title and af_msg.role == "user" and af_msg.text:
+                updates["title"] = af_msg.text[:80]
+
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            self._conn.execute(
+                f"UPDATE conversations SET {set_clause} WHERE id = ?",
+                (*updates.values(), cid),
+            )
+        return af_msg
+
+    def get_history(
+        self,
+        conversation_id: UUID | str,
+        limit: Optional[int] = None,
+    ) -> List[AFMessage]:
+        """Get ordered AF messages for a conversation.
+
+        :param conversation_id: Conversation identifier.
+        :param limit: Optional limit on number of messages returned.
+        :returns: List of AF Messages ordered by timestamp.
+        """
+        dicts = self._load_af_messages(str(conversation_id), limit=limit)
+        messages: list[AFMessage] = []
+        for d in dicts:
+            try:
+                messages.append(AFMessage.from_dict(d))
+            except Exception:
+                pass
+        return messages
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _load_af_messages(
         self,
         conversation_id: str,
         limit: Optional[int] = None,
-    ) -> List[Message]:
-        """Load messages for a conversation, ordered by timestamp."""
+    ) -> list[dict[str, Any]]:
+        """Load raw AF message dicts for a conversation."""
         self._conn.row_factory = sqlite3.Row
-        sql = "SELECT * FROM messages " "WHERE conversation_id = ? " "ORDER BY timestamp ASC"
+        sql = (
+            "SELECT af_message FROM messages "
+            "WHERE conversation_id = ? ORDER BY timestamp ASC"
+        )
         params: tuple = (conversation_id,)
         if limit is not None:
             sql += " LIMIT ?"
             params = (conversation_id, limit)
 
         rows = self._conn.execute(sql, params).fetchall()
-        return [self._row_to_message(dict(row)) for row in rows]
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            try:
+                result.append(json.loads(row["af_message"]))
+            except (json.JSONDecodeError, KeyError):
+                pass
+        return result
+
+    def _migrate_legacy_messages(self) -> None:
+        """Migrate legacy message rows that lack the ``af_message`` column.
+
+        Old schema had: role, content, thinking, metadata, etc.
+        New schema has: role, af_message (JSON blob).
+        This migration runs once on startup and converts old rows.
+        """
+        self._conn.row_factory = sqlite3.Row
+        try:
+            self._conn.execute("SELECT af_message FROM messages LIMIT 1")
+            return
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            self._conn.execute(
+                "ALTER TABLE messages ADD COLUMN af_message TEXT NOT NULL DEFAULT '{}'"
+            )
+        except sqlite3.OperationalError:
+            return
+
+        rows = self._conn.execute(
+            "SELECT id, role, content, metadata FROM messages "
+            "WHERE af_message = '{}'"
+        ).fetchall()
+
+        for row in rows:
+            data = dict(row)
+            metadata = json.loads(data.get("metadata", "{}") or "{}")
+            af_msgs = metadata.get("af_messages", [])
+            if af_msgs:
+                af_blob = json.dumps(af_msgs[0] if len(af_msgs) == 1 else af_msgs[0], default=str)
+            else:
+                af_dict = {
+                    "type": "message",
+                    "role": data["role"],
+                    "contents": [{"type": "text", "text": data.get("content", "")}],
+                    "additional_properties": {},
+                }
+                af_blob = json.dumps(af_dict, default=str)
+            self._conn.execute(
+                "UPDATE messages SET af_message = ? WHERE id = ?",
+                (af_blob, data["id"]),
+            )
+        self._conn.commit()
 
     @staticmethod
-    def _row_to_message(data: dict) -> Message:
-        """Reconstruct a Message from a database row."""
-        return Message(
-            id=data["id"],
-            role=data["role"],
-            content=data["content"],
-            thinking=data.get("thinking"),
-            timestamp=datetime.fromisoformat(data["timestamp"]),
-            triage_session_id=data.get("triage_session_id"),
-            tool_name=data.get("tool_name"),
-            metadata=json.loads(data["metadata"]),
-        )
-
-    @staticmethod
-    def _row_to_conversation(data: dict, messages: List[Message]) -> Conversation:
-        """Reconstruct a Conversation from a database row + messages."""
+    def _row_to_conversation(
+        data: dict,
+        messages: list[dict[str, Any]],
+    ) -> Conversation:
+        """Reconstruct a Conversation from a database row + message dicts."""
         return Conversation(
             id=data["id"],
             workspace_id=data["workspace_id"],
             status=data["status"],
             title=data["title"],
             messages=messages,
-            triage_session_ids=json.loads(data["triage_session_ids"]),
+            triage_session_ids=json.loads(data.get("triage_session_ids", "[]")),
             created_at=datetime.fromisoformat(data["created_at"]),
             updated_at=datetime.fromisoformat(data["updated_at"]),
-            metadata=json.loads(data["metadata"]),
+            metadata=json.loads(data.get("metadata", "{}")),
         )

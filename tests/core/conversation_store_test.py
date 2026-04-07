@@ -1,18 +1,18 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Tests for ConversationStore."""
+"""Tests for ConversationStore (AF Message-based)."""
 
 from pathlib import Path
 from typing import Generator
 from uuid import uuid4
 
 import pytest
+from agent_framework import Message as AFMessage
+
 from src.core.models.conversation import (
     Conversation,
     ConversationStatus,
-    Message,
-    MessageRole,
 )
 from src.core.storage.conversation_store import ConversationStore
 
@@ -33,13 +33,9 @@ def _make_conversation(
     return Conversation(workspace_id=workspace_id, title=title)
 
 
-def _make_message(
-    role: MessageRole = MessageRole.USER,
-    content: str = "Hello, world!",
-    thinking: str | None = None,
-) -> Message:
-    """Build a Message with sensible defaults."""
-    return Message(role=role, content=content, thinking=thinking)
+def _make_af_msg(role: str = "user", text: str = "Hello, world!") -> AFMessage:
+    """Build an AF Message with sensible defaults."""
+    return AFMessage(role, [text])
 
 
 class TestConversationStoreCreate:
@@ -55,54 +51,33 @@ class TestConversationStoreCreate:
         assert loaded.workspace_id == "WS-001"
         assert loaded.status == ConversationStatus.ACTIVE.value
 
-    def test_create_with_messages(self, store: ConversationStore) -> None:
-        """Verify messages are persisted with the conversation."""
-        conv = _make_conversation()
-        conv.add_message(_make_message(content="first"))
-        conv.add_message(
-            _make_message(
-                role=MessageRole.ASSISTANT,
-                content="response",
-            )
-        )
-        store.create(conv)
-
-        loaded = store.get(conv.id)
-        assert loaded is not None
-        assert len(loaded.messages) == 2
-        assert loaded.messages[0].content == "first"
-        assert loaded.messages[1].role == MessageRole.ASSISTANT.value
-
     def test_get_not_found(self, store: ConversationStore) -> None:
         """Verify get returns None for missing conversation."""
         assert store.get(uuid4()) is None
 
 
 class TestConversationStoreAddMessage:
-    """Tests for add_message."""
+    """Tests for add_message (AF Message)."""
 
     def test_add_message(self, store: ConversationStore) -> None:
-        """Verify message is appended to existing conversation."""
+        """Verify AF message is appended to existing conversation."""
         conv = _make_conversation()
         store.create(conv)
 
-        msg = _make_message(content="new message")
-        store.add_message(conv.id, msg)
+        store.add_message(conv.id, _make_af_msg(text="new message"))
 
         loaded = store.get(conv.id)
         assert loaded is not None
         assert len(loaded.messages) == 1
-        assert loaded.messages[0].content == "new message"
+        # Messages are AF message dicts
+        assert loaded.messages[0]["role"] == "user"
 
     def test_auto_title_from_first_user_message(self, store: ConversationStore) -> None:
         """Verify title auto-set from first user message."""
         conv = _make_conversation(title="")
         store.create(conv)
 
-        store.add_message(
-            conv.id,
-            _make_message(content="HANA failover investigation"),
-        )
+        store.add_message(conv.id, _make_af_msg(text="HANA failover investigation"))
         loaded = store.get(conv.id)
         assert loaded is not None
         assert loaded.title == "HANA failover investigation"
@@ -114,41 +89,37 @@ class TestConversationStoreAddMessage:
         store.archive(conv.id)
 
         with pytest.raises(ValueError, match="archived"):
-            store.add_message(
-                conv.id,
-                _make_message(content="should fail"),
-            )
+            store.add_message(conv.id, _make_af_msg(text="should fail"))
 
     def test_add_message_not_found_raises(self, store: ConversationStore) -> None:
         """Verify adding to non-existent conversation raises."""
         with pytest.raises(ValueError, match="not found"):
-            store.add_message(
-                uuid4(),
-                _make_message(content="nope"),
-            )
+            store.add_message(uuid4(), _make_af_msg(text="nope"))
 
 
 class TestConversationStoreHistory:
-    """Tests for get_history."""
+    """Tests for get_history (returns List[AFMessage])."""
 
     def test_history_ordered_by_timestamp(self, store: ConversationStore) -> None:
         """Verify messages returned in timestamp order."""
         conv = _make_conversation()
-        conv.add_message(_make_message(content="first"))
-        conv.add_message(_make_message(content="second"))
-        conv.add_message(_make_message(content="third"))
         store.create(conv)
 
+        store.add_message(conv.id, _make_af_msg(text="first"))
+        store.add_message(conv.id, _make_af_msg(text="second"))
+        store.add_message(conv.id, _make_af_msg(text="third"))
+
         history = store.get_history(conv.id)
-        contents = [m.content for m in history]
-        assert contents == ["first", "second", "third"]
+        texts = [m.text for m in history]
+        assert texts == ["first", "second", "third"]
 
     def test_history_with_limit(self, store: ConversationStore) -> None:
         """Verify limit caps returned messages."""
         conv = _make_conversation()
-        for i in range(10):
-            conv.add_message(_make_message(content=f"msg-{i}"))
         store.create(conv)
+
+        for i in range(10):
+            store.add_message(conv.id, _make_af_msg(text=f"msg-{i}"))
 
         history = store.get_history(conv.id, limit=3)
         assert len(history) == 3
@@ -158,6 +129,19 @@ class TestConversationStoreHistory:
         conv = _make_conversation()
         store.create(conv)
         assert store.get_history(conv.id) == []
+
+    def test_history_returns_af_messages(self, store: ConversationStore) -> None:
+        """Verify get_history returns AFMessage objects."""
+        conv = _make_conversation()
+        store.create(conv)
+        store.add_message(conv.id, _make_af_msg(role="user", text="hello"))
+        store.add_message(conv.id, _make_af_msg(role="assistant", text="hi"))
+
+        history = store.get_history(conv.id)
+        assert len(history) == 2
+        assert all(isinstance(m, AFMessage) for m in history)
+        assert history[0].role == "user"
+        assert history[1].role == "assistant"
 
 
 class TestConversationStoreList:
@@ -204,8 +188,8 @@ class TestConversationStoreList:
     def test_list_no_messages_loaded(self, store: ConversationStore) -> None:
         """Verify listed conversations don't include full message history."""
         conv = _make_conversation()
-        conv.add_message(_make_message(content="hello"))
         store.create(conv)
+        store.add_message(conv.id, _make_af_msg(text="hello"))
 
         results = store.list_conversations(workspace_id="WS-001")
         assert len(results) == 1
@@ -239,34 +223,3 @@ class TestConversationStoreArchive:
 
         with pytest.raises(ValueError, match="already archived"):
             store.archive(conv.id)
-
-
-class TestConversationStoreThinking:
-    """Tests for the thinking field on messages."""
-
-    def test_thinking_none_by_default(self, store: ConversationStore) -> None:
-        """Verify thinking is None when not provided."""
-        conv = _make_conversation()
-        store.create(conv)
-        store.add_message(
-            conv.id,
-            _make_message(role=MessageRole.ASSISTANT, content="answer"),
-        )
-        history = store.get_history(conv.id)
-        assert history[0].thinking is None
-
-    def test_thinking_persisted(self, store: ConversationStore) -> None:
-        """Verify thinking field round-trips through SQLite."""
-        conv = _make_conversation()
-        store.create(conv)
-        store.add_message(
-            conv.id,
-            _make_message(
-                role=MessageRole.ASSISTANT,
-                content="The root cause is...",
-                thinking="Let me analyze the HANA logs first",
-            ),
-        )
-
-        history = store.get_history(conv.id)
-        assert history[0].thinking == "Let me analyze the HANA logs first"

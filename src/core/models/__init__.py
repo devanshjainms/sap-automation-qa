@@ -37,8 +37,6 @@ from src.core.models.triage import (
 from src.core.models.conversation import (
     Conversation,
     ConversationStatus,
-    Message,
-    MessageRole,
 )
 from src.core.models.mcp_config import (
     McpServerEntry,
@@ -82,8 +80,6 @@ __all__ = [
     "TriageReport",
     "Conversation",
     "ConversationStatus",
-    "Message",
-    "MessageRole",
     "McpServerEntry",
     "McpServersConfig",
     "SafetyTier",

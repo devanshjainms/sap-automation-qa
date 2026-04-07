@@ -1,18 +1,18 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Tests for ConversationStore — CRUD, archival, message ordering, metadata."""
+"""Tests for ConversationStore — CRUD, archival, message ordering (AF Message)."""
 
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator
 
 import pytest
+from agent_framework import Message as AFMessage
+from agent_framework._types import Content
+
 from src.core.models.conversation import (
     Conversation,
     ConversationStatus,
-    Message,
-    MessageRole,
 )
 from src.core.storage.conversation_store import ConversationStore
 
@@ -33,19 +33,9 @@ def _make_conversation(
     return Conversation(workspace_id=workspace_id, title=title)
 
 
-def _make_message(
-    role: MessageRole = MessageRole.USER,
-    content: str = "Hello",
-    triage_session_id: str | None = None,
-    metadata: dict | None = None,
-) -> Message:
-    """Build a minimal message."""
-    return Message(
-        role=role,
-        content=content,
-        triage_session_id=triage_session_id,
-        metadata=metadata or {},
-    )
+def _make_af_msg(role: str = "user", text: str = "Hello") -> AFMessage:
+    """Build a minimal AF message."""
+    return AFMessage(role, [text])
 
 
 # ─── Create + Get ─────────────────────────────────────────────
@@ -69,42 +59,29 @@ class TestCreateAndGet:
         """Verify get() returns None for unknown ID."""
         assert store.get("nonexistent-id") is None
 
-    def test_create_with_messages(self, store: ConversationStore) -> None:
-        """Verify conversation created with inline messages persists them."""
-        msg = _make_message(content="inline msg")
-        conv = Conversation(workspace_id="WS-01", messages=[msg])
-        store.create(conv)
-
-        loaded = store.get(conv.id)
-        assert loaded is not None
-        assert len(loaded.messages) == 1
-        assert loaded.messages[0].content == "inline msg"
-
 
 # ─── Add Message ──────────────────────────────────────────────
 
 
 class TestAddMessage:
-    """Tests for add_message()."""
+    """Tests for add_message() with AF Messages."""
 
     def test_add_message(self, store: ConversationStore) -> None:
-        """Verify a message can be added to an active conversation."""
+        """Verify an AF message can be added to an active conversation."""
         conv = _make_conversation()
         store.create(conv)
 
-        msg = _make_message(content="first message")
-        store.add_message(conv.id, msg)
+        store.add_message(conv.id, _make_af_msg(text="first message"))
 
         loaded = store.get(conv.id)
         assert loaded is not None
         assert len(loaded.messages) == 1
-        assert loaded.messages[0].content == "first message"
+        assert loaded.messages[0]["role"] == "user"
 
     def test_add_message_to_nonexistent(self, store: ConversationStore) -> None:
         """Verify adding to nonexistent conversation raises ValueError."""
-        msg = _make_message()
         with pytest.raises(ValueError, match="not found"):
-            store.add_message("no-such-id", msg)
+            store.add_message("no-such-id", _make_af_msg())
 
     def test_add_message_to_archived(self, store: ConversationStore) -> None:
         """Verify adding to archived conversation raises ValueError."""
@@ -112,17 +89,15 @@ class TestAddMessage:
         store.create(conv)
         store.archive(conv.id)
 
-        msg = _make_message()
         with pytest.raises(ValueError, match="archived"):
-            store.add_message(conv.id, msg)
+            store.add_message(conv.id, _make_af_msg())
 
     def test_auto_title_from_first_user_message(self, store: ConversationStore) -> None:
         """Verify title auto-set from first USER message when empty."""
         conv = _make_conversation(title="")
         store.create(conv)
 
-        msg = _make_message(role=MessageRole.USER, content="Why is HANA down?")
-        store.add_message(conv.id, msg)
+        store.add_message(conv.id, _make_af_msg(role="user", text="Why is HANA down?"))
 
         loaded = store.get(conv.id)
         assert loaded is not None
@@ -133,35 +108,19 @@ class TestAddMessage:
 
 
 class TestGetHistory:
-    """Tests for get_history() — ordered messages and limit."""
+    """Tests for get_history() — ordered AF messages and limit."""
 
     def test_messages_ordered_by_timestamp(self, store: ConversationStore) -> None:
-        """Verify messages returned in timestamp order."""
+        """Verify messages returned in insertion order."""
         conv = _make_conversation()
         store.create(conv)
 
-        m1 = Message(
-            role=MessageRole.USER,
-            content="first",
-            timestamp=datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
-        )
-        m2 = Message(
-            role=MessageRole.ASSISTANT,
-            content="second",
-            timestamp=datetime(2025, 1, 1, 10, 0, 1, tzinfo=timezone.utc),
-        )
-        m3 = Message(
-            role=MessageRole.USER,
-            content="third",
-            timestamp=datetime(2025, 1, 1, 10, 0, 2, tzinfo=timezone.utc),
-        )
-        # Insert out of order
-        store.add_message(conv.id, m3)
-        store.add_message(conv.id, m1)
-        store.add_message(conv.id, m2)
+        store.add_message(conv.id, _make_af_msg(role="user", text="first"))
+        store.add_message(conv.id, _make_af_msg(role="assistant", text="second"))
+        store.add_message(conv.id, _make_af_msg(role="user", text="third"))
 
         history = store.get_history(conv.id)
-        assert [m.content for m in history] == ["first", "second", "third"]
+        assert [m.text for m in history] == ["first", "second", "third"]
 
     def test_history_limit(self, store: ConversationStore) -> None:
         """Verify limit caps results."""
@@ -169,14 +128,7 @@ class TestGetHistory:
         store.create(conv)
 
         for i in range(5):
-            store.add_message(
-                conv.id,
-                Message(
-                    role=MessageRole.USER,
-                    content=f"msg-{i}",
-                    timestamp=datetime(2025, 1, 1, 10, 0, i, tzinfo=timezone.utc),
-                ),
-            )
+            store.add_message(conv.id, _make_af_msg(text=f"msg-{i}"))
 
         history = store.get_history(conv.id, limit=3)
         assert len(history) == 3
@@ -188,57 +140,35 @@ class TestGetHistory:
         assert store.get_history(conv.id) == []
 
 
-# ─── Metadata persistence ─────────────────────────────────────
+class TestFunctionCallPersistence:
+    """Tests for AF messages with function calls."""
 
-
-class TestMetadataPersistence:
-    """Tests for metadata field (agent_responses) persistence."""
-
-    def test_metadata_stored_and_retrieved(self, store: ConversationStore) -> None:
-        """Verify metadata with agent_responses round-trips through SQLite."""
+    def test_function_call_round_trip(self, store: ConversationStore) -> None:
+        """Verify AF message with function_call contents round-trips."""
         conv = _make_conversation()
         store.create(conv)
 
-        msg = _make_message(
-            role=MessageRole.ASSISTANT,
-            content="The root cause is fencing timeout.",
-            metadata={
-                "agent_responses": [
-                    {
-                        "type": "agent_response",
-                        "agent_id": "Triage-Agent",
-                        "messages": [
-                            {
-                                "type": "message",
-                                "role": "assistant",
-                                "contents": [
-                                    {"type": "text_reasoning", "text": "Checking CIB..."},
-                                    {"type": "text", "text": "Fencing timeout."},
-                                ],
-                            }
-                        ],
-                    }
-                ]
-            },
+        af_msg = AFMessage(
+            "assistant",
+            [
+                Content.from_text("Let me check."),
+                Content.from_function_call(
+                    call_id="c1",
+                    name="check_cluster",
+                    arguments='{"sid": "PRD"}',
+                ),
+            ],
         )
-        store.add_message(conv.id, msg)
+        store.add_message(conv.id, af_msg)
 
         history = store.get_history(conv.id)
         assert len(history) == 1
-        responses = history[0].metadata.get("agent_responses", [])
-        assert len(responses) == 1
-        assert responses[0]["agent_id"] == "Triage-Agent"
-
-    def test_metadata_empty_when_absent(self, store: ConversationStore) -> None:
-        """Verify metadata defaults to empty dict."""
-        conv = _make_conversation()
-        store.create(conv)
-
-        msg = _make_message(role=MessageRole.USER, content="What happened?")
-        store.add_message(conv.id, msg)
-
-        history = store.get_history(conv.id)
-        assert history[0].metadata == {}
+        msg = history[0]
+        assert msg.role == "assistant"
+        msg_dict = msg.to_dict()
+        contents = msg_dict["contents"]
+        assert any(c["type"] == "text" for c in contents)
+        assert any(c["type"] == "function_call" for c in contents)
 
 
 # ─── List conversations ───────────────────────────────────────
@@ -350,25 +280,3 @@ class TestUpdateTitle:
     def test_update_title_nonexistent_returns_false(self, store: ConversationStore) -> None:
         """Verify update_title returns False for missing conversation."""
         assert store.update_title("no-such-id", "title") is False
-
-
-# ─── Triage session linkage ───────────────────────────────────
-
-
-class TestTriageSessionLink:
-    """Tests for triage_session_id on messages."""
-
-    def test_triage_session_id_persisted(self, store: ConversationStore) -> None:
-        """Verify message triage_session_id round-trips through DB."""
-        conv = _make_conversation()
-        store.create(conv)
-
-        msg = _make_message(
-            role=MessageRole.ASSISTANT,
-            content="Starting triage...",
-            triage_session_id="TS-001",
-        )
-        store.add_message(conv.id, msg)
-
-        history = store.get_history(conv.id)
-        assert history[0].triage_session_id == "TS-001"

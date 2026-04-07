@@ -15,7 +15,6 @@ from fastapi import APIRouter, HTTPException, Query
 from src.core.models.conversation import (
     Conversation,
     CreateConversationRequest,
-    MessageRole,
 )
 from src.core.storage.conversation_store import ConversationStore
 from src.mcp_server.server import mcp
@@ -59,20 +58,67 @@ def _summarize(conv: Conversation) -> dict[str, Any]:
 def _detail(conv: Conversation) -> dict[str, Any]:
     """Serialize a Conversation with full message history.
 
-    Extracts interleaved ``parts`` (text + tool calls in order) from
-    ``metadata.af_messages`` so the frontend can render them one after
-    the other — similar to GitHub Copilot's sequential tool display.
+    Messages are now AF message dicts.  Extracts interleaved ``parts``
+    (text + tool calls in order) from the ``contents`` array so the
+    frontend can render them sequentially.
     """
     data = conv.model_dump(mode="json", exclude={"metadata"})
-    for msg in data.get("messages", []):
-        msg.pop("metadata", None)
-    for conv_msg, api_msg in zip(conv.messages, data.get("messages", [])):
-        if conv_msg.role != MessageRole.ASSISTANT:
+
+    enriched_messages: list[dict[str, Any]] = []
+    # Collect tool results keyed by call_id for pairing with function_calls.
+    results_by_id: dict[str, str] = {}
+    for af_dict in conv.messages:
+        for c in af_dict.get("contents", []):
+            if c.get("type") == "function_result" and c.get("call_id"):
+                result = c.get("result", "")
+                if isinstance(result, dict):
+                    result = json.dumps(result, indent=2)
+                results_by_id[c["call_id"]] = str(result)[:2000]
+
+    for af_dict in conv.messages:
+        role = af_dict.get("role", "")
+        contents = af_dict.get("contents", [])
+
+        # Build a simplified message dict for the API response.
+        text_parts = [
+            c.get("text", "") for c in contents if c.get("type") == "text"
+        ]
+        msg_out: dict[str, Any] = {
+            "role": role,
+            "content": " ".join(text_parts).strip(),
+        }
+
+        if role == "assistant":
+            parts: list[dict[str, Any]] = []
+            tool_calls: list[dict[str, Any]] = []
+            for c in contents:
+                ctype = c.get("type")
+                if ctype == "text":
+                    text = c.get("text", "").strip()
+                    if text:
+                        parts.append({"type": "text", "content": text})
+                elif ctype == "function_call":
+                    call_id = c.get("call_id", "")
+                    tc = {
+                        "name": c.get("name", ""),
+                        "args": c.get("arguments", ""),
+                        "result": results_by_id.get(call_id, ""),
+                    }
+                    parts.append({"type": "tool_call", "toolCall": tc})
+                    tool_calls.append(tc)
+            if parts:
+                msg_out["parts"] = parts
+            if tool_calls:
+                msg_out["toolCalls"] = tool_calls
+
+        # Skip tool-role messages from the top-level list (results
+        # are already paired with their function_call parts above).
+        if role == "tool":
             continue
-        parts = _extract_parts(conv_msg.metadata)
-        if parts:
-            api_msg["parts"] = parts
-            api_msg["toolCalls"] = [p["toolCall"] for p in parts if p["type"] == "tool_call"]
+
+        enriched_messages.append(msg_out)
+
+    data["messages"] = enriched_messages
     data["tools"] = _get_tool_metadata()
     return data
 
@@ -116,52 +162,6 @@ def _get_tool_metadata() -> list[dict[str, Any]]:
     except Exception:
         logger.debug("Could not load MCP tool metadata", exc_info=True)
         return []
-
-
-def _extract_parts(metadata: dict) -> list[dict[str, Any]]:
-    """Build an interleaved list of text and tool-call parts from af_messages.
-
-    :param metadata: Message metadata dict.
-    :returns: Ordered list of parts the frontend renders sequentially.
-    """
-    if not metadata:
-        return []
-    af_msgs = metadata.get("af_messages", [])
-    if not af_msgs:
-        return []
-
-    results_by_id: dict[str, str] = {}
-    for m in af_msgs:
-        for c in m.get("contents", []):
-            if c.get("type") == "function_result" and c.get("call_id"):
-                result = c.get("result", "")
-                if isinstance(result, dict):
-                    result = json.dumps(result, indent=2)
-                results_by_id[c["call_id"]] = str(result)[:2000]
-
-    parts: list[dict[str, Any]] = []
-    for m in af_msgs:
-        if m.get("role") != "assistant":
-            continue
-        for c in m.get("contents", []):
-            ctype = c.get("type")
-            if ctype == "text":
-                text = c.get("text", "").strip()
-                if text:
-                    parts.append({"type": "text", "content": text})
-            elif ctype == "function_call":
-                call_id = c.get("call_id", "")
-                parts.append(
-                    {
-                        "type": "tool_call",
-                        "toolCall": {
-                            "name": c.get("name", ""),
-                            "args": c.get("arguments", ""),
-                            "result": results_by_id.get(call_id, ""),
-                        },
-                    }
-                )
-    return parts
 
 
 @router.get("/tools")
@@ -246,7 +246,7 @@ async def get_messages(
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     messages = store.get_history(conversation_id, limit=limit)
-    return [m.model_dump(mode="json", exclude={"metadata"}) for m in messages]
+    return [m.to_dict() for m in messages]
 
 
 @router.post("/{conversation_id}/archive")

@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from typing import Any, cast
+from typing import Any
 from uuid import UUID, uuid4
 from fastapi import FastAPI
 from ag_ui.core.events import (
@@ -32,27 +32,19 @@ from ag_ui.core.events import (
     ToolCallArgsEvent,
     ToolCallEndEvent,
     ToolCallResultEvent,
-    RunFinishedEvent,
-    MessagesSnapshotEvent,
 )
 from ag_ui.core.events import BaseEvent
-from ag_ui.core.types import (
-    Message as AGMessage,
-    UserMessage as AGUserMessage,
-    AssistantMessage as AGAssistantMessage,
-)
 from agent_framework_ag_ui import (
     AgentFrameworkWorkflow,
     add_agent_framework_fastapi_endpoint,
 )
 
+from agent_framework import Message as AFMessage
+from agent_framework._types import Content
+
 from src.agents.agent import SapAgentFactory
 from src.agents.agent_config import TRIAGE_CONFIG
-from src.core.models.conversation import (
-    Conversation,
-    Message,
-    MessageRole,
-)
+from src.core.models.conversation import Conversation
 from src.core.storage.conversation_store import ConversationStore
 
 logger = logging.getLogger(__name__)
@@ -121,31 +113,24 @@ class SapWorkflow(AgentFrameworkWorkflow):
         if self._store and thread_id:
             self._ensure_conversation(thread_id)
 
-        snapshot = self._build_messages_snapshot(thread_id)
-        if snapshot:
-            logger.info(
-                "Replaying snapshot with %d messages for thread %s",
-                len(snapshot.messages),
-                thread_id[:12],
-            )
-            yield snapshot
-            if not user_text:
-                yield RunFinishedEvent(
-                    thread_id=thread_id,
-                    run_id=run_id,
-                )
-                return
-
         assistant_chunks: list[str] = []
         current_step: str = ""
         thinking_msg_ids: set[str] = set()
         thinking_step_open: bool = False
         open_tool_call_ids: list[str] = []
         tool_call_names: dict[str, str] = {}
+        tool_call_args: dict[str, list[str]] = {}
+        completed_tools: list[dict[str, str]] = []
 
         async for event in super().run(input_data):
             if open_tool_call_ids and not isinstance(event, (ToolCallArgsEvent, ToolCallEndEvent)):
                 for tc_id in open_tool_call_ids:
+                    completed_tools.append({
+                        "id": tc_id,
+                        "name": tool_call_names.get(tc_id, "tool"),
+                        "arguments": "".join(tool_call_args.pop(tc_id, [])),
+                        "result": f"{tool_call_names.get(tc_id, 'tool')} completed",
+                    })
                     yield ToolCallEndEvent(tool_call_id=tc_id)
                     yield ToolCallResultEvent(
                         message_id=str(uuid4()),
@@ -158,19 +143,42 @@ class SapWorkflow(AgentFrameworkWorkflow):
             if isinstance(event, ToolCallStartEvent):
                 open_tool_call_ids.append(event.tool_call_id)
                 tool_call_names[event.tool_call_id] = event.tool_call_name or "tool"
+                tool_call_args[event.tool_call_id] = []
                 yield event
                 continue
 
             if isinstance(event, ToolCallEndEvent):
-                if event.tool_call_id in open_tool_call_ids:
-                    open_tool_call_ids.remove(event.tool_call_id)
+                tc_id = event.tool_call_id
+                if tc_id in open_tool_call_ids:
+                    open_tool_call_ids.remove(tc_id)
+                result_text = f"{tool_call_names.get(tc_id, 'tool')} completed"
+                completed_tools.append({
+                    "id": tc_id,
+                    "name": tool_call_names.get(tc_id, "tool"),
+                    "arguments": "".join(tool_call_args.pop(tc_id, [])),
+                    "result": result_text,
+                })
                 yield event
                 yield ToolCallResultEvent(
                     message_id=str(uuid4()),
-                    tool_call_id=event.tool_call_id,
-                    content=f"{tool_call_names.get(event.tool_call_id, 'tool')} completed",
+                    tool_call_id=tc_id,
+                    content=result_text,
                     role="tool",
                 )
+                continue
+
+            if isinstance(event, ToolCallArgsEvent):
+                if event.tool_call_id in tool_call_args:
+                    tool_call_args[event.tool_call_id].append(event.delta)
+                yield event
+                continue
+
+            if isinstance(event, ToolCallResultEvent):
+                for tc in completed_tools:
+                    if tc["id"] == event.tool_call_id:
+                        tc["result"] = event.content or tc["result"]
+                        break
+                yield event
                 continue
 
             if isinstance(event, StepStartedEvent):
@@ -214,20 +222,29 @@ class SapWorkflow(AgentFrameworkWorkflow):
             yield event
 
         for tc_id in open_tool_call_ids:
+            result_text = f"{tool_call_names.get(tc_id, 'tool')} completed"
+            completed_tools.append({
+                "id": tc_id,
+                "name": tool_call_names.get(tc_id, "tool"),
+                "arguments": "".join(tool_call_args.pop(tc_id, [])),
+                "result": result_text,
+            })
             yield ToolCallEndEvent(tool_call_id=tc_id)
             yield ToolCallResultEvent(
                 message_id=str(uuid4()),
                 tool_call_id=tc_id,
-                content=f"{tool_call_names.get(tc_id, 'tool')} completed",
+                content=result_text,
                 role="tool",
             )
 
         if self._store and thread_id:
             if user_text:
                 self._save_user_message(thread_id, user_text)
-            if assistant_chunks:
+            if assistant_chunks or completed_tools:
                 assistant_text = "".join(assistant_chunks)
-                self._save_assistant_message(thread_id, assistant_text)
+                self._save_assistant_message(
+                    thread_id, assistant_text, completed_tools or None,
+                )
 
             if user_text:
                 asyncio.create_task(
@@ -252,63 +269,60 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 exc_info=True,
             )
 
-    def _build_messages_snapshot(
-        self,
-        thread_id: str,
-    ) -> MessagesSnapshotEvent | None:
-        """Build a ``MessagesSnapshotEvent`` from stored conversation history.
-
-        Returns ``None`` when there is no store, no thread, or no prior
-        messages.
-        """
-        if not self._store or not thread_id:
-            return None
-        try:
-            stored = self._store.get_history(thread_id)
-            if not stored:
-                return None
-            ag_msgs: list[AGUserMessage | AGAssistantMessage] = []
-            for msg in stored:
-                if msg.role == MessageRole.USER:
-                    ag_msgs.append(AGUserMessage(id=str(uuid4()), content=msg.content))
-                elif msg.role == MessageRole.ASSISTANT:
-                    ag_msgs.append(AGAssistantMessage(id=str(uuid4()), content=msg.content))
-            if not ag_msgs:
-                return None
-            logger.debug(
-                "Replaying %d messages for thread %s",
-                len(ag_msgs),
-                thread_id[:8],
-            )
-            return MessagesSnapshotEvent(
-                messages=cast(list[AGMessage], ag_msgs),
-            )
-        except Exception:
-            logger.debug(
-                "Could not build messages snapshot",
-                exc_info=True,
-            )
-            return None
-
     def _save_user_message(self, conv_id: str, text: str) -> None:
-        """Persist the user message."""
+        """Persist the user message as an AF Message."""
         assert self._store is not None
         try:
             self._store.add_message(
                 conv_id,
-                Message(role=MessageRole.USER, content=text),
+                AFMessage("user", [text]),
             )
         except Exception:
             logger.debug("Could not save user message", exc_info=True)
 
-    def _save_assistant_message(self, conv_id: str, text: str) -> None:
-        """Persist the assistant response."""
+    def _save_assistant_message(
+        self,
+        conv_id: str,
+        text: str,
+        tool_calls: list[dict[str, str]] | None = None,
+    ) -> None:
+        """Persist the assistant response as AF Message(s).
+
+        Saves one assistant message with text + function_call contents,
+        followed by one tool-role message per tool result.
+
+        :param conv_id: Conversation ID.
+        :param text: Final assistant text.
+        :param tool_calls: List of completed tool call dicts.
+        """
         assert self._store is not None
         try:
-            self._store.add_message(
-                conv_id,
-                Message(role=MessageRole.ASSISTANT, content=text),
-            )
+            contents: list = []
+            for tc in tool_calls or []:
+                contents.append(
+                    Content.from_function_call(
+                        call_id=tc["id"],
+                        name=tc["name"],
+                        arguments=tc.get("arguments", ""),
+                    )
+                )
+            if text:
+                contents.append(Content.from_text(text))
+            if not contents:
+                return
+            self._store.add_message(conv_id, AFMessage("assistant", contents))
+
+            for tc in tool_calls or []:
+                self._store.add_message(
+                    conv_id,
+                    AFMessage(
+                        "tool",
+                        [Content.from_function_result(
+                            call_id=tc["id"],
+                            result=tc.get("result", ""),
+                        )],
+                    ),
+                )
         except Exception:
             logger.debug("Could not save assistant message", exc_info=True)
 

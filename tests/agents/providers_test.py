@@ -1,9 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Tests for provider re-exports and MessageRole values."""
-
-from src.core.models.conversation import MessageRole
+"""Tests for provider re-exports."""
 
 # Verify that the providers package re-exports Agent Framework types.
 from src.agents.providers import (
@@ -12,21 +10,6 @@ from src.agents.providers import (
     AzureOpenAIChatClient,
     FunctionTool,
 )
-
-# ---------------------------------------------------------------------------
-# MessageRole (still live in core/models/conversation.py)
-# ---------------------------------------------------------------------------
-
-
-class TestMessageRoleValues:
-    """Validate MessageRole values used across the codebase."""
-
-    def test_values(self):
-        assert MessageRole.SYSTEM == "system"
-        assert MessageRole.USER == "user"
-        assert MessageRole.ASSISTANT == "assistant"
-        assert MessageRole.TOOL_CALL == "tool_call"
-        assert MessageRole.TOOL_RESULT == "tool_result"
 
 
 # ---------------------------------------------------------------------------
