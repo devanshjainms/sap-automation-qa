@@ -15,9 +15,8 @@ import os
 from typing import Any, Optional
 import asyncio
 import httpx
+from pydantic import BaseModel
 from agent_framework import (
-    Agent,
-    AgentSession,
     BaseContextProvider,
     CharacterEstimatorTokenizer,
     CompactionStrategy,
@@ -30,7 +29,7 @@ from agent_framework import (
 from agent_framework.azure import AzureOpenAIChatClient
 from src.mcp_server.server import mcp as _mcp_server
 from agent_framework._types import Message as AFMessage
-from agent_framework_orchestrations import SequentialBuilder
+from agent_framework.orchestrations import HandoffBuilder
 from src.agents.providers.middleware import (
     AgentExceptionMiddleware,
     FunctionGuardMiddleware,
@@ -39,7 +38,6 @@ from src.agents.providers.middleware import (
 from src.agents.agent_config import (
     AgentConfig,
     InvestigationIntent,
-    classify,
     config_for_intent,
 )
 from src.agents.prompt_modules import assemble
@@ -61,13 +59,21 @@ DEFAULT_MCP_URL = "http://localhost:{port}/mcp".format(
 )
 
 
-class SapAgentFactory:
-    """Creates a single-agent workflow wired to MCP tools.
+class IntentClassification(BaseModel):
+    """Structured output schema for intent classification."""
 
-    One agent receives all SAP tools (triage, STAF, ops) via a single
-    ``MCPStreamableHTTPTool``.  This avoids the multi-agent relay
-    overhead (orchestrator → specialist → orchestrator) and keeps the
-    LLM's response as the final output — no lossy relay layer.
+    intent: str
+
+
+class SapAgentFactory:
+    """Creates agent workflows wired to MCP tools.
+
+    Supports two workflow patterns based on classified intent:
+
+    - **TRIAGE / TEST**: HandoffBuilder with a Coordinator that
+      routes to Investigator and TestRunner specialists.
+    - **GENERAL / KNOWLEDGE**: Single agent with all tools in a
+      natural think → act → observe → think loop.
 
     :param mcp_url: URL of the SAP MCP server endpoint.
     :param mcp_config: External MCP server configuration.
@@ -77,8 +83,6 @@ class SapAgentFactory:
     :param api_version: API version string.
     """
 
-    DEFAULT_MAX_ROUNDS = 75
-    DEFAULT_TOKEN_BUDGET = 120_000
     _MAX_CONSECUTIVE_ERRORS = 5
 
     _MCP_CONNECT_RETRIES = 5
@@ -110,6 +114,7 @@ class SapAgentFactory:
         )
         self._mcp_tool: Optional[MCPStreamableHTTPTool] = None
         self._external_mcps: list[MCPStreamableHTTPTool] = []
+        self._utility_client: Optional[AzureOpenAIChatClient] = None
 
     async def __aenter__(self) -> SapAgentFactory:
         return self
@@ -220,13 +225,31 @@ class SapAgentFactory:
         "User question: {text}"
     )
 
+    _CLASSIFY_PROMPT = (
+        "Classify the user's message into exactly one intent.\n\n"
+        "Intents:\n"
+        "- **triage**: Investigate, diagnose, or troubleshoot a live SAP system "
+        "(cluster issues, failover, node crashes, health checks, configuration review).\n"
+        "- **test**: Run, schedule, or execute SAP HA / functional tests (STAF, test suites).\n"
+        "- **knowledge**: Ask about SAP rules, SAP Notes, best practices, "
+        "configuration guidelines, or recommendations.\n"
+        "- **general**: Greetings, smalltalk, or anything that does not fit the above.\n\n"
+        "User message: {text}"
+    )
+
+    def _get_utility_client(self) -> AzureOpenAIChatClient:
+        """Return a shared client for lightweight LLM calls."""
+        if self._utility_client is None:
+            self._utility_client = AzureOpenAIChatClient(**self._client_kwargs)
+        return self._utility_client
+
     async def _generate_title(self, user_text: str) -> str:
         """Generate a short conversation title via a lightweight LLM call.
 
         :param user_text: The first user message in the conversation.
         :returns: A short title string (≤8 words).
         """
-        client = AzureOpenAIChatClient(**self._client_kwargs)
+        client = self._get_utility_client()
         prompt = self._TITLE_PROMPT.format(text=user_text[:200])
         response = await client.get_response(
             messages=[AFMessage("user", [prompt])],
@@ -234,19 +257,53 @@ class SapAgentFactory:
         )
         return response.text or user_text[:80]
 
+    async def classify_intent(
+        self, user_text: str,
+    ) -> InvestigationIntent:
+        """Classify user text into an investigation intent via LLM.
+
+        Uses a single structured-output call with low token budget.
+        Falls back to ``GENERAL`` on empty input or LLM errors.
+
+        :param user_text: The user's message text.
+        :returns: Classified intent.
+        """
+        if not user_text.strip():
+            return InvestigationIntent.GENERAL
+
+        raw = ""
+        try:
+            client = self._get_utility_client()
+            prompt = self._CLASSIFY_PROMPT.format(text=user_text[:500])
+            response = await client.get_response(
+                messages=[AFMessage("user", [prompt])],
+                options={
+                    "max_tokens": 20,
+                    "temperature": 0,
+                    "response_format": IntentClassification,
+                },
+            )
+            raw = (response.text or "").strip().lower()
+            return InvestigationIntent(raw)
+        except (ValueError, KeyError):
+            logger.warning("Intent classification returned invalid value: %r", raw)
+            return InvestigationIntent.GENERAL
+        except Exception:
+            logger.warning("Intent classification failed, defaulting to GENERAL", exc_info=True)
+            return InvestigationIntent.GENERAL
+
     def _build_compaction_strategy(
         self,
-        token_budget: int | None = None,
+        token_budget: int,
     ) -> CompactionStrategy:
         """Build a token-budget compaction strategy for agent context.
 
-        :param token_budget: Overrides ``DEFAULT_TOKEN_BUDGET``.
+        :param token_budget: Token budget from ``AgentConfig``.
         :returns: Composed compaction strategy.
         """
-        budget = token_budget or self.DEFAULT_TOKEN_BUDGET
         tokenizer = CharacterEstimatorTokenizer()
         return TokenBudgetComposedStrategy(
-            token_budget=budget,
+            token_budget=token_budget,
             tokenizer=tokenizer,
             strategies=[
                 ToolResultCompactionStrategy(keep_last_tool_call_groups=10),
@@ -346,35 +403,29 @@ class SapAgentFactory:
         config: Optional[AgentConfig] = None,
         thread_id: Optional[str] = None,
     ) -> Any:
-        """Create a sequential workflow planner -> executor -> analyst.
+        """Create a workflow for the given intent.
+
+        - **TRIAGE / TEST**: HandoffBuilder with a triage coordinator
+          that routes to domain specialists (investigator, test runner)
+          in autonomous mode — each specialist has a full ReAct loop.
+        - **GENERAL / KNOWLEDGE**: Single agent with all tools —
+          natural think → act → observe → think loop.
 
         :param workspace_context: Per-conversation context string.
         :param user_query: First user message for intent classification.
-        :param config: Explicit agent configuration.
+        :param config: Agent configuration (from ``classify_intent``).
         :param thread_id: AG-UI thread ID for conversation persistence.
         :returns: Built Workflow instance.
         """
         if config is None:
-            intent = classify(user_query or "")
-            config = config_for_intent(intent)
+            config = config_for_intent(InvestigationIntent.GENERAL)
 
         instructions = assemble(config.module_names)
-        executor_instructions = assemble([
-            "core_identity",
-            "absolute_rules",
-            "tools_reference",
-        ])
-        analyst_instructions = assemble([
-            "core_identity",
-            "absolute_rules",
-            "reminders",
-        ])
         client = AzureOpenAIChatClient(**self._client_kwargs)
-        planner_providers: list[Any] = []
-        load_only_providers: list[Any] = []
 
+        context_providers: list[Any] = []
         if self._conversation_store:
-            planner_providers.append(
+            context_providers.append(
                 ConversationHistoryProvider(
                     self._conversation_store,
                     title_generator=self._generate_title,
@@ -382,17 +433,10 @@ class SapAgentFactory:
                     save_enabled=False,
                 )
             )
-            load_only_providers.append(
-                ConversationHistoryProvider(
-                    self._conversation_store,
-                    conversation_id=thread_id,
-                    save_enabled=False,
-                )
-            )
         if workspace_context:
-            planner_providers.append(WorkspaceContextProvider(workspace_context))
+            context_providers.append(WorkspaceContextProvider(workspace_context))
         if config.inject_kb and self._retriever:
-            planner_providers.append(
+            context_providers.append(
                 KnowledgeContextProvider(
                     retriever=self._retriever,
                     user_query=user_query,
@@ -406,82 +450,203 @@ class SapAgentFactory:
             max_consecutive_errors_per_request=self._MAX_CONSECUTIVE_ERRORS,
             include_detailed_errors=False,
         )
+        middleware = [
+            AgentExceptionMiddleware(),
+            OutputSanitizationMiddleware(),
+            FunctionGuardMiddleware(),
+        ]
 
-        planner = client.as_agent(
-            name="Planner",
-            description="Analyzes request and formulates an investigation plan.",
-            instructions=instructions
-            + (
-                "\n\n**ROLE: PLANNER**\n"
-                "You determine what evidence must be collected. "
-                "Call `list_workspaces` and `get_workspace` to "
-                "identify the target system, then produce a concise "
-                "numbered checklist for the Executor.\n"
-                "Your output feeds DIRECTLY into the next agent in the "
-                "pipeline. The user will NOT see your output or reply "
-                "to it. NEVER ask for confirmation, approval, or say "
-                "'waiting for your go-ahead' or 'please confirm'. "
-                "Just produce the plan and stop."
-            ),
+        if config.intent in (InvestigationIntent.TRIAGE, InvestigationIntent.TEST):
+            return self._build_handoff_workflow(
+                client=client,
+                instructions=instructions,
+                config=config,
+                all_tools=all_tools,
+                compaction=compaction,
+                func_config=func_config,
+                middleware=middleware,
+                context_providers=context_providers,
+            )
+
+        return self._build_single_agent_workflow(
+            client=client,
+            instructions=instructions,
+            all_tools=all_tools,
+            compaction=compaction,
+            func_config=func_config,
+            middleware=middleware,
+            context_providers=context_providers,
+            config=config,
+        )
+
+    def _build_single_agent_workflow(
+        self,
+        *,
+        client: AzureOpenAIChatClient,
+        instructions: str,
+        all_tools: list,
+        compaction: CompactionStrategy,
+        func_config: FunctionInvocationConfiguration,
+        middleware: list,
+        context_providers: list,
+        config: AgentConfig,
+    ) -> Any:
+        """Build a single-agent workflow (natural ReAct loop).
+
+        One agent with all tools — the LLM naturally interleaves
+        thinking and tool calls.  This is the simplest pattern and
+        matches how GitHub Copilot works.
+
+        :returns: Built Workflow (HandoffBuilder single-participant).
+        """
+        agent = client.as_agent(
+            name="SAP-Agent",
+            description="SAP infrastructure specialist for Azure.",
+            instructions=instructions,
             tools=all_tools,
-            middleware=[
-                AgentExceptionMiddleware(),
-                OutputSanitizationMiddleware(),
-                FunctionGuardMiddleware(),
-            ],
+            middleware=middleware,
             function_invocation_configuration=func_config,
             compaction_strategy=compaction,
-            context_providers=planner_providers,
+            context_providers=context_providers,
         )
 
-        executor = client.as_agent(
-            name="Executor",
-            description="Executes tools based on the plan.",
-            instructions=executor_instructions
+        logger.info("Created single-agent workflow intent=%s", config.intent.value)
+        return (
+            HandoffBuilder(
+                name="sap-single-agent",
+                participants=[agent],
+            )
+            .with_start_agent(agent)
+            .build()
+        )
+
+    def _build_handoff_workflow(
+        self,
+        *,
+        client: AzureOpenAIChatClient,
+        instructions: str,
+        config: AgentConfig,
+        all_tools: list,
+        compaction: CompactionStrategy,
+        func_config: FunctionInvocationConfiguration,
+        middleware: list,
+        context_providers: list,
+    ) -> Any:
+        """Build a HandoffBuilder workflow with autonomous specialists.
+
+        - **Coordinator**: Reads the request, identifies the system,
+          then routes to the right specialist.
+        - **Investigator**: Collects evidence and analyzes findings
+          with a full ReAct loop (think → act → observe → think).
+        - **TestRunner**: Runs HA/functional tests (TRIAGE+TEST).
+
+        Each specialist iterates autonomously until done, then
+        hands back to the coordinator for the final response.
+
+        :returns: Built Workflow with handoff routing.
+        """
+        coordinator = client.as_agent(
+            name="Coordinator",
+            description="Routes requests to the right specialist.",
+            instructions=instructions
             + (
-                "\n\n**ROLE: EXECUTOR**\n"
-                "You receive a plan from the Planner. Your ONLY job is "
-                "to execute tool calls. Start calling tools IMMEDIATELY "
-                "— do not plan, do not reason, do not write text. "
-                "Just call the tools specified in the plan.\n"
-                "Typical sequence: `collect_evidence` then `run_analysis`.\n"
-                "NEVER produce text output without a tool call. "
-                "NEVER ask the user anything. Just execute."
+                "\n\n**ROLE: COORDINATOR**\n"
+                "You are the entry point. Your job:\n"
+                "1. Identify the target SAP system — call "
+                "`list_workspaces` and `get_workspace`.\n"
+                "2. Understand the user's request.\n"
+                "3. Hand off to the right specialist:\n"
+                "   - **Investigator** for troubleshooting, diagnostics, "
+                "health checks, and configuration review.\n"
+                "   - **TestRunner** for running HA/functional tests.\n"
+                "4. After the specialist returns, present the findings "
+                "to the user with evidence and remediation steps.\n\n"
+                "NEVER ask the user for confirmation. Just route and go."
             ),
             tools=all_tools,
-            middleware=[
-                AgentExceptionMiddleware(),
-                OutputSanitizationMiddleware(),
-                FunctionGuardMiddleware(),
-            ],
+            middleware=middleware,
             function_invocation_configuration=func_config,
-            context_providers=load_only_providers,
+            compaction_strategy=compaction,
+            context_providers=context_providers,
         )
 
-        analyst = client.as_agent(
-            name="Analyst",
-            description="Analyzes results and generates final report.",
-            instructions=analyst_instructions
+        investigator = client.as_agent(
+            name="Investigator",
+            description="Collects evidence and analyzes SAP system health.",
+            instructions=assemble([
+                "core_identity",
+                "absolute_rules",
+                "think_aloud",
+                "how_to_work",
+                "how_to_investigate",
+                "tools_reference",
+                "past_experience",
+                "reminders",
+            ])
             + (
-                "\n\n**ROLE: ANALYST**\n"
-                "Read all evidence collected by the Executor and produce "
-                "a clear, evidence-backed diagnosis for the user. "
-                "Include specific command output excerpts and concrete "
-                "remediation steps. This is the FINAL response the user "
-                "sees — do NOT ask follow-up questions or request "
-                "confirmation."
+                "\n\n**ROLE: INVESTIGATOR**\n"
+                "You investigate SAP system issues step by step.\n"
+                "For each step:\n"
+                "1. Explain what you're about to check and why.\n"
+                "2. Call the tool.\n"
+                "3. Analyze the result — what does it tell you?\n"
+                "4. Decide: need more evidence, or ready to conclude?\n\n"
+                "When done, hand back to the Coordinator with your "
+                "complete findings and diagnosis."
             ),
-            tools=[],
-            middleware=[AgentExceptionMiddleware(), OutputSanitizationMiddleware()],
+            tools=all_tools,
+            middleware=middleware,
             function_invocation_configuration=func_config,
-            context_providers=load_only_providers,
+            compaction_strategy=compaction,
         )
 
-        logger.info("Created workflow intent=%s", config.intent.value)
-        return SequentialBuilder(
-            participants=[planner, executor, analyst],
-            intermediate_outputs=True,
-        ).build()
+        test_runner = client.as_agent(
+            name="TestRunner",
+            description="Runs SAP HA and functional tests.",
+            instructions=assemble([
+                "core_identity",
+                "absolute_rules",
+                "think_aloud",
+                "how_to_work",
+                "tools_reference",
+                "reminders",
+            ])
+            + (
+                "\n\n**ROLE: TEST RUNNER**\n"
+                "You run HA functional tests on SAP systems.\n"
+                "For each test:\n"
+                "1. Explain which test you're running and why.\n"
+                "2. Call `run_staf_test` or the appropriate test tool.\n"
+                "3. Analyze the test result.\n"
+                "4. If the test failed, investigate why before moving on.\n\n"
+                "When done, hand back to the Coordinator with test "
+                "results and any issues found."
+            ),
+            tools=all_tools,
+            middleware=middleware,
+            function_invocation_configuration=func_config,
+            compaction_strategy=compaction,
+        )
+
+        logger.info("Created handoff workflow intent=%s", config.intent.value)
+        return (
+            HandoffBuilder(
+                name="sap-handoff",
+                participants=[coordinator, investigator, test_runner],
+            )
+            .with_start_agent(coordinator)
+            .add_handoff(coordinator, [investigator, test_runner])
+            .add_handoff(investigator, [coordinator])
+            .add_handoff(test_runner, [coordinator])
+            .with_autonomous_mode(
+                turn_limits={
+                    "Coordinator": 10,
+                    "Investigator": config.max_rounds,
+                    "TestRunner": config.max_rounds,
+                },
+            )
+            .build()
+        )
 
     async def close(self) -> None:
         """Shut down all MCP tool connections."""

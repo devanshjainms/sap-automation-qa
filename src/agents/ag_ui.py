@@ -6,8 +6,14 @@
 
 Uses a ``SapWorkflow`` subclass of ``AgentFrameworkWorkflow`` that
 handles conversation persistence at the workflow boundary, so
-individual agent sessions inside ``SequentialBuilder`` do not need
-to know about the AG-UI ``thread_id``.
+agent sessions do not need to know about the AG-UI ``thread_id``.
+
+Architecture:
+- **TRIAGE/TEST**: HandoffBuilder with Coordinator → Investigator / TestRunner.
+  Specialist text is emitted as ThinkingText events; Coordinator's final
+  response becomes the user-visible answer.
+- **GENERAL/KNOWLEDGE**: Single agent with all tools. All text is user-visible.
+  Tool calls stream naturally between reasoning segments.
 """
 
 from __future__ import annotations
@@ -38,12 +44,13 @@ from agent_framework_ag_ui import (
     AgentFrameworkWorkflow,
     add_agent_framework_fastapi_endpoint,
 )
+from agent_framework_ag_ui._workflow_run import run_workflow_stream
 
 from agent_framework import Message as AFMessage
 from agent_framework._types import Content
 
 from src.agents.agent import SapAgentFactory
-from src.agents.agent_config import TRIAGE_CONFIG
+from src.agents.agent_config import config_for_intent
 from src.core.models.conversation import Conversation
 from src.core.storage.conversation_store import ConversationStore
 
@@ -51,12 +58,18 @@ logger = logging.getLogger(__name__)
 
 
 class SapWorkflow(AgentFrameworkWorkflow):
-    """Workflow that persists messages at the workflow boundary.
+    """Workflow that classifies intent per request and persists messages.
 
-    Wraps ``AgentFrameworkWorkflow`` and intercepts ``run()`` to:
-    1. Auto-create the conversation if it does not exist.
-    2. Save the user message and final assistant response.
-    3. Fire-and-forget title generation on first turn.
+    Overrides ``run()`` to bypass ``workflow_factory`` entirely.
+    Instead, each request:
+
+    1. Extracts the user message from the AG-UI input.
+    2. Classifies intent via ``classify()`` (regex heuristics).
+    3. Builds a fresh ``Workflow`` via ``SapAgentFactory.create_workflow()``
+       with the correct ``AgentConfig``, ``user_query``, and ``thread_id``.
+    4. Calls ``run_workflow_stream()`` directly to convert workflow
+       events into AG-UI events.
+    5. Persists user + assistant messages to SQLite.
 
     :param factory: Agent factory with MCP connections.
     :param conversation_store: SQLite conversation store.
@@ -68,29 +81,23 @@ class SapWorkflow(AgentFrameworkWorkflow):
         conversation_store: ConversationStore | None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(
-            workflow_factory=lambda thread_id: factory.create_workflow(
-                config=TRIAGE_CONFIG,
-                thread_id=thread_id,
-            ),
-            **kwargs,
-        )
+        # No workflow or workflow_factory — we create workflows in run().
+        super().__init__(**kwargs)
         self._factory = factory
         self._store = conversation_store
 
-    _THINKING_STEPS = frozenset({"Planner"})
+    _THINKING_AGENTS = frozenset({"Investigator", "TestRunner"})
 
     async def run(
         self,
         input_data: dict[str, Any],
     ) -> AsyncGenerator[BaseEvent]:
-        """Run the workflow, convert intermediate text to thinking, persist.
+        """Run the workflow, stream events, and persist messages.
 
-        Planner/Executor text is re-emitted as ``ThinkingTextMessage*``
-        events so the UI can show it as small ephemeral text (like
-        VS Code Copilot's reasoning display).  Tool call events pass
-        through unchanged for progress visibility.  Only the Analyst's
-        text becomes the permanent assistant response.
+        Creates a fresh workflow per request with dynamic intent
+        classification.  Specialist text (Investigator/TestRunner)
+        is emitted as ``ThinkingTextMessage*`` events; Coordinator
+        and single-agent text is user-visible.
 
         :param input_data: AG-UI input dict with ``thread_id`` and
             ``messages``.
@@ -100,33 +107,61 @@ class SapWorkflow(AgentFrameworkWorkflow):
         run_id = input_data.get("run_id", str(uuid4()))
         user_text = self._extract_user_text(input_data)
 
+        # Classify intent from the actual user message via LLM.
+        intent = await self._factory.classify_intent(user_text)
+        config = config_for_intent(intent)
+
         logger.info(
-            "AG-UI run: thread_id=%r, run_id=%s, user_text=%s, "
-            "msg_count=%d, keys=%s",
+            "AG-UI run: thread_id=%r, run_id=%s, intent=%s, "
+            "user_text=%s, msg_count=%d",
             thread_id,
             run_id[:12] if run_id else "(none)",
+            intent.value,
             bool(user_text),
             len(input_data.get("messages", [])),
-            list(input_data.keys()),
         )
 
         if self._store and thread_id:
             self._ensure_conversation(thread_id)
 
+        # Build a fresh workflow with the classified config.
+        workflow = self._factory.create_workflow(
+            config=config,
+            user_query=user_text,
+            thread_id=thread_id,
+        )
+
         ordered_parts: list[dict[str, Any]] = []
         pending_text: list[str] = []
-        current_step: str = ""
+        current_agent: str = ""
         thinking_msg_ids: set[str] = set()
-        thinking_step_open: bool = False
+        thinking_open: bool = False
         open_tool_call_ids: list[str] = []
         tool_call_names: dict[str, str] = {}
         tool_call_args: dict[str, list[str]] = {}
         completed_tools: list[dict[str, str]] = []
 
-        async for event in super().run(input_data):
-            if open_tool_call_ids and not isinstance(event, (ToolCallArgsEvent, ToolCallEndEvent)):
+        async for event in run_workflow_stream(input_data, workflow):
+            # ── Skip handoff tool calls (internal routing) ──
+            if isinstance(event, ToolCallStartEvent):
+                name = event.tool_call_name or ""
+                if name.startswith("handoff_to_"):
+                    tool_call_names[event.tool_call_id] = name
+                    continue
+            if isinstance(
+                event, (ToolCallArgsEvent, ToolCallEndEvent, ToolCallResultEvent),
+            ):
+                tc_id = event.tool_call_id
+                if tool_call_names.get(tc_id, "").startswith("handoff_to_"):
+                    continue
+            # ── Flush orphan tool calls when a non-tool event arrives ──
+            if open_tool_call_ids and not isinstance(
+                event, (ToolCallArgsEvent, ToolCallEndEvent),
+            ):
                 if pending_text:
-                    ordered_parts.append({"type": "text", "text": "".join(pending_text)})
+                    ordered_parts.append(
+                        {"type": "text", "text": "".join(pending_text)},
+                    )
                     pending_text.clear()
                 for tc_id in open_tool_call_ids:
                     ordered_parts.append({"type": "tool_ref", "id": tc_id})
@@ -145,9 +180,11 @@ class SapWorkflow(AgentFrameworkWorkflow):
                     )
                 open_tool_call_ids.clear()
 
+            # ── Tool call lifecycle ──
             if isinstance(event, ToolCallStartEvent):
+                name = event.tool_call_name or "tool"
                 open_tool_call_ids.append(event.tool_call_id)
-                tool_call_names[event.tool_call_id] = event.tool_call_name or "tool"
+                tool_call_names[event.tool_call_id] = name
                 tool_call_args[event.tool_call_id] = []
                 yield event
                 continue
@@ -157,7 +194,9 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 if tc_id in open_tool_call_ids:
                     open_tool_call_ids.remove(tc_id)
                 if pending_text:
-                    ordered_parts.append({"type": "text", "text": "".join(pending_text)})
+                    ordered_parts.append(
+                        {"type": "text", "text": "".join(pending_text)},
+                    )
                     pending_text.clear()
                 ordered_parts.append({"type": "tool_ref", "id": tc_id})
                 result_text = f"{tool_call_names.get(tc_id, 'tool')} completed"
@@ -190,32 +229,35 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 yield event
                 continue
 
+            # ── Step tracking (maps to agent names) ──
             if isinstance(event, StepStartedEvent):
-                current_step = event.step_name or ""
-                logger.info("Step started: %r", current_step)
+                current_agent = event.step_name or ""
+                logger.info("Agent started: %r", current_agent)
                 yield event
                 continue
             if isinstance(event, StepFinishedEvent):
-                logger.info("Step finished: %r", current_step)
-                current_step = ""
+                logger.info("Agent finished: %r", current_agent)
+                current_agent = ""
                 yield event
                 continue
 
+            # ── Text message end (close thinking if needed) ──
             if isinstance(event, TextMessageEndEvent):
                 if event.message_id in thinking_msg_ids:
                     thinking_msg_ids.discard(event.message_id)
                     yield ThinkingTextMessageEndEvent()
                     if not thinking_msg_ids:
                         yield ThinkingEndEvent()
-                        thinking_step_open = False
+                        thinking_open = False
                     continue
 
-            if current_step in self._THINKING_STEPS:
+            # ── Specialist text → thinking bubbles ──
+            if current_agent in self._THINKING_AGENTS:
                 if isinstance(event, TextMessageStartEvent):
                     thinking_msg_ids.add(event.message_id)
-                    if not thinking_step_open:
+                    if not thinking_open:
                         yield ThinkingStartEvent()
-                        thinking_step_open = True
+                        thinking_open = True
                     yield ThinkingTextMessageStartEvent()
                     continue
                 if isinstance(event, TextMessageContentEvent):
@@ -226,13 +268,21 @@ class SapWorkflow(AgentFrameworkWorkflow):
                         )
                         continue
 
+            # ── Default: pass through (user-visible text) ──
             if isinstance(event, TextMessageContentEvent):
                 pending_text.append(event.delta)
 
             yield event
 
+        # ── Flush remaining state ──
+        if thinking_open:
+            yield ThinkingEndEvent()
+            thinking_open = False
+
         if pending_text:
-            ordered_parts.append({"type": "text", "text": "".join(pending_text)})
+            ordered_parts.append(
+                {"type": "text", "text": "".join(pending_text)},
+            )
             pending_text.clear()
         for tc_id in open_tool_call_ids:
             ordered_parts.append({"type": "tool_ref", "id": tc_id})
@@ -251,6 +301,7 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 role="tool",
             )
 
+        # ── Persist ──
         if self._store and thread_id:
             if user_text:
                 self._save_user_message(thread_id, user_text)

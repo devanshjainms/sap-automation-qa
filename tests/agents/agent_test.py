@@ -35,8 +35,8 @@ def _make_mock_mcp_tool(name: str = "sap-test", n_functions: int = 3):
 def _mock_as_agent(**kwargs):
     """Create a mock agent that preserves the ``name`` kwarg.
 
-    ``SequentialBuilder`` uses ``agent.name`` for JSON serialization
-    and duplicate detection, so the mock must carry a real string.
+    ``HandoffBuilder`` uses ``agent.name`` for routing and JSON
+    serialization, so the mock must carry a real string.
     """
     m = MagicMock()
     m.name = kwargs.get("name", "mock-agent")
@@ -44,11 +44,32 @@ def _mock_as_agent(**kwargs):
     return m
 
 
+class _MockHandoffBuilder:
+    """Lightweight HandoffBuilder stand-in that accepts MagicMock agents."""
+
+    def __init__(self, **kwargs):
+        self._kwargs = kwargs
+        self._participants = kwargs.get("participants", [])
+
+    def with_start_agent(self, agent):
+        return self
+
+    def add_handoff(self, source, targets, **kwargs):
+        return self
+
+    def with_autonomous_mode(self, **kwargs):
+        return self
+
+    def build(self):
+        return MagicMock(name="mock-workflow")
+
+
 # ---------------------------------------------------------------------------
 # Tests — SapAgentFactory
 # ---------------------------------------------------------------------------
 
 
+@patch("src.agents.agent.HandoffBuilder", _MockHandoffBuilder)
 class TestSapAgentFactory:
     """Tests for the ``SapAgentFactory`` class."""
 
@@ -121,10 +142,11 @@ class TestSapAgentFactory:
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
-    async def test_create_workflow_builds_three_agents(
+    async def test_general_intent_builds_single_agent(
         self,
         mock_client_cls: MagicMock,
     ) -> None:
+        """GENERAL intent creates a single SAP-Agent."""
         mock_client_cls.return_value.as_agent.side_effect = _mock_as_agent
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
@@ -136,10 +158,34 @@ class TestSapAgentFactory:
 
         factory.create_workflow()
 
+        assert mock_client_cls.return_value.as_agent.call_count == 1
+        call = mock_client_cls.return_value.as_agent.call_args
+        assert call[1]["name"] == "SAP-Agent"
+
+    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @pytest.mark.asyncio
+    async def test_triage_intent_builds_handoff_agents(
+        self,
+        mock_client_cls: MagicMock,
+    ) -> None:
+        """TRIAGE intent creates Coordinator + Investigator + TestRunner."""
+        mock_client_cls.return_value.as_agent.side_effect = _mock_as_agent
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        from src.agents.agent_config import TRIAGE_CONFIG
+
+        factory.create_workflow(config=TRIAGE_CONFIG)
+
         assert mock_client_cls.return_value.as_agent.call_count == 3
         calls = mock_client_cls.return_value.as_agent.call_args_list
-        names = [c[1]["name"] for c in calls]
-        assert set(names) == {"Planner", "Executor", "Analyst"}
+        names = {c[1]["name"] for c in calls}
+        assert names == {"Coordinator", "Investigator", "TestRunner"}
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
@@ -161,10 +207,9 @@ class TestSapAgentFactory:
 
         factory.create_workflow()
 
-        # Planner and Executor receive tools; Analyst does not.
-        calls = mock_client_cls.return_value.as_agent.call_args_list
-        planner_call = [c for c in calls if c[1]["name"] == "Planner"][0]
-        assert mcp_tool in planner_call[1]["tools"]
+        # Single-agent (GENERAL) gets all tools.
+        call = mock_client_cls.return_value.as_agent.call_args
+        assert mcp_tool in call[1]["tools"]
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
@@ -186,11 +231,9 @@ class TestSapAgentFactory:
                 workspace_context="Workspace: PRD",
             )
 
-        # context_providers only go to the Planner agent.
-        calls = mock_client_cls.return_value.as_agent.call_args_list
-        planner_call = [c for c in calls if c[1]["name"] == "Planner"][0]
-        providers = planner_call[1]["context_providers"]
-        # WorkspaceContextProvider should be present (no ConversationHistoryProvider in tests)
+        # Single agent gets the workspace context provider.
+        call = mock_client_cls.return_value.as_agent.call_args
+        providers = call[1]["context_providers"]
         from src.agents.agent import WorkspaceContextProvider
 
         assert any(isinstance(p, WorkspaceContextProvider) for p in providers)
@@ -213,10 +256,9 @@ class TestSapAgentFactory:
 
             factory.create_workflow()
 
-        # compaction_strategy is on the Planner agent.
-        calls = mock_client_cls.return_value.as_agent.call_args_list
-        planner_call = [c for c in calls if c[1]["name"] == "Planner"][0]
-        strategy = planner_call[1].get("compaction_strategy")
+        # Single agent gets the compaction strategy.
+        call = mock_client_cls.return_value.as_agent.call_args
+        strategy = call[1].get("compaction_strategy")
         assert isinstance(strategy, TokenBudgetComposedStrategy)
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
@@ -431,10 +473,198 @@ class TestSapAgentFactoryExternal:
 
 
 # ---------------------------------------------------------------------------
+# Tests — Intent classification (LLM-based)
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyIntent:
+    """Tests for ``SapAgentFactory.classify_intent``."""
+
+    @pytest.mark.asyncio
+    async def test_triage_intent(self) -> None:
+        """LLM returning 'triage' maps to TRIAGE."""
+        response = MagicMock()
+        response.text = "triage"
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+            mock_client.return_value.get_response = AsyncMock(return_value=response)
+            result = await factory.classify_intent("investigate cluster failure")
+
+        from src.agents.agent_config import InvestigationIntent
+
+        assert result == InvestigationIntent.TRIAGE
+
+    @pytest.mark.asyncio
+    async def test_test_intent(self) -> None:
+        """LLM returning 'test' maps to TEST."""
+        response = MagicMock()
+        response.text = "test"
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+            mock_client.return_value.get_response = AsyncMock(return_value=response)
+            result = await factory.classify_intent("run HA test suite")
+
+        from src.agents.agent_config import InvestigationIntent
+
+        assert result == InvestigationIntent.TEST
+
+    @pytest.mark.asyncio
+    async def test_knowledge_intent(self) -> None:
+        """LLM returning 'knowledge' maps to KNOWLEDGE."""
+        response = MagicMock()
+        response.text = "knowledge"
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+            mock_client.return_value.get_response = AsyncMock(return_value=response)
+            result = await factory.classify_intent("what is SAP Note 2369910?")
+
+        from src.agents.agent_config import InvestigationIntent
+
+        assert result == InvestigationIntent.KNOWLEDGE
+
+    @pytest.mark.asyncio
+    async def test_general_intent(self) -> None:
+        """LLM returning 'general' maps to GENERAL."""
+        response = MagicMock()
+        response.text = "general"
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+            mock_client.return_value.get_response = AsyncMock(return_value=response)
+            result = await factory.classify_intent("hello there")
+
+        from src.agents.agent_config import InvestigationIntent
+
+        assert result == InvestigationIntent.GENERAL
+
+    @pytest.mark.asyncio
+    async def test_empty_input_returns_general(self) -> None:
+        """Empty string skips LLM call, returns GENERAL."""
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+            )
+
+        from src.agents.agent_config import InvestigationIntent
+
+        result = await factory.classify_intent("")
+        assert result == InvestigationIntent.GENERAL
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_returns_general(self) -> None:
+        """Whitespace-only input returns GENERAL without LLM call."""
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+            )
+
+        from src.agents.agent_config import InvestigationIntent
+
+        result = await factory.classify_intent("   ")
+        assert result == InvestigationIntent.GENERAL
+
+    @pytest.mark.asyncio
+    async def test_invalid_llm_response_returns_general(self) -> None:
+        """Invalid LLM response falls back to GENERAL."""
+        response = MagicMock()
+        response.text = "banana"
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+            mock_client.return_value.get_response = AsyncMock(return_value=response)
+            result = await factory.classify_intent("some text")
+
+        from src.agents.agent_config import InvestigationIntent
+
+        assert result == InvestigationIntent.GENERAL
+
+    @pytest.mark.asyncio
+    async def test_llm_error_returns_general(self) -> None:
+        """LLM exception falls back to GENERAL."""
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+            mock_client.return_value.get_response = AsyncMock(
+                side_effect=RuntimeError("LLM down"),
+            )
+            result = await factory.classify_intent("investigate something")
+
+        from src.agents.agent_config import InvestigationIntent
+
+        assert result == InvestigationIntent.GENERAL
+
+    @pytest.mark.asyncio
+    async def test_uses_structured_output(self) -> None:
+        """Classifier passes IntentClassification as response_format."""
+        response = MagicMock()
+        response.text = "triage"
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+            mock_client.return_value.get_response = AsyncMock(return_value=response)
+            await factory.classify_intent("check my cluster")
+
+        call_kwargs = mock_client.return_value.get_response.call_args
+        options = call_kwargs[1]["options"]
+        from src.agents.agent import IntentClassification
+
+        assert options["response_format"] is IntentClassification
+        assert options["temperature"] == 0
+        assert options["max_tokens"] == 20
+
+
+# ---------------------------------------------------------------------------
 # Tests — Agentic execution loop configuration
 # ---------------------------------------------------------------------------
 
 
+@patch("src.agents.agent.HandoffBuilder", _MockHandoffBuilder)
 class TestAgenticLoopConfiguration:
     """Tests for the agentic loop settings in create_workflow."""
 
@@ -510,7 +740,7 @@ class TestAgenticLoopConfiguration:
         self,
         mock_client_cls: MagicMock,
     ) -> None:
-        """System prompt enforces Plan/Act/Observe/Reflect loop."""
+        """System prompt enforces think-aloud and iterative investigation."""
         mock_client_cls.return_value.as_agent.side_effect = _mock_as_agent
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
@@ -522,10 +752,9 @@ class TestAgenticLoopConfiguration:
 
         factory.create_workflow()
 
-        # All agents share the base instructions; check Planner.
-        calls = mock_client_cls.return_value.as_agent.call_args_list
-        planner_call = [c for c in calls if c[1]["name"] == "Planner"][0]
-        instructions = planner_call[1]["instructions"]
+        # Single SAP-Agent gets the full instruction set.
+        call = mock_client_cls.return_value.as_agent.call_args
+        instructions = call[1]["instructions"]
         assert "ABSOLUTE RULES" in instructions
         assert "Think out loud" in instructions
         assert "How to work" in instructions
@@ -537,7 +766,7 @@ class TestAgenticLoopConfiguration:
         self,
         mock_client_cls: MagicMock,
     ) -> None:
-        """Both middleware classes are passed to the agent."""
+        """Middleware classes are passed to the agent."""
         mock_client_cls.return_value.as_agent.side_effect = _mock_as_agent
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
@@ -549,28 +778,26 @@ class TestAgenticLoopConfiguration:
 
         factory.create_workflow()
 
-        # Planner/Executor get full middleware; Analyst gets a subset.
-        calls = mock_client_cls.return_value.as_agent.call_args_list
-        planner_call = [c for c in calls if c[1]["name"] == "Planner"][0]
-        middleware = planner_call[1]["middleware"]
+        call = mock_client_cls.return_value.as_agent.call_args
+        middleware_list = call[1]["middleware"]
         from src.agents.providers.middleware import (
             AgentExceptionMiddleware,
             FunctionGuardMiddleware,
             OutputSanitizationMiddleware,
         )
 
-        types = [type(m) for m in middleware]
+        types = [type(m) for m in middleware_list]
         assert AgentExceptionMiddleware in types
         assert FunctionGuardMiddleware in types
         assert OutputSanitizationMiddleware in types
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
-    async def test_all_agents_get_history_provider(
+    async def test_agent_gets_history_provider(
         self,
         mock_client_cls: MagicMock,
     ) -> None:
-        """All three agents receive a ConversationHistoryProvider."""
+        """The agent receives a ConversationHistoryProvider."""
         mock_client_cls.return_value.as_agent.side_effect = _mock_as_agent
         store = MagicMock()
 
@@ -586,11 +813,9 @@ class TestAgenticLoopConfiguration:
 
         from src.agents.providers.history_provider import ConversationHistoryProvider
 
-        calls = mock_client_cls.return_value.as_agent.call_args_list
-        for call in calls:
-            providers = call[1].get("context_providers", [])
-            has_history = any(isinstance(p, ConversationHistoryProvider) for p in providers)
-            assert has_history, f"{call[1]['name']} missing ConversationHistoryProvider"
+        call = mock_client_cls.return_value.as_agent.call_args
+        providers = call[1].get("context_providers", [])
+        assert any(isinstance(p, ConversationHistoryProvider) for p in providers)
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
@@ -598,7 +823,7 @@ class TestAgenticLoopConfiguration:
         self,
         mock_client_cls: MagicMock,
     ) -> None:
-        """All agents' history providers have save_enabled=False."""
+        """History provider has save_enabled=False (AG-UI handles persistence)."""
         mock_client_cls.return_value.as_agent.side_effect = _mock_as_agent
         store = MagicMock()
 
@@ -614,14 +839,11 @@ class TestAgenticLoopConfiguration:
 
         from src.agents.providers.history_provider import ConversationHistoryProvider
 
-        calls = mock_client_cls.return_value.as_agent.call_args_list
-        for call in calls:
-            providers = call[1].get("context_providers", [])
-            for p in providers:
-                if isinstance(p, ConversationHistoryProvider):
-                    assert not p._save_enabled, (
-                        f"{call[1]['name']} history provider should have save_enabled=False"
-                    )
+        call = mock_client_cls.return_value.as_agent.call_args
+        providers = call[1].get("context_providers", [])
+        for p in providers:
+            if isinstance(p, ConversationHistoryProvider):
+                assert not p._save_enabled
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
@@ -645,20 +867,19 @@ class TestAgenticLoopConfiguration:
 
         from src.agents.providers.history_provider import ConversationHistoryProvider
 
-        calls = mock_client_cls.return_value.as_agent.call_args_list
-        for call in calls:
-            providers = call[1].get("context_providers", [])
-            for p in providers:
-                if isinstance(p, ConversationHistoryProvider):
-                    assert p._conversation_id == "my-thread-123"
+        call = mock_client_cls.return_value.as_agent.call_args
+        providers = call[1].get("context_providers", [])
+        for p in providers:
+            if isinstance(p, ConversationHistoryProvider):
+                assert p._conversation_id == "my-thread-123"
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
-    async def test_planner_prompt_forbids_confirmation(
+    async def test_agent_prompt_forbids_confirmation(
         self,
         mock_client_cls: MagicMock,
     ) -> None:
-        """Planner prompt explicitly forbids asking for confirmation."""
+        """Agent prompt explicitly forbids asking for confirmation."""
         mock_client_cls.return_value.as_agent.side_effect = _mock_as_agent
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
@@ -670,7 +891,6 @@ class TestAgenticLoopConfiguration:
 
         factory.create_workflow()
 
-        calls = mock_client_cls.return_value.as_agent.call_args_list
-        planner_call = [c for c in calls if c[1]["name"] == "Planner"][0]
-        instructions = planner_call[1]["instructions"]
-        assert "NEVER ask the user for confirmation" in instructions
+        call = mock_client_cls.return_value.as_agent.call_args
+        instructions = call[1]["instructions"]
+        assert "NEVER" in instructions

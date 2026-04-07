@@ -8,137 +8,122 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from agent_framework import Message as AFMessage
+from agent_framework._types import Content
 from src.agents.providers.history_provider import ConversationHistoryProvider
+
+
+def _af(role: str, contents: list[dict]) -> AFMessage:
+    """Build an AFMessage from a role and raw content dicts."""
+    return AFMessage.from_dict({
+        "type": "message",
+        "role": role,
+        "contents": contents,
+        "additional_properties": {},
+    })
 
 
 class TestSanitizeSilentToolCall:
     """Validate _sanitize_silent_tool_call injects text into silent assistant msgs."""
 
     def test_assistant_with_only_function_call_gets_text(self):
-        msg = {
-            "type": "message",
-            "role": "assistant",
-            "contents": [
-                {
-                    "type": "function_call",
-                    "call_id": "call_1",
-                    "name": "list_workspaces",
-                    "arguments": "{}",
-                }
-            ],
-        }
+        msg = _af("assistant", [
+            {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "list_workspaces",
+                "arguments": "{}",
+            }
+        ])
         result = ConversationHistoryProvider._sanitize_silent_tool_call(msg)
 
-        # Should have text prepended.
-        assert len(result["contents"]) == 2
-        assert result["contents"][0]["type"] == "text"
-        assert "list_workspaces" in result["contents"][0]["text"]
-        # Original function_call preserved.
-        assert result["contents"][1]["type"] == "function_call"
+        result_dict = result.to_dict()
+        assert len(result_dict["contents"]) == 2
+        assert result_dict["contents"][0]["type"] == "text"
+        assert "list_workspaces" in result_dict["contents"][0]["text"]
+        assert result_dict["contents"][1]["type"] == "function_call"
 
     def test_assistant_with_text_and_call_unchanged(self):
-        msg = {
-            "type": "message",
-            "role": "assistant",
-            "contents": [
-                {"type": "text", "text": "I'll check the workspaces."},
-                {
-                    "type": "function_call",
-                    "call_id": "call_1",
-                    "name": "list_workspaces",
-                    "arguments": "{}",
-                },
-            ],
-        }
+        msg = _af("assistant", [
+            {"type": "text", "text": "I'll check the workspaces."},
+            {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "list_workspaces",
+                "arguments": "{}",
+            },
+        ])
         result = ConversationHistoryProvider._sanitize_silent_tool_call(msg)
 
-        # Should be unchanged — already has text.
-        assert len(result["contents"]) == 2
-        assert result["contents"][0]["type"] == "text"
-        assert result["contents"][0]["text"] == "I'll check the workspaces."
+        result_dict = result.to_dict()
+        assert len(result_dict["contents"]) == 2
+        assert result_dict["contents"][0]["type"] == "text"
+        assert result_dict["contents"][0]["text"] == "I'll check the workspaces."
 
     def test_tool_role_message_unchanged(self):
-        msg = {
-            "type": "message",
-            "role": "tool",
-            "contents": [
-                {
-                    "type": "function_result",
-                    "call_id": "call_1",
-                    "result": "data",
-                }
-            ],
-        }
+        msg = _af("tool", [
+            {
+                "type": "function_result",
+                "call_id": "call_1",
+                "result": "data",
+            }
+        ])
         result = ConversationHistoryProvider._sanitize_silent_tool_call(msg)
-        assert result is msg  # Exact same reference, not modified.
+        assert result is msg
 
     def test_user_message_unchanged(self):
-        msg = {
-            "type": "message",
-            "role": "user",
-            "contents": [{"type": "text", "text": "hello"}],
-        }
+        msg = _af("user", [{"type": "text", "text": "hello"}])
         result = ConversationHistoryProvider._sanitize_silent_tool_call(msg)
         assert result is msg
 
     def test_assistant_text_only_unchanged(self):
-        msg = {
-            "type": "message",
-            "role": "assistant",
-            "contents": [{"type": "text", "text": "Here is the answer."}],
-        }
+        msg = _af("assistant", [{"type": "text", "text": "Here is the answer."}])
         result = ConversationHistoryProvider._sanitize_silent_tool_call(msg)
-        assert len(result["contents"]) == 1
-        assert result["contents"][0]["type"] == "text"
+
+        result_dict = result.to_dict()
+        assert len(result_dict["contents"]) == 1
+        assert result_dict["contents"][0]["type"] == "text"
 
     def test_multiple_function_calls_listed(self):
-        msg = {
-            "type": "message",
-            "role": "assistant",
-            "contents": [
-                {
-                    "type": "function_call",
-                    "call_id": "c1",
-                    "name": "list_workspaces",
-                    "arguments": "{}",
-                },
-                {
-                    "type": "function_call",
-                    "call_id": "c2",
-                    "name": "run_evidence_collector",
-                    "arguments": "{}",
-                },
-            ],
-        }
+        msg = _af("assistant", [
+            {
+                "type": "function_call",
+                "call_id": "c1",
+                "name": "list_workspaces",
+                "arguments": "{}",
+            },
+            {
+                "type": "function_call",
+                "call_id": "c2",
+                "name": "run_evidence_collector",
+                "arguments": "{}",
+            },
+        ])
         result = ConversationHistoryProvider._sanitize_silent_tool_call(msg)
 
-        assert len(result["contents"]) == 3
-        text = result["contents"][0]["text"]
+        result_dict = result.to_dict()
+        assert len(result_dict["contents"]) == 3
+        text = result_dict["contents"][0]["text"]
         assert "list_workspaces" in text
         assert "run_evidence_collector" in text
 
     def test_empty_contents_unchanged(self):
-        msg = {"type": "message", "role": "assistant", "contents": []}
+        msg = _af("assistant", [])
         result = ConversationHistoryProvider._sanitize_silent_tool_call(msg)
-        assert result["contents"] == []
+        assert result.to_dict()["contents"] == []
 
-    def test_original_dict_not_mutated(self):
-        msg = {
-            "type": "message",
-            "role": "assistant",
-            "contents": [
-                {
-                    "type": "function_call",
-                    "call_id": "call_1",
-                    "name": "my_tool",
-                    "arguments": "{}",
-                }
-            ],
-        }
-        original_len = len(msg["contents"])
+    def test_original_not_mutated(self):
+        msg = _af("assistant", [
+            {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "my_tool",
+                "arguments": "{}",
+            }
+        ])
+        original_len = len(msg.to_dict()["contents"])
         _ = ConversationHistoryProvider._sanitize_silent_tool_call(msg)
-        # Original dict should not be mutated.
-        assert len(msg["contents"]) == original_len
+        assert len(msg.to_dict()["contents"]) == original_len
 
 
 class TestTitleGeneration:

@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Tests for intent classification and agent configuration."""
+"""Tests for agent configuration."""
 
 from __future__ import annotations
 
@@ -14,58 +14,8 @@ from src.agents.agent_config import (
     TRIAGE_CONFIG,
     AgentConfig,
     InvestigationIntent,
-    classify,
     config_for_intent,
 )
-
-
-class TestClassify:
-    """Tests for lightweight intent classification."""
-
-    @pytest.mark.parametrize(
-        "text,expected",
-        [
-            ("investigate the SCS cluster", InvestigationIntent.TRIAGE),
-            ("triage HANA failover issue", InvestigationIntent.TRIAGE),
-            ("diagnose why node2 is offline", InvestigationIntent.TRIAGE),
-            ("cluster status looks wrong", InvestigationIntent.TRIAGE),
-            ("node crashed last night", InvestigationIntent.TRIAGE),
-            ("resource failed to start", InvestigationIntent.TRIAGE),
-            ("troubleshoot split brain", InvestigationIntent.TRIAGE),
-        ],
-    )
-    def test_triage_intent(self, text: str, expected: InvestigationIntent) -> None:
-        assert classify(text) == expected
-
-    @pytest.mark.parametrize(
-        "text,expected",
-        [
-            ("run HA test suite on PRD", InvestigationIntent.TEST),
-            ("execute functional tests", InvestigationIntent.TEST),
-            ("schedule a STAF test", InvestigationIntent.TEST),
-            ("run test for DatabaseHighAvailability", InvestigationIntent.TEST),
-        ],
-    )
-    def test_test_intent(self, text: str, expected: InvestigationIntent) -> None:
-        assert classify(text) == expected
-
-    @pytest.mark.parametrize(
-        "text,expected",
-        [
-            ("what is SAP Note 2369910?", InvestigationIntent.KNOWLEDGE),
-            ("explain best practices for HANA HA", InvestigationIntent.KNOWLEDGE),
-            ("what rule checks sysctl?", InvestigationIntent.KNOWLEDGE),
-            ("recommend settings for net.ipv4", InvestigationIntent.KNOWLEDGE),
-        ],
-    )
-    def test_knowledge_intent(self, text: str, expected: InvestigationIntent) -> None:
-        assert classify(text) == expected
-
-    def test_general_fallback(self) -> None:
-        assert classify("hello there") == InvestigationIntent.GENERAL
-
-    def test_empty_input(self) -> None:
-        assert classify("") == InvestigationIntent.GENERAL
 
 
 class TestAgentConfig:

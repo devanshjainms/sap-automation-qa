@@ -9,14 +9,12 @@ requesting — and ``AgentConfig`` — a frozen configuration that tunes
 agent behaviour (prompt modules, token budget, evidence thresholds)
 for that intent.
 
-The ``classify`` function is a lightweight heuristic; it can be
-replaced with an LLM-based classifier later without changing the
-config-consumption code.
+Classification is handled by ``SapAgentFactory.classify_intent()``
+which performs a lightweight LLM call with structured output.
 """
 
 from __future__ import annotations
 import enum
-import re
 from dataclasses import dataclass, field
 
 from src.agents.prompt_modules import (
@@ -44,24 +42,6 @@ class InvestigationIntent(enum.Enum):
     TEST = "test"
     KNOWLEDGE = "knowledge"
     GENERAL = "general"
-
-
-# Compiled patterns for intent classification
-_TRIAGE_PATTERN = re.compile(
-    r"(investigat|triage|diagnos|troubleshoot|cluster\s*(status|issue|problem)"
-    r"|failover|fence|split.?brain|node.*(down|offline|crash)|resource.*(fail|stop)"
-    r"|not.?work|broken|unhealthy|degraded)",
-    re.IGNORECASE,
-)
-_TEST_PATTERN = re.compile(
-    r"(run.*test|test.*suite|ha.*test|staf|schedule|functional.*test|execute.*test)",
-    re.IGNORECASE,
-)
-_KNOWLEDGE_PATTERN = re.compile(
-    r"(sap.?note|best.?practice|what.*rule|explain.*config"
-    r"|knowledge|playbook|how.*should|recommend)",
-    re.IGNORECASE,
-)
 
 
 @dataclass(frozen=True)
@@ -166,24 +146,3 @@ def config_for_intent(intent: InvestigationIntent) -> AgentConfig:
     :returns: Matching agent configuration.
     """
     return _INTENT_CONFIGS[intent]
-
-
-def classify(user_text: str) -> InvestigationIntent:
-    """Classify user text into an investigation intent.
-
-    Uses lightweight regex heuristics.  Can be replaced with an
-    LLM-based classifier without changing downstream code.
-
-    :param user_text: First user message text.
-    :returns: Detected intent.
-    """
-    if not user_text:
-        return InvestigationIntent.GENERAL
-
-    if _TRIAGE_PATTERN.search(user_text):
-        return InvestigationIntent.TRIAGE
-    if _TEST_PATTERN.search(user_text):
-        return InvestigationIntent.TEST
-    if _KNOWLEDGE_PATTERN.search(user_text):
-        return InvestigationIntent.KNOWLEDGE
-    return InvestigationIntent.GENERAL
