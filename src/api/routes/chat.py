@@ -84,8 +84,10 @@ def _detail(conv: Conversation) -> dict[str, Any]:
             c.get("text", "") for c in contents if c.get("type") == "text"
         ]
         msg_out: dict[str, Any] = {
+            "id": af_dict.get("_id", ""),
             "role": role,
             "content": " ".join(text_parts).strip(),
+            "timestamp": af_dict.get("_timestamp", ""),
         }
 
         if role == "assistant":

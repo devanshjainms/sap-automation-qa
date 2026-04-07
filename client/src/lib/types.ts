@@ -78,7 +78,7 @@ export type MessagePart =
 
 export interface Message {
   id: string;
-  role: "user" | "assistant" | "system" | "tool_call" | "tool_result";
+  role: "user" | "assistant";
   content: string;
   timestamp: string;
   toolCalls?: ToolCall[];

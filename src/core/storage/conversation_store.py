@@ -296,7 +296,9 @@ class ConversationStore:
         messages: list[AFMessage] = []
         for d in dicts:
             try:
-                messages.append(AFMessage.from_dict(d))
+                # Strip DB metadata keys before deserializing to AFMessage.
+                clean = {k: v for k, v in d.items() if not k.startswith("_")}
+                messages.append(AFMessage.from_dict(clean))
             except Exception:
                 pass
         return messages
@@ -310,10 +312,16 @@ class ConversationStore:
         conversation_id: str,
         limit: Optional[int] = None,
     ) -> list[dict[str, Any]]:
-        """Load raw AF message dicts for a conversation."""
+        """Load AF message dicts enriched with DB ``id`` and ``timestamp``.
+
+        The returned dicts contain the full AF message payload plus
+        ``_id`` and ``_timestamp`` keys from the database row so that
+        API serializers can include them in the response without a
+        second query.
+        """
         self._conn.row_factory = sqlite3.Row
         sql = (
-            "SELECT af_message FROM messages "
+            "SELECT id, af_message, timestamp FROM messages "
             "WHERE conversation_id = ? ORDER BY timestamp ASC"
         )
         params: tuple = (conversation_id,)
@@ -325,7 +333,10 @@ class ConversationStore:
         result: list[dict[str, Any]] = []
         for row in rows:
             try:
-                result.append(json.loads(row["af_message"]))
+                af_dict = json.loads(row["af_message"])
+                af_dict["_id"] = row["id"]
+                af_dict["_timestamp"] = row["timestamp"]
+                result.append(af_dict)
             except (json.JSONDecodeError, KeyError):
                 pass
         return result
