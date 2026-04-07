@@ -45,6 +45,93 @@ class InvestigationIntent(enum.Enum):
 
 
 @dataclass(frozen=True)
+class SpecialistConfig:
+    """Configuration for a specialist agent in a handoff workflow.
+
+    :param name: Agent name (used in HandoffBuilder routing).
+    :param description: Brief agent description.
+    :param module_names: Prompt modules for this specialist's instructions.
+    :param role_prompt: Additional role-specific instruction text
+        appended after the assembled prompt modules.
+    """
+
+    name: str
+    description: str
+    module_names: list[str] = field(default_factory=list)
+    role_prompt: str = ""
+
+
+# ------------------------------------------------------------------
+# Pre-built specialist configs
+# ------------------------------------------------------------------
+
+COORDINATOR_ROLE_PROMPT = (
+    "\n\n**ROLE: COORDINATOR**\n"
+    "You are the entry point. Your job:\n"
+    "1. Identify the target SAP system — call "
+    "`list_workspaces` and `get_workspace`.\n"
+    "2. Understand the user's request.\n"
+    "3. Hand off to the right specialist:\n"
+    "   - **Investigator** for troubleshooting, diagnostics, "
+    "health checks, and configuration review.\n"
+    "   - **TestRunner** for running HA/functional tests.\n"
+    "4. After the specialist returns, present the findings "
+    "to the user with evidence and remediation steps.\n\n"
+    "NEVER ask the user for confirmation. Just route and go."
+)
+
+INVESTIGATOR_SPEC = SpecialistConfig(
+    name="Investigator",
+    description="Collects evidence and analyzes SAP system health.",
+    module_names=[
+        CORE_IDENTITY.name,
+        ABSOLUTE_RULES.name,
+        THINK_ALOUD.name,
+        HOW_TO_WORK.name,
+        HOW_TO_INVESTIGATE.name,
+        TOOLS_REFERENCE.name,
+        PAST_EXPERIENCE.name,
+        REMINDERS.name,
+    ],
+    role_prompt=(
+        "\n\n**ROLE: INVESTIGATOR**\n"
+        "You investigate SAP system issues step by step.\n"
+        "For each step:\n"
+        "1. Explain what you're about to check and why.\n"
+        "2. Call the tool.\n"
+        "3. Analyze the result — what does it tell you?\n"
+        "4. Decide: need more evidence, or ready to conclude?\n\n"
+        "When done, hand back to the Coordinator with your "
+        "complete findings and diagnosis."
+    ),
+)
+
+TEST_RUNNER_SPEC = SpecialistConfig(
+    name="TestRunner",
+    description="Runs SAP HA and functional tests.",
+    module_names=[
+        CORE_IDENTITY.name,
+        ABSOLUTE_RULES.name,
+        THINK_ALOUD.name,
+        HOW_TO_WORK.name,
+        TOOLS_REFERENCE.name,
+        REMINDERS.name,
+    ],
+    role_prompt=(
+        "\n\n**ROLE: TEST RUNNER**\n"
+        "You run HA functional tests on SAP systems.\n"
+        "For each test:\n"
+        "1. Explain which test you're running and why.\n"
+        "2. Call `run_staf_test` or the appropriate test tool.\n"
+        "3. Analyze the test result.\n"
+        "4. If the test failed, investigate why before moving on.\n\n"
+        "When done, hand back to the Coordinator with test "
+        "results and any issues found."
+    ),
+)
+
+
+@dataclass(frozen=True)
 class AgentConfig:
     """Frozen configuration that tunes agent behaviour per intent.
 
@@ -53,6 +140,10 @@ class AgentConfig:
     :param max_rounds: Maximum agent tool-call iterations.
     :param token_budget: Token budget for compaction.
     :param inject_kb: Whether to inject proactive KB context.
+    :param coordinator_turn_limit: Max autonomous turns for the
+        coordinator in handoff workflows.
+    :param specialists: Specialist configs for handoff workflows.
+        Empty for single-agent intents.
     """
 
     intent: InvestigationIntent
@@ -60,6 +151,8 @@ class AgentConfig:
     max_rounds: int = 75
     token_budget: int = 120_000
     inject_kb: bool = False
+    coordinator_turn_limit: int = 10
+    specialists: tuple[SpecialistConfig, ...] = ()
 
 
 # ------------------------------------------------------------------
@@ -83,6 +176,8 @@ TRIAGE_CONFIG = AgentConfig(
     max_rounds=75,
     token_budget=120_000,
     inject_kb=True,
+    coordinator_turn_limit=10,
+    specialists=(INVESTIGATOR_SPEC, TEST_RUNNER_SPEC),
 )
 
 TEST_CONFIG = AgentConfig(
@@ -98,6 +193,8 @@ TEST_CONFIG = AgentConfig(
     max_rounds=50,
     token_budget=80_000,
     inject_kb=False,
+    coordinator_turn_limit=10,
+    specialists=(INVESTIGATOR_SPEC, TEST_RUNNER_SPEC),
 )
 
 KNOWLEDGE_CONFIG = AgentConfig(

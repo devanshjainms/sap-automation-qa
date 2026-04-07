@@ -39,6 +39,7 @@ from src.agents.agent_config import (
     AgentConfig,
     InvestigationIntent,
     config_for_intent,
+    COORDINATOR_ROLE_PROMPT,
 )
 from src.agents.prompt_modules import assemble
 from src.agents.providers.history_provider import ConversationHistoryProvider
@@ -517,6 +518,9 @@ class SapAgentFactory:
                 participants=[agent],
             )
             .with_start_agent(agent)
+            .with_autonomous_mode(
+                turn_limits={"SAP-Agent": config.max_rounds},
+            )
             .build()
         )
 
@@ -536,9 +540,8 @@ class SapAgentFactory:
 
         - **Coordinator**: Reads the request, identifies the system,
           then routes to the right specialist.
-        - **Investigator**: Collects evidence and analyzes findings
-          with a full ReAct loop (think → act → observe → think).
-        - **TestRunner**: Runs HA/functional tests (TRIAGE+TEST).
+        - **Specialists**: Built from ``config.specialists`` — each
+          has its own prompt modules and role prompt.
 
         Each specialist iterates autonomously until done, then
         hands back to the coordinator for the final response.
@@ -548,21 +551,7 @@ class SapAgentFactory:
         coordinator = client.as_agent(
             name="Coordinator",
             description="Routes requests to the right specialist.",
-            instructions=instructions
-            + (
-                "\n\n**ROLE: COORDINATOR**\n"
-                "You are the entry point. Your job:\n"
-                "1. Identify the target SAP system — call "
-                "`list_workspaces` and `get_workspace`.\n"
-                "2. Understand the user's request.\n"
-                "3. Hand off to the right specialist:\n"
-                "   - **Investigator** for troubleshooting, diagnostics, "
-                "health checks, and configuration review.\n"
-                "   - **TestRunner** for running HA/functional tests.\n"
-                "4. After the specialist returns, present the findings "
-                "to the user with evidence and remediation steps.\n\n"
-                "NEVER ask the user for confirmation. Just route and go."
-            ),
+            instructions=instructions + COORDINATOR_ROLE_PROMPT,
             tools=all_tools,
             middleware=middleware,
             function_invocation_configuration=func_config,
@@ -570,83 +559,39 @@ class SapAgentFactory:
             context_providers=context_providers,
         )
 
-        investigator = client.as_agent(
-            name="Investigator",
-            description="Collects evidence and analyzes SAP system health.",
-            instructions=assemble([
-                "core_identity",
-                "absolute_rules",
-                "think_aloud",
-                "how_to_work",
-                "how_to_investigate",
-                "tools_reference",
-                "past_experience",
-                "reminders",
-            ])
-            + (
-                "\n\n**ROLE: INVESTIGATOR**\n"
-                "You investigate SAP system issues step by step.\n"
-                "For each step:\n"
-                "1. Explain what you're about to check and why.\n"
-                "2. Call the tool.\n"
-                "3. Analyze the result — what does it tell you?\n"
-                "4. Decide: need more evidence, or ready to conclude?\n\n"
-                "When done, hand back to the Coordinator with your "
-                "complete findings and diagnosis."
-            ),
-            tools=all_tools,
-            middleware=middleware,
-            function_invocation_configuration=func_config,
-            compaction_strategy=compaction,
-        )
+        specialists = []
+        for spec in config.specialists:
+            agent = client.as_agent(
+                name=spec.name,
+                description=spec.description,
+                instructions=assemble(spec.module_names) + spec.role_prompt,
+                tools=all_tools,
+                middleware=middleware,
+                function_invocation_configuration=func_config,
+                compaction_strategy=compaction,
+            )
+            specialists.append(agent)
 
-        test_runner = client.as_agent(
-            name="TestRunner",
-            description="Runs SAP HA and functional tests.",
-            instructions=assemble([
-                "core_identity",
-                "absolute_rules",
-                "think_aloud",
-                "how_to_work",
-                "tools_reference",
-                "reminders",
-            ])
-            + (
-                "\n\n**ROLE: TEST RUNNER**\n"
-                "You run HA functional tests on SAP systems.\n"
-                "For each test:\n"
-                "1. Explain which test you're running and why.\n"
-                "2. Call `run_staf_test` or the appropriate test tool.\n"
-                "3. Analyze the test result.\n"
-                "4. If the test failed, investigate why before moving on.\n\n"
-                "When done, hand back to the Coordinator with test "
-                "results and any issues found."
-            ),
-            tools=all_tools,
-            middleware=middleware,
-            function_invocation_configuration=func_config,
-            compaction_strategy=compaction,
-        )
+        all_agents = [coordinator] + specialists
+        turn_limits: dict[str, int] = {
+            "Coordinator": config.coordinator_turn_limit,
+        }
+        for spec in config.specialists:
+            turn_limits[spec.name] = config.max_rounds
 
-        logger.info("Created handoff workflow intent=%s", config.intent.value)
-        return (
+        builder = (
             HandoffBuilder(
                 name="sap-handoff",
-                participants=[coordinator, investigator, test_runner],
+                participants=all_agents,
             )
             .with_start_agent(coordinator)
-            .add_handoff(coordinator, [investigator, test_runner])
-            .add_handoff(investigator, [coordinator])
-            .add_handoff(test_runner, [coordinator])
-            .with_autonomous_mode(
-                turn_limits={
-                    "Coordinator": 10,
-                    "Investigator": config.max_rounds,
-                    "TestRunner": config.max_rounds,
-                },
-            )
-            .build()
+            .add_handoff(coordinator, specialists)
         )
+        for agent in specialists:
+            builder = builder.add_handoff(agent, [coordinator])
+
+        logger.info("Created handoff workflow intent=%s", config.intent.value)
+        return builder.with_autonomous_mode(turn_limits=turn_limits).build()
 
     async def close(self) -> None:
         """Shut down all MCP tool connections."""

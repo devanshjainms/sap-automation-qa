@@ -47,9 +47,13 @@ def _mock_as_agent(**kwargs):
 class _MockHandoffBuilder:
     """Lightweight HandoffBuilder stand-in that accepts MagicMock agents."""
 
+    last_instance: "_MockHandoffBuilder | None" = None
+
     def __init__(self, **kwargs):
         self._kwargs = kwargs
         self._participants = kwargs.get("participants", [])
+        self.autonomous_mode_kwargs: dict | None = None
+        _MockHandoffBuilder.last_instance = self
 
     def with_start_agent(self, agent):
         return self
@@ -58,6 +62,7 @@ class _MockHandoffBuilder:
         return self
 
     def with_autonomous_mode(self, **kwargs):
+        self.autonomous_mode_kwargs = kwargs
         return self
 
     def build(self):
@@ -161,6 +166,56 @@ class TestSapAgentFactory:
         assert mock_client_cls.return_value.as_agent.call_count == 1
         call = mock_client_cls.return_value.as_agent.call_args
         assert call[1]["name"] == "SAP-Agent"
+
+    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @pytest.mark.asyncio
+    async def test_single_agent_has_autonomous_mode(
+        self,
+        mock_client_cls: MagicMock,
+    ) -> None:
+        """Single-agent workflow enables autonomous mode with turn limits."""
+        mock_client_cls.return_value.as_agent.side_effect = _mock_as_agent
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        factory.create_workflow()
+
+        hb = _MockHandoffBuilder.last_instance
+        assert hb is not None
+        assert hb.autonomous_mode_kwargs is not None
+        assert "SAP-Agent" in hb.autonomous_mode_kwargs["turn_limits"]
+
+    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @pytest.mark.asyncio
+    async def test_handoff_turn_limits_from_config(
+        self,
+        mock_client_cls: MagicMock,
+    ) -> None:
+        """Handoff workflow reads turn limits from config."""
+        mock_client_cls.return_value.as_agent.side_effect = _mock_as_agent
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        from src.agents.agent_config import TRIAGE_CONFIG
+
+        factory.create_workflow(config=TRIAGE_CONFIG)
+
+        hb = _MockHandoffBuilder.last_instance
+        assert hb is not None
+        limits = hb.autonomous_mode_kwargs["turn_limits"]
+        assert limits["Coordinator"] == TRIAGE_CONFIG.coordinator_turn_limit
+        assert limits["Investigator"] == TRIAGE_CONFIG.max_rounds
+        assert limits["TestRunner"] == TRIAGE_CONFIG.max_rounds
 
     @patch("src.agents.agent.AzureOpenAIChatClient")
     @pytest.mark.asyncio
