@@ -34,38 +34,79 @@ const sapAgent = new HttpAgent({
 /**
  * Convert REST API messages to AG-UI message format for CopilotKit.
  *
- * Assistant messages with ``toolCalls`` produce an ``AssistantMessage``
- * with a ``toolCalls`` array followed by individual ``ToolMessage``
- * entries — matching the AG-UI protocol replay format so CopilotKit
- * renders the expandable tool-call cards.
+ * Uses the ``parts`` array (interleaved text + tool calls) to emit
+ * messages in the correct visual order.  Text before a tool call is
+ * bundled with that tool call into one ``AssistantMessage``, then a
+ * ``ToolMessage`` follows with the result.  Trailing text gets its
+ * own ``AssistantMessage``.  This matches CopilotKit's streaming
+ * replay expectation so tool cards appear inline, not at the end.
  */
 function toAgMessages(messages: Message[]): AGMessage[] {
   const result: AGMessage[] = [];
+  let seq = 0;
+
   for (const msg of messages) {
     if (msg.role === "user") {
       result.push({ id: msg.id, role: "user", content: msg.content });
-    } else if (msg.role === "assistant") {
-      const toolCalls = msg.toolCalls?.map((tc, i) => ({
-        id: `${msg.id}-tc-${i}`,
-        type: "function" as const,
-        function: { name: tc.name, arguments: tc.args },
-      }));
+      continue;
+    }
+
+    // No parts → simple text-only assistant message (legacy / plain).
+    if (!msg.parts?.length) {
       result.push({
         id: msg.id,
         role: "assistant",
         content: msg.content,
-        ...(toolCalls?.length ? { toolCalls } : {}),
       } as AGMessage);
-      if (msg.toolCalls?.length) {
-        for (let i = 0; i < msg.toolCalls.length; i++) {
-          result.push({
-            id: `${msg.id}-tr-${i}`,
-            role: "tool",
-            content: msg.toolCalls[i].result || "",
-            toolCallId: `${msg.id}-tc-${i}`,
-          } as AGMessage);
-        }
+      continue;
+    }
+
+    // Walk parts in order, grouping text + following tool call.
+    let pendingText = "";
+    for (const part of msg.parts) {
+      if (part.type === "text") {
+        // Accumulate text until we hit a tool call or the end.
+        pendingText += (pendingText ? "\n\n" : "") + part.content;
+      } else if (part.type === "tool_call") {
+        const tcId = `${msg.id}-tc-${seq}`;
+        const trId = `${msg.id}-tr-${seq}`;
+        seq++;
+
+        // Emit assistant message with accumulated text + this tool call.
+        result.push({
+          id: `${msg.id}-a-${seq}`,
+          role: "assistant",
+          content: pendingText,
+          toolCalls: [
+            {
+              id: tcId,
+              type: "function" as const,
+              function: {
+                name: part.toolCall.name,
+                arguments: part.toolCall.args,
+              },
+            },
+          ],
+        } as AGMessage);
+        pendingText = "";
+
+        // Emit tool result.
+        result.push({
+          id: trId,
+          role: "tool",
+          content: part.toolCall.result || "",
+          toolCallId: tcId,
+        } as AGMessage);
       }
+    }
+
+    // Trailing text after the last tool call.
+    if (pendingText) {
+      result.push({
+        id: `${msg.id}-tail`,
+        role: "assistant",
+        content: pendingText,
+      } as AGMessage);
     }
   }
   return result;
