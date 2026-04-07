@@ -113,7 +113,8 @@ class SapWorkflow(AgentFrameworkWorkflow):
         if self._store and thread_id:
             self._ensure_conversation(thread_id)
 
-        assistant_chunks: list[str] = []
+        ordered_parts: list[dict[str, Any]] = []
+        pending_text: list[str] = []
         current_step: str = ""
         thinking_msg_ids: set[str] = set()
         thinking_step_open: bool = False
@@ -124,7 +125,11 @@ class SapWorkflow(AgentFrameworkWorkflow):
 
         async for event in super().run(input_data):
             if open_tool_call_ids and not isinstance(event, (ToolCallArgsEvent, ToolCallEndEvent)):
+                if pending_text:
+                    ordered_parts.append({"type": "text", "text": "".join(pending_text)})
+                    pending_text.clear()
                 for tc_id in open_tool_call_ids:
+                    ordered_parts.append({"type": "tool_ref", "id": tc_id})
                     completed_tools.append({
                         "id": tc_id,
                         "name": tool_call_names.get(tc_id, "tool"),
@@ -151,6 +156,10 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 tc_id = event.tool_call_id
                 if tc_id in open_tool_call_ids:
                     open_tool_call_ids.remove(tc_id)
+                if pending_text:
+                    ordered_parts.append({"type": "text", "text": "".join(pending_text)})
+                    pending_text.clear()
+                ordered_parts.append({"type": "tool_ref", "id": tc_id})
                 result_text = f"{tool_call_names.get(tc_id, 'tool')} completed"
                 completed_tools.append({
                     "id": tc_id,
@@ -211,17 +220,22 @@ class SapWorkflow(AgentFrameworkWorkflow):
                     continue
                 if isinstance(event, TextMessageContentEvent):
                     if event.message_id in thinking_msg_ids:
+                        pending_text.append(event.delta)
                         yield ThinkingTextMessageContentEvent(
                             delta=event.delta,
                         )
                         continue
 
             if isinstance(event, TextMessageContentEvent):
-                assistant_chunks.append(event.delta)
+                pending_text.append(event.delta)
 
             yield event
 
+        if pending_text:
+            ordered_parts.append({"type": "text", "text": "".join(pending_text)})
+            pending_text.clear()
         for tc_id in open_tool_call_ids:
+            ordered_parts.append({"type": "tool_ref", "id": tc_id})
             result_text = f"{tool_call_names.get(tc_id, 'tool')} completed"
             completed_tools.append({
                 "id": tc_id,
@@ -240,10 +254,9 @@ class SapWorkflow(AgentFrameworkWorkflow):
         if self._store and thread_id:
             if user_text:
                 self._save_user_message(thread_id, user_text)
-            if assistant_chunks or completed_tools:
-                assistant_text = "".join(assistant_chunks)
+            if ordered_parts:
                 self._save_assistant_message(
-                    thread_id, assistant_text, completed_tools or None,
+                    thread_id, ordered_parts, completed_tools,
                 )
 
             if user_text:
@@ -283,36 +296,44 @@ class SapWorkflow(AgentFrameworkWorkflow):
     def _save_assistant_message(
         self,
         conv_id: str,
-        text: str,
-        tool_calls: list[dict[str, str]] | None = None,
+        ordered_parts: list[dict[str, Any]],
+        completed_tools: list[dict[str, str]],
     ) -> None:
         """Persist the assistant response as AF Message(s).
 
-        Saves one assistant message with text + function_call contents,
-        followed by one tool-role message per tool result.
+        Builds contents in the order events occurred — text segments
+        interleaved with function_call entries — so the UI can replay
+        the conversation with planning text before tool calls.
 
         :param conv_id: Conversation ID.
-        :param text: Final assistant text.
-        :param tool_calls: List of completed tool call dicts.
+        :param ordered_parts: Ordered ``{"type": "text", "text": ...}``
+            and ``{"type": "tool_ref", "id": ...}`` dicts.
+        :param completed_tools: Tool call dicts with id/name/arguments/result.
         """
         assert self._store is not None
         try:
+            tools_by_id = {tc["id"]: tc for tc in completed_tools}
             contents: list = []
-            for tc in tool_calls or []:
-                contents.append(
-                    Content.from_function_call(
-                        call_id=tc["id"],
-                        name=tc["name"],
-                        arguments=tc.get("arguments", ""),
-                    )
-                )
-            if text:
-                contents.append(Content.from_text(text))
+            tool_results: list[dict[str, str]] = []
+            for part in ordered_parts:
+                if part["type"] == "text":
+                    contents.append(Content.from_text(part["text"]))
+                elif part["type"] == "tool_ref":
+                    tc = tools_by_id.get(part["id"])
+                    if tc:
+                        contents.append(
+                            Content.from_function_call(
+                                call_id=tc["id"],
+                                name=tc["name"],
+                                arguments=tc.get("arguments", ""),
+                            )
+                        )
+                        tool_results.append(tc)
             if not contents:
                 return
             self._store.add_message(conv_id, AFMessage("assistant", contents))
 
-            for tc in tool_calls or []:
+            for tc in tool_results:
                 self._store.add_message(
                     conv_id,
                     AFMessage(

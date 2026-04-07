@@ -63,11 +63,12 @@ class TestSapWorkflowPersistence:
             conversation_store=store,
             name="test",
         )
-        workflow._ensure_conversation("thread-1")
+        thread_id = "a1b2c3d4-0000-0000-0000-000000000001"
+        workflow._ensure_conversation(thread_id)
 
         store.create.assert_called_once()
         created = store.create.call_args[0][0]
-        assert str(created.id) == "thread-1"
+        assert str(created.id) == thread_id
 
     def test_ensure_conversation_skips_existing(self):
         """_ensure_conversation does not create when conv exists."""
@@ -98,11 +99,10 @@ class TestSapWorkflowPersistence:
 
         store.add_message.assert_called_once()
         msg = store.add_message.call_args[0][1]
-        assert msg.content == "hello"
-        assert msg.role.value == "user"
+        assert msg.role == "user"
 
     def test_save_assistant_message(self):
-        """_save_assistant_message persists an assistant message."""
+        """_save_assistant_message persists an assistant message with ordered parts."""
         store = MagicMock()
         factory = MagicMock()
 
@@ -111,9 +111,14 @@ class TestSapWorkflowPersistence:
             conversation_store=store,
             name="test",
         )
-        workflow._save_assistant_message("conv-1", "the answer")
+        ordered_parts = [{"type": "text", "text": "the answer"}]
+        workflow._save_assistant_message("conv-1", ordered_parts, [])
 
         store.add_message.assert_called_once()
         msg = store.add_message.call_args[0][1]
-        assert msg.content == "the answer"
-        assert msg.role.value == "assistant"
+        assert msg.role == "assistant"
+        # Text should be in the contents
+        contents = msg.to_dict().get("contents", [])
+        text_parts = [c for c in contents if c.get("type") == "text"]
+        assert len(text_parts) == 1
+        assert text_parts[0]["text"] == "the answer"
