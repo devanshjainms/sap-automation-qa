@@ -25,7 +25,6 @@ import { useParams } from "react-router-dom";
 import { getConversation } from "../../lib/api";
 import type { Message } from "../../lib/types";
 import { useStyles } from "../../styles/headlessChat.styles";
-import { AgentStatusBar } from "./AgentStatusBar";
 
 const sapAgent = new HttpAgent({
   url: "/ag-ui",
@@ -34,13 +33,6 @@ const sapAgent = new HttpAgent({
 
 /**
  * Convert REST API messages to AG-UI message format for CopilotKit.
- *
- * Uses the ``parts`` array (interleaved text + tool calls) to emit
- * messages in the correct visual order.  Text before a tool call is
- * bundled with that tool call into one ``AssistantMessage``, then a
- * ``ToolMessage`` follows with the result.  Trailing text gets its
- * own ``AssistantMessage``.  This matches CopilotKit's streaming
- * replay expectation so tool cards appear inline, not at the end.
  */
 function toAgMessages(messages: Message[]): AGMessage[] {
   const result: AGMessage[] = [];
@@ -120,7 +112,7 @@ function SapChatInner() {
   const classes = useStyles();
   const { agent } = useAgent({ agentId: "sap-agent" });
 
-  /* Enable CopilotKit's built-in expandable tool-call cards for all tools */
+  /* CopilotKit built-in tool card — clickable, expandable. Dark mode via CSS. */
   useDefaultRenderTool();
 
   /* ── Streaming diagnostic: log every message update ── */
@@ -180,7 +172,6 @@ function SapChatInner() {
 
   return (
     <div className={classes.container}>
-      <AgentStatusBar />
       <CopilotChat
         agentId="sap-agent"
         threadId={conversationId}

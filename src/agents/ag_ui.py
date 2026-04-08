@@ -1,22 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""AG-UI integration — exposes the SAP workflow via the official
+"""
+AG-UI integration — exposes the SAP workflow via the official
 ``add_agent_framework_fastapi_endpoint`` from the Agent Framework.
-
-Architecture (per Microsoft best practices):
-
-- **GENERAL / KNOWLEDGE** (single-agent, ~80 % of queries):
-  Plain ``Agent`` wrapped in ``AgentFrameworkAgent``.
-  This bypasses the Workflow runner, so every LLM token, tool-call
-  argument, and tool result streams in *real-time* — the user sees
-  Think → Call Tool → Think → Call Tool → Respond as it happens.
-
-- **TRIAGE / TEST** (multi-agent handoff):
-  ``HandoffBuilder`` → ``Workflow`` → ``run_workflow_stream()``.
-  Specialist text is rendered as ThinkingText events.
-
-Both paths share conversation persistence at the boundary.
 """
 
 from __future__ import annotations
@@ -37,11 +24,6 @@ from ag_ui.core.events import (
     TextMessageStartEvent,
     TextMessageContentEvent,
     TextMessageEndEvent,
-    ThinkingStartEvent,
-    ThinkingEndEvent,
-    ThinkingTextMessageStartEvent,
-    ThinkingTextMessageContentEvent,
-    ThinkingTextMessageEndEvent,
     ToolCallStartEvent,
     ToolCallArgsEvent,
     ToolCallEndEvent,
@@ -61,7 +43,6 @@ from agent_framework_ag_ui import (
 
 from agent_framework import Message as AFMessage
 from agent_framework._types import Content
-
 from src.agents.agent import SapAgentFactory
 from src.agents.agent_config import InvestigationIntent, config_for_intent
 from src.core.models.conversation import Conversation
@@ -71,17 +52,9 @@ logger = logging.getLogger(__name__)
 
 
 class SapWorkflow(AgentFrameworkWorkflow):
-    """AG-UI endpoint that classifies intent per request and routes
+    """
+    AG-UI endpoint that classifies intent per request and routes
     to the optimal execution strategy.
-
-    Both paths use ``AgentFrameworkAgent`` with ``predict_state_config``
-    for native predictive ``STATE_DELTA`` streaming per the AG-UI
-    state management best practice.  Tool arguments stream to the
-    client token-by-token as the LLM generates them.
-
-    - **GENERAL / KNOWLEDGE**: Plain ``Agent`` wrapped directly.
-    - **TRIAGE / TEST**: ``workflow.as_agent()`` per *Workflows as
-      Agents* doc, then wrapped identically.
 
     :param factory: Agent factory with MCP connections.
     :param conversation_store: SQLite conversation store.
@@ -89,10 +62,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
 
     _THINKING_AGENTS = frozenset({"Investigator", "TestRunner"})
 
-    # Per the AG-UI state management doc, state_schema defines the
-    # client-visible state structure.  predict_state_config maps
-    # tool arguments into state fields — the framework emits
-    # STATE_DELTA events token-by-token as the LLM generates args.
     _STATE_SCHEMA = {
         "tool_activity": {
             "type": "object",
@@ -108,10 +77,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
         },
     }
 
-    # Map key tool arguments to the tool_activity state field.
-    # "*" as tool_argument captures ALL arguments for the tool.
-    # Each entry causes STATE_DELTA events to stream as the LLM
-    # generates that tool call's arguments token-by-token.
     _PREDICT_STATE_CONFIG = {
         "tool_activity": {
             "tool": "microsoft_docs_search",
@@ -137,8 +102,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
         self._factory = factory
         self._store = conversation_store
 
-    # ── Helpers ──────────────────────────────────────────────
-
     @staticmethod
     def _build_state(
         *,
@@ -157,28 +120,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
             },
         )
 
-    @staticmethod
-    def _reasoning_block(text: str) -> list[BaseEvent]:
-        """Build a complete Reasoning block per the AG-UI spec.
-
-        Emits ``ReasoningStart`` → ``ReasoningMessageStart`` →
-        ``ReasoningMessageContent`` → ``ReasoningMessageEnd`` →
-        ``ReasoningEnd``.  This gives the client a visible
-        reasoning indicator during processing gaps.
-
-        :param text: Reasoning summary visible to the user.
-        :returns: List of AG-UI events.
-        """
-        reasoning_id = str(uuid4())
-        msg_id = str(uuid4())
-        return [
-            ReasoningStartEvent(message_id=reasoning_id),
-            ReasoningMessageStartEvent(message_id=msg_id, role="assistant"),
-            ReasoningMessageContentEvent(message_id=msg_id, delta=text),
-            ReasoningMessageEndEvent(message_id=msg_id),
-            ReasoningEndEvent(message_id=reasoning_id),
-        ]
-
     # ── Main entry point ──────────────────────────────────
 
     async def run(
@@ -196,7 +137,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
         user_text = self._extract_user_text(input_data)
         stream_start = time.perf_counter()
 
-        # ── Phase 1: Early events (stream immediately) ──
         yield RunStartedEvent(run_id=run_id, thread_id=thread_id)
         yield StepStartedEvent(step_name="classifying")
 
@@ -210,21 +150,8 @@ class SapWorkflow(AgentFrameworkWorkflow):
         yield StepFinishedEvent(step_name="classifying")
         yield self._build_state(status="thinking", intent=intent.value)
 
-        # Emit a reasoning block so the client shows a visible
-        # indicator during the gap before the first LLM response.
-        _INTENT_REASONING = {
-            InvestigationIntent.GENERAL: "Preparing response…",
-            InvestigationIntent.KNOWLEDGE: "Searching knowledge sources…",
-            InvestigationIntent.TRIAGE: "Planning investigation strategy…",
-            InvestigationIntent.TEST: "Preparing test execution plan…",
-        }
-        reason_text = _INTENT_REASONING.get(intent, "Processing…")
-        for evt in self._reasoning_block(reason_text):
-            yield evt
-
         logger.info(
-            "AG-UI run: thread_id=%r, run_id=%s, intent=%s, "
-            "user_text=%s, msg_count=%d",
+            "AG-UI run: thread_id=%r, run_id=%s, intent=%s, " "user_text=%s, msg_count=%d",
             thread_id,
             run_id[:12] if run_id else "(none)",
             intent.value,
@@ -235,9 +162,10 @@ class SapWorkflow(AgentFrameworkWorkflow):
         if self._store and thread_id:
             self._ensure_conversation(thread_id)
 
-        # ── Phase 2: Execute via the correct strategy ──
         completed_tools: list[dict[str, str]] = []
         ordered_parts: list[dict[str, Any]] = []
+
+        input_data = self._sanitize_messages(input_data)
 
         if intent in (InvestigationIntent.TRIAGE, InvestigationIntent.TEST):
             async for event in self._run_handoff_workflow(
@@ -262,14 +190,10 @@ class SapWorkflow(AgentFrameworkWorkflow):
             ):
                 yield event
 
-        # ── Phase 3: Final state + persist ──
         yield self._build_state(
             status="complete",
             intent=intent.value,
-            tools=[
-                {"name": tc["name"], "status": "completed"}
-                for tc in completed_tools
-            ],
+            tools=[{"name": tc["name"], "status": "completed"} for tc in completed_tools],
         )
 
         stream_duration_ms = int(
@@ -302,7 +226,10 @@ class SapWorkflow(AgentFrameworkWorkflow):
                     lambda fut: self._apply_title(thread_id, fut),
                 )
 
-    # ── Strategy: Single Agent (GENERAL / KNOWLEDGE) ──────
+        yield RunFinishedEvent(
+            run_id=run_id,
+            thread_id=thread_id,
+        )
 
     async def _run_single_agent(
         self,
@@ -315,14 +242,8 @@ class SapWorkflow(AgentFrameworkWorkflow):
         completed_tools: list[dict[str, str]],
         ordered_parts: list[dict[str, Any]],
     ) -> AsyncGenerator[BaseEvent]:
-        """Run a plain Agent via ``AgentFrameworkAgent`` for native
-        real-time streaming.
-
-        Per the *Workflows as Agents* best practice, this path
-        bypasses the Workflow runner entirely.  The LLM streams
-        token-by-token, tool args stream as they're generated,
-        tool results appear immediately, and the next LLM turn
-        starts without waiting for the full workflow superstep.
+        """
+        Run a plain Agent via ``AgentFrameworkAgent`` for native real-time streaming.
 
         :yields: AG-UI events in real time.
         """
@@ -342,35 +263,49 @@ class SapWorkflow(AgentFrameworkWorkflow):
 
         pending_text: list[str] = []
         tool_call_names: dict[str, str] = {}
+        tool_call_args: dict[str, list[str]] = {}
         run_started_skipped = False
 
         async for event in delegate.run(input_data):
-            # Skip the delegate's RUN_STARTED/FINISHED — we manage ours.
             if isinstance(event, (RunStartedEvent, RunFinishedEvent)):
                 if isinstance(event, RunStartedEvent) and not run_started_skipped:
                     run_started_skipped = True
                 continue
 
-            # ── Track tool calls for state + persistence ──
+            if isinstance(event, ReasoningMessageStartEvent):
+                yield ReasoningMessageStartEvent.model_construct(
+                    type="REASONING_MESSAGE_START",
+                    message_id=event.message_id,
+                    role="reasoning",
+                )
+                continue
+
             if isinstance(event, ToolCallStartEvent):
                 name = event.tool_call_name or "tool"
                 tool_call_names[event.tool_call_id] = name
+                tool_call_args[event.tool_call_id] = []
                 yield self._build_state(
                     status="calling_tool",
                     intent=intent.value,
                     active_agent="SAP-Agent",
                     tools=[
-                        *[{"name": tc["name"], "status": "completed"}
-                          for tc in completed_tools],
+                        *[{"name": tc["name"], "status": "completed"} for tc in completed_tools],
                         {"name": name, "status": "in_progress"},
                     ],
                 )
                 yield event
                 continue
 
+            if isinstance(event, ToolCallArgsEvent):
+                if event.tool_call_id in tool_call_args:
+                    tool_call_args[event.tool_call_id].append(event.delta)
+                yield event
+                continue
+
             if isinstance(event, ToolCallEndEvent):
                 tc_id = event.tool_call_id
                 name = tool_call_names.get(tc_id, "tool")
+                args = "".join(tool_call_args.pop(tc_id, []))
                 if pending_text:
                     ordered_parts.append(
                         {"type": "text", "text": "".join(pending_text)},
@@ -378,37 +313,41 @@ class SapWorkflow(AgentFrameworkWorkflow):
                     pending_text.clear()
                 ordered_parts.append({"type": "tool_ref", "id": tc_id})
                 completed_tools.append(
-                    {"id": tc_id, "name": name, "status": "completed"},
+                    {
+                        "id": tc_id,
+                        "name": name,
+                        "arguments": args,
+                        "result": "",
+                        "status": "completed",
+                    },
                 )
                 yield event
                 yield self._build_state(
                     status="thinking",
                     intent=intent.value,
                     active_agent="SAP-Agent",
-                    tools=[
-                        {"name": tc["name"], "status": "completed"}
-                        for tc in completed_tools
-                    ],
+                    tools=[{"name": tc["name"], "status": "completed"} for tc in completed_tools],
                 )
-                for evt in self._reasoning_block(
-                    f"Processing {name} results…",
-                ):
-                    yield evt
+
                 continue
 
-            # ── Track text for persistence ──
+            if isinstance(event, ToolCallResultEvent):
+                for tc in completed_tools:
+                    if tc["id"] == event.tool_call_id:
+                        tc["result"] = event.content or ""
+                        break
+                yield event
+                continue
+
             if isinstance(event, TextMessageContentEvent):
                 pending_text.append(event.delta)
 
             yield event
 
-        # Flush remaining text into parts.
         if pending_text:
             ordered_parts.append(
                 {"type": "text", "text": "".join(pending_text)},
             )
-
-    # ── Strategy: Handoff Workflow (TRIAGE / TEST) ────────
 
     async def _run_handoff_workflow(
         self,
@@ -421,12 +360,8 @@ class SapWorkflow(AgentFrameworkWorkflow):
         completed_tools: list[dict[str, str]],
         ordered_parts: list[dict[str, Any]],
     ) -> AsyncGenerator[BaseEvent]:
-        """Run a multi-agent handoff workflow.
-
-        Per the *Workflows as Agents* best practice, the workflow
-        is converted to a ``WorkflowAgent`` via ``workflow.as_agent()``
-        and then wrapped in ``AgentFrameworkAgent`` for native AG-UI
-        streaming.  Specialist text is rendered as thinking bubbles.
+        """
+        Run a multi-agent handoff workflow.
 
         :yields: AG-UI events with real-time streaming.
         """
@@ -436,7 +371,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
             thread_id=thread_id,
         )
 
-        # Per doc: workflow.as_agent() → WorkflowAgent → AgentFrameworkAgent
         workflow_agent = workflow.as_agent(name="SAP-Pipeline")
         delegate = AgentFrameworkAgent(
             agent=workflow_agent,
@@ -451,17 +385,23 @@ class SapWorkflow(AgentFrameworkWorkflow):
         current_agent: str = ""
         thinking_msg_ids: set[str] = set()
         thinking_open: bool = False
+        thinking_reasoning_id: str = ""
         tool_call_names: dict[str, str] = {}
         run_started_skipped = False
 
         async for event in delegate.run(input_data):
-            # Skip delegate RUN_STARTED/FINISHED — we manage ours.
             if isinstance(event, (RunStartedEvent, RunFinishedEvent)):
                 if isinstance(event, RunStartedEvent) and not run_started_skipped:
                     run_started_skipped = True
                 continue
+            if isinstance(event, ReasoningMessageStartEvent):
+                yield ReasoningMessageStartEvent.model_construct(
+                    type="REASONING_MESSAGE_START",
+                    message_id=event.message_id,
+                    role="reasoning",
+                )
+                continue
 
-            # ── Skip handoff and framework-internal tool calls ──
             if isinstance(event, ToolCallStartEvent):
                 name = event.tool_call_name or ""
                 if name.startswith("handoff_to_") or name == "request_info":
@@ -475,8 +415,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 skipped = tool_call_names.get(tc_id, "")
                 if skipped.startswith("handoff_to_") or skipped == "request_info":
                     continue
-
-            # ── Tool call lifecycle ──
             if isinstance(event, ToolCallStartEvent):
                 name = event.tool_call_name or "tool"
                 tool_call_names[event.tool_call_id] = name
@@ -485,8 +423,7 @@ class SapWorkflow(AgentFrameworkWorkflow):
                     intent=intent.value,
                     active_agent=current_agent or None,
                     tools=[
-                        *[{"name": tc["name"], "status": "completed"}
-                          for tc in completed_tools],
+                        *[{"name": tc["name"], "status": "completed"} for tc in completed_tools],
                         {"name": name, "status": "in_progress"},
                     ],
                 )
@@ -510,10 +447,7 @@ class SapWorkflow(AgentFrameworkWorkflow):
                     status="thinking",
                     intent=intent.value,
                     active_agent=current_agent or None,
-                    tools=[
-                        {"name": tc["name"], "status": "completed"}
-                        for tc in completed_tools
-                    ],
+                    tools=[{"name": tc["name"], "status": "completed"} for tc in completed_tools],
                 )
                 continue
 
@@ -529,7 +463,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 yield event
                 continue
 
-            # ── Step tracking ──
             if isinstance(event, StepStartedEvent):
                 current_agent = event.step_name or ""
                 logger.info("Agent started: %r", current_agent)
@@ -541,48 +474,93 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 yield event
                 continue
 
-            # ── Text message end (close thinking if needed) ──
             if isinstance(event, TextMessageEndEvent):
                 if event.message_id in thinking_msg_ids:
                     thinking_msg_ids.discard(event.message_id)
-                    yield ThinkingTextMessageEndEvent()
+                    yield ReasoningMessageEndEvent(
+                        message_id=event.message_id,
+                    )
                     if not thinking_msg_ids:
-                        yield ThinkingEndEvent()
+                        yield ReasoningEndEvent(
+                            message_id=thinking_reasoning_id,
+                        )
                         thinking_open = False
                     continue
 
-            # ── Specialist text → thinking bubbles ──
             if current_agent in self._THINKING_AGENTS:
                 if isinstance(event, TextMessageStartEvent):
                     thinking_msg_ids.add(event.message_id)
                     if not thinking_open:
-                        yield ThinkingStartEvent()
+                        thinking_reasoning_id = str(uuid4())
+                        yield ReasoningStartEvent(
+                            message_id=thinking_reasoning_id,
+                        )
                         thinking_open = True
-                    yield ThinkingTextMessageStartEvent()
+                    yield ReasoningMessageStartEvent.model_construct(
+                        type="REASONING_MESSAGE_START",
+                        message_id=event.message_id,
+                        role="reasoning",
+                    )
                     continue
                 if isinstance(event, TextMessageContentEvent):
                     if event.message_id in thinking_msg_ids:
                         pending_text.append(event.delta)
-                        yield ThinkingTextMessageContentEvent(
+                        yield ReasoningMessageContentEvent(
+                            message_id=event.message_id,
                             delta=event.delta,
                         )
                         continue
 
-            # ── Default: pass through ──
             if isinstance(event, TextMessageContentEvent):
                 pending_text.append(event.delta)
 
             yield event
 
-        # ── Flush remaining ──
         if thinking_open:
-            yield ThinkingEndEvent()
+            yield ReasoningEndEvent(
+                message_id=thinking_reasoning_id,
+            )
         if pending_text:
             ordered_parts.append(
                 {"type": "text", "text": "".join(pending_text)},
             )
 
-    # ── Persistence helpers ──────────────────────────────
+    @staticmethod
+    def _sanitize_messages(
+        input_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Strip tool_calls from assistant messages that lack
+        matching tool results.
+
+        :param input_data: Original AG-UI input.
+        :returns: Sanitized copy of input_data.
+        """
+        messages = input_data.get("messages")
+        if not messages:
+            return input_data
+
+        tool_result_ids: set[str] = set()
+        for msg in messages:
+            if msg.get("role") == "tool":
+                tc_id = msg.get("toolCallId") or msg.get("tool_call_id") or ""
+                if tc_id:
+                    tool_result_ids.add(tc_id)
+
+        clean: list[dict[str, Any]] = []
+        for msg in messages:
+            if msg.get("role") == "assistant" and msg.get("toolCalls"):
+                matched = [tc for tc in msg["toolCalls"] if tc.get("id") in tool_result_ids]
+                if matched:
+                    clean.append({**msg, "toolCalls": matched})
+                else:
+                    clean.append(
+                        {k: v for k, v in msg.items() if k != "toolCalls"},
+                    )
+            else:
+                clean.append(msg)
+
+        return {**input_data, "messages": clean}
 
     def _ensure_conversation(self, thread_id: str) -> None:
         """Create conversation row if it doesn't exist."""
@@ -609,7 +587,7 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 AFMessage("user", [text]),
             )
         except Exception:
-            logger.debug("Could not save user message", exc_info=True)
+            logger.warning("Could not save user message", exc_info=True)
 
     def _save_assistant_message(
         self,
@@ -617,11 +595,8 @@ class SapWorkflow(AgentFrameworkWorkflow):
         ordered_parts: list[dict[str, Any]],
         completed_tools: list[dict[str, str]],
     ) -> None:
-        """Persist the assistant response as AF Message(s).
-
-        Builds contents in the order events occurred — text segments
-        interleaved with function_call entries — so the UI can replay
-        the conversation with planning text before tool calls.
+        """
+        Persist the assistant response as AF Message(s).
 
         :param conv_id: Conversation ID.
         :param ordered_parts: Ordered ``{"type": "text", "text": ...}``

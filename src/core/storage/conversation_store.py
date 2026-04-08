@@ -257,14 +257,16 @@ class ConversationStore:
 
         with self._conn:
             msg_id = af_msg.message_id or str(uuid4())
+            content = af_msg.text or ""
             self._conn.execute(
                 """INSERT INTO messages
-                   (id, conversation_id, role, af_message, timestamp)
-                   VALUES (?, ?, ?, ?, ?)""",
+                   (id, conversation_id, role, content, af_message, timestamp)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
                 (
                     msg_id,
                     cid,
                     af_msg.role,
+                    content,
                     json.dumps(af_msg.to_dict(), default=str),
                     now,
                 ),

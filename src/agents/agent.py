@@ -27,7 +27,7 @@ from agent_framework import (
     TokenBudgetComposedStrategy,
     ToolResultCompactionStrategy,
 )
-from agent_framework.azure import AzureOpenAIChatClient
+from agent_framework.azure import AzureOpenAIChatClient, AzureOpenAIResponsesClient
 from src.mcp_server.server import mcp as _mcp_server
 from agent_framework._types import Message as AFMessage
 from agent_framework.orchestrations import HandoffBuilder
@@ -512,18 +512,13 @@ class SapAgentFactory:
             config = config_for_intent(InvestigationIntent.GENERAL)
 
         instructions = assemble(config.module_names)
-        client = AzureOpenAIChatClient(**self._client_kwargs)
 
+        client = AzureOpenAIResponsesClient(**self._client_kwargs)
+
+        # CopilotKit sends full message history in each AG-UI request,
+        # so ConversationHistoryProvider is not needed here (it would
+        # duplicate messages and cause tool_call/result mismatches).
         context_providers: list[Any] = []
-        if self._conversation_store:
-            context_providers.append(
-                ConversationHistoryProvider(
-                    self._conversation_store,
-                    title_generator=self._generate_title,
-                    conversation_id=thread_id,
-                    save_enabled=False,
-                )
-            )
         if workspace_context:
             context_providers.append(WorkspaceContextProvider(workspace_context))
         if config.inject_kb and self._retriever:
@@ -534,9 +529,7 @@ class SapAgentFactory:
                 )
             )
 
-        all_tools = [
-            t for t in [self._mcp_tool] + self._external_mcps if t is not None
-        ]
+        all_tools = [t for t in [self._mcp_tool] + self._external_mcps if t is not None]
         compaction = self._build_compaction_strategy(
             token_budget=config.token_budget,
         )
@@ -560,6 +553,9 @@ class SapAgentFactory:
             function_invocation_configuration=func_config,
             compaction_strategy=compaction,
             context_providers=context_providers,
+            default_options={
+                "reasoning": {"effort": "medium", "summary": "concise"},
+            },
         )
         logger.info("Created single agent intent=%s", config.intent.value)
         return agent

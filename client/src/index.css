@@ -110,3 +110,41 @@ html, body, #root {
   border: none;
   box-shadow: none;
 }
+
+/*
+ * Restyle CopilotKit's DefaultToolCallRenderer:
+ * - Compact single line (no bulky card)
+ * - Dark mode colors
+ * All overrides target the built-in card's inline styles.
+ * Click/expand behavior is preserved — we only change visuals.
+ */
+
+/* The outer card: remove padding, border, background → compact inline */
+[data-copilotkit] div[style*="border-radius: 12px"] {
+  border-radius: 4px !important;
+  border: none !important;
+  background-color: transparent !important;
+  padding: 4px 8px !important;
+}
+
+/* The outer wrapper: tighten margins */
+[data-copilotkit] div[style*="margin-top: 8px"][style*="padding-bottom: 8px"] {
+  margin-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+/* Dark mode text colors */
+.dark [data-copilotkit] div[style*="border-radius"] span {
+  color: var(--foreground) !important;
+}
+.dark [data-copilotkit] div[style*="border-radius"] div[style*="color"] {
+  color: var(--muted-foreground) !important;
+}
+
+/* Fix ALL pre elements inside CopilotKit in dark mode.
+   The tool renderer's <pre> has inline color:#27272a + bg:#f4f4f5
+   which is invisible in dark mode. */
+.dark [data-copilotkit] pre {
+  background-color: var(--muted) !important;
+  color: var(--foreground) !important;
+}
