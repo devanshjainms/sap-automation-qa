@@ -17,6 +17,14 @@ export default defineConfig({
       '/ag-ui': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        // SSE: disable response buffering so events stream in real-time
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            // Prevent http-proxy from buffering the chunked SSE response
+            proxyRes.headers['cache-control'] = 'no-cache';
+            proxyRes.headers['x-accel-buffering'] = 'no';
+          });
+        },
       },
       '/healthz': {
         target: 'http://localhost:8000',

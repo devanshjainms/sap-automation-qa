@@ -20,7 +20,7 @@ import {
   useDefaultRenderTool,
 } from "@copilotkit/react-core/v2";
 import type { Message as AGMessage } from "@ag-ui/core";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { getConversation } from "../../lib/api";
 import type { Message } from "../../lib/types";
@@ -121,6 +121,27 @@ function SapChatInner() {
 
   /* Enable CopilotKit's built-in expandable tool-call cards for all tools */
   useDefaultRenderTool();
+
+  /* ── Streaming diagnostic: log every message update ── */
+  const renderCountRef = useRef(0);
+  useEffect(() => {
+    const sub = agent.subscribe({
+      onMessagesChanged: ({ messages }) => {
+        renderCountRef.current++;
+        const last = messages[messages.length - 1];
+        const contentLen =
+          last && "content" in last && typeof last.content === "string"
+            ? last.content.length
+            : 0;
+        console.log(
+          `[SSE-DIAG] #${renderCountRef.current} msgs=${messages.length} ` +
+            `lastRole=${last?.role ?? "?"} contentLen=${contentLen} ` +
+            `t=${Date.now()}`,
+        );
+      },
+    });
+    return () => sub.unsubscribe();
+  }, [agent]);
 
   /* Load historical messages from the REST API when resuming a thread */
   useEffect(() => {
