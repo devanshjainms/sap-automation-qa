@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from agent_framework import (
     BaseContextProvider,
     CharacterEstimatorTokenizer,
+    ChatOptions,
     CompactionStrategy,
     FunctionInvocationConfiguration,
     MCPStreamableHTTPTool,
@@ -252,14 +253,16 @@ class SapAgentFactory:
         """
         client = self._get_utility_client()
         prompt = self._TITLE_PROMPT.format(text=user_text[:200])
+        options: ChatOptions = {"max_tokens": 500}
         response = await client.get_response(
             messages=[AFMessage("user", [prompt])],
-            options={"max_tokens": 30, "temperature": 0},
+            options=options,
         )
         return response.text or user_text[:80]
 
     async def classify_intent(
-        self, user_text: str,
+        self,
+        user_text: str,
     ) -> InvestigationIntent:
         """Classify user text into an investigation intent via LLM.
 
@@ -276,15 +279,19 @@ class SapAgentFactory:
         try:
             client = self._get_utility_client()
             prompt = self._CLASSIFY_PROMPT.format(text=user_text[:500])
+            classify_options: ChatOptions[IntentClassification] = {
+                "max_tokens": 500,
+                "response_format": IntentClassification,
+            }
             response = await client.get_response(
                 messages=[AFMessage("user", [prompt])],
-                options={
-                    "max_tokens": 20,
-                    "temperature": 0,
-                    "response_format": IntentClassification,
-                },
+                options=classify_options,
             )
-            raw = (response.text or "").strip().lower()
+            parsed = response.value
+            if parsed is not None:
+                raw = parsed.intent.strip().lower()
+            else:
+                raw = (response.text or "").strip().lower()
             return InvestigationIntent(raw)
         except (ValueError, KeyError):
             logger.warning("Intent classification returned invalid value: %r", raw)
@@ -479,6 +486,83 @@ class SapAgentFactory:
             context_providers=context_providers,
             config=config,
         )
+
+    def create_agent(
+        self,
+        *,
+        workspace_context: Optional[str] = None,
+        user_query: Optional[str] = None,
+        config: Optional[AgentConfig] = None,
+        thread_id: Optional[str] = None,
+    ) -> Any:
+        """Create a plain Agent (not wrapped in a Workflow).
+
+        Use this for GENERAL / KNOWLEDGE intents where a single agent
+        with all tools suffices.  The returned agent satisfies
+        ``SupportsAgentRun`` and can be passed directly to
+        ``AgentFrameworkAgent`` for native AG-UI streaming.
+
+        :param workspace_context: Per-conversation context string.
+        :param user_query: User message for KB injection.
+        :param config: Agent configuration.
+        :param thread_id: Conversation ID for history provider.
+        :returns: An ``Agent`` instance with tools and middleware wired.
+        """
+        if config is None:
+            config = config_for_intent(InvestigationIntent.GENERAL)
+
+        instructions = assemble(config.module_names)
+        client = AzureOpenAIChatClient(**self._client_kwargs)
+
+        context_providers: list[Any] = []
+        if self._conversation_store:
+            context_providers.append(
+                ConversationHistoryProvider(
+                    self._conversation_store,
+                    title_generator=self._generate_title,
+                    conversation_id=thread_id,
+                    save_enabled=False,
+                )
+            )
+        if workspace_context:
+            context_providers.append(WorkspaceContextProvider(workspace_context))
+        if config.inject_kb and self._retriever:
+            context_providers.append(
+                KnowledgeContextProvider(
+                    retriever=self._retriever,
+                    user_query=user_query,
+                )
+            )
+
+        all_tools = [
+            t for t in [self._mcp_tool] + self._external_mcps if t is not None
+        ]
+        compaction = self._build_compaction_strategy(
+            token_budget=config.token_budget,
+        )
+        func_config = FunctionInvocationConfiguration(
+            max_iterations=config.max_rounds,
+            max_consecutive_errors_per_request=self._MAX_CONSECUTIVE_ERRORS,
+            include_detailed_errors=False,
+        )
+        middleware = [
+            AgentExceptionMiddleware(),
+            OutputSanitizationMiddleware(),
+            FunctionGuardMiddleware(),
+        ]
+
+        agent = client.as_agent(
+            name="SAP-Agent",
+            description="SAP infrastructure specialist for Azure.",
+            instructions=instructions,
+            tools=all_tools,
+            middleware=middleware,
+            function_invocation_configuration=func_config,
+            compaction_strategy=compaction,
+            context_providers=context_providers,
+        )
+        logger.info("Created single agent intent=%s", config.intent.value)
+        return agent
 
     def _build_single_agent_workflow(
         self,

@@ -4,26 +4,34 @@
 """AG-UI integration — exposes the SAP workflow via the official
 ``add_agent_framework_fastapi_endpoint`` from the Agent Framework.
 
-Uses a ``SapWorkflow`` subclass of ``AgentFrameworkWorkflow`` that
-handles conversation persistence at the workflow boundary, so
-agent sessions do not need to know about the AG-UI ``thread_id``.
+Architecture (per Microsoft best practices):
 
-Architecture:
-- **TRIAGE/TEST**: HandoffBuilder with Coordinator → Investigator / TestRunner.
-  Specialist text is emitted as ThinkingText events; Coordinator's final
-  response becomes the user-visible answer.
-- **GENERAL/KNOWLEDGE**: Single agent with all tools. All text is user-visible.
-  Tool calls stream naturally between reasoning segments.
+- **GENERAL / KNOWLEDGE** (single-agent, ~80 % of queries):
+  Plain ``Agent`` wrapped in ``AgentFrameworkAgent``.
+  This bypasses the Workflow runner, so every LLM token, tool-call
+  argument, and tool result streams in *real-time* — the user sees
+  Think → Call Tool → Think → Call Tool → Respond as it happens.
+
+- **TRIAGE / TEST** (multi-agent handoff):
+  ``HandoffBuilder`` → ``Workflow`` → ``run_workflow_stream()``.
+  Specialist text is rendered as ThinkingText events.
+
+Both paths share conversation persistence at the boundary.
 """
 
 from __future__ import annotations
 import asyncio
 import logging
+import time
 from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID, uuid4
 from fastapi import FastAPI
 from ag_ui.core.events import (
+    RunStartedEvent,
+    RunFinishedEvent,
+    CustomEvent,
+    StateSnapshotEvent,
     StepStartedEvent,
     StepFinishedEvent,
     TextMessageStartEvent,
@@ -38,19 +46,24 @@ from ag_ui.core.events import (
     ToolCallArgsEvent,
     ToolCallEndEvent,
     ToolCallResultEvent,
+    ReasoningStartEvent,
+    ReasoningMessageStartEvent,
+    ReasoningMessageContentEvent,
+    ReasoningMessageEndEvent,
+    ReasoningEndEvent,
 )
 from ag_ui.core.events import BaseEvent
 from agent_framework_ag_ui import (
+    AgentFrameworkAgent,
     AgentFrameworkWorkflow,
     add_agent_framework_fastapi_endpoint,
 )
-from agent_framework_ag_ui._workflow_run import run_workflow_stream
 
 from agent_framework import Message as AFMessage
 from agent_framework._types import Content
 
 from src.agents.agent import SapAgentFactory
-from src.agents.agent_config import config_for_intent
+from src.agents.agent_config import InvestigationIntent, config_for_intent
 from src.core.models.conversation import Conversation
 from src.core.storage.conversation_store import ConversationStore
 
@@ -58,22 +71,61 @@ logger = logging.getLogger(__name__)
 
 
 class SapWorkflow(AgentFrameworkWorkflow):
-    """Workflow that classifies intent per request and persists messages.
+    """AG-UI endpoint that classifies intent per request and routes
+    to the optimal execution strategy.
 
-    Overrides ``run()`` to bypass ``workflow_factory`` entirely.
-    Instead, each request:
+    Both paths use ``AgentFrameworkAgent`` with ``predict_state_config``
+    for native predictive ``STATE_DELTA`` streaming per the AG-UI
+    state management best practice.  Tool arguments stream to the
+    client token-by-token as the LLM generates them.
 
-    1. Extracts the user message from the AG-UI input.
-    2. Classifies intent via ``classify()`` (regex heuristics).
-    3. Builds a fresh ``Workflow`` via ``SapAgentFactory.create_workflow()``
-       with the correct ``AgentConfig``, ``user_query``, and ``thread_id``.
-    4. Calls ``run_workflow_stream()`` directly to convert workflow
-       events into AG-UI events.
-    5. Persists user + assistant messages to SQLite.
+    - **GENERAL / KNOWLEDGE**: Plain ``Agent`` wrapped directly.
+    - **TRIAGE / TEST**: ``workflow.as_agent()`` per *Workflows as
+      Agents* doc, then wrapped identically.
 
     :param factory: Agent factory with MCP connections.
     :param conversation_store: SQLite conversation store.
     """
+
+    _THINKING_AGENTS = frozenset({"Investigator", "TestRunner"})
+
+    # Per the AG-UI state management doc, state_schema defines the
+    # client-visible state structure.  predict_state_config maps
+    # tool arguments into state fields — the framework emits
+    # STATE_DELTA events token-by-token as the LLM generates args.
+    _STATE_SCHEMA = {
+        "tool_activity": {
+            "type": "object",
+            "description": "Microsoft docs search arguments",
+        },
+        "evidence_activity": {
+            "type": "object",
+            "description": "Evidence collection arguments",
+        },
+        "knowledge_activity": {
+            "type": "object",
+            "description": "Knowledge query arguments",
+        },
+    }
+
+    # Map key tool arguments to the tool_activity state field.
+    # "*" as tool_argument captures ALL arguments for the tool.
+    # Each entry causes STATE_DELTA events to stream as the LLM
+    # generates that tool call's arguments token-by-token.
+    _PREDICT_STATE_CONFIG = {
+        "tool_activity": {
+            "tool": "microsoft_docs_search",
+            "tool_argument": "*",
+        },
+        "evidence_activity": {
+            "tool": "collect_evidence",
+            "tool_argument": "*",
+        },
+        "knowledge_activity": {
+            "tool": "query_knowledge",
+            "tool_argument": "*",
+        },
+    }
 
     def __init__(
         self,
@@ -81,35 +133,94 @@ class SapWorkflow(AgentFrameworkWorkflow):
         conversation_store: ConversationStore | None,
         **kwargs: Any,
     ) -> None:
-        # No workflow or workflow_factory — we create workflows in run().
         super().__init__(**kwargs)
         self._factory = factory
         self._store = conversation_store
 
-    _THINKING_AGENTS = frozenset({"Investigator", "TestRunner"})
+    # ── Helpers ──────────────────────────────────────────────
+
+    @staticmethod
+    def _build_state(
+        *,
+        status: str,
+        intent: str | None = None,
+        active_agent: str | None = None,
+        tools: list[dict[str, str]] | None = None,
+    ) -> StateSnapshotEvent:
+        """Build a ``StateSnapshotEvent``."""
+        return StateSnapshotEvent(
+            snapshot={
+                "status": status,
+                "intent": intent,
+                "active_agent": active_agent,
+                "tools": tools or [],
+            },
+        )
+
+    @staticmethod
+    def _reasoning_block(text: str) -> list[BaseEvent]:
+        """Build a complete Reasoning block per the AG-UI spec.
+
+        Emits ``ReasoningStart`` → ``ReasoningMessageStart`` →
+        ``ReasoningMessageContent`` → ``ReasoningMessageEnd`` →
+        ``ReasoningEnd``.  This gives the client a visible
+        reasoning indicator during processing gaps.
+
+        :param text: Reasoning summary visible to the user.
+        :returns: List of AG-UI events.
+        """
+        reasoning_id = str(uuid4())
+        msg_id = str(uuid4())
+        return [
+            ReasoningStartEvent(message_id=reasoning_id),
+            ReasoningMessageStartEvent(message_id=msg_id, role="assistant"),
+            ReasoningMessageContentEvent(message_id=msg_id, delta=text),
+            ReasoningMessageEndEvent(message_id=msg_id),
+            ReasoningEndEvent(message_id=reasoning_id),
+        ]
+
+    # ── Main entry point ──────────────────────────────────
 
     async def run(
         self,
         input_data: dict[str, Any],
     ) -> AsyncGenerator[BaseEvent]:
-        """Run the workflow, stream events, and persist messages.
+        """Classify intent, then delegate to the optimal execution
+        strategy.
 
-        Creates a fresh workflow per request with dynamic intent
-        classification.  Specialist text (Investigator/TestRunner)
-        is emitted as ``ThinkingTextMessage*`` events; Coordinator
-        and single-agent text is user-visible.
-
-        :param input_data: AG-UI input dict with ``thread_id`` and
-            ``messages``.
-        :yields: AG-UI events from the underlying workflow.
+        :param input_data: AG-UI input dict.
+        :yields: AG-UI events.
         """
         thread_id = input_data.get("thread_id", "")
         run_id = input_data.get("run_id", str(uuid4()))
         user_text = self._extract_user_text(input_data)
+        stream_start = time.perf_counter()
 
-        # Classify intent from the actual user message via LLM.
+        # ── Phase 1: Early events (stream immediately) ──
+        yield RunStartedEvent(run_id=run_id, thread_id=thread_id)
+        yield StepStartedEvent(step_name="classifying")
+
         intent = await self._factory.classify_intent(user_text)
         config = config_for_intent(intent)
+
+        yield CustomEvent(
+            name="intent_classified",
+            value={"intent": intent.value},
+        )
+        yield StepFinishedEvent(step_name="classifying")
+        yield self._build_state(status="thinking", intent=intent.value)
+
+        # Emit a reasoning block so the client shows a visible
+        # indicator during the gap before the first LLM response.
+        _INTENT_REASONING = {
+            InvestigationIntent.GENERAL: "Preparing response…",
+            InvestigationIntent.KNOWLEDGE: "Searching knowledge sources…",
+            InvestigationIntent.TRIAGE: "Planning investigation strategy…",
+            InvestigationIntent.TEST: "Preparing test execution plan…",
+        }
+        reason_text = _INTENT_REASONING.get(intent, "Processing…")
+        for evt in self._reasoning_block(reason_text):
+            yield evt
 
         logger.info(
             "AG-UI run: thread_id=%r, run_id=%s, intent=%s, "
@@ -124,112 +235,301 @@ class SapWorkflow(AgentFrameworkWorkflow):
         if self._store and thread_id:
             self._ensure_conversation(thread_id)
 
-        # Build a fresh workflow with the classified config.
-        workflow = self._factory.create_workflow(
+        # ── Phase 2: Execute via the correct strategy ──
+        completed_tools: list[dict[str, str]] = []
+        ordered_parts: list[dict[str, Any]] = []
+
+        if intent in (InvestigationIntent.TRIAGE, InvestigationIntent.TEST):
+            async for event in self._run_handoff_workflow(
+                input_data=input_data,
+                config=config,
+                intent=intent,
+                user_text=user_text,
+                thread_id=thread_id,
+                completed_tools=completed_tools,
+                ordered_parts=ordered_parts,
+            ):
+                yield event
+        else:
+            async for event in self._run_single_agent(
+                input_data=input_data,
+                config=config,
+                intent=intent,
+                user_text=user_text,
+                thread_id=thread_id,
+                completed_tools=completed_tools,
+                ordered_parts=ordered_parts,
+            ):
+                yield event
+
+        # ── Phase 3: Final state + persist ──
+        yield self._build_state(
+            status="complete",
+            intent=intent.value,
+            tools=[
+                {"name": tc["name"], "status": "completed"}
+                for tc in completed_tools
+            ],
+        )
+
+        stream_duration_ms = int(
+            (time.perf_counter() - stream_start) * 1000,
+        )
+        tool_names = [tc["name"] for tc in completed_tools]
+        logger.info(
+            "AG-UI stream completed: thread_id=%s, intent=%s, "
+            "duration_ms=%d, tools=%s, tool_count=%d",
+            thread_id[:8] if thread_id else "(none)",
+            intent.value,
+            stream_duration_ms,
+            tool_names or "none",
+            len(completed_tools),
+        )
+
+        if self._store and thread_id:
+            if user_text:
+                self._save_user_message(thread_id, user_text)
+            if ordered_parts:
+                self._save_assistant_message(
+                    thread_id,
+                    ordered_parts,
+                    completed_tools,
+                )
+            if user_text:
+                asyncio.create_task(
+                    self._factory._generate_title(user_text),
+                ).add_done_callback(
+                    lambda fut: self._apply_title(thread_id, fut),
+                )
+
+    # ── Strategy: Single Agent (GENERAL / KNOWLEDGE) ──────
+
+    async def _run_single_agent(
+        self,
+        *,
+        input_data: dict[str, Any],
+        config: Any,
+        intent: Any,
+        user_text: str,
+        thread_id: str,
+        completed_tools: list[dict[str, str]],
+        ordered_parts: list[dict[str, Any]],
+    ) -> AsyncGenerator[BaseEvent]:
+        """Run a plain Agent via ``AgentFrameworkAgent`` for native
+        real-time streaming.
+
+        Per the *Workflows as Agents* best practice, this path
+        bypasses the Workflow runner entirely.  The LLM streams
+        token-by-token, tool args stream as they're generated,
+        tool results appear immediately, and the next LLM turn
+        starts without waiting for the full workflow superstep.
+
+        :yields: AG-UI events in real time.
+        """
+        agent = self._factory.create_agent(
             config=config,
             user_query=user_text,
             thread_id=thread_id,
         )
+        delegate = AgentFrameworkAgent(
+            agent=agent,
+            name="SAP-Agent",
+            description="SAP infrastructure specialist for Azure.",
+            state_schema=self._STATE_SCHEMA,
+            predict_state_config=self._PREDICT_STATE_CONFIG,
+            require_confirmation=False,
+        )
 
-        ordered_parts: list[dict[str, Any]] = []
         pending_text: list[str] = []
-        current_agent: str = ""
-        thinking_msg_ids: set[str] = set()
-        thinking_open: bool = False
-        open_tool_call_ids: list[str] = []
         tool_call_names: dict[str, str] = {}
-        tool_call_args: dict[str, list[str]] = {}
-        completed_tools: list[dict[str, str]] = []
+        run_started_skipped = False
 
-        async for event in run_workflow_stream(input_data, workflow):
-            # ── Skip handoff tool calls (internal routing) ──
-            if isinstance(event, ToolCallStartEvent):
-                name = event.tool_call_name or ""
-                if name.startswith("handoff_to_"):
-                    tool_call_names[event.tool_call_id] = name
-                    continue
-            if isinstance(
-                event, (ToolCallArgsEvent, ToolCallEndEvent, ToolCallResultEvent),
-            ):
-                tc_id = event.tool_call_id
-                if tool_call_names.get(tc_id, "").startswith("handoff_to_"):
-                    continue
-            # ── Flush orphan tool calls when a non-tool event arrives ──
-            if open_tool_call_ids and not isinstance(
-                event, (ToolCallArgsEvent, ToolCallEndEvent),
-            ):
-                if pending_text:
-                    ordered_parts.append(
-                        {"type": "text", "text": "".join(pending_text)},
-                    )
-                    pending_text.clear()
-                for tc_id in open_tool_call_ids:
-                    ordered_parts.append({"type": "tool_ref", "id": tc_id})
-                    completed_tools.append({
-                        "id": tc_id,
-                        "name": tool_call_names.get(tc_id, "tool"),
-                        "arguments": "".join(tool_call_args.pop(tc_id, [])),
-                        "result": f"{tool_call_names.get(tc_id, 'tool')} completed",
-                    })
-                    yield ToolCallEndEvent(tool_call_id=tc_id)
-                    yield ToolCallResultEvent(
-                        message_id=str(uuid4()),
-                        tool_call_id=tc_id,
-                        content=f"{tool_call_names.get(tc_id, 'tool')} completed",
-                        role="tool",
-                    )
-                open_tool_call_ids.clear()
+        async for event in delegate.run(input_data):
+            # Skip the delegate's RUN_STARTED/FINISHED — we manage ours.
+            if isinstance(event, (RunStartedEvent, RunFinishedEvent)):
+                if isinstance(event, RunStartedEvent) and not run_started_skipped:
+                    run_started_skipped = True
+                continue
 
-            # ── Tool call lifecycle ──
+            # ── Track tool calls for state + persistence ──
             if isinstance(event, ToolCallStartEvent):
                 name = event.tool_call_name or "tool"
-                open_tool_call_ids.append(event.tool_call_id)
                 tool_call_names[event.tool_call_id] = name
-                tool_call_args[event.tool_call_id] = []
+                yield self._build_state(
+                    status="calling_tool",
+                    intent=intent.value,
+                    active_agent="SAP-Agent",
+                    tools=[
+                        *[{"name": tc["name"], "status": "completed"}
+                          for tc in completed_tools],
+                        {"name": name, "status": "in_progress"},
+                    ],
+                )
                 yield event
                 continue
 
             if isinstance(event, ToolCallEndEvent):
                 tc_id = event.tool_call_id
-                if tc_id in open_tool_call_ids:
-                    open_tool_call_ids.remove(tc_id)
+                name = tool_call_names.get(tc_id, "tool")
                 if pending_text:
                     ordered_parts.append(
                         {"type": "text", "text": "".join(pending_text)},
                     )
                     pending_text.clear()
                 ordered_parts.append({"type": "tool_ref", "id": tc_id})
-                result_text = f"{tool_call_names.get(tc_id, 'tool')} completed"
-                completed_tools.append({
-                    "id": tc_id,
-                    "name": tool_call_names.get(tc_id, "tool"),
-                    "arguments": "".join(tool_call_args.pop(tc_id, [])),
-                    "result": result_text,
-                })
+                completed_tools.append(
+                    {"id": tc_id, "name": name, "status": "completed"},
+                )
                 yield event
-                yield ToolCallResultEvent(
-                    message_id=str(uuid4()),
-                    tool_call_id=tc_id,
-                    content=result_text,
-                    role="tool",
+                yield self._build_state(
+                    status="thinking",
+                    intent=intent.value,
+                    active_agent="SAP-Agent",
+                    tools=[
+                        {"name": tc["name"], "status": "completed"}
+                        for tc in completed_tools
+                    ],
+                )
+                for evt in self._reasoning_block(
+                    f"Processing {name} results…",
+                ):
+                    yield evt
+                continue
+
+            # ── Track text for persistence ──
+            if isinstance(event, TextMessageContentEvent):
+                pending_text.append(event.delta)
+
+            yield event
+
+        # Flush remaining text into parts.
+        if pending_text:
+            ordered_parts.append(
+                {"type": "text", "text": "".join(pending_text)},
+            )
+
+    # ── Strategy: Handoff Workflow (TRIAGE / TEST) ────────
+
+    async def _run_handoff_workflow(
+        self,
+        *,
+        input_data: dict[str, Any],
+        config: Any,
+        intent: Any,
+        user_text: str,
+        thread_id: str,
+        completed_tools: list[dict[str, str]],
+        ordered_parts: list[dict[str, Any]],
+    ) -> AsyncGenerator[BaseEvent]:
+        """Run a multi-agent handoff workflow.
+
+        Per the *Workflows as Agents* best practice, the workflow
+        is converted to a ``WorkflowAgent`` via ``workflow.as_agent()``
+        and then wrapped in ``AgentFrameworkAgent`` for native AG-UI
+        streaming.  Specialist text is rendered as thinking bubbles.
+
+        :yields: AG-UI events with real-time streaming.
+        """
+        workflow = self._factory.create_workflow(
+            config=config,
+            user_query=user_text,
+            thread_id=thread_id,
+        )
+
+        # Per doc: workflow.as_agent() → WorkflowAgent → AgentFrameworkAgent
+        workflow_agent = workflow.as_agent(name="SAP-Pipeline")
+        delegate = AgentFrameworkAgent(
+            agent=workflow_agent,
+            name="SAP-Pipeline",
+            description="SAP multi-agent investigation pipeline.",
+            state_schema=self._STATE_SCHEMA,
+            predict_state_config=self._PREDICT_STATE_CONFIG,
+            require_confirmation=False,
+        )
+
+        pending_text: list[str] = []
+        current_agent: str = ""
+        thinking_msg_ids: set[str] = set()
+        thinking_open: bool = False
+        tool_call_names: dict[str, str] = {}
+        run_started_skipped = False
+
+        async for event in delegate.run(input_data):
+            # Skip delegate RUN_STARTED/FINISHED — we manage ours.
+            if isinstance(event, (RunStartedEvent, RunFinishedEvent)):
+                if isinstance(event, RunStartedEvent) and not run_started_skipped:
+                    run_started_skipped = True
+                continue
+
+            # ── Skip handoff and framework-internal tool calls ──
+            if isinstance(event, ToolCallStartEvent):
+                name = event.tool_call_name or ""
+                if name.startswith("handoff_to_") or name == "request_info":
+                    tool_call_names[event.tool_call_id] = name
+                    continue
+            if isinstance(
+                event,
+                (ToolCallArgsEvent, ToolCallEndEvent, ToolCallResultEvent),
+            ):
+                tc_id = event.tool_call_id
+                skipped = tool_call_names.get(tc_id, "")
+                if skipped.startswith("handoff_to_") or skipped == "request_info":
+                    continue
+
+            # ── Tool call lifecycle ──
+            if isinstance(event, ToolCallStartEvent):
+                name = event.tool_call_name or "tool"
+                tool_call_names[event.tool_call_id] = name
+                yield self._build_state(
+                    status="calling_tool",
+                    intent=intent.value,
+                    active_agent=current_agent or None,
+                    tools=[
+                        *[{"name": tc["name"], "status": "completed"}
+                          for tc in completed_tools],
+                        {"name": name, "status": "in_progress"},
+                    ],
+                )
+                yield event
+                continue
+
+            if isinstance(event, ToolCallEndEvent):
+                tc_id = event.tool_call_id
+                name = tool_call_names.get(tc_id, "tool")
+                if pending_text:
+                    ordered_parts.append(
+                        {"type": "text", "text": "".join(pending_text)},
+                    )
+                    pending_text.clear()
+                ordered_parts.append({"type": "tool_ref", "id": tc_id})
+                completed_tools.append(
+                    {"id": tc_id, "name": name, "status": "completed"},
+                )
+                yield event
+                yield self._build_state(
+                    status="thinking",
+                    intent=intent.value,
+                    active_agent=current_agent or None,
+                    tools=[
+                        {"name": tc["name"], "status": "completed"}
+                        for tc in completed_tools
+                    ],
                 )
                 continue
 
             if isinstance(event, ToolCallArgsEvent):
-                if event.tool_call_id in tool_call_args:
-                    tool_call_args[event.tool_call_id].append(event.delta)
                 yield event
                 continue
 
             if isinstance(event, ToolCallResultEvent):
                 for tc in completed_tools:
                     if tc["id"] == event.tool_call_id:
-                        tc["result"] = event.content or tc["result"]
+                        tc["result"] = event.content or ""
                         break
                 yield event
                 continue
 
-            # ── Step tracking (maps to agent names) ──
+            # ── Step tracking ──
             if isinstance(event, StepStartedEvent):
                 current_agent = event.step_name or ""
                 logger.info("Agent started: %r", current_agent)
@@ -268,54 +568,21 @@ class SapWorkflow(AgentFrameworkWorkflow):
                         )
                         continue
 
-            # ── Default: pass through (user-visible text) ──
+            # ── Default: pass through ──
             if isinstance(event, TextMessageContentEvent):
                 pending_text.append(event.delta)
 
             yield event
 
-        # ── Flush remaining state ──
+        # ── Flush remaining ──
         if thinking_open:
             yield ThinkingEndEvent()
-            thinking_open = False
-
         if pending_text:
             ordered_parts.append(
                 {"type": "text", "text": "".join(pending_text)},
             )
-            pending_text.clear()
-        for tc_id in open_tool_call_ids:
-            ordered_parts.append({"type": "tool_ref", "id": tc_id})
-            result_text = f"{tool_call_names.get(tc_id, 'tool')} completed"
-            completed_tools.append({
-                "id": tc_id,
-                "name": tool_call_names.get(tc_id, "tool"),
-                "arguments": "".join(tool_call_args.pop(tc_id, [])),
-                "result": result_text,
-            })
-            yield ToolCallEndEvent(tool_call_id=tc_id)
-            yield ToolCallResultEvent(
-                message_id=str(uuid4()),
-                tool_call_id=tc_id,
-                content=result_text,
-                role="tool",
-            )
 
-        # ── Persist ──
-        if self._store and thread_id:
-            if user_text:
-                self._save_user_message(thread_id, user_text)
-            if ordered_parts:
-                self._save_assistant_message(
-                    thread_id, ordered_parts, completed_tools,
-                )
-
-            if user_text:
-                asyncio.create_task(
-                    self._factory._generate_title(user_text),
-                ).add_done_callback(
-                    lambda fut: self._apply_title(thread_id, fut),
-                )
+    # ── Persistence helpers ──────────────────────────────
 
     def _ensure_conversation(self, thread_id: str) -> None:
         """Create conversation row if it doesn't exist."""
@@ -389,10 +656,12 @@ class SapWorkflow(AgentFrameworkWorkflow):
                     conv_id,
                     AFMessage(
                         "tool",
-                        [Content.from_function_result(
-                            call_id=tc["id"],
-                            result=tc.get("result", ""),
-                        )],
+                        [
+                            Content.from_function_result(
+                                call_id=tc["id"],
+                                result=tc.get("result", ""),
+                            )
+                        ],
                     ),
                 )
         except Exception:

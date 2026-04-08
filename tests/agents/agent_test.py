@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from agent_framework import MCPStreamableHTTPTool, TokenBudgetComposedStrategy
 
-from src.agents.agent import SapAgentFactory
+from src.agents.agent import IntentClassification, SapAgentFactory
 from src.core.models.mcp_config import (
     BearerAuth,
     McpServerEntry,
@@ -539,7 +539,8 @@ class TestClassifyIntent:
     async def test_triage_intent(self) -> None:
         """LLM returning 'triage' maps to TRIAGE."""
         response = MagicMock()
-        response.text = "triage"
+        response.text = '{"intent": "triage"}'
+        response.value = IntentClassification(intent="triage")
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
@@ -560,7 +561,8 @@ class TestClassifyIntent:
     async def test_test_intent(self) -> None:
         """LLM returning 'test' maps to TEST."""
         response = MagicMock()
-        response.text = "test"
+        response.text = '{"intent": "test"}'
+        response.value = IntentClassification(intent="test")
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
@@ -581,7 +583,8 @@ class TestClassifyIntent:
     async def test_knowledge_intent(self) -> None:
         """LLM returning 'knowledge' maps to KNOWLEDGE."""
         response = MagicMock()
-        response.text = "knowledge"
+        response.text = '{"intent": "knowledge"}'
+        response.value = IntentClassification(intent="knowledge")
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
@@ -602,7 +605,8 @@ class TestClassifyIntent:
     async def test_general_intent(self) -> None:
         """LLM returning 'general' maps to GENERAL."""
         response = MagicMock()
-        response.text = "general"
+        response.text = '{"intent": "general"}'
+        response.value = IntentClassification(intent="general")
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
@@ -652,6 +656,7 @@ class TestClassifyIntent:
         """Invalid LLM response falls back to GENERAL."""
         response = MagicMock()
         response.text = "banana"
+        response.value = None
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
@@ -692,7 +697,8 @@ class TestClassifyIntent:
     async def test_uses_structured_output(self) -> None:
         """Classifier passes IntentClassification as response_format."""
         response = MagicMock()
-        response.text = "triage"
+        response.text = '{"intent": "triage"}'
+        response.value = IntentClassification(intent="triage")
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
             mock_mcp.return_value = _make_mock_mcp_tool()
@@ -707,11 +713,32 @@ class TestClassifyIntent:
 
         call_kwargs = mock_client.return_value.get_response.call_args
         options = call_kwargs[1]["options"]
-        from src.agents.agent import IntentClassification
 
         assert options["response_format"] is IntentClassification
-        assert options["temperature"] == 0
-        assert options["max_tokens"] == 20
+        assert "temperature" not in options
+        assert options["max_tokens"] == 500
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_text_when_value_is_none(self) -> None:
+        """When response.value is None, falls back to response.text."""
+        response = MagicMock()
+        response.text = "triage"
+        response.value = None
+
+        with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
+            mock_mcp.return_value = _make_mock_mcp_tool()
+            factory = await SapAgentFactory.create(
+                mcp_url="http://test:8001/mcp",
+                endpoint="https://x.openai.azure.com",
+            )
+
+        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+            mock_client.return_value.get_response = AsyncMock(return_value=response)
+            result = await factory.classify_intent("investigate cluster failure")
+
+        from src.agents.agent_config import InvestigationIntent
+
+        assert result == InvestigationIntent.TRIAGE
 
 
 # ---------------------------------------------------------------------------

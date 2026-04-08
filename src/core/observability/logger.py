@@ -328,6 +328,17 @@ class LoggerFactory:
             service_name,
             telemetry_config,
         )
+
+        for noisy in (
+            "httpx",
+            "httpcore",
+            "agent_framework_orchestrations._handoff",
+            "agent_framework._workflows._validation",
+            "opentelemetry.trace",
+            "opentelemetry.context",
+        ):
+            logging.getLogger(noisy).setLevel(logging.ERROR)
+
         cls._initialized = True
 
     @classmethod

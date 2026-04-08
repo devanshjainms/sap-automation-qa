@@ -25,6 +25,7 @@ import { useParams } from "react-router-dom";
 import { getConversation } from "../../lib/api";
 import type { Message } from "../../lib/types";
 import { useStyles } from "../../styles/headlessChat.styles";
+import { AgentStatusBar } from "./AgentStatusBar";
 
 const sapAgent = new HttpAgent({
   url: "/ag-ui",
@@ -149,7 +150,12 @@ function SapChatInner() {
     let cancelled = false;
     getConversation(conversationId)
       .then((conv) => {
-        if (cancelled || !conv.messages?.length) return;
+        if (cancelled) return;
+        if (!conv.messages?.length) {
+          // No messages yet — don't call setMessages so CopilotKit
+          // shows the welcome state instead of an empty chat.
+          return;
+        }
         const agMsgs = toAgMessages(conv.messages);
         if (agMsgs.length > 0) {
           agent.setMessages(agMsgs);
@@ -157,7 +163,8 @@ function SapChatInner() {
       })
       .catch((err) => {
         if (!cancelled) {
-          console.error("Failed to load conversation history:", err);
+          // 404 = conversation deleted or from previous DB; ignore.
+          console.warn("Could not load conversation history:", err);
         }
       });
     return () => { cancelled = true; };
@@ -173,6 +180,7 @@ function SapChatInner() {
 
   return (
     <div className={classes.container}>
+      <AgentStatusBar />
       <CopilotChat
         agentId="sap-agent"
         threadId={conversationId}

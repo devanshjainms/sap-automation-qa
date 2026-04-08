@@ -136,6 +136,7 @@ TOOLS_REFERENCE = PromptModule(
     name="tools_reference",
     heading="# Tools",
     body=(
+        "## Tool catalog\n"
         "- `run_evidence_collector(workspace_id, definition_id, host)` "
         "— run ONE evidence collector on ONE host.  Use definition "
         "IDs from the catalog (list_evidence_catalog).\n"
@@ -154,7 +155,21 @@ TOOLS_REFERENCE = PromptModule(
         "verifying LB probe health, or correlating platform metrics "
         "with cluster events).\n"
         "- `run_staf_test` — run HA functional tests.\n"
-        "- Schedule tools for recurring tests."
+        "- Schedule tools for recurring tests.\n\n"
+        "## When to use which tool\n"
+        "1. **Conceptual / how-to questions** (e.g. 'what Azure CLI "
+        "commands check VM status', 'what is SAP Note 12345'): answer "
+        "directly from your own knowledge.  Do NOT call Azure MCP "
+        "tools that *perform* operations (like `extension_cli_generate`, "
+        "`extension_cli_install`) when the user just wants information.\n"
+        "2. **Microsoft documentation lookups** (best practices, "
+        "setup guides, architecture references): use `microsoft_docs_search`.\n"
+        "3. **Live infrastructure state** (is my VM running? what are "
+        "the LB probe results?): use Azure MCP tools.\n"
+        "4. **SAP cluster / host diagnostics**: use evidence collectors "
+        "and `collect_evidence`.\n"
+        "5. **SAP rules and patterns**: use `query_knowledge`.\n"
+        "6. **HA test execution**: use `run_staf_test` or schedule tools."
     ),
     priority=50,
 )

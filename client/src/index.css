@@ -28,19 +28,85 @@ html, body, #root {
 }
 
 /*
- * CopilotKit v2 has built-in dark mode via `.dark [data-copilotkit]`.
- * We only override the brand accent to match FluentUI's blue.
- * Everything else (card, background, borders) uses CopilotKit defaults.
+ * Map CopilotKit CSS variables to FluentUI design language.
+ * Uses oklch values that match Fluent's webLightTheme / webDarkTheme.
+ * Font stack matches Fluent's Segoe UI first.
  */
 [data-copilotkit] {
+  /* Brand */
   --primary: #0f6cbd;
   --primary-foreground: #ffffff;
   --ring: #0f6cbd;
+
+  /* Surfaces — match Fluent neutralBackground1 / neutralForeground1 */
+  --background: #ffffff;
+  --foreground: #242424;
+  --card: #ffffff;
+  --card-foreground: #242424;
+  --popover: #ffffff;
+  --popover-foreground: #242424;
+
+  /* Secondary / muted — match Fluent neutralBackground3 */
+  --secondary: #f5f5f5;
+  --secondary-foreground: #242424;
+  --muted: #f5f5f5;
+  --muted-foreground: #616161;
+  --accent: #f0f0f0;
+  --accent-foreground: #242424;
+
+  /* Borders — match Fluent neutralStroke2 */
+  --border: #e0e0e0;
+  --input: #e0e0e0;
+
+  /* Radius — match Fluent borderRadiusMedium (4px) */
+  --radius: 4px;
+
+  /* Destructive */
+  --destructive: #d13438;
+
+  /* Font — Fluent's Segoe UI stack */
+  --cpk-font-sans: "Segoe UI", "Segoe UI Web (West European)", -apple-system,
+    BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
 }
 
 .dark [data-copilotkit],
 [data-copilotkit].dark {
+  /* Brand */
   --primary: #479ef5;
   --primary-foreground: #ffffff;
   --ring: #479ef5;
+
+  /* Surfaces — match Fluent dark neutralBackground1 / neutralForeground1 */
+  --background: #292929;
+  --foreground: #ffffff;
+  --card: #292929;
+  --card-foreground: #ffffff;
+  --popover: #292929;
+  --popover-foreground: #ffffff;
+
+  /* Secondary / muted — match Fluent dark neutralBackground3 */
+  --secondary: #3d3d3d;
+  --secondary-foreground: #ffffff;
+  --muted: #3d3d3d;
+  --muted-foreground: #adadad;
+  --accent: #333333;
+  --accent-foreground: #ffffff;
+
+  /* Borders — match Fluent dark neutralStroke2 */
+  --border: #404040;
+  --input: #404040;
+
+  /* Destructive */
+  --destructive: #d13438;
+}
+
+/* Remove CopilotKit's internal scrollbar override so we use our global one */
+[data-copilotkit] ::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.4);
+}
+
+/* Ensure the input area blends with the surrounding panel */
+[data-copilotkit] [data-sidebar-chat] {
+  border: none;
+  box-shadow: none;
 }
