@@ -518,9 +518,6 @@ class SapAgentFactory:
                 participants=[agent],
             )
             .with_start_agent(agent)
-            .with_autonomous_mode(
-                turn_limits={"SAP-Agent": config.max_rounds},
-            )
             .build()
         )
 

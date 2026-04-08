@@ -43,6 +43,9 @@ class HealthService:
         self._ollama_url = ollama_url.rstrip("/")
         self._azure_mcp_url = azure_mcp_url.rstrip("/")
         self._timeout = timeout
+        self._llm_cache: Optional[ComponentHealth] = None
+        self._llm_cache_time: float = 0.0
+        self._llm_cache_ttl: float = 300.0
 
     async def check_mcp(self, name: str, url: str) -> ComponentHealth:
         """Probe a single MCP server via its ``/mcp`` endpoint.
@@ -75,11 +78,17 @@ class HealthService:
     async def check_llm(self) -> ComponentHealth:
         """Probe the Azure OpenAI endpoint with a minimal completions call.
 
-        Sends a tiny prompt (``max_tokens=1``) to verify connectivity
-        without burning tokens.
+        Results are cached for ``_llm_cache_ttl`` seconds to avoid
+        burning LLM quota on Docker healthcheck polling.
 
         :returns: Component health result.
         """
+        if (
+            self._llm_cache is not None
+            and (time.monotonic() - self._llm_cache_time) < self._llm_cache_ttl
+        ):
+            return self._llm_cache
+
         if not self._llm_endpoint or not self._llm_deployment:
             return ComponentHealth(status="unconfigured", detail="LLM not configured")
 
@@ -103,23 +112,28 @@ class HealthService:
                 resp = await client.post(url, json=body, headers=headers)
                 latency = (time.monotonic() - start) * 1000
                 if resp.status_code == 200:
-                    return ComponentHealth(
+                    result = ComponentHealth(
                         status="healthy",
                         latency_ms=round(latency, 1),
                         detail=f"deployment={self._llm_deployment}",
                     )
-                return ComponentHealth(
-                    status="unhealthy",
-                    latency_ms=round(latency, 1),
-                    detail=f"HTTP {resp.status_code}",
-                )
+                else:
+                    result = ComponentHealth(
+                        status="unhealthy",
+                        latency_ms=round(latency, 1),
+                        detail=f"HTTP {resp.status_code}",
+                    )
         except Exception as exc:
             latency = (time.monotonic() - start) * 1000
-            return ComponentHealth(
+            result = ComponentHealth(
                 status="unhealthy",
                 latency_ms=round(latency, 1),
                 detail=str(exc),
             )
+
+        self._llm_cache = result
+        self._llm_cache_time = time.monotonic()
+        return result
 
     async def check_url(
         self,
