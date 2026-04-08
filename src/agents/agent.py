@@ -356,7 +356,7 @@ class SapAgentFactory:
             self._external_mcps.append(tool)
             logger.info("Connected %s MCP: %d tools", tool.name, len(tool.functions))
             return True
-        except Exception:
+        except BaseException:
             logger.warning(
                 "%s MCP unavailable — continuing without it",
                 tool.name,
