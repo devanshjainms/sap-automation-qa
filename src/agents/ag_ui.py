@@ -7,16 +7,13 @@ Handoff intents use ``workflow.as_agent()`` → ``AgentFrameworkAgent``.
 """
 
 from __future__ import annotations
-
 import asyncio
 import logging
 import time
 from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID, uuid4
-
 from fastapi import FastAPI
-
 from ag_ui.core.events import (
     BaseEvent,
     ReasoningMessageStartEvent,
@@ -33,7 +30,6 @@ from agent_framework_ag_ui import (
     AgentFrameworkWorkflow,
     add_agent_framework_fastapi_endpoint,
 )
-
 from src.agents.agent import SapAgentFactory
 from src.agents.agent_config import InvestigationIntent, config_for_intent
 from src.core.models.conversation import Conversation
@@ -69,8 +65,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
         run_id = input_data.get("run_id", str(uuid4()))
         user_text = self._extract_user_text(input_data)
         stream_start = time.perf_counter()
-
-        # Classify intent.
         intent = await self._factory.classify_intent(user_text)
         config = config_for_intent(intent)
 
@@ -87,7 +81,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
 
         input_data = self._sanitize_messages(input_data)
 
-        # Create agent (plain or workflow-as-agent).
         if intent in (InvestigationIntent.TRIAGE, InvestigationIntent.TEST):
             workflow = self._factory.create_workflow(
                 config=config,
@@ -109,7 +102,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
             require_confirmation=False,
         )
 
-        # Stream — only intercept for role fix + persistence tracking.
         completed_tools: list[dict[str, str]] = []
         ordered_parts: list[dict[str, Any]] = []
         pending_text: list[str] = []
@@ -117,7 +109,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
         tool_call_args: dict[str, list[str]] = {}
 
         async for event in delegate.run(input_data):
-            # Fix framework bug: role="assistant" → role="reasoning".
             if isinstance(event, ReasoningMessageStartEvent):
                 yield ReasoningMessageStartEvent.model_construct(
                     type="REASONING_MESSAGE_START",
@@ -126,7 +117,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 )
                 continue
 
-            # Track tool calls for persistence.
             if isinstance(event, ToolCallStartEvent):
                 tool_call_names[event.tool_call_id] = event.tool_call_name or "tool"
                 tool_call_args[event.tool_call_id] = []
@@ -158,11 +148,9 @@ class SapWorkflow(AgentFrameworkWorkflow):
 
             yield event
 
-        # Flush remaining text.
         if pending_text:
             ordered_parts.append({"type": "text", "text": "".join(pending_text)})
 
-        # Persist.
         duration = int((time.perf_counter() - stream_start) * 1000)
         logger.info(
             "AG-UI done: thread=%s intent=%s duration=%dms tools=%s",
@@ -180,8 +168,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
                 asyncio.create_task(
                     self._factory._generate_title(user_text),
                 ).add_done_callback(lambda fut: self._apply_title(thread_id, fut))
-
-    # ── Helpers ──────────────────────────────────────────
 
     @staticmethod
     def _sanitize_messages(input_data: dict[str, Any]) -> dict[str, Any]:
