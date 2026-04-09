@@ -60,9 +60,7 @@ class StafTools:
         if test_ids:
             payload["test_ids"] = test_ids
 
-        async with httpx.AsyncClient(
-            base_url=sap.core_api_url, timeout=30.0
-        ) as client:
+        async with httpx.AsyncClient(base_url=sap.core_api_url, timeout=30.0) as client:
             resp = await client.post("/api/v1/jobs", json=payload)
             resp.raise_for_status()
             job_data = resp.json()

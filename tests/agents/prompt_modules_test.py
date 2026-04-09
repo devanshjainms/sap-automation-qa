@@ -43,12 +43,6 @@ class TestPromptModule:
 class TestPromptModuleRegistry:
     """Tests for the module registry."""
 
-    def test_default_registry_has_builtins(self) -> None:
-        names = default_registry.all_names()
-        assert "core_identity" in names
-        assert "absolute_rules" in names
-        assert "reminders" in names
-
     def test_register_adds_module(self) -> None:
         reg = PromptModuleRegistry()
         custom = PromptModule(name="custom_mod", heading="# Custom", body="hi")

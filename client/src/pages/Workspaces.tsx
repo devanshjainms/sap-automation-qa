@@ -1,13 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import {
-  Button,
-  Text,
-  Card,
-  Badge,
-  Spinner,
-} from "@fluentui/react-components";
+import { Button, Text, Card, Badge, Spinner } from "@fluentui/react-components";
 import {
   ArrowClockwise24Regular,
   BuildingMultiple24Regular,
@@ -17,10 +11,12 @@ import { useApi } from "../hooks/useApi";
 import { useStyles } from "../styles/workspaces.styles";
 
 export function Workspaces() {
-  const { data: workspaces, loading, error, refetch } = useApi(
-    listWorkspaces,
-    [],
-  );
+  const {
+    data: workspaces,
+    loading,
+    error,
+    refetch,
+  } = useApi(listWorkspaces, []);
   const classes = useStyles();
 
   return (
@@ -54,11 +50,7 @@ export function Workspaces() {
                 {ws.id}
               </Text>
             </div>
-            <Text
-              font="monospace"
-              size={100}
-              className={classes.path}
-            >
+            <Text font="monospace" size={100} className={classes.path}>
               {ws.path}
             </Text>
             <Badge

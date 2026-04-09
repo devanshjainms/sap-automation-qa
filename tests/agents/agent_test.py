@@ -127,7 +127,7 @@ class TestSapAgentFactory:
         counts = factory.tool_counts
         assert counts["sap"] == 20
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_create_workflow_returns_workflow(
         self,
@@ -145,7 +145,7 @@ class TestSapAgentFactory:
         result = factory.create_workflow()
         assert result is not None
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_general_intent_builds_single_agent(
         self,
@@ -167,7 +167,7 @@ class TestSapAgentFactory:
         call = mock_client_cls.return_value.as_agent.call_args
         assert call[1]["name"] == "SAP-Agent"
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_single_agent_has_autonomous_mode(
         self,
@@ -190,7 +190,7 @@ class TestSapAgentFactory:
         assert hb.autonomous_mode_kwargs is not None
         assert "SAP-Agent" in hb.autonomous_mode_kwargs["turn_limits"]
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_handoff_turn_limits_from_config(
         self,
@@ -217,7 +217,7 @@ class TestSapAgentFactory:
         assert limits["Investigator"] == TRIAGE_CONFIG.max_rounds
         assert limits["TestRunner"] == TRIAGE_CONFIG.max_rounds
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_triage_intent_builds_handoff_agents(
         self,
@@ -242,7 +242,7 @@ class TestSapAgentFactory:
         names = {c[1]["name"] for c in calls}
         assert names == {"Coordinator", "Investigator", "TestRunner"}
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_agent_receives_mcp_tool(
         self,
@@ -266,7 +266,7 @@ class TestSapAgentFactory:
         call = mock_client_cls.return_value.as_agent.call_args
         assert mcp_tool in call[1]["tools"]
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_workspace_context_provider_added(
         self,
@@ -293,7 +293,7 @@ class TestSapAgentFactory:
 
         assert any(isinstance(p, WorkspaceContextProvider) for p in providers)
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_agent_receives_compaction_strategy(
         self,
@@ -316,13 +316,13 @@ class TestSapAgentFactory:
         strategy = call[1].get("compaction_strategy")
         assert isinstance(strategy, TokenBudgetComposedStrategy)
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_client_receives_kwargs(
         self,
         mock_client_cls: MagicMock,
     ) -> None:
-        """AzureOpenAIChatClient receives endpoint/deployment/key."""
+        """AzureOpenAIResponsesClient receives endpoint/deployment/key."""
         mock_client_cls.return_value.as_agent.side_effect = _mock_as_agent
 
         with patch("src.agents.agent.MCPStreamableHTTPTool") as mock_mcp:
@@ -549,7 +549,7 @@ class TestClassifyIntent:
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+        with patch("src.agents.agent.AzureOpenAIResponsesClient") as mock_client:
             mock_client.return_value.get_response = AsyncMock(return_value=response)
             result = await factory.classify_intent("investigate cluster failure")
 
@@ -571,7 +571,7 @@ class TestClassifyIntent:
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+        with patch("src.agents.agent.AzureOpenAIResponsesClient") as mock_client:
             mock_client.return_value.get_response = AsyncMock(return_value=response)
             result = await factory.classify_intent("run HA test suite")
 
@@ -593,7 +593,7 @@ class TestClassifyIntent:
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+        with patch("src.agents.agent.AzureOpenAIResponsesClient") as mock_client:
             mock_client.return_value.get_response = AsyncMock(return_value=response)
             result = await factory.classify_intent("what is SAP Note 2369910?")
 
@@ -615,7 +615,7 @@ class TestClassifyIntent:
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+        with patch("src.agents.agent.AzureOpenAIResponsesClient") as mock_client:
             mock_client.return_value.get_response = AsyncMock(return_value=response)
             result = await factory.classify_intent("hello there")
 
@@ -665,7 +665,7 @@ class TestClassifyIntent:
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+        with patch("src.agents.agent.AzureOpenAIResponsesClient") as mock_client:
             mock_client.return_value.get_response = AsyncMock(return_value=response)
             result = await factory.classify_intent("some text")
 
@@ -683,7 +683,7 @@ class TestClassifyIntent:
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+        with patch("src.agents.agent.AzureOpenAIResponsesClient") as mock_client:
             mock_client.return_value.get_response = AsyncMock(
                 side_effect=RuntimeError("LLM down"),
             )
@@ -707,7 +707,7 @@ class TestClassifyIntent:
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+        with patch("src.agents.agent.AzureOpenAIResponsesClient") as mock_client:
             mock_client.return_value.get_response = AsyncMock(return_value=response)
             await factory.classify_intent("check my cluster")
 
@@ -732,7 +732,7 @@ class TestClassifyIntent:
                 endpoint="https://x.openai.azure.com",
             )
 
-        with patch("src.agents.agent.AzureOpenAIChatClient") as mock_client:
+        with patch("src.agents.agent.AzureOpenAIResponsesClient") as mock_client:
             mock_client.return_value.get_response = AsyncMock(return_value=response)
             result = await factory.classify_intent("investigate cluster failure")
 
@@ -750,7 +750,7 @@ class TestClassifyIntent:
 class TestAgenticLoopConfiguration:
     """Tests for the agentic loop settings in create_workflow."""
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_max_iterations_uses_default_max_rounds(
         self,
@@ -772,7 +772,7 @@ class TestAgenticLoopConfiguration:
         fic = call[1]["function_invocation_configuration"]
         assert fic["max_iterations"] == 30
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_consecutive_errors_limit_set(
         self,
@@ -794,7 +794,7 @@ class TestAgenticLoopConfiguration:
         fic = call[1]["function_invocation_configuration"]
         assert fic["max_consecutive_errors_per_request"] == 5
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_detailed_errors_disabled(
         self,
@@ -816,7 +816,7 @@ class TestAgenticLoopConfiguration:
         fic = call[1]["function_invocation_configuration"]
         assert fic["include_detailed_errors"] is False
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_instructions_contain_agentic_loop(
         self,
@@ -842,7 +842,7 @@ class TestAgenticLoopConfiguration:
         assert "How to work" in instructions
         assert "Reminders" in instructions
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_middleware_wired(
         self,
@@ -873,7 +873,7 @@ class TestAgenticLoopConfiguration:
         assert FunctionGuardMiddleware in types
         assert OutputSanitizationMiddleware in types
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_agent_gets_history_provider(
         self,
@@ -899,7 +899,7 @@ class TestAgenticLoopConfiguration:
         providers = call[1].get("context_providers", [])
         assert any(isinstance(p, ConversationHistoryProvider) for p in providers)
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_history_provider_save_disabled_for_workflow(
         self,
@@ -927,7 +927,7 @@ class TestAgenticLoopConfiguration:
             if isinstance(p, ConversationHistoryProvider):
                 assert not p._save_enabled
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_thread_id_propagated_to_history_provider(
         self,
@@ -955,7 +955,7 @@ class TestAgenticLoopConfiguration:
             if isinstance(p, ConversationHistoryProvider):
                 assert p._conversation_id == "my-thread-123"
 
-    @patch("src.agents.agent.AzureOpenAIChatClient")
+    @patch("src.agents.agent.AzureOpenAIResponsesClient")
     @pytest.mark.asyncio
     async def test_agent_prompt_forbids_confirmation(
         self,

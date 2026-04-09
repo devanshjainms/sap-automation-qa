@@ -20,8 +20,6 @@ from src.core.observability import (
     ObservabilityMiddleware,
     load_telemetry_config,
 )
-from src.core.storage.job_store import JobStore
-from src.core.storage.schedule_store import ScheduleStore
 from src.core.execution.executor import AnsibleExecutor
 from src.core.execution.worker import JobWorker
 from src.core.services.scheduler import SchedulerService
@@ -42,9 +40,7 @@ from src.agents.ag_ui import register_ag_ui
 from src.api.routes.health import set_service_status, set_health_service
 from src.core.services.health import HealthService
 from src.api.routes.workspaces import default_workspace_loader
-from src.core.storage.conversation_store import ConversationStore
-from src.core.storage.knowledge_store import KnowledgeStore
-from src.core.storage.embedding_store import EmbeddingStore
+from src.core.storage.staf_store import StafStore
 from src.core.knowledge.retrieval import HybridRetriever
 from src.core.services.mcp_config_loader import load_mcp_servers_config
 from src.agents.agent import SapAgentFactory
@@ -60,7 +56,6 @@ CORS_ORIGINS = os.environ.get(
     "http://localhost:3000,http://localhost:5173,http://localhost:8000",
 ).split(",")
 
-# --- Agent / Chat configuration (optional — chat degrades gracefully) ---
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
 AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "")
 AZURE_OPENAI_API_KEY = os.environ.get("AZURE_OPENAI_API_KEY", "")
@@ -78,35 +73,10 @@ initialize_logging(
 logger = get_logger(__name__)
 
 
-def _build_retriever() -> HybridRetriever | None:
-    """Create a read-only HybridRetriever from the shared knowledge DB.
-
-    The MCP server seeds the database at startup; we only read here.
-    Returns ``None`` if the DB has not been created yet.
-    """
-    kb_path = DATA_DIR / "knowledge.db"
-    if not kb_path.exists():
-        logger.warning("knowledge.db not found — KB injection disabled")
-        return None
-    knowledge_store = KnowledgeStore(db_path=kb_path)
-    embed_path = DATA_DIR / "embeddings.db"
-    embedding_store = None
-    if embed_path.exists():
-        dims = int(os.environ.get("EMBEDDING_DIMENSIONS", "768"))
-        embedding_store = EmbeddingStore(db_path=embed_path, dimensions=dims)
-    return HybridRetriever(
-        store=knowledge_store,
-        embedding_store=embedding_store,
-        embedding_provider=None,
-    )
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifespan manager for startup/shutdown.
-
-    Initializes all services on startup and ensures graceful shutdown.
-    Services are stored in app.state for dependency injection.
+    """
+    Application lifespan manager for startup/shutdown.
 
     :param app: FastAPI application instance.
     :type app: FastAPI
@@ -114,22 +84,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     scheduler_service = None
     job_worker = None
-    job_store = None
-    schedule_store = None
-
-    conversation_store = None
     agent_factory = None
+    staf_db = None
 
     try:
         logger.info("Initializing SAP QA Scheduler...")
         DATA_DIR.mkdir(parents=True, exist_ok=True)
-        db_path = DATA_DIR / "scheduler.db"
-        job_store = JobStore(db_path=db_path)
-        schedule_store = ScheduleStore(db_path=db_path)
+        staf_db = StafStore(DATA_DIR / "staf.db")
+        staf_db.init_all()
+
         workspace_loader = default_workspace_loader
         set_workspace_loader(workspace_loader)
         job_worker = JobWorker(
-            job_store=job_store,
+            job_store=staf_db.jobs,
             executor=AnsibleExecutor(
                 playbook_dir=PLAYBOOK_DIR,
                 telemetry_config=telemetry_config,
@@ -139,30 +106,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
         job_worker.recover_crashed_jobs()
         scheduler_service = SchedulerService(
-            schedule_store=schedule_store,
+            schedule_store=staf_db.schedules,
             job_worker=job_worker,
             check_interval_seconds=SCHEDULER_CHECK_INTERVAL,
         )
-        app.state.job_store = job_store
-        app.state.schedule_store = schedule_store
+        app.state.job_store = staf_db.jobs
+        app.state.schedule_store = staf_db.schedules
         app.state.job_worker = job_worker
         app.state.scheduler_service = scheduler_service
-        set_job_store(job_store)
+        set_job_store(staf_db.jobs)
         set_job_worker(job_worker)
-        set_schedule_store(schedule_store)
+        set_schedule_store(staf_db.schedules)
         set_scheduler_service(scheduler_service)
 
-        conversation_store = ConversationStore(db_path=DATA_DIR / "conversations.db")
-        set_conversation_store(conversation_store)
+        set_conversation_store(staf_db.conversations)
         if AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_DEPLOYMENT:
             try:
-                mcp_config = load_mcp_servers_config()
-                retriever = _build_retriever()
                 agent_factory = await SapAgentFactory.create(
                     mcp_url=STAF_MCP_URL.rstrip("/") + "/mcp",
-                    mcp_config=mcp_config,
-                    conversation_store=conversation_store,
-                    retriever=retriever,
+                    mcp_config=load_mcp_servers_config(),
+                    conversation_store=staf_db.conversations,
+                    retriever=HybridRetriever(
+                        store=staf_db.knowledge, embedding_store=staf_db.embeddings
+                    ),
                     endpoint=AZURE_OPENAI_ENDPOINT,
                     deployment_name=AZURE_OPENAI_DEPLOYMENT,
                     api_key=AZURE_OPENAI_API_KEY or None,
@@ -175,7 +141,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                         agent_factory,
                         "/ag-ui",
                         allow_origins=CORS_ORIGINS,
-                        conversation_store=conversation_store,
+                        conversation_store=staf_db.conversations,
                     )
                 except Exception:
                     logger.warning(
@@ -226,12 +192,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await agent_factory.close()
         if job_worker:
             await job_worker.shutdown()
-        if conversation_store:
-            conversation_store.close()
-        if job_store:
-            job_store.close()
-        if schedule_store:
-            schedule_store.close()
+        if staf_db:
+            staf_db.close()
         logger.info("SAP QA Scheduler shutdown complete")
 
 

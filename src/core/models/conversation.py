@@ -113,11 +113,3 @@ class CreateConversationRequest(BaseModel):
 
     workspace_id: str = ""
 
-
-class SendMessageRequest(BaseModel):
-    """Request to send a message in a conversation.
-
-    :param message: User message text.
-    """
-
-    message: str = Field(min_length=1, max_length=10000)

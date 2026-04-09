@@ -17,7 +17,6 @@ import asyncio
 import httpx
 from pydantic import BaseModel
 from agent_framework import (
-    BaseContextProvider,
     CharacterEstimatorTokenizer,
     ChatOptions,
     CompactionStrategy,
@@ -27,7 +26,7 @@ from agent_framework import (
     TokenBudgetComposedStrategy,
     ToolResultCompactionStrategy,
 )
-from agent_framework.azure import AzureOpenAIChatClient, AzureOpenAIResponsesClient
+from agent_framework.azure import AzureOpenAIResponsesClient
 from src.mcp_server.server import mcp as _mcp_server
 from agent_framework._types import Message as AFMessage
 from agent_framework.orchestrations import HandoffBuilder
@@ -90,7 +89,6 @@ class SapAgentFactory:
     _MCP_CONNECT_RETRIES = 5
     _MCP_CONNECT_BACKOFF = 2.0
     _MSLEARN_MCP_URL = "https://learn.microsoft.com/api/mcp"
-    _AZURE_MCP_URL = os.environ.get("AZURE_MCP_URL", "")
 
     def __init__(
         self,
@@ -116,7 +114,7 @@ class SapAgentFactory:
         )
         self._mcp_tool: Optional[MCPStreamableHTTPTool] = None
         self._external_mcps: list[MCPStreamableHTTPTool] = []
-        self._utility_client: Optional[AzureOpenAIChatClient] = None
+        self._utility_client: Optional[AzureOpenAIResponsesClient] = None
 
     async def __aenter__(self) -> SapAgentFactory:
         return self
@@ -128,6 +126,11 @@ class SapAgentFactory:
     def mcp_url(self) -> str:
         """The SAP MCP server URL."""
         return self._mcp_url
+
+    @property
+    def _AZURE_MCP_URL(self) -> str:
+        """Read at runtime so late-set env vars are picked up."""
+        return os.environ.get("AZURE_MCP_URL", "")
 
     @property
     def tool_counts(self) -> dict[str, int]:
@@ -184,7 +187,7 @@ class SapAgentFactory:
         api_key: Optional[str],
         api_version: Optional[str],
     ) -> dict[str, Any]:
-        """Build kwargs for ``AzureOpenAIChatClient``."""
+        """Build kwargs for ``AzureOpenAIResponsesClient``."""
         kwargs: dict[str, Any] = {}
         if endpoint:
             kwargs["endpoint"] = endpoint
@@ -239,10 +242,10 @@ class SapAgentFactory:
         "User message: {text}"
     )
 
-    def _get_utility_client(self) -> AzureOpenAIChatClient:
+    def _get_utility_client(self) -> AzureOpenAIResponsesClient:
         """Return a shared client for lightweight LLM calls."""
         if self._utility_client is None:
-            self._utility_client = AzureOpenAIChatClient(**self._client_kwargs)
+            self._utility_client = AzureOpenAIResponsesClient(**self._client_kwargs)
         return self._utility_client
 
     async def _generate_title(self, user_text: str) -> str:
@@ -398,8 +401,10 @@ class SapAgentFactory:
         for entry in self._mcp_config.enabled_servers:
             optional.append(self._build_external_mcp(entry))
 
-        for tool in optional:
-            await self._try_connect_mcp(tool)
+        await asyncio.gather(
+            *(self._try_connect_mcp(tool) for tool in optional),
+            return_exceptions=True,
+        )
 
         logger.info("Connected MCP tools: %s", self.tool_counts)
 
@@ -429,7 +434,7 @@ class SapAgentFactory:
             config = config_for_intent(InvestigationIntent.GENERAL)
 
         instructions = assemble(config.module_names)
-        client = AzureOpenAIChatClient(**self._client_kwargs)
+        client = AzureOpenAIResponsesClient(**self._client_kwargs)
 
         context_providers: list[Any] = []
         if self._conversation_store:
@@ -515,9 +520,6 @@ class SapAgentFactory:
 
         client = AzureOpenAIResponsesClient(**self._client_kwargs)
 
-        # CopilotKit sends full message history in each AG-UI request,
-        # so ConversationHistoryProvider is not needed here (it would
-        # duplicate messages and cause tool_call/result mismatches).
         context_providers: list[Any] = []
         if workspace_context:
             context_providers.append(WorkspaceContextProvider(workspace_context))
@@ -563,7 +565,7 @@ class SapAgentFactory:
     def _build_single_agent_workflow(
         self,
         *,
-        client: AzureOpenAIChatClient,
+        client: AzureOpenAIResponsesClient,
         instructions: str,
         all_tools: list,
         compaction: CompactionStrategy,
@@ -604,7 +606,7 @@ class SapAgentFactory:
     def _build_handoff_workflow(
         self,
         *,
-        client: AzureOpenAIChatClient,
+        client: AzureOpenAIResponsesClient,
         instructions: str,
         config: AgentConfig,
         all_tools: list,
@@ -613,13 +615,8 @@ class SapAgentFactory:
         middleware: list,
         context_providers: list,
     ) -> Any:
-        """Build a HandoffBuilder workflow with autonomous specialists.
-
-        - **Coordinator**: Reads the request, identifies the system,
-          then routes to the right specialist.
-        - **Specialists**: Built from ``config.specialists`` — each
-          has its own prompt modules and role prompt.
-
+        """
+        Build a HandoffBuilder workflow with autonomous specialists.
         Each specialist iterates autonomously until done, then
         hands back to the coordinator for the final response.
 
@@ -646,6 +643,7 @@ class SapAgentFactory:
                 middleware=middleware,
                 function_invocation_configuration=func_config,
                 compaction_strategy=compaction,
+                context_providers=context_providers,
             )
             specialists.append(agent)
 

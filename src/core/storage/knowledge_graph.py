@@ -6,9 +6,11 @@
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
-_GRAPH_SCHEMA = """
+from src.core.storage.staf_store import StafStore
+
+GRAPH_SCHEMA = """
 CREATE TABLE IF NOT EXISTS knowledge_edges (
     source_id   TEXT NOT NULL,
     target_id   TEXT NOT NULL,
@@ -27,51 +29,38 @@ CREATE INDEX IF NOT EXISTS idx_edges_type
     ON knowledge_edges(edge_type);
 """
 
-# Valid relationship types from Section 7.4
 VALID_EDGE_TYPES = frozenset({"causes", "caused_by", "related_to", "supersedes", "prerequisite"})
-
-# EMA smoothing factor: new = alpha * observed + (1 - alpha) * old
 _EMA_ALPHA = 0.3
 
 
-def _now_iso() -> str:
-    """Current UTC timestamp as ISO-8601 string."""
-    return datetime.now(timezone.utc).isoformat()
-
-
 class KnowledgeGraph:
-    """SQLite-backed directed graph of pattern relationships.
+    """Pattern relationship graph backed by ``StafStore``."""
 
-    Stores causal chains, co-occurrence links, and prerequisite
-    orderings between knowledge patterns. Strength is updated via
-    exponential moving average (EMA) to prevent spurious
-    co-occurrences from skewing scores.
+    SCHEMA = GRAPH_SCHEMA
 
-    :param db_path: Path to the SQLite database file.
-    """
-
-    def __init__(self, db_path: Path | str = "data/knowledge.db") -> None:
-        """Initialize the knowledge graph.
-
-        :param db_path: Path to SQLite database file. Use ``:memory:``
-            for in-memory testing.
-        """
-        self.db_path = str(db_path)
-        if self.db_path != ":memory:":
-            Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-
-        self._conn = sqlite3.connect(
-            self.db_path,
-            isolation_level="DEFERRED",
-            check_same_thread=False,
-        )
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA busy_timeout=5000")
-        self._conn.executescript(_GRAPH_SCHEMA)
+    def __init__(
+        self,
+        db: Optional[StafStore] = None,
+        *,
+        db_path: Optional[Union[Path, str]] = None,
+    ) -> None:
+        if db is None:
+            if db_path is None:
+                raise ValueError("Either db or db_path must be provided")
+            db = StafStore(db_path)
+            self._owns_db = True
+        else:
+            self._owns_db = False
+        self._db = db
+        self._conn = db.conn
+        db.register_schema(self.SCHEMA)
+        if self._owns_db:
+            db.sync()
 
     def close(self) -> None:
-        """Close the database connection."""
-        self._conn.close()
+        """Close the underlying database if this store owns it."""
+        if self._owns_db:
+            self._db.close()
 
     def add_edge(
         self,
@@ -96,7 +85,7 @@ class KnowledgeGraph:
             )
 
         existing = self._get_edge(source_id, target_id, edge_type)
-        now = _now_iso()
+        now = self._db.dt_to_iso(datetime.now(timezone.utc))
 
         if existing is not None:
             self.update_strength(source_id, target_id, edge_type, strength)
@@ -142,7 +131,7 @@ class KnowledgeGraph:
                    AND edge_type = ?""",
                 (
                     new_strength,
-                    _now_iso(),
+                    self._db.dt_to_iso(datetime.now(timezone.utc)),
                     source_id,
                     target_id,
                     edge_type,
@@ -187,17 +176,6 @@ class KnowledgeGraph:
             "WHERE (source_id = ? OR target_id = ?) "
             "AND edge_type = 'related_to'",
             (pattern_id, pattern_id),
-        )
-
-    def get_prerequisites(self, pattern_id: str) -> List[dict]:
-        """Get patterns that are prerequisites for the given pattern.
-
-        :param pattern_id: Pattern that depends on others.
-        :returns: List of prerequisite edge dicts.
-        """
-        return self._query_edges(
-            "SELECT * FROM knowledge_edges " "WHERE target_id = ? AND edge_type = 'prerequisite'",
-            (pattern_id,),
         )
 
     def get_all_edges(self, pattern_id: str) -> List[dict]:

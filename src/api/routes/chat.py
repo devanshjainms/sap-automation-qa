@@ -65,7 +65,6 @@ def _detail(conv: Conversation) -> dict[str, Any]:
     data = conv.model_dump(mode="json", exclude={"metadata"})
 
     enriched_messages: list[dict[str, Any]] = []
-    # Collect tool results keyed by call_id for pairing with function_calls.
     results_by_id: dict[str, str] = {}
     for af_dict in conv.messages:
         for c in af_dict.get("contents", []):
@@ -79,10 +78,7 @@ def _detail(conv: Conversation) -> dict[str, Any]:
         role = af_dict.get("role", "")
         contents = af_dict.get("contents", [])
 
-        # Build a simplified message dict for the API response.
-        text_parts = [
-            c.get("text", "") for c in contents if c.get("type") == "text"
-        ]
+        text_parts = [c.get("text", "") for c in contents if c.get("type") == "text"]
         msg_out: dict[str, Any] = {
             "id": af_dict.get("_id", ""),
             "role": role,
@@ -113,8 +109,6 @@ def _detail(conv: Conversation) -> dict[str, Any]:
             if tool_calls:
                 msg_out["toolCalls"] = tool_calls
 
-        # Skip tool-role messages from the top-level list (results
-        # are already paired with their function_call parts above).
         if role == "tool":
             continue
 

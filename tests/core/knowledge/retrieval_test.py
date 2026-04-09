@@ -497,9 +497,7 @@ class TestProtocolConformance:
 class TestSearchEvidenceDefinitions:
     """Tests for evidence definition search and scoring."""
 
-    def test_keyword_ranking(
-        self, store: KnowledgeStore, retriever: HybridRetriever
-    ) -> None:
+    def test_keyword_ranking(self, store: KnowledgeStore, retriever: HybridRetriever) -> None:
         """Evidence definitions matching query keywords rank higher."""
         store.save_evidence_definition(
             EvidenceCollectorDef(
@@ -527,24 +525,16 @@ class TestSearchEvidenceDefinitions:
         self, store: KnowledgeStore, retriever: HybridRetriever
     ) -> None:
         """Empty query returns all definitions with relevance=1.0."""
-        store.save_evidence_definition(
-            EvidenceCollectorDef(id="EC-1", name="a")
-        )
-        store.save_evidence_definition(
-            EvidenceCollectorDef(id="EC-2", name="b")
-        )
+        store.save_evidence_definition(EvidenceCollectorDef(id="EC-1", name="a"))
+        store.save_evidence_definition(EvidenceCollectorDef(id="EC-2", name="b"))
         results = retriever.search_evidence_definitions(query="")
         assert len(results) == 2
         assert all(r.relevance == 1.0 for r in results)
 
-    def test_limit(
-        self, store: KnowledgeStore, retriever: HybridRetriever
-    ) -> None:
+    def test_limit(self, store: KnowledgeStore, retriever: HybridRetriever) -> None:
         """Limit parameter caps results."""
         for i in range(10):
-            store.save_evidence_definition(
-                EvidenceCollectorDef(id=f"EC-{i}", name=f"def {i}")
-            )
+            store.save_evidence_definition(EvidenceCollectorDef(id=f"EC-{i}", name=f"def {i}"))
         results = retriever.search_evidence_definitions(limit=3)
         assert len(results) == 3
 
@@ -603,9 +593,7 @@ class TestSearchEvidenceDefinitions:
 class TestSearchReferences:
     """Tests for reference search and category filtering."""
 
-    def test_keyword_ranking(
-        self, store: KnowledgeStore, retriever: HybridRetriever
-    ) -> None:
+    def test_keyword_ranking(self, store: KnowledgeStore, retriever: HybridRetriever) -> None:
         """References matching query rank higher."""
         store.save_reference(
             Reference(
@@ -630,16 +618,10 @@ class TestSearchReferences:
         assert results[0].item_id == "REF-SBD"
         assert results[0].relevance > results[1].relevance
 
-    def test_category_filter(
-        self, store: KnowledgeStore, retriever: HybridRetriever
-    ) -> None:
+    def test_category_filter(self, store: KnowledgeStore, retriever: HybridRetriever) -> None:
         """Category filter restricts to matching references."""
-        store.save_reference(
-            Reference(id="LOG-1", title="Pacemaker Log", category="log_file")
-        )
-        store.save_reference(
-            Reference(id="DOC-1", title="Azure Doc", category="azure_doc")
-        )
+        store.save_reference(Reference(id="LOG-1", title="Pacemaker Log", category="log_file"))
+        store.save_reference(Reference(id="DOC-1", title="Azure Doc", category="azure_doc"))
         results = retriever.search_references(category="log_file")
         assert len(results) == 1
         assert results[0].item_id == "LOG-1"
@@ -675,19 +657,13 @@ class TestSearchReferences:
                 tags=["kernel", "dmesg"],
             )
         )
-        results = retriever.search_references(
-            query="FENCING_NOT_TRIGGERED azure"
-        )
+        results = retriever.search_references(query="FENCING_NOT_TRIGGERED azure")
         assert results[0].item_id == "REF-FENCE"
 
-    def test_limit(
-        self, store: KnowledgeStore, retriever: HybridRetriever
-    ) -> None:
+    def test_limit(self, store: KnowledgeStore, retriever: HybridRetriever) -> None:
         """Limit parameter caps results."""
         for i in range(10):
-            store.save_reference(
-                Reference(id=f"R-{i}", title=f"ref {i}", category="log_file")
-            )
+            store.save_reference(Reference(id=f"R-{i}", title=f"ref {i}", category="log_file"))
         results = retriever.search_references(limit=5)
         assert len(results) == 5
 

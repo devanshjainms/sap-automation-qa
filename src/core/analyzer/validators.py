@@ -18,11 +18,6 @@ from src.core.models.validators import ValidatorResult, ValidatorType
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Validation strategy functions — one per ValidatorType
-# ---------------------------------------------------------------------------
-
-
 def _exact_match(actual: Any, spec: ValidatorSpec, rule_id: str) -> ValidatorResult:
     """Check whether actual value matches expected exactly.
 
@@ -161,7 +156,6 @@ def _custom_check(actual: Any, spec: ValidatorSpec, rule_id: str) -> ValidatorRe
     )
 
 
-# Strategy dispatch table
 _STRATEGIES: dict[
     ValidatorType,
     Callable[[Any, ValidatorSpec, str], ValidatorResult],
@@ -173,11 +167,6 @@ _STRATEGIES: dict[
     ValidatorType.PRESENCE: _presence_check,
     ValidatorType.CUSTOM: _custom_check,
 }
-
-
-# ---------------------------------------------------------------------------
-# RuleValidator — the public interface
-# ---------------------------------------------------------------------------
 
 
 class RuleValidator:

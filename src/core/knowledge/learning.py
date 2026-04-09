@@ -23,23 +23,14 @@ from src.core.models.knowledge import (
 
 _log = logging.getLogger(__name__)
 
-# Similarity thresholds for consolidation (Section 7.2.1)
 _NEAR_DUPLICATE_THRESHOLD = 0.95
 _RELATED_THRESHOLD = 0.85
-
-# Default confidence for newly extracted patterns
 _INITIAL_CONFIDENCE = 0.3
-
-# Outcome-weighted confidence adjustments (Section 7.2.1 CBR Revise)
 _BOOST_FULL = 0.10
 _BOOST_HALF = 0.05
 _PENALTY = -0.08
-
-# Age-based confidence decay: 0.02 per 30-day period (Section 7.2.1)
 _DECAY_PER_MONTH = 0.02
 _DECAY_PERIOD_DAYS = 30.0
-
-# Minimum confidence floor after decay
 _CONFIDENCE_FLOOR = 0.05
 
 

@@ -32,6 +32,7 @@ from src.core.models.embedding import EmbeddingProvider
 from src.core.models.knowledge import EvidenceCollectorDef
 from src.core.models.triage import TriageSession
 from src.core.services.scheduler import SchedulerService
+from src.core.storage.staf_store import StafStore
 from src.core.storage.embedding_store import EmbeddingStore
 from src.core.storage.job_store import JobStore
 from src.core.storage.knowledge_graph import KnowledgeGraph
@@ -161,10 +162,12 @@ def _init_shared_context() -> SapContext:
     artifact_dir = DATA_DIR / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    job_store = JobStore(db_path=DATA_DIR / "scheduler.db")
-    knowledge_store = KnowledgeStore(db_path=DATA_DIR / "knowledge.db")
-    schedule_store = ScheduleStore(db_path=DATA_DIR / "scheduler.db")
-    knowledge_graph = KnowledgeGraph(db_path=DATA_DIR / "knowledge.db")
+    staf_db = StafStore(DATA_DIR / "staf.db")
+    job_store = JobStore(db=staf_db)
+    schedule_store = ScheduleStore(db=staf_db)
+    knowledge_store = KnowledgeStore(db=staf_db)
+    knowledge_graph = KnowledgeGraph(db=staf_db)
+    staf_db.sync()
 
     loader = JsonlLoader(base_dir=SEED_DIR)
     seed_defs = loader.load_directory("evidence", EvidenceCollectorDef)
@@ -214,7 +217,7 @@ def _init_shared_context() -> SapContext:
             logger.info("Embedding provider: Ollama (%s @ %s)", ollama_model, ollama_url)
 
         embedding_store = EmbeddingStore(
-            db_path=DATA_DIR / "embeddings.db",
+            db=staf_db,
             dimensions=embedding_provider.dimensions,
         )
     except Exception:

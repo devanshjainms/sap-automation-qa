@@ -29,11 +29,6 @@ from src.core.models.triage import TriageSession
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Protocol
-# ---------------------------------------------------------------------------
-
-
 @runtime_checkable
 class TriageExecutorProtocol(Protocol):
     """Interface for triage evidence collection.
@@ -53,11 +48,6 @@ class TriageExecutorProtocol(Protocol):
         :returns: List of collected artifacts.
         """
         ...
-
-
-# ---------------------------------------------------------------------------
-# Artifact persistence
-# ---------------------------------------------------------------------------
 
 
 class ArtifactWriter:
@@ -116,11 +106,6 @@ class ArtifactWriter:
         if not session_dir.exists():
             return []
         return [p.stem for p in session_dir.glob("*.json")]
-
-
-# ---------------------------------------------------------------------------
-# TriageExecutor
-# ---------------------------------------------------------------------------
 
 
 class TriageExecutor:

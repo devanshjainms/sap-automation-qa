@@ -667,9 +667,7 @@ class TestListEvidenceCatalog:
             ),
         ]
         ctx = _make_ctx(sap_context)
-        result = await TriageAnalyzerTools.list_evidence_catalog(
-            category="pacemaker", ctx=ctx
-        )
+        result = await TriageAnalyzerTools.list_evidence_catalog(category="pacemaker", ctx=ctx)
 
         assert result["total"] == 1
         assert result["definitions"][0]["id"] == "EC-CLUSTER-MON-0001"
@@ -779,9 +777,7 @@ class TestRunEvidenceCollector:
         mock_artifact.metadata = {"return_code": 0}
 
         ctx = _make_ctx(sap_context)
-        with patch(
-            "src.mcp_server.tools.triage_analyzer.SshCollectorStrategy"
-        ) as mock_ssh:
+        with patch("src.mcp_server.tools.triage_analyzer.SshCollectorStrategy") as mock_ssh:
             mock_ssh.return_value.collect.return_value = mock_artifact
             result = await TriageAnalyzerTools.run_evidence_collector(
                 workspace_id="WS_A",

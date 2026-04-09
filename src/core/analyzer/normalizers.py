@@ -12,16 +12,11 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Mapping, Optional, Protocol, runtime_checkable
 
 from src.core.models.evidence import EvidenceArtifact
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# NormalizedData — the output of every normalizer
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -56,11 +51,6 @@ class NormalizedData:
         return parameter in self.values
 
 
-# ---------------------------------------------------------------------------
-# Normalizer protocol
-# ---------------------------------------------------------------------------
-
-
 @runtime_checkable
 class Normalizer(Protocol):
     """Protocol for an evidence normalizer.
@@ -75,11 +65,6 @@ class Normalizer(Protocol):
         :returns: Structured key-value data.
         """
         ...
-
-
-# ---------------------------------------------------------------------------
-# SysctlNormalizer — parses `sysctl -a` output
-# ---------------------------------------------------------------------------
 
 
 class SysctlNormalizer:
@@ -107,11 +92,6 @@ class SysctlNormalizer:
             evidence_id=artifact.evidence_id,
             host=artifact.host,
         )
-
-
-# ---------------------------------------------------------------------------
-# CibXmlNormalizer — parses Pacemaker CIB XML
-# ---------------------------------------------------------------------------
 
 
 class CibXmlNormalizer:
@@ -217,10 +197,6 @@ class CibXmlNormalizer:
         return None
 
 
-# ---------------------------------------------------------------------------
-# CibSectionNormalizer — extracts one CIB section, strips key prefixes
-# ---------------------------------------------------------------------------
-
 _CIB_SECTION_PREFIXES: dict[str, str] = {
     "crm_config": "crm_config",
     "op_defaults": "op_defaults",
@@ -278,11 +254,6 @@ class CibSectionNormalizer:
         )
 
 
-# ---------------------------------------------------------------------------
-# KeyValueNormalizer — generic key=value or key: value parser
-# ---------------------------------------------------------------------------
-
-
 class KeyValueNormalizer:
     """Parses generic key-value output (corosync-cmapctl, global.ini, etc.).
 
@@ -315,11 +286,6 @@ class KeyValueNormalizer:
             evidence_id=artifact.evidence_id,
             host=artifact.host,
         )
-
-
-# ---------------------------------------------------------------------------
-# LogNormalizer — extracts structured entries from log lines
-# ---------------------------------------------------------------------------
 
 
 class LogNormalizer:
@@ -361,11 +327,6 @@ class LogNormalizer:
         ]
 
 
-# ---------------------------------------------------------------------------
-# NormalizerRegistry — maps source names to normalizer instances
-# ---------------------------------------------------------------------------
-
-
 class NormalizerRegistry:
     """Registry mapping validator source names to normalizer instances.
 
@@ -388,7 +349,7 @@ class NormalizerRegistry:
     def register_group(
         self,
         sources: list[str],
-        normalizers: dict[str, Normalizer],
+        normalizers: Mapping[str, Normalizer],
     ) -> None:
         """Register normalizers for a group of related sources.
 

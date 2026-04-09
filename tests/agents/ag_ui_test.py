@@ -43,9 +43,7 @@ class TestSapWorkflowExtractUserText:
         assert SapWorkflow._extract_user_text({"messages": []}) == ""
 
     def test_no_user_messages(self):
-        input_data = {
-            "messages": [{"role": "assistant", "content": "hi"}]
-        }
+        input_data = {"messages": [{"role": "assistant", "content": "hi"}]}
         assert SapWorkflow._extract_user_text(input_data) == ""
 
 

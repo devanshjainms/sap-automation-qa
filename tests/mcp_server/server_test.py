@@ -438,7 +438,6 @@ class TestCollectEvidenceTool:
             assert d.command
             assert d.collector_type == CollectorType.SSH
 
-
     @pytest.mark.asyncio
     async def test_filters_ha_definitions_for_non_ha_workspace(
         self, sap_context: SapContext, tmp_workspaces: Path

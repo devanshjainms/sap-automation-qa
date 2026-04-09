@@ -1,12 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import {
-  Card,
-  Text,
-  Spinner,
-  mergeClasses,
-} from "@fluentui/react-components";
+import { Card, Text, Spinner, mergeClasses } from "@fluentui/react-components";
 import { getHealth } from "../lib/api";
 import { useApi } from "../hooks/useApi";
 import type { HealthComponent } from "../lib/types";
@@ -28,7 +23,13 @@ export function Status() {
 
   return (
     <div className={classes.page}>
-      <Text as="h1" size={600} weight="semibold" className={classes.heading} block>
+      <Text
+        as="h1"
+        size={600}
+        weight="semibold"
+        className={classes.heading}
+        block
+      >
         Service Status
       </Text>
 
@@ -39,10 +40,10 @@ export function Status() {
           {SERVICE_KEYS.map((key) => {
             const comp: HealthComponent = error
               ? { status: "unhealthy", detail: "Backend unreachable" }
-              : health?.components?.[key] ?? {
+              : (health?.components?.[key] ?? {
                   status: "unconfigured",
                   detail: "Not reported",
-                };
+                });
             const dotClass =
               comp.status === "healthy"
                 ? classes.dotHealthy

@@ -258,6 +258,3 @@ class TestAgentExceptionMiddleware:
         assert "Traceback" not in response_text
         assert "/app/foo.py" not in response_text
         assert "sorry" in response_text.lower()
-
-
-

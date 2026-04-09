@@ -5,10 +5,6 @@
  * Chat component using CopilotKit's built-in ``CopilotChat`` for message
  * handling and tool-call rendering.  ``useDefaultRenderTool`` enables
  * CopilotKit's native expandable tool-call cards for all backend tools.
- *
- * Historical messages are loaded from the REST API on mount and fed to
- * CopilotKit via ``agent.setMessages()``.  AG-UI handles only real-time
- * agent execution — it is not responsible for fetching conversation history.
  */
 
 import {
@@ -20,16 +16,147 @@ import {
   useDefaultRenderTool,
 } from "@copilotkit/react-core/v2";
 import type { Message as AGMessage } from "@ag-ui/core";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getConversation } from "../../lib/api";
 import type { Message } from "../../lib/types";
+import { addOptimisticConversation } from "../../lib/conversationEvents";
 import { useStyles } from "../../styles/headlessChat.styles";
 
 const sapAgent = new HttpAgent({
   url: "/ag-ui",
   agentId: "sap-agent",
 });
+
+interface ReasoningMsg {
+  id: string;
+  content?: string;
+}
+
+function ReasoningMessage({
+  message,
+  messages,
+  isRunning,
+}: {
+  message: ReasoningMsg;
+  messages: ReasoningMsg[];
+  isRunning: boolean;
+}) {
+  const isLatest = messages?.[messages.length - 1]?.id === message.id;
+  const isStreaming = !!(isRunning && isLatest);
+  const hasContent = !!(message.content && message.content.length > 0);
+  const [open, setOpen] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isStreaming && startRef.current === null) startRef.current = Date.now();
+    if (!isStreaming && startRef.current !== null) {
+      setElapsed((Date.now() - startRef.current) / 1000);
+      return;
+    }
+    if (!isStreaming) return;
+    const t = setInterval(() => {
+      if (startRef.current !== null)
+        setElapsed((Date.now() - startRef.current) / 1000);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [isStreaming]);
+
+  useEffect(() => {
+    if (isStreaming) setOpen(true);
+    else setOpen(false);
+  }, [isStreaming]);
+
+  if (!hasContent && !isStreaming) return null;
+
+  const secs = Math.round(elapsed);
+  const label = isStreaming
+    ? "Thinking…"
+    : `Thought for ${secs < 1 ? "a moment" : secs === 1 ? "1 second" : `${secs} seconds`}`;
+
+  return (
+    <div style={{ margin: "4px 0" }}>
+      <button
+        type="button"
+        onClick={() => hasContent && setOpen((p) => !p)}
+        style={{
+          all: "unset",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          fontSize: 13,
+          color: "var(--muted-foreground, #888)",
+          cursor: hasContent ? "pointer" : "default",
+          userSelect: "none",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: isStreaming
+              ? "var(--primary, #0f6cbd)"
+              : "var(--muted-foreground, #888)",
+            animation: isStreaming ? "pulse-dot 1.2s infinite" : "none",
+          }}
+        />
+        <span>{label}</span>
+        {hasContent && (
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            style={{
+              transition: "transform 150ms",
+              transform: open ? "rotate(90deg)" : "rotate(0deg)",
+            }}
+          >
+            <path
+              d="M6 4l4 4-4 4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              fill="none"
+            />
+          </svg>
+        )}
+      </button>
+      {open && hasContent && (
+        <div
+          style={{
+            marginTop: 4,
+            paddingLeft: 14,
+            fontSize: 12,
+            lineHeight: 1.5,
+            color: "var(--muted-foreground, #888)",
+            whiteSpace: "pre-wrap",
+            overflowWrap: "break-word",
+            borderLeft: "2px solid var(--border, #e0e0e0)",
+          }}
+        >
+          {message.content}
+          {isStreaming && (
+            <span
+              style={{
+                display: "inline-block",
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: "var(--muted-foreground, #888)",
+                marginLeft: 4,
+                verticalAlign: "middle",
+                animation: "pulse-dot 1.2s infinite",
+              }}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Convert REST API messages to AG-UI message format for CopilotKit.
@@ -44,7 +171,6 @@ function toAgMessages(messages: Message[]): AGMessage[] {
       continue;
     }
 
-    // No parts → simple text-only assistant message (legacy / plain).
     if (!msg.parts?.length) {
       result.push({
         id: msg.id,
@@ -54,18 +180,15 @@ function toAgMessages(messages: Message[]): AGMessage[] {
       continue;
     }
 
-    // Walk parts in order, grouping text + following tool call.
     let pendingText = "";
     for (const part of msg.parts) {
       if (part.type === "text") {
-        // Accumulate text until we hit a tool call or the end.
         pendingText += (pendingText ? "\n\n" : "") + part.content;
       } else if (part.type === "tool_call") {
         const tcId = `${msg.id}-tc-${seq}`;
         const trId = `${msg.id}-tr-${seq}`;
         seq++;
 
-        // Emit assistant message with accumulated text + this tool call.
         result.push({
           id: `${msg.id}-a-${seq}`,
           role: "assistant",
@@ -83,7 +206,6 @@ function toAgMessages(messages: Message[]): AGMessage[] {
         } as AGMessage);
         pendingText = "";
 
-        // Emit tool result.
         result.push({
           id: trId,
           role: "tool",
@@ -93,7 +215,6 @@ function toAgMessages(messages: Message[]): AGMessage[] {
       }
     }
 
-    // Trailing text after the last tool call.
     if (pendingText) {
       result.push({
         id: `${msg.id}-tail`,
@@ -105,38 +226,42 @@ function toAgMessages(messages: Message[]): AGMessage[] {
   return result;
 }
 
-/* ── Inner chat (must be inside CopilotKit) ────────────── */
-
 function SapChatInner() {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const classes = useStyles();
   const { agent } = useAgent({ agentId: "sap-agent" });
 
-  /* CopilotKit built-in tool card — clickable, expandable. Dark mode via CSS. */
   useDefaultRenderTool();
 
-  /* ── Streaming diagnostic: log every message update ── */
-  const renderCountRef = useRef(0);
+  const emittedRef = useRef<string | null>(null);
   useEffect(() => {
     const sub = agent.subscribe({
       onMessagesChanged: ({ messages }) => {
-        renderCountRef.current++;
-        const last = messages[messages.length - 1];
-        const contentLen =
-          last && "content" in last && typeof last.content === "string"
-            ? last.content.length
-            : 0;
-        console.log(
-          `[SSE-DIAG] #${renderCountRef.current} msgs=${messages.length} ` +
-            `lastRole=${last?.role ?? "?"} contentLen=${contentLen} ` +
-            `t=${Date.now()}`,
-        );
+        if (emittedRef.current) return;
+        const firstUser = messages.find((m: any) => m.role === "user");
+        if (!firstUser) return;
+        const threadId = agent.threadId;
+        if (!threadId) return;
+        if (conversationId === threadId) return;
+        emittedRef.current = threadId;
+        const preview =
+          typeof firstUser.content === "string"
+            ? firstUser.content.slice(0, 60)
+            : "New chat";
+        addOptimisticConversation({
+          id: threadId,
+          title: preview,
+          status: "active",
+          workspace_id: "",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          message_count: 1,
+        });
       },
     });
     return () => sub.unsubscribe();
-  }, [agent]);
+  }, [agent, conversationId]);
 
-  /* Load historical messages from the REST API when resuming a thread */
   useEffect(() => {
     if (!conversationId) return;
     let cancelled = false;
@@ -144,8 +269,6 @@ function SapChatInner() {
       .then((conv) => {
         if (cancelled) return;
         if (!conv.messages?.length) {
-          // No messages yet — don't call setMessages so CopilotKit
-          // shows the welcome state instead of an empty chat.
           return;
         }
         const agMsgs = toAgMessages(conv.messages);
@@ -153,16 +276,12 @@ function SapChatInner() {
           agent.setMessages(agMsgs);
         }
       })
-      .catch((err) => {
-        if (!cancelled) {
-          // 404 = conversation deleted or from previous DB; ignore.
-          console.warn("Could not load conversation history:", err);
-        }
-      });
-    return () => { cancelled = true; };
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [conversationId, agent]);
 
-  /* Provide app context to the agent */
   useAgentContext({
     description: "Current SAP workspace context",
     value: conversationId
@@ -176,18 +295,18 @@ function SapChatInner() {
         agentId="sap-agent"
         threadId={conversationId}
         className="copilot-chat-fullpage"
+        messageView={{
+          reasoningMessage: ReasoningMessage as any,
+        }}
         labels={{
           modalHeaderTitle: "SAP Assistant",
-          welcomeMessageText:
-            "How can I help you with your SAP systems today?",
+          welcomeMessageText: "How can I help you with your SAP systems today?",
           chatInputPlaceholder: "Ask about SAP systems...",
         }}
       />
     </div>
   );
 }
-
-/* ── Exported wrapper — owns provider ───────────────────── */
 
 export function SapChat() {
   const { conversationId } = useParams<{ conversationId?: string }>();

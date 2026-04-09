@@ -83,7 +83,7 @@ def _tail_file(
         with open(path, "r", encoding="utf-8") as fh:
             if size > max_chars:
                 fh.seek(size - max_chars)
-                fh.readline()  # skip partial line
+                fh.readline()
             return fh.read().strip()
     except OSError:
         return ""

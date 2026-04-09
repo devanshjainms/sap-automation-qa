@@ -97,12 +97,6 @@ class TestKnowledgeGraphQueries:
         partner_ids = {e["source_id"] if e["target_id"] == "D" else e["target_id"] for e in related}
         assert "A" in partner_ids
 
-    def test_get_prerequisites(self, graph: KnowledgeGraph) -> None:
-        """Verify prerequisite query."""
-        prereqs = graph.get_prerequisites("A")
-        source_ids = {e["source_id"] for e in prereqs}
-        assert "E" in source_ids
-
     def test_get_all_edges(self, graph: KnowledgeGraph) -> None:
         """Verify all_edges returns all edges for a pattern."""
         # A has: causes->B, related_to->D, and E->prerequisite->A

@@ -2,11 +2,7 @@
 // Licensed under the MIT License.
 
 import { useNavigate } from "react-router-dom";
-import {
-  Button,
-  Text,
-  Tooltip,
-} from "@fluentui/react-components";
+import { Button, Text, Tooltip } from "@fluentui/react-components";
 import {
   Add24Regular,
   WeatherMoon24Regular,
@@ -69,7 +65,9 @@ export function Header() {
             size="small"
             icon={<Wrench20Regular />}
             className={classes.themeBtn}
-            onClick={() => window.open(DEVUI_URL, "_blank", "noopener,noreferrer")}
+            onClick={() =>
+              window.open(DEVUI_URL, "_blank", "noopener,noreferrer")
+            }
           />
         </Tooltip>
         <Tooltip

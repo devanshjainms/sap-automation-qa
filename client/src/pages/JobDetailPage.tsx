@@ -3,12 +3,7 @@
 
 import { useParams } from "react-router-dom";
 import { useCallback, useState } from "react";
-import {
-  Button,
-  Text,
-  Card,
-  Spinner,
-} from "@fluentui/react-components";
+import { Button, Text, Card, Spinner } from "@fluentui/react-components";
 import {
   ArrowLeft24Regular,
   ArrowClockwise24Regular,
@@ -22,10 +17,12 @@ import { useStyles } from "../styles/jobDetailPage.styles";
 
 export function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: job, loading, error, refetch } = useApi(
-    () => getJob(id!),
-    [id],
-  );
+  const {
+    data: job,
+    loading,
+    error,
+    refetch,
+  } = useApi(() => getJob(id!), [id]);
   const [log, setLog] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const classes = useStyles();
@@ -57,7 +54,10 @@ export function JobDetailPage() {
           appearance="subtle"
           icon={<ArrowLeft24Regular />}
           href="/jobs"
-          onClick={(e) => { e.preventDefault(); window.location.href = "/jobs"; }}
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.href = "/jobs";
+          }}
           size="small"
         >
           Jobs
@@ -69,20 +69,34 @@ export function JobDetailPage() {
       </div>
 
       <Card className={classes.meta}>
-        <MetaField label="Workspace" value={job.workspace_id} classes={classes} />
+        <MetaField
+          label="Workspace"
+          value={job.workspace_id}
+          classes={classes}
+        />
         <MetaField label="Playbook" value={job.playbook} classes={classes} />
-        <MetaField label="Created" value={new Date(job.created_at).toLocaleString()} classes={classes} />
+        <MetaField
+          label="Created"
+          value={new Date(job.created_at).toLocaleString()}
+          classes={classes}
+        />
         <MetaField
           label="Started"
-          value={job.started_at ? new Date(job.started_at).toLocaleString() : "—"}
+          value={
+            job.started_at ? new Date(job.started_at).toLocaleString() : "—"
+          }
           classes={classes}
         />
         <MetaField
           label="Completed"
-          value={job.completed_at ? new Date(job.completed_at).toLocaleString() : "—"}
+          value={
+            job.completed_at ? new Date(job.completed_at).toLocaleString() : "—"
+          }
           classes={classes}
         />
-        {job.error && <MetaField label="Error" value={job.error} classes={classes} />}
+        {job.error && (
+          <MetaField label="Error" value={job.error} classes={classes} />
+        )}
       </Card>
 
       <div className={classes.actions}>
@@ -112,7 +126,9 @@ export function JobDetailPage() {
         </Button>
       </div>
 
-      {log !== null && <div className={classes.logBox}>{log || "(empty log)"}</div>}
+      {log !== null && (
+        <div className={classes.logBox}>{log || "(empty log)"}</div>
+      )}
     </div>
   );
 }
@@ -128,11 +144,7 @@ function MetaField({
 }) {
   return (
     <div>
-      <Text
-        size={100}
-        weight="semibold"
-        className={classes.fieldLabel}
-      >
+      <Text size={100} weight="semibold" className={classes.fieldLabel}>
         {label.toUpperCase()}
       </Text>
       <Text size={300}>{value}</Text>

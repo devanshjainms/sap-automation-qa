@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 from fastapi import FastAPI
 from ag_ui.core.events import (
     BaseEvent,
+    MessagesSnapshotEvent,
     ReasoningMessageStartEvent,
     TextMessageContentEvent,
     ToolCallArgsEvent,
@@ -78,6 +79,8 @@ class SapWorkflow(AgentFrameworkWorkflow):
 
         if self._store and thread_id:
             self._ensure_conversation(thread_id)
+            if user_text:
+                self._save_user_message(thread_id, user_text)
 
         input_data = self._sanitize_messages(input_data)
 
@@ -109,12 +112,16 @@ class SapWorkflow(AgentFrameworkWorkflow):
         tool_call_args: dict[str, list[str]] = {}
 
         async for event in delegate.run(input_data):
+            if isinstance(event, MessagesSnapshotEvent):
+                continue
+
             if isinstance(event, ReasoningMessageStartEvent):
-                yield ReasoningMessageStartEvent.model_construct(
+                event = ReasoningMessageStartEvent.model_construct(
                     type="REASONING_MESSAGE_START",
                     message_id=event.message_id,
                     role="reasoning",
                 )
+                yield event
                 continue
 
             if isinstance(event, ToolCallStartEvent):
@@ -160,11 +167,9 @@ class SapWorkflow(AgentFrameworkWorkflow):
             [tc["name"] for tc in completed_tools] or "none",
         )
         if self._store and thread_id:
-            if user_text:
-                self._save_user_message(thread_id, user_text)
             if ordered_parts:
                 self._save_assistant_message(thread_id, ordered_parts, completed_tools)
-            if user_text:
+            if user_text and self._needs_title(thread_id):
                 asyncio.create_task(
                     self._factory._generate_title(user_text),
                 ).add_done_callback(lambda fut: self._apply_title(thread_id, fut))
@@ -183,15 +188,29 @@ class SapWorkflow(AgentFrameworkWorkflow):
                     tool_ids.add(tc_id)
         clean: list[dict[str, Any]] = []
         for msg in messages:
-            if msg.get("role") == "assistant" and msg.get("toolCalls"):
-                matched = [tc for tc in msg["toolCalls"] if tc.get("id") in tool_ids]
-                if matched:
-                    clean.append({**msg, "toolCalls": matched})
+            if msg.get("role") == "assistant":
+                tc_key = "toolCalls" if "toolCalls" in msg else "tool_calls"
+                tool_calls = msg.get(tc_key)
+                if tool_calls:
+                    matched = [tc for tc in tool_calls if tc.get("id") in tool_ids]
+                    if matched:
+                        clean.append({**msg, tc_key: matched})
+                    else:
+                        clean.append({k: v for k, v in msg.items() if k != tc_key})
                 else:
-                    clean.append({k: v for k, v in msg.items() if k != "toolCalls"})
+                    clean.append(msg)
             else:
                 clean.append(msg)
         return {**input_data, "messages": clean}
+
+    def _needs_title(self, thread_id: str) -> bool:
+        """Return True if conversation has no title yet."""
+        assert self._store is not None
+        try:
+            conv = self._store.get(thread_id)
+            return conv is not None and not conv.title
+        except Exception:
+            return False
 
     def _ensure_conversation(self, thread_id: str) -> None:
         assert self._store is not None

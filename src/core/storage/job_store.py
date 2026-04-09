@@ -12,10 +12,11 @@ from uuid import UUID
 
 from src.core.models.job import Job, JobStatus
 from src.core.observability import get_logger
+from src.core.storage.staf_store import StafStore
 
 logger = get_logger(__name__)
 
-_JOBS_SCHEMA = """
+JOBS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
     id           TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
@@ -44,55 +45,37 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created
 """
 
 
-def _dt_to_iso(dt: Optional[datetime]) -> Optional[str]:
-    """Convert datetime to ISO-8601 string for SQLite storage.
-
-    :param dt: Datetime to convert.
-    :returns: ISO string or None.
-    """
-    if dt is None:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.isoformat()
-
-
 class JobStore:
-    """SQLite-backed storage for execution jobs.
+    """Jobs backed by ``StafStore``."""
 
-    Uses WAL journal mode for crash safety and concurrent
-    read performance. All writes are wrapped in transactions.
-    """
+    SCHEMA = JOBS_SCHEMA
 
     def __init__(
         self,
-        db_path: Path | str = "data/scheduler.db",
+        db: Optional[StafStore] = None,
+        *,
+        db_path: Optional[Path] = None,
     ) -> None:
-        """Initialize the job store.
-
-        :param db_path: Path to SQLite database file.
-        """
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        self._conn = sqlite3.connect(
-            str(self.db_path),
-            isolation_level="DEFERRED",
-            check_same_thread=False,
-        )
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-        self._conn.execute("PRAGMA busy_timeout=5000")
-        self._conn.executescript(_JOBS_SCHEMA)
-
-        logger.info(f"Initialized job storage at {self.db_path}")
+        if db is None:
+            if db_path is None:
+                raise ValueError("Either db or db_path must be provided")
+            db = StafStore(db_path)
+            self._owns_db = True
+        else:
+            self._owns_db = False
+        self._db = db
+        self._conn = db.conn
+        db.register_schema(self.SCHEMA)
+        if self._owns_db:
+            db.sync()
+        logger.info("Initialized job storage")
 
     def close(self) -> None:
-        """Close the database connection."""
-        self._conn.close()
+        """Close the underlying database if this store owns it."""
+        if self._owns_db:
+            self._db.close()
 
-    @staticmethod
-    def _job_to_row(job: Job) -> dict:
+    def _job_to_row(self, job: Job) -> dict:
         """Convert a Job model to a flat dict for SQLite storage."""
         return {
             "id": str(job.id),
@@ -101,9 +84,9 @@ class JobStore:
             "test_group": job.test_group,
             "test_ids": json.dumps(job.test_ids),
             "status": job.status if isinstance(job.status, str) else job.status.value,
-            "created_at": _dt_to_iso(job.created_at),
-            "started_at": _dt_to_iso(job.started_at),
-            "completed_at": _dt_to_iso(job.completed_at),
+            "created_at": self._db.dt_to_iso(job.created_at),
+            "started_at": self._db.dt_to_iso(job.started_at),
+            "completed_at": self._db.dt_to_iso(job.completed_at),
             "error": job.error,
             "result": json.dumps(job.result, default=str) if job.result else None,
             "log_file": job.log_file,
@@ -273,7 +256,10 @@ class JobStore:
             "status IN (?, ?, ?)",
             "created_at >= ?",
         ]
-        params: list = [*terminal, _dt_to_iso(datetime.now(timezone.utc) - timedelta(days=days))]
+        params: list = [
+            *terminal,
+            self._db.dt_to_iso(datetime.now(timezone.utc) - timedelta(days=days)),
+        ]
 
         if workspace_id:
             clauses.append("workspace_id = ?")

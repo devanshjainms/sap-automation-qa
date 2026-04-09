@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""Storage layer for scheduler."""
+"""Storage layer — unified ``StafStore`` with per-domain subclasses."""
 
+from src.core.storage.staf_store import StafStore
 from src.core.storage.job_store import JobStore
 from src.core.storage.schedule_store import ScheduleStore
 from src.core.storage.conversation_store import ConversationStore

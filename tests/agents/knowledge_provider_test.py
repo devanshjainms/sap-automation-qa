@@ -18,7 +18,6 @@ from src.agents.providers.knowledge_provider import (
 )
 from src.core.knowledge.retrieval import ScoredResult
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -113,9 +112,7 @@ class TestKnowledgeContextProvider:
     @pytest.mark.asyncio
     async def test_no_results_does_not_inject(self) -> None:
         retriever = _make_retriever()
-        provider = KnowledgeContextProvider(
-            retriever=retriever, user_query="HANA failover"
-        )
+        provider = KnowledgeContextProvider(retriever=retriever, user_query="HANA failover")
         context = MagicMock()
 
         await provider.before_run(
@@ -131,9 +128,7 @@ class TestKnowledgeContextProvider:
     async def test_rules_injected(self) -> None:
         rules = [_scored("rule", 0.8, name="sysctl check", severity="critical")]
         retriever = _make_retriever(rules=rules)
-        provider = KnowledgeContextProvider(
-            retriever=retriever, user_query="kernel parameters"
-        )
+        provider = KnowledgeContextProvider(retriever=retriever, user_query="kernel parameters")
         context = MagicMock()
 
         await provider.before_run(
@@ -159,9 +154,7 @@ class TestKnowledgeContextProvider:
             )
         ]
         retriever = _make_retriever(playbooks=playbooks)
-        provider = KnowledgeContextProvider(
-            retriever=retriever, user_query="node offline"
-        )
+        provider = KnowledgeContextProvider(retriever=retriever, user_query="node offline")
         context = MagicMock()
 
         await provider.before_run(
@@ -189,9 +182,7 @@ class TestKnowledgeContextProvider:
             )
         ]
         retriever = _make_retriever(patterns=patterns)
-        provider = KnowledgeContextProvider(
-            retriever=retriever, user_query="split brain"
-        )
+        provider = KnowledgeContextProvider(retriever=retriever, user_query="split brain")
         context = MagicMock()
 
         await provider.before_run(
@@ -211,9 +202,7 @@ class TestKnowledgeContextProvider:
         """Results below _MIN_SCORE are excluded."""
         rules = [_scored("rule", _MIN_SCORE - 0.01)]
         retriever = _make_retriever(rules=rules)
-        provider = KnowledgeContextProvider(
-            retriever=retriever, user_query="test"
-        )
+        provider = KnowledgeContextProvider(retriever=retriever, user_query="test")
         context = MagicMock()
 
         await provider.before_run(
@@ -231,12 +220,8 @@ class TestKnowledgeContextProvider:
         rules = [_scored("rule", 0.5)]
         playbooks = [_scored("playbook", 0.5)]
         patterns = [_scored("learned_pattern", 0.5, confidence=0.8)]
-        retriever = _make_retriever(
-            rules=rules, playbooks=playbooks, patterns=patterns
-        )
-        provider = KnowledgeContextProvider(
-            retriever=retriever, user_query="cluster"
-        )
+        retriever = _make_retriever(rules=rules, playbooks=playbooks, patterns=patterns)
+        provider = KnowledgeContextProvider(retriever=retriever, user_query="cluster")
         context = MagicMock()
 
         await provider.before_run(
@@ -255,9 +240,7 @@ class TestKnowledgeContextProvider:
     async def test_source_id_is_knowledge_context(self) -> None:
         rules = [_scored("rule", 0.5)]
         retriever = _make_retriever(rules=rules)
-        provider = KnowledgeContextProvider(
-            retriever=retriever, user_query="test"
-        )
+        provider = KnowledgeContextProvider(retriever=retriever, user_query="test")
         context = MagicMock()
 
         await provider.before_run(
@@ -282,9 +265,7 @@ class TestKnowledgeContextProvider:
             )
         ]
         retriever = _make_retriever(patterns=patterns)
-        provider = KnowledgeContextProvider(
-            retriever=retriever, user_query="test"
-        )
+        provider = KnowledgeContextProvider(retriever=retriever, user_query="test")
         context = MagicMock()
 
         await provider.before_run(

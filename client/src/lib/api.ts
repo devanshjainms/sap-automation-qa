@@ -51,20 +51,17 @@ export function cancelJob(id: string): Promise<void> {
   });
 }
 
-export function getJobLog(
-  id: string,
-  tail?: number,
-): Promise<string> {
+export function getJobLog(id: string, tail?: number): Promise<string> {
   const qs = tail ? `?tail=${tail}` : "";
-  return fetch(
-    `${BASE}/jobs/${encodeURIComponent(id)}/log${qs}`,
-  ).then((r) => r.text());
+  return fetch(`${BASE}/jobs/${encodeURIComponent(id)}/log${qs}`).then((r) =>
+    r.text(),
+  );
 }
 
 export async function listSchedules(): Promise<Schedule[]> {
-  const res = await fetchJson<{ schedules: Schedule[]; total: number } | Schedule[]>(
-    `${BASE}/schedules`,
-  );
+  const res = await fetchJson<
+    { schedules: Schedule[]; total: number } | Schedule[]
+  >(`${BASE}/schedules`);
   return Array.isArray(res) ? res : res.schedules;
 }
 
@@ -89,16 +86,15 @@ export function deleteSchedule(id: string): Promise<void> {
 }
 
 export function triggerSchedule(id: string): Promise<void> {
-  return fetchJson(
-    `${BASE}/schedules/${encodeURIComponent(id)}/trigger`,
-    { method: "POST" },
-  );
+  return fetchJson(`${BASE}/schedules/${encodeURIComponent(id)}/trigger`, {
+    method: "POST",
+  });
 }
 
 export async function listWorkspaces(): Promise<Workspace[]> {
-  const res = await fetchJson<{ workspaces: Workspace[]; total: number } | Workspace[]>(
-    `${BASE}/workspaces`,
-  );
+  const res = await fetchJson<
+    { workspaces: Workspace[]; total: number } | Workspace[]
+  >(`${BASE}/workspaces`);
   return Array.isArray(res) ? res : res.workspaces;
 }
 
@@ -110,19 +106,28 @@ export function createConversation(): Promise<Conversation> {
   });
 }
 
-export async function listConversations(workspaceId?: string): Promise<Conversation[]> {
-  const qs = workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : "";
-  const res = await fetchJson<{ conversations: Conversation[]; total: number } | Conversation[]>(
-    `${BASE}/chat${qs}`,
-  );
+export async function listConversations(
+  workspaceId?: string,
+): Promise<Conversation[]> {
+  const qs = workspaceId
+    ? `?workspace_id=${encodeURIComponent(workspaceId)}`
+    : "";
+  const res = await fetchJson<
+    { conversations: Conversation[]; total: number } | Conversation[]
+  >(`${BASE}/chat${qs}`);
   return Array.isArray(res) ? res : res.conversations;
 }
 
-export function getConversation(id: string): Promise<Conversation & { messages: Message[] }> {
+export function getConversation(
+  id: string,
+): Promise<Conversation & { messages: Message[] }> {
   return fetchJson(`${BASE}/chat/${encodeURIComponent(id)}`);
 }
 
-export function sendMessage(conversationId: string, content: string): Promise<Message> {
+export function sendMessage(
+  conversationId: string,
+  content: string,
+): Promise<Message> {
   return fetchJson<Message>(
     `${BASE}/chat/${encodeURIComponent(conversationId)}/messages`,
     {
@@ -147,6 +152,3 @@ export function saveMessage(
     },
   );
 }
-
-
-

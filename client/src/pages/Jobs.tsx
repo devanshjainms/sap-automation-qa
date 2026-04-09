@@ -39,9 +39,7 @@ export function Jobs() {
 
       {loading && <Spinner size="small" label="Loading..." />}
       {error && (
-        <Text size={300}>
-          Unable to load jobs — backend may be offline.
-        </Text>
+        <Text size={300}>Unable to load jobs — backend may be offline.</Text>
       )}
 
       <Table>

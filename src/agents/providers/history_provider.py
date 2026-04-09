@@ -13,15 +13,12 @@ import asyncio
 import logging
 from collections.abc import Callable
 from typing import Any
-
 from agent_framework import BaseHistoryProvider, AgentSession, SessionContext
 from agent_framework._types import Message as AFMessage
-
 from src.core.storage.conversation_store import ConversationStore
 
 logger = logging.getLogger(__name__)
 
-# Type alias for the async title generator function.
 TitleGenerator = Callable[[str], Any]  # async (user_text) -> str
 
 

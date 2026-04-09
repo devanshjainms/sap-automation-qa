@@ -13,7 +13,6 @@ import pytest
 from src.core.execution.ssh_cache import SshCredentialCache, _DEFAULT_TTL_SECONDS
 from src.core.models.ssh import AuthType, SshCredential
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

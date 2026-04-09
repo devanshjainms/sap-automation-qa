@@ -225,36 +225,26 @@ class TriageAnalyzerTools:
                     unknown,
                 )
         else:
-            # RAG-based selection when a query/context is provided.
             if query.strip():
                 scored = sap.retriever.search_evidence_definitions(
-                    query=query, limit=20,
+                    query=query,
+                    limit=20,
                 )
-                # Keep items with relevance > 0 (matched at least one token
-                # or had positive vector similarity).
                 collector_defs: list[EvidenceCollectorDef] = [
                     r.item for r in scored if r.relevance > 0  # type: ignore[misc]
                 ]
                 if not collector_defs:
-                    # Fallback: if RAG matched nothing, load all.
-                    collector_defs = (
-                        sap.knowledge_store.load_evidence_definitions()
-                    )
+                    collector_defs = sap.knowledge_store.load_evidence_definitions()
                 else:
                     logger.info(
-                        "RAG selected %d/%d evidence definitions "
-                        "for query: %.60s",
+                        "RAG selected %d/%d evidence definitions " "for query: %.60s",
                         len(collector_defs),
                         len(scored),
                         query,
                     )
             else:
-                collector_defs = (
-                    sap.knowledge_store.load_evidence_definitions()
-                )
+                collector_defs = sap.knowledge_store.load_evidence_definitions()
 
-            # Topology-aware filtering: skip HA definitions when the
-            # workspace has no high-availability configured.
             db_ha = extra_vars.get("database_high_availability", False)
             scs_ha = extra_vars.get("scs_high_availability", False)
             if not db_ha and not scs_ha:
@@ -546,8 +536,7 @@ class TriageAnalyzerTools:
         :param timeout_seconds: SSH command timeout (default 30).
         """
         logger.info(
-            "Tool called: run_evidence_collector("
-            "workspace_id=%s, definition_id=%s, host=%s)",
+            "Tool called: run_evidence_collector(" "workspace_id=%s, definition_id=%s, host=%s)",
             workspace_id,
             definition_id,
             host,
@@ -557,7 +546,6 @@ class TriageAnalyzerTools:
 
         sap.validator.workspace_id(workspace_id)
 
-        # Resolve definition from knowledge store.
         all_defs = sap.knowledge_store.load_evidence_definitions()
         defs_by_id = {d.id: d for d in all_defs}
         collector_def = defs_by_id.get(definition_id)
@@ -685,11 +673,10 @@ class TriageAnalyzerTools:
 
         max_lines = max(10, min(max_lines, 500))
 
-        # --- RAG: find the best log evidence definition ---
         scored = sap.retriever.search_evidence_definitions(
-            query=query, limit=10,
+            query=query,
+            limit=10,
         )
-        # Keep only log_output definitions that have metadata.
         log_defs: list[EvidenceCollectorDef] = [
             s.item  # type: ignore[misc]
             for s in scored
@@ -709,7 +696,8 @@ class TriageAnalyzerTools:
 
         # --- Resolve host ---
         host_details = load_workspace_host_details(
-            sap.workspaces_base, workspace_id,
+            sap.workspaces_base,
+            workspace_id,
         )
         if not host_details:
             raise ToolError(f"No hosts found for workspace {workspace_id}")
@@ -718,9 +706,7 @@ class TriageAnalyzerTools:
             matched = [h for h in host_details if h["ansible_host"] == host]
             if not matched:
                 available = [h["ansible_host"] for h in host_details]
-                raise ToolError(
-                    f"Host {host} not found. Available: {available}"
-                )
+                raise ToolError(f"Host {host} not found. Available: {available}")
             target = matched[0]
         else:
             target = host_details[0]
@@ -730,21 +716,18 @@ class TriageAnalyzerTools:
         become_user = target.get("become_user", "")
 
         extra_vars = load_workspace_params(
-            sap.workspaces_base, workspace_id,
+            sap.workspaces_base,
+            workspace_id,
         )
 
-        # --- SSH credentials ---
         loop = asyncio.get_running_loop()
         ssh_credential = await loop.run_in_executor(
             None,
             lambda: sap.ssh_cache.provision(workspace_id, extra_vars),
         )
         if ssh_credential is None:
-            raise ToolError(
-                f"No SSH credentials for workspace {workspace_id}"
-            )
+            raise ToolError(f"No SSH credentials for workspace {workspace_id}")
 
-        # --- Build the command via LogCommandBuilder ---
         builder = LogCommandBuilder(ev_def.metadata, extra_vars)
         command = builder.build(
             time_window=time_window,
@@ -752,10 +735,7 @@ class TriageAnalyzerTools:
             max_lines=max_lines,
         )
 
-        await ctx.info(
-            f"Searching {log_title} on {target_ip} "
-            f"(score={best.score:.2f})"
-        )
+        await ctx.info(f"Searching {log_title} on {target_ip} " f"(score={best.score:.2f})")
 
         definition = EvidenceDefinition(
             definition_id=f"log@{ev_def.id}@{target_ip}",
@@ -765,9 +745,7 @@ class TriageAnalyzerTools:
             command=command,
             timeout_seconds=30,
             metadata={
-                "private_key_path": (
-                    ssh_credential.private_key_path or ""
-                ),
+                "private_key_path": (ssh_credential.private_key_path or ""),
                 "ssh_user": ssh_user,
                 "become_user": become_user,
             },
@@ -777,13 +755,10 @@ class TriageAnalyzerTools:
         stdout = artifact.content or ""
         line_count = len(stdout.splitlines()) if stdout else 0
 
-        # Include runner-up suggestions so the agent knows what else
-        # is available without another RAG call.
         other_sources = [
             {"id": d.id, "title": d.name, "score": round(s.score, 3)}
             for s in scored[1:]
-            if isinstance(s.item, EvidenceCollectorDef)
-            and s.item.evidence_type == "log_output"
+            if isinstance(s.item, EvidenceCollectorDef) and s.item.evidence_type == "log_output"
             for d in [s.item]
         ]
 

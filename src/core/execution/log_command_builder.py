@@ -58,10 +58,6 @@ class LogCommandBuilder:
         self._extra_vars = extra_vars
         self._access_method = access_method
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def build(
         self,
         time_window: str = "",
@@ -85,35 +81,23 @@ class LogCommandBuilder:
         inner = dispatch[self._access_method](time_window, pattern, max_lines)
         return self._wrap_run_as(inner)
 
-    # ------------------------------------------------------------------
-    # Access-method strategies
-    # ------------------------------------------------------------------
-
-    def _build_file(
-        self, time_window: str, pattern: str, max_lines: int
-    ) -> str:
+    def _build_file(self, time_window: str, pattern: str, max_lines: int) -> str:
         """Direct file access via tail/grep."""
         path = self._resolve_path()
         if not path:
-            raise ValueError(
-                "metadata.path_template is required for file access"
-            )
+            raise ValueError("metadata.path_template is required for file access")
         if time_window and pattern:
             return (
                 f"grep '{time_window.strip()}' {path}"
                 f" | grep -iE '{pattern}' | tail -{max_lines}"
             )
         if time_window:
-            return (
-                f"grep '{time_window.strip()}' {path} | tail -{max_lines}"
-            )
+            return f"grep '{time_window.strip()}' {path} | tail -{max_lines}"
         if pattern:
             return f"grep -iE '{pattern}' {path} | tail -{max_lines}"
         return f"tail -{max_lines} {path}"
 
-    def _build_journalctl(
-        self, time_window: str, pattern: str, max_lines: int
-    ) -> str:
+    def _build_journalctl(self, time_window: str, pattern: str, max_lines: int) -> str:
         """Journalctl with optional service/time/pattern."""
         parts = ["journalctl"]
         for unit in self._metadata.get("service_units", []):
@@ -139,16 +123,12 @@ class LogCommandBuilder:
         cmd += f" | tail -{max_lines}"
         return cmd
 
-    def _build_grep_filter(
-        self, time_window: str, pattern: str, max_lines: int
-    ) -> str:
+    def _build_grep_filter(self, time_window: str, pattern: str, max_lines: int) -> str:
         """Grep-based filter for syslog sources (SBD, corosync)."""
         path = self._resolve_path() or "/var/log/messages"
         base_filter = self._metadata.get("base_filter", "")
         if not base_filter:
-            raise ValueError(
-                "metadata.base_filter is required for grep_filter access"
-            )
+            raise ValueError("metadata.base_filter is required for grep_filter access")
         cmd = f"grep -iE '{base_filter}' {path}"
         if time_window:
             cmd += f" | grep '{time_window.strip()}'"
@@ -157,9 +137,7 @@ class LogCommandBuilder:
         cmd += f" | tail -{max_lines}"
         return cmd
 
-    def _build_dmesg(
-        self, time_window: str, pattern: str, max_lines: int
-    ) -> str:
+    def _build_dmesg(self, time_window: str, pattern: str, max_lines: int) -> str:
         """Kernel ring buffer via dmesg."""
         cmd = "dmesg -T"
         if time_window:
@@ -169,42 +147,24 @@ class LogCommandBuilder:
         cmd += f" | tail -{max_lines}"
         return cmd
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def _wrap_run_as(self, inner: str) -> str:
         """Wrap with ``su`` if ``run_as`` is a non-root user."""
-        run_as = self._resolve_placeholder(
-            self._metadata.get("run_as", "root")
-        )
+        run_as = self._resolve_placeholder(self._metadata.get("run_as", "root"))
         if run_as and run_as != "root":
             return f"su - {run_as} -c '{inner}'"
         return inner
 
     def _resolve_path(self) -> str:
         """Resolve ``path_template`` with workspace placeholders."""
-        return self._resolve_placeholder(
-            self._metadata.get("path_template", "")
-        )
+        return self._resolve_placeholder(self._metadata.get("path_template", ""))
 
     def _resolve_placeholder(self, value: str) -> str:
         """Substitute ``<sid>``, ``<SID>``, ``<NR>`` from workspace vars."""
         if not value:
             return value
-        sid = (
-            self._extra_vars.get("db_sid")
-            or self._extra_vars.get("sap_sid")
-            or ""
-        )
-        db_nr = (
-            str(self._extra_vars.get("db_instance_number", ""))
-            .strip('"').strip("'")
-        )
-        scs_nr = (
-            str(self._extra_vars.get("scs_instance_number", ""))
-            .strip('"').strip("'")
-        )
+        sid = self._extra_vars.get("db_sid") or self._extra_vars.get("sap_sid") or ""
+        db_nr = str(self._extra_vars.get("db_instance_number", "")).strip('"').strip("'")
+        scs_nr = str(self._extra_vars.get("scs_instance_number", "")).strip('"').strip("'")
         nr = db_nr or scs_nr or ""
         if sid:
             value = value.replace("<sid>", sid.lower())

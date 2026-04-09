@@ -2,18 +2,37 @@
 /* Licensed under the MIT License. */
 
 /* Minimal global resets — all theming is handled by FluentProvider */
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
+/* ── Reasoning dot pulse animation ─────────────────────────── */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* ── Scrollbar ─────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 ::-webkit-scrollbar-thumb {
   background: rgba(128, 128, 128, 0.4);
   border-radius: 3px;
@@ -65,7 +84,8 @@ html, body, #root {
   --destructive: #d13438;
 
   /* Font — Fluent's Segoe UI stack */
-  --cpk-font-sans: "Segoe UI", "Segoe UI Web (West European)", -apple-system,
+  --cpk-font-sans:
+    "Segoe UI", "Segoe UI Web (West European)", -apple-system,
     BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
 }
 
@@ -147,4 +167,9 @@ html, body, #root {
 .dark [data-copilotkit] pre {
   background-color: var(--muted) !important;
   color: var(--foreground) !important;
+}
+
+/* Hide the copy/download toolbar on assistant messages */
+[data-testid="copilot-assistant-toolbar"] {
+  display: none !important;
 }

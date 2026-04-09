@@ -5,11 +5,11 @@
 
 Messages are persisted as serialised Agent Framework ``Message``
 dicts -- the canonical message type used across the agent stack.
-Each row stores a single AF message JSON blob alongside a
-``conversation_id`` foreign key and a ``timestamp`` for ordering.
+Uses ``StafStore`` for the shared database connection.
 """
 
 import json
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,8 +22,11 @@ from src.core.models.conversation import (
     Conversation,
     ConversationStatus,
 )
+from src.core.storage.staf_store import StafStore
 
-_CONVERSATIONS_SCHEMA = """
+logger = logging.getLogger(__name__)
+
+CONVERSATIONS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS conversations (
     id                  TEXT PRIMARY KEY,
     workspace_id        TEXT NOT NULL,
@@ -39,6 +42,7 @@ CREATE TABLE IF NOT EXISTS messages (
     id                  TEXT PRIMARY KEY,
     conversation_id     TEXT NOT NULL,
     role                TEXT NOT NULL,
+    content             TEXT NOT NULL DEFAULT '',
     af_message          TEXT NOT NULL DEFAULT '{}',
     timestamp           TEXT NOT NULL,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id)
@@ -55,43 +59,37 @@ CREATE INDEX IF NOT EXISTS idx_messages_timestamp
 """
 
 
-def _dt_to_iso(dt: Optional[datetime]) -> Optional[str]:
-    """Convert datetime to ISO-8601 string for SQLite storage."""
-    if dt is None:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.isoformat()
-
-
 class ConversationStore:
-    """SQLite-backed repository for conversations and AF messages.
+    """Conversations and AF messages backed by ``StafStore``.
 
-    :param db_path: Path to the SQLite database file.
+    :param db: Shared StafStore instance.
     """
 
-    def __init__(self, db_path: Path | str = "data/conversations.db") -> None:
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+    SCHEMA = CONVERSATIONS_SCHEMA
 
-        self._conn = sqlite3.connect(
-            str(self.db_path),
-            isolation_level="DEFERRED",
-            check_same_thread=False,
-        )
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-        self._conn.execute("PRAGMA busy_timeout=5000")
-        self._conn.executescript(_CONVERSATIONS_SCHEMA)
-        self._migrate_legacy_messages()
+    def __init__(
+        self,
+        db: Optional[StafStore] = None,
+        *,
+        db_path: Optional[Path] = None,
+    ) -> None:
+        if db is None:
+            if db_path is None:
+                raise ValueError("Either db or db_path must be provided")
+            db = StafStore(db_path)
+            self._owns_db = True
+        else:
+            self._owns_db = False
+        self._db = db
+        self._conn = db.conn
+        db.register_schema(self.SCHEMA)
+        if self._owns_db:
+            db.sync()
 
     def close(self) -> None:
-        """Close the database connection."""
-        self._conn.close()
-
-    # ------------------------------------------------------------------
-    # Conversation CRUD
-    # ------------------------------------------------------------------
+        """Close the underlying database if this store owns it."""
+        if self._owns_db:
+            self._db.close()
 
     def create(self, conversation: Conversation) -> Conversation:
         """Create a new conversation.
@@ -115,8 +113,8 @@ class ConversationStore:
                     ),
                     conversation.title,
                     json.dumps(conversation.triage_session_ids),
-                    _dt_to_iso(conversation.created_at),
-                    _dt_to_iso(conversation.updated_at),
+                    self._db.dt_to_iso(conversation.created_at),
+                    self._db.dt_to_iso(conversation.updated_at),
                     json.dumps(conversation.metadata, default=str),
                 ),
             )
@@ -158,8 +156,7 @@ class ConversationStore:
             )
         else:
             cur = self._conn.execute(
-                "SELECT * FROM conversations "
-                "WHERE status = ? ORDER BY updated_at DESC LIMIT ?",
+                "SELECT * FROM conversations " "WHERE status = ? ORDER BY updated_at DESC LIMIT ?",
                 (ConversationStatus.ACTIVE.value, limit),
             )
         return [self._row_to_conversation(dict(r), []) for r in cur.fetchall()]
@@ -201,7 +198,7 @@ class ConversationStore:
         :returns: True if conversation was found and updated.
         """
         cid = str(conversation_id)
-        now = _dt_to_iso(datetime.now(timezone.utc))
+        now = self._db.dt_to_iso(datetime.now(timezone.utc))
         with self._conn:
             cur = self._conn.execute(
                 "UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?",
@@ -222,17 +219,13 @@ class ConversationStore:
         if conv.is_archived:
             raise ValueError("Conversation is already archived")
 
-        now = _dt_to_iso(datetime.now(timezone.utc))
+        now = self._db.dt_to_iso(datetime.now(timezone.utc))
         with self._conn:
             self._conn.execute(
                 "UPDATE conversations SET status = ?, updated_at = ? WHERE id = ?",
                 (ConversationStatus.ARCHIVED.value, now, str(conversation_id)),
             )
         return True
-
-    # ------------------------------------------------------------------
-    # Message operations (AF Message)
-    # ------------------------------------------------------------------
 
     def add_message(
         self,
@@ -253,7 +246,7 @@ class ConversationStore:
             raise ValueError("Cannot add messages to an archived conversation")
 
         cid = str(conversation_id)
-        now = _dt_to_iso(datetime.now(timezone.utc))
+        now = self._db.dt_to_iso(datetime.now(timezone.utc))
 
         with self._conn:
             msg_id = af_msg.message_id or str(uuid4())
@@ -305,10 +298,6 @@ class ConversationStore:
                 pass
         return messages
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def _load_af_messages(
         self,
         conversation_id: str,
@@ -342,52 +331,6 @@ class ConversationStore:
             except (json.JSONDecodeError, KeyError):
                 pass
         return result
-
-    def _migrate_legacy_messages(self) -> None:
-        """Migrate legacy message rows that lack the ``af_message`` column.
-
-        Old schema had: role, content, thinking, metadata, etc.
-        New schema has: role, af_message (JSON blob).
-        This migration runs once on startup and converts old rows.
-        """
-        self._conn.row_factory = sqlite3.Row
-        try:
-            self._conn.execute("SELECT af_message FROM messages LIMIT 1")
-            return
-        except sqlite3.OperationalError:
-            pass
-
-        try:
-            self._conn.execute(
-                "ALTER TABLE messages ADD COLUMN af_message TEXT NOT NULL DEFAULT '{}'"
-            )
-        except sqlite3.OperationalError:
-            return
-
-        rows = self._conn.execute(
-            "SELECT id, role, content, metadata FROM messages "
-            "WHERE af_message = '{}'"
-        ).fetchall()
-
-        for row in rows:
-            data = dict(row)
-            metadata = json.loads(data.get("metadata", "{}") or "{}")
-            af_msgs = metadata.get("af_messages", [])
-            if af_msgs:
-                af_blob = json.dumps(af_msgs[0] if len(af_msgs) == 1 else af_msgs[0], default=str)
-            else:
-                af_dict = {
-                    "type": "message",
-                    "role": data["role"],
-                    "contents": [{"type": "text", "text": data.get("content", "")}],
-                    "additional_properties": {},
-                }
-                af_blob = json.dumps(af_dict, default=str)
-            self._conn.execute(
-                "UPDATE messages SET af_message = ? WHERE id = ?",
-                (af_blob, data["id"]),
-            )
-        self._conn.commit()
 
     @staticmethod
     def _row_to_conversation(

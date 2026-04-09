@@ -6,7 +6,6 @@
 import logging
 from typing import Optional
 from uuid import uuid4
-
 from src.core.models.failure import FailureClass, Severity
 from src.core.models.knowledge import Playbook, Reference, Rule
 from src.core.models.triage import TriageFinding, TriageReport
@@ -14,10 +13,6 @@ from src.core.models.validators import ValidatorResult
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Severity mapping from rule severity strings to Severity enum
-# ---------------------------------------------------------------------------
 
 _SEVERITY_MAP: dict[str, Severity] = {
     "CRITICAL": Severity.CRITICAL,
@@ -36,10 +31,6 @@ def _map_severity(severity_str: str) -> Severity:
     """
     return _SEVERITY_MAP.get(severity_str.upper(), Severity.MEDIUM)
 
-
-# ---------------------------------------------------------------------------
-# Failure class heuristics
-# ---------------------------------------------------------------------------
 
 _CATEGORY_TO_FAILURE: dict[str, FailureClass] = {
     "ha_cluster": FailureClass.FENCING_NOT_TRIGGERED,
@@ -79,11 +70,6 @@ def _classify_failure(rule: Rule) -> FailureClass:
             return fc
 
     return FailureClass.UNKNOWN
-
-
-# ---------------------------------------------------------------------------
-# ReportBuilder
-# ---------------------------------------------------------------------------
 
 
 class ReportBuilder:

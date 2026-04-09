@@ -33,10 +33,6 @@ class PromptModule:
     priority: int = 50
 
 
-# ------------------------------------------------------------------
-# Built-in modules (extracted from the former _INSTRUCTIONS string)
-# ------------------------------------------------------------------
-
 CORE_IDENTITY = PromptModule(
     name="core_identity",
     heading="",
@@ -75,7 +71,7 @@ THINK_ALOUD = PromptModule(
         "to evaluate findings before proceeding.\n\n"
         "Good example:\n"
         '  "The cluster status shows node 2 is offline. Before fencing, '
-        'I need to check the CIB config and the Corosync logs to understand '
+        "I need to check the CIB config and the Corosync logs to understand "
         'why the node dropped from the membership."\n'
         "  → tool call: run_evidence_collector\n\n"
         "Bad example (NEVER do this):\n"
@@ -200,10 +196,6 @@ REMINDERS = PromptModule(
 )
 
 
-# ------------------------------------------------------------------
-# Registry & assembly
-# ------------------------------------------------------------------
-
 _BUILTIN_MODULES: dict[str, PromptModule] = {
     m.name: m
     for m in [
@@ -248,12 +240,6 @@ class PromptModuleRegistry:
         """
         return self.modules.get(name)
 
-    def all_names(self) -> list[str]:
-        """Return all registered module names.
-
-        :returns: Sorted list of module names.
-        """
-        return sorted(self.modules.keys())
 
 
 # Module-level default registry

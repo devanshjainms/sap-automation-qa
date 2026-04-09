@@ -2,31 +2,23 @@
 // Licensed under the MIT License.
 
 import { useCallback } from "react";
-import {
-  Button,
-  Text,
-  Card,
-  Badge,
-  Spinner,
-} from "@fluentui/react-components";
+import { Button, Text, Card, Badge, Spinner } from "@fluentui/react-components";
 import {
   ArrowClockwise24Regular,
   Play24Regular,
   Delete24Regular,
 } from "@fluentui/react-icons";
-import {
-  listSchedules,
-  deleteSchedule,
-  triggerSchedule,
-} from "../lib/api";
+import { listSchedules, deleteSchedule, triggerSchedule } from "../lib/api";
 import { useApi } from "../hooks/useApi";
 import { useStyles } from "../styles/schedules.styles";
 
 export function Schedules() {
-  const { data: schedules, loading, error, refetch } = useApi(
-    listSchedules,
-    [],
-  );
+  const {
+    data: schedules,
+    loading,
+    error,
+    refetch,
+  } = useApi(listSchedules, []);
   const classes = useStyles();
 
   const handleDelete = useCallback(

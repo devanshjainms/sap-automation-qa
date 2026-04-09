@@ -1,12 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import {
-  Card,
-  Text,
-  Spinner,
-  mergeClasses,
-} from "@fluentui/react-components";
+import { Card, Text, Spinner, mergeClasses } from "@fluentui/react-components";
 import { listJobs, listSchedules, listWorkspaces } from "../lib/api";
 import { useApi } from "../hooks/useApi";
 import { StatusBadge } from "../components/shared/StatusBadge";
@@ -20,7 +15,13 @@ export function Dashboard() {
 
   return (
     <div className={classes.page}>
-      <Text as="h1" size={600} weight="semibold" className={classes.heading} block>
+      <Text
+        as="h1"
+        size={600}
+        weight="semibold"
+        className={classes.heading}
+        block
+      >
         Dashboard
       </Text>
 
@@ -51,7 +52,13 @@ export function Dashboard() {
 
       {/* Recent jobs */}
       <section>
-        <Text as="h2" size={200} weight="semibold" className={classes.sectionTitle} block>
+        <Text
+          as="h2"
+          size={200}
+          weight="semibold"
+          className={classes.sectionTitle}
+          block
+        >
           RECENT JOBS
         </Text>
         {jobs.loading ? (
@@ -62,7 +69,11 @@ export function Dashboard() {
           <Card>
             <div className={classes.jobList}>
               {(jobs.data ?? []).slice(0, 5).map((job) => (
-                <a key={job.id} href={`/jobs/${job.id}`} className={classes.jobRow}>
+                <a
+                  key={job.id}
+                  href={`/jobs/${job.id}`}
+                  className={classes.jobRow}
+                >
                   <div className={classes.jobMeta}>
                     <Text font="monospace" size={200}>
                       {job.id.slice(0, 8)}
@@ -73,7 +84,12 @@ export function Dashboard() {
                 </a>
               ))}
               {(jobs.data ?? []).length === 0 && (
-                <Text size={300} align="center" block style={{ padding: "1rem" }}>
+                <Text
+                  size={300}
+                  align="center"
+                  block
+                  style={{ padding: "1rem" }}
+                >
                   No jobs yet.
                 </Text>
               )}

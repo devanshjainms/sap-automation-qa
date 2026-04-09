@@ -398,6 +398,3 @@ class JobWorker:
             )
             return None
 
-    def get_running_job_ids(self) -> list[str]:
-        """Get IDs of currently running jobs."""
-        return list(self._running_jobs.keys())

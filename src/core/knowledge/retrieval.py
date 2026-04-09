@@ -9,30 +9,17 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
-
-_logger = logging.getLogger(__name__)
-
 from src.core.models.embedding import EmbeddingProvider
 from src.core.storage.embedding_store import EmbeddingStore
 from src.core.storage.knowledge_store import KnowledgeStore
-from src.core.models.knowledge import (
-    EvidenceCollectorDef,
-    LearnedPattern,
-    Playbook,
-    Reference,
-    Rule,
-)
 from src.core.models.system import SystemProperties
 
-# Scoring weights from Section 7.3.1
+_logger = logging.getLogger(__name__)
+
 _WEIGHT_RELEVANCE = 0.45
 _WEIGHT_CONFIDENCE = 0.35
 _WEIGHT_RECENCY = 0.20
-
-# Recency decay half-life in days
 _RECENCY_HALF_LIFE_DAYS = 90.0
-
-# Confidence thresholds for learned patterns
 CONFIDENCE_WARNING_THRESHOLD = 0.4
 CONFIDENCE_EXCLUDE_THRESHOLD = 0.2
 
@@ -226,9 +213,6 @@ class HybridRetriever:
         results.sort(key=lambda r: r.score, reverse=True)
         return results[:limit]
 
-    # ------------------------------------------------------------------
-    # Vector similarity
-    # ------------------------------------------------------------------
 
     def _vector_scores(
         self,
@@ -282,9 +266,6 @@ class HybridRetriever:
                 scores[iid] = max(0.0, 1.0 - distance)
         return scores
 
-    # ------------------------------------------------------------------
-    # Keyword fallback
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _keyword_relevance(query: str, fields: list[str]) -> float:
@@ -311,9 +292,6 @@ class HybridRetriever:
         matched = query_tokens & field_tokens
         return len(matched) / len(query_tokens)
 
-    # ------------------------------------------------------------------
-    # Recency decay
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _recency_score(
@@ -337,9 +315,6 @@ class HybridRetriever:
         age_days = max(0.0, (now - last_seen).total_seconds() / 86400.0)
         return math.exp(-0.693 * age_days / _RECENCY_HALF_LIFE_DAYS)
 
-    # ------------------------------------------------------------------
-    # Evidence definitions
-    # ------------------------------------------------------------------
 
     def search_evidence_definitions(
         self,
@@ -358,7 +333,9 @@ class HybridRetriever:
         """
         defs = self._store.load_evidence_definitions()
         vector_scores = self._vector_scores(
-            query, [d.id for d in defs], "evidence",
+            query,
+            [d.id for d in defs],
+            "evidence",
         )
 
         results: list[ScoredResult] = []
@@ -385,9 +362,6 @@ class HybridRetriever:
         results.sort(key=lambda r: r.score, reverse=True)
         return results[:limit]
 
-    # ------------------------------------------------------------------
-    # References (log files, SAP notes, Azure docs)
-    # ------------------------------------------------------------------
 
     def search_references(
         self,
@@ -411,7 +385,9 @@ class HybridRetriever:
             refs = [r for r in refs if r.category.lower() == cat_lower]
 
         vector_scores = self._vector_scores(
-            query, [r.id for r in refs], "reference",
+            query,
+            [r.id for r in refs],
+            "reference",
         )
 
         results: list[ScoredResult] = []
@@ -420,9 +396,7 @@ class HybridRetriever:
                 ref.id,
                 self._keyword_relevance(
                     query,
-                    [ref.title, ref.summary]
-                    + ref.failure_classes
-                    + ref.tags,
+                    [ref.title, ref.summary] + ref.failure_classes + ref.tags,
                 ),
             )
             score = _WEIGHT_RELEVANCE * relevance + _WEIGHT_CONFIDENCE * 1.0

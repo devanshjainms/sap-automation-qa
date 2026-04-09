@@ -27,9 +27,6 @@ from src.core.models.evidence import (
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Evidence definition — what to collect
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -56,9 +53,6 @@ class EvidenceDefinition:
     metadata: dict = field(default_factory=dict)
 
 
-# ---------------------------------------------------------------------------
-# Collector protocol — strategy interface
-# ---------------------------------------------------------------------------
 
 
 @runtime_checkable
@@ -77,9 +71,6 @@ class CollectorStrategy(Protocol):
         ...
 
 
-# ---------------------------------------------------------------------------
-# Cache entry
-# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -90,9 +81,6 @@ class _CacheEntry:
     expires_at: float
 
 
-# ---------------------------------------------------------------------------
-# EvidenceCollector — orchestrates collection across strategies
-# ---------------------------------------------------------------------------
 
 
 class EvidenceCollector:
@@ -171,9 +159,6 @@ class EvidenceCollector:
         """Clear all cached evidence artifacts."""
         self._cache.clear()
 
-    # -----------------------------------------------------------------------
-    # Private helpers
-    # -----------------------------------------------------------------------
 
     def _requires_command_validation(self, definition: EvidenceDefinition) -> bool:
         """Whether this definition needs command allow-list validation."""

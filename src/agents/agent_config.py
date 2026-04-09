@@ -61,9 +61,6 @@ class SpecialistConfig:
     role_prompt: str = ""
 
 
-# ------------------------------------------------------------------
-# Pre-built specialist configs
-# ------------------------------------------------------------------
 
 COORDINATOR_ROLE_PROMPT = (
     "\n\n**ROLE: COORDINATOR**\n"
@@ -155,9 +152,6 @@ class AgentConfig:
     specialists: tuple[SpecialistConfig, ...] = ()
 
 
-# ------------------------------------------------------------------
-# Pre-built configurations per intent
-# ------------------------------------------------------------------
 
 _ALL_MODULES = [
     CORE_IDENTITY.name,

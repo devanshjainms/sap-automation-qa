@@ -11,8 +11,10 @@ external vector database required.
 import sqlite_vec
 import struct
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from src.core.storage.staf_store import StafStore
 
 try:
     import pysqlite3 as sqlite3  # type: ignore[import-untyped]
@@ -39,11 +41,6 @@ def _deserialize_f32(data: bytes) -> List[float]:
     return list(struct.unpack(f"{count}f", data))
 
 
-def _dt_to_iso(dt: datetime) -> str:
-    """Convert datetime to ISO 8601 string."""
-    return dt.isoformat()
-
-
 def _load_sqlite_vec(conn: sqlite3.Connection) -> None:
     """Load the sqlite-vec extension into a connection.
 
@@ -56,54 +53,54 @@ def _load_sqlite_vec(conn: sqlite3.Connection) -> None:
     conn.enable_load_extension(False)
 
 
-# Over-fetch multiplier for post-KNN type filtering.
-# If the target type is <33% of the data, fewer than `limit` results
-# may be returned. 3x is safe for our ~200 rules / ~50 playbooks /
-# ~100 patterns distribution.
 _TYPE_FILTER_OVERFETCH = 3
 
 
 class EmbeddingStore:
     """SQLite + sqlite-vec backed store for vector embeddings.
 
-    Stores embeddings keyed by ``(item_id, item_type)`` with cosine
-    similarity KNN search via the ``vec0`` virtual table.
+    Accepts a ``StafStore`` for the shared connection.  Loads the
+    ``sqlite-vec`` C extension and manages its own virtual tables
+    (which can't be schema-synced via ``ALTER TABLE``).
 
-    :param db_path: Path to the SQLite database (or ``:memory:``).
-    :param dimensions: Embedding vector dimensions (must match
-        the ``EmbeddingProvider``).
-    :raises ValueError: If dimensions is not a positive integer.
-    :raises RuntimeError: If an existing database was created with
-        different dimensions.
+    :param db: Shared StafStore instance.
+    :param dimensions: Embedding vector dimensions.
     """
 
     def __init__(
         self,
-        db_path: "Path | str",
+        db: Optional["StafStore"] = None,
         dimensions: int = 768,
+        *,
+        db_path: Optional[str] = None,
     ) -> None:
         if not isinstance(dimensions, int) or dimensions <= 0:
-            raise ValueError(f"dimensions must be a positive integer, " f"got {dimensions!r}")
+            raise ValueError(f"dimensions must be a positive integer, got {dimensions!r}")
+        if db is None:
+            if db_path is None:
+                raise ValueError("Either db or db_path must be provided")
+            from src.core.storage.staf_store import StafStore
+
+            db = StafStore(db_path)
+            self._owns_db = True
+        else:
+            self._owns_db = False
         self._dimensions = dimensions
-        self._conn = sqlite3.connect(
-            str(db_path),
-            isolation_level="DEFERRED",
-        )
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA busy_timeout=5000")
-        self._conn.execute("PRAGMA foreign_keys=ON")
+        self._db = db
+        self._conn = self._db.conn
         _load_sqlite_vec(self._conn)
         self._create_tables()
         self._validate_dimensions()
+
+    def close(self) -> None:
+        """Close the underlying database if this store owns it."""
+        if self._owns_db:
+            self._db.close()
 
     @property
     def dimensions(self) -> int:
         """Return the configured vector dimensions."""
         return self._dimensions
-
-    # ------------------------------------------------------------------
-    # Schema
-    # ------------------------------------------------------------------
 
     def _create_tables(self) -> None:
         """Create metadata and vec0 virtual tables if missing."""
@@ -149,10 +146,6 @@ class EmbeddingStore:
                 f"Re-index or use the original dimension count."
             )
 
-    # ------------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------------
-
     def store(
         self,
         item_id: str,
@@ -173,7 +166,7 @@ class EmbeddingStore:
         if len(embedding) != self._dimensions:
             raise ValueError(f"Expected {self._dimensions} dimensions, " f"got {len(embedding)}")
 
-        now = _dt_to_iso(datetime.now(timezone.utc))
+        now = self._db.dt_to_iso(datetime.now(timezone.utc))
         blob = _serialize_f32(embedding)
 
         with self._conn:
@@ -327,7 +320,3 @@ class EmbeddingStore:
         """Return the total number of stored embeddings."""
         row = self._conn.execute("SELECT COUNT(*) FROM embedding_metadata").fetchone()
         return row[0] if row else 0
-
-    def close(self) -> None:
-        """Close the database connection."""
-        self._conn.close()

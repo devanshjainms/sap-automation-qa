@@ -1,12 +1,9 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import {
-  Text,
-  mergeClasses,
-} from "@fluentui/react-components";
+import { Text, mergeClasses } from "@fluentui/react-components";
 import {
   DataBarVertical24Regular,
   ClipboardTask24Regular,
@@ -17,24 +14,62 @@ import {
 } from "@fluentui/react-icons";
 import { useApi } from "../../hooks/useApi";
 import { listConversations } from "../../lib/api";
+import {
+  getOptimisticConversations,
+  onConversationsChanged,
+  removeOptimistic,
+} from "../../lib/conversationEvents";
 import { useStyles } from "../../styles/navSidebar.styles";
 
 const NAV_ITEMS = [
-  { to: "/dashboard", icon: <DataBarVertical24Regular />, label: "Dashboard", end: false },
+  {
+    to: "/dashboard",
+    icon: <DataBarVertical24Regular />,
+    label: "Dashboard",
+    end: false,
+  },
   { to: "/jobs", icon: <ClipboardTask24Regular />, label: "Jobs", end: false },
-  { to: "/schedules", icon: <CalendarClock24Regular />, label: "Schedules", end: false },
-  { to: "/workspaces", icon: <BuildingMultiple24Regular />, label: "Workspaces", end: false },
+  {
+    to: "/schedules",
+    icon: <CalendarClock24Regular />,
+    label: "Schedules",
+    end: false,
+  },
+  {
+    to: "/workspaces",
+    icon: <BuildingMultiple24Regular />,
+    label: "Workspaces",
+    end: false,
+  },
 ] as const;
 
 const INITIAL_VISIBLE = 10;
 
 export function NavSidebar() {
-  const { data: conversations } = useApi(listConversations, []);
+  const { data: conversations, refetch } = useApi(listConversations, []);
   const classes = useStyles();
   const [expanded, setExpanded] = useState(true);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+  const [, forceUpdate] = useState(0);
 
-  const allChats = conversations ?? [];
+  useEffect(() => {
+    return onConversationsChanged(() => {
+      forceUpdate((n) => n + 1);
+      const timer = setTimeout(refetch, 2000);
+      return () => clearTimeout(timer);
+    });
+  }, [refetch]);
+
+  const serverChats = conversations ?? [];
+  const serverIds = new Set(serverChats.map((c) => c.id));
+  const pending = getOptimisticConversations().filter((c) => {
+    if (serverIds.has(c.id)) {
+      removeOptimistic(c.id);
+      return false;
+    }
+    return true;
+  });
+  const allChats = [...pending, ...serverChats];
   const visibleChats = allChats.slice(0, visibleCount);
   const hasMore = allChats.length > visibleCount;
 
@@ -71,11 +106,7 @@ export function NavSidebar() {
         {expanded && (
           <div className={classes.historyList}>
             {allChats.length === 0 ? (
-              <Text
-                size={200}
-                className={classes.historyEmpty}
-                as="p"
-              >
+              <Text size={200} className={classes.historyEmpty} as="p">
                 No conversations yet.
               </Text>
             ) : (

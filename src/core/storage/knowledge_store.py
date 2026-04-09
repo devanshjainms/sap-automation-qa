@@ -20,8 +20,9 @@ from src.core.models.knowledge import (
     Rule,
 )
 from src.core.models.system import Applicability, SystemProperties
+from src.core.storage.staf_store import StafStore
 
-_KNOWLEDGE_SCHEMA = """
+KNOWLEDGE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS rules (
     id            TEXT PRIMARY KEY,
     name          TEXT NOT NULL,
@@ -144,36 +145,33 @@ def _dt_to_iso(dt: Optional[datetime]) -> Optional[str]:
 
 
 class KnowledgeStore:
-    """SQLite-backed repository for knowledge artifacts.
+    """Knowledge artifacts backed by ``StafStore``."""
 
-    Follows the same patterns as ``JobStore`` / ``ScheduleStore``:
-    WAL mode, indexed queries, transaction-wrapped writes, and
-    explicit model ↔ row conversion.
+    SCHEMA = KNOWLEDGE_SCHEMA
 
-    :param db_path: Path to the SQLite database file.
-    """
-
-    def __init__(self, db_path: Path | str = "data/knowledge.db") -> None:
-        """Initialize the knowledge store.
-
-        :param db_path: Path to SQLite database file.
-        """
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        self._conn = sqlite3.connect(
-            str(self.db_path),
-            isolation_level="DEFERRED",
-            check_same_thread=False,
-        )
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-        self._conn.execute("PRAGMA busy_timeout=5000")
-        self._conn.executescript(_KNOWLEDGE_SCHEMA)
+    def __init__(
+        self,
+        db: Optional[StafStore] = None,
+        *,
+        db_path: Optional[Path] = None,
+    ) -> None:
+        if db is None:
+            if db_path is None:
+                raise ValueError("Either db or db_path must be provided")
+            db = StafStore(db_path)
+            self._owns_db = True
+        else:
+            self._owns_db = False
+        self._db = db
+        self._conn = db.conn
+        db.register_schema(self.SCHEMA)
+        if self._owns_db:
+            db.sync()
 
     def close(self) -> None:
-        """Close the database connection."""
-        self._conn.close()
+        """Close the underlying database if this store owns it."""
+        if self._owns_db:
+            self._db.close()
 
     def save_rule(self, rule: Rule) -> Rule:
         """Insert or replace a rule.
