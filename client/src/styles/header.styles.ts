@@ -36,4 +36,11 @@ export const useStyles = makeStyles({
       backgroundColor: "rgba(255, 255, 255, 0.1)",
     },
   },
+  updateIcon: {
+    display: "flex",
+    alignItems: "center",
+    padding: "6px",
+    color: tokens.colorPaletteGreenForeground2,
+    cursor: "default",
+  },
 });

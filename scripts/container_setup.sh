@@ -142,6 +142,8 @@ container_start() {
     fi
 
     log "INFO" "Starting container..."
+    GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    export GIT_COMMIT
     docker compose -f "$_CONTAINER_DEPLOY_DIR/docker-compose.yml" \
         up -d --build
 
@@ -174,6 +176,8 @@ container_update() {
         check_file_exists "$_CONTAINER_DEPLOY_DIR/Dockerfile" \
             "Dockerfile not found in $_CONTAINER_DEPLOY_DIR"
         log "INFO" "Rebuilding Docker image..."
+        GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        export GIT_COMMIT
         docker compose -f "$_CONTAINER_DEPLOY_DIR/docker-compose.yml" \
             build
     fi

@@ -3,6 +3,7 @@
 
 """Tests for Health API routes."""
 
+import time
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -247,3 +248,103 @@ class TestHealthService:
         assert "mcp:server-b" in results
         assert "llm" in results
         assert all(r.status == "healthy" for r in results.values())
+
+
+class TestReadBuildCommit:
+    """Tests for _read_build_commit."""
+
+    def test_missing_file_returns_unknown(self, mocker: MockerFixture) -> None:
+        from src.api.routes.health import _read_build_commit
+
+        mocker.patch(
+            "src.api.routes.health.Path",
+            side_effect=lambda *a: type(
+                "P",
+                (),
+                {"read_text": lambda self: (_ for _ in ()).throw(FileNotFoundError)},
+            )(),
+        )
+        result = _read_build_commit()
+        assert isinstance(result, str)
+
+    @pytest.mark.asyncio
+    async def test_returns_short_sha(self, mocker: MockerFixture) -> None:
+        from src.api.routes.health import _fetch_remote_commit, _remote_cache
+
+        _remote_cache["sha"] = None
+        _remote_cache["ts"] = 0.0
+
+        mock_resp = mocker.MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"sha": "abcdef1234567890"}
+
+        mock_client = mocker.AsyncMock()
+        mock_client.get.return_value = mock_resp
+        mock_client.__aenter__ = mocker.AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = mocker.AsyncMock(return_value=False)
+
+        mocker.patch(
+            "src.api.routes.health.httpx.AsyncClient",
+            return_value=mock_client,
+        )
+
+        result = await _fetch_remote_commit()
+        assert result == "abcdef1"
+        assert len(result) == 7
+
+    @pytest.mark.asyncio
+    async def test_caches_result(self, mocker: MockerFixture) -> None:
+        from src.api.routes.health import _fetch_remote_commit, _remote_cache
+
+        _remote_cache["sha"] = "cached1"
+        _remote_cache["ts"] = time.monotonic()
+
+        result = await _fetch_remote_commit()
+        assert result == "cached1"
+
+    @pytest.mark.asyncio
+    async def test_api_failure_returns_unknown(self, mocker: MockerFixture) -> None:
+        from src.api.routes.health import _fetch_remote_commit, _remote_cache
+
+        _remote_cache["sha"] = None
+        _remote_cache["ts"] = 0.0
+
+        mocker.patch(
+            "src.api.routes.health.httpx.AsyncClient",
+            side_effect=Exception("network error"),
+        )
+
+        result = await _fetch_remote_commit()
+        assert result == "unknown"
+
+    @pytest.mark.asyncio
+    async def test_no_update_when_same_commit(self, mocker: MockerFixture) -> None:
+        from src.api.routes.health import get_version
+
+        mocker.patch("src.api.routes.health._read_build_commit", return_value="abc1234")
+        mocker.patch("src.api.routes.health._fetch_remote_commit", return_value="abc1234")
+
+        result = await get_version()
+        assert result["update_available"] is False
+        assert result["build_commit"] == "abc1234"
+        assert result["latest_commit"] == "abc1234"
+
+    @pytest.mark.asyncio
+    async def test_update_when_different_commit(self, mocker: MockerFixture) -> None:
+        from src.api.routes.health import get_version
+
+        mocker.patch("src.api.routes.health._read_build_commit", return_value="abc1234")
+        mocker.patch("src.api.routes.health._fetch_remote_commit", return_value="def5678")
+
+        result = await get_version()
+        assert result["update_available"] is True
+
+    @pytest.mark.asyncio
+    async def test_no_update_when_build_unknown(self, mocker: MockerFixture) -> None:
+        from src.api.routes.health import get_version
+
+        mocker.patch("src.api.routes.health._read_build_commit", return_value="unknown")
+        mocker.patch("src.api.routes.health._fetch_remote_commit", return_value="def5678")
+
+        result = await get_version()
+        assert result["update_available"] is False

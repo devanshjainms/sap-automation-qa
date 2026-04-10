@@ -59,6 +59,9 @@ COPY --chown=appuser:appgroup src/ ./src/
 COPY --chown=appuser:appgroup scripts/ ./scripts/
 COPY --chown=appuser:appgroup VERSION ./VERSION
 
+ARG GIT_COMMIT=unknown
+RUN echo "$GIT_COMMIT" > /app/GIT_COMMIT
+
 ENV PATH="/opt/venv/bin:$PATH"
 ENV VIRTUAL_ENV=/opt/venv
 ENV PYTHONPATH=/app

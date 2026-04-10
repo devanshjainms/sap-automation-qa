@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Text, Tooltip } from "@fluentui/react-components";
 import {
@@ -9,6 +10,7 @@ import {
   WeatherSunny24Regular,
   HeartPulse20Regular,
   Wrench20Regular,
+  ArrowSync20Regular,
 } from "@fluentui/react-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useStyles } from "../../styles/header.styles";
@@ -19,6 +21,14 @@ export function Header() {
   const navigate = useNavigate();
   const classes = useStyles();
   const { isDark, toggle } = useTheme();
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/v1/version")
+      .then((r) => r.json())
+      .then((d) => setUpdateAvailable(d.update_available === true))
+      .catch(() => {});
+  }, []);
 
   return (
     <header className={classes.header}>
@@ -70,6 +80,16 @@ export function Header() {
             }
           />
         </Tooltip>
+        {updateAvailable && (
+          <Tooltip
+            content="Update available — fetch latest and restart containers"
+            relationship="label"
+          >
+            <div className={classes.updateIcon}>
+              <ArrowSync20Regular />
+            </div>
+          </Tooltip>
+        )}
         <Tooltip
           content={isDark ? "Switch to light mode" : "Switch to dark mode"}
           relationship="label"

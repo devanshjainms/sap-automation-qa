@@ -6,6 +6,8 @@ services:
     build:
       context:            ..
       dockerfile:         deploy/Dockerfile
+      args:
+                          - GIT_COMMIT=${GIT_COMMIT:-unknown}
     image:                sap-qa:latest
     container_name:       sap-qa-service
     user:                 "${HOST_UID:-1000}:${HOST_GID:-1000}"
