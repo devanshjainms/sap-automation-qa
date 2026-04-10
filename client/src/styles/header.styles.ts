@@ -40,7 +40,7 @@ export const useStyles = makeStyles({
     display: "flex",
     alignItems: "center",
     padding: "6px",
-    color: tokens.colorPaletteGreenForeground2,
+    color: "#ffc107",
     cursor: "default",
   },
 });

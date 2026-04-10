@@ -10,7 +10,7 @@ import {
   WeatherSunny24Regular,
   HeartPulse20Regular,
   Wrench20Regular,
-  ArrowSync20Regular,
+  ArrowUpload20Regular,
 } from "@fluentui/react-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useStyles } from "../../styles/header.styles";
@@ -48,6 +48,16 @@ export function Header() {
           </text>
         </svg>
         <Text className={classes.title}>SAP Testing Automation</Text>
+        {updateAvailable && (
+          <Tooltip
+            content="Update available — fetch latest and restart containers"
+            relationship="label"
+          >
+            <div className={classes.updateIcon}>
+              <ArrowUpload20Regular />
+            </div>
+          </Tooltip>
+        )}
       </div>
 
       <div className={classes.actions}>
@@ -80,16 +90,6 @@ export function Header() {
             }
           />
         </Tooltip>
-        {updateAvailable && (
-          <Tooltip
-            content="Update available — fetch latest and restart containers"
-            relationship="label"
-          >
-            <div className={classes.updateIcon}>
-              <ArrowSync20Regular />
-            </div>
-          </Tooltip>
-        )}
         <Tooltip
           content={isDark ? "Switch to light mode" : "Switch to dark mode"}
           relationship="label"
