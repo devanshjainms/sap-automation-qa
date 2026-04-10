@@ -27,6 +27,8 @@ services:
                           - OLLAMA_URL=http://sap-ollama:11434
                           - AZURE_MCP_URL=http://sap-azure-mcp:5000
                           - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
+                          - GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-Azure/sap-automation-qa}
+                          - GITHUB_BRANCH=${GITHUB_BRANCH:-main}
                           - TELEMETRY_DATA_DESTINATION=${TELEMETRY_DATA_DESTINATION:-}
                           - LAWS_WORKSPACE_ID=${LAWS_WORKSPACE_ID:-}
                           - LAWS_SHARED_KEY=${LAWS_SHARED_KEY:-}
