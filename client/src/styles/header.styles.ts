@@ -42,5 +42,9 @@ export const useStyles = makeStyles({
     padding: "6px",
     color: "#ffc107",
     cursor: "default",
+    "& svg": {
+      width: "16px",
+      height: "16px",
+    },
   },
 });
