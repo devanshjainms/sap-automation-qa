@@ -22,6 +22,7 @@ class TestEvidenceType:
             "azure_metadata",
             "cib_xml",
             "log_excerpt",
+            "log_output",
             "sap_process_list",
         }
         actual = {m.value for m in EvidenceType}

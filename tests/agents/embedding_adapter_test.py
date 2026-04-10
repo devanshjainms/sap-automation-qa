@@ -4,20 +4,12 @@
 """Tests for EmbeddingAdapter (AF BaseEmbeddingClient → EmbeddingProvider)."""
 
 from __future__ import annotations
-
 import asyncio
 from typing import Any, Sequence
-from unittest.mock import AsyncMock
-
 import pytest
-
 from agent_framework import BaseEmbeddingClient, Embedding, GeneratedEmbeddings
 from src.agents.providers.embedding_adapter import EmbeddingAdapter
 from src.core.models.embedding import EmbeddingProvider
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 class FakeEmbeddingClient(BaseEmbeddingClient[str, list[float], Any]):
@@ -52,11 +44,6 @@ class FailingClient(BaseEmbeddingClient[str, list[float], Any]):
         self, values: Sequence[str], *, options: Any = None
     ) -> GeneratedEmbeddings:
         raise ConnectionError("API is down")
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 class TestEmbeddingAdapterProtocol:

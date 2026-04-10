@@ -4,12 +4,9 @@
 """Tests for the InputValidator class."""
 
 from __future__ import annotations
-
 from pathlib import Path
-from unittest.mock import MagicMock
-
+from pytest_mock import MockerFixture
 import pytest
-
 from mcp.server.fastmcp.exceptions import ToolError
 from src.mcp_server.validation import (
     MAX_DEFINITIONS_COUNT,
@@ -21,18 +18,13 @@ from src.mcp_server.validation import (
 
 
 @pytest.fixture()
-def validator(tmp_path: Path) -> InputValidator:
+def validator(tmp_path: Path, mocker: MockerFixture) -> InputValidator:
     """Build an InputValidator backed by *tmp_path* as the workspace root."""
     return InputValidator(
         workspaces_base=tmp_path,
         sessions={},
-        job_store=MagicMock(),
+        job_store=mocker.MagicMock(),
     )
-
-
-# ---------------------------------------------------------------------------
-# workspace_id
-# ---------------------------------------------------------------------------
 
 
 class TestWorkspaceId:
@@ -83,11 +75,6 @@ class TestWorkspaceId:
             validator.workspace_id("A" * 129)
 
 
-# ---------------------------------------------------------------------------
-# query
-# ---------------------------------------------------------------------------
-
-
 class TestQuery:
 
     def test_valid_query(self, validator: InputValidator):
@@ -112,11 +99,6 @@ class TestQuery:
         assert len(validator.query("x" * MAX_QUERY_LENGTH)) == MAX_QUERY_LENGTH
 
 
-# ---------------------------------------------------------------------------
-# timeout
-# ---------------------------------------------------------------------------
-
-
 class TestTimeout:
 
     def test_valid_timeout(self, validator: InputValidator):
@@ -137,11 +119,6 @@ class TestTimeout:
             validator.timeout(MAX_TIMEOUT + 1)
 
 
-# ---------------------------------------------------------------------------
-# definitions
-# ---------------------------------------------------------------------------
-
-
 class TestDefinitions:
 
     def test_none_returns_none(self, validator: InputValidator):
@@ -160,56 +137,46 @@ class TestDefinitions:
         with pytest.raises(ToolError, match="Invalid definition ID"):
             validator.definitions([""])
 
-    def test_too_long_id_raises(self, validator: InputValidator):
+    def test_too_long_id_raises(self, mocker: MockerFixture, validator: InputValidator):
         with pytest.raises(ToolError, match="Invalid definition ID"):
             validator.definitions(["x" * 129])
 
-    def test_exactly_max_count(self, validator: InputValidator):
+    def test_exactly_max_count(self, mocker: MockerFixture, validator: InputValidator):
         ids = [f"def-{i}" for i in range(MAX_DEFINITIONS_COUNT)]
         assert validator.definitions(ids) == ids
 
 
-# ---------------------------------------------------------------------------
-# session_id
-# ---------------------------------------------------------------------------
-
-
 class TestSessionId:
 
-    def test_valid_session(self, tmp_path: Path):
-        v = InputValidator(tmp_path, sessions={"s1": "session_obj"}, job_store=MagicMock())
+    def test_valid_session(self, mocker: MockerFixture, tmp_path: Path):
+        v = InputValidator(tmp_path, sessions={"s1": "session_obj"}, job_store=mocker.MagicMock())
         assert v.session_id("s1") == "session_obj"
 
-    def test_empty_raises(self, validator: InputValidator):
+    def test_empty_raises(self, mocker: MockerFixture, validator: InputValidator):
         with pytest.raises(ToolError, match="required"):
             validator.session_id("")
 
-    def test_missing_raises(self, tmp_path: Path):
-        v = InputValidator(tmp_path, sessions={"other": "val"}, job_store=MagicMock())
+    def test_missing_raises(self, mocker: MockerFixture, tmp_path: Path):
+        v = InputValidator(tmp_path, sessions={"other": "val"}, job_store=mocker.MagicMock())
         with pytest.raises(ToolError, match="not found"):
             v.session_id("missing")
 
 
-# ---------------------------------------------------------------------------
-# job_id
-# ---------------------------------------------------------------------------
-
-
 class TestJobId:
 
-    def test_valid_job(self, tmp_path: Path):
-        store = MagicMock()
+    def test_valid_job(self, mocker: MockerFixture, tmp_path: Path):
+        store = mocker.MagicMock()
         store.get.return_value = "job_obj"
         v = InputValidator(tmp_path, sessions={}, job_store=store)
         assert v.job_id("j1") == "job_obj"
         store.get.assert_called_once_with("j1")
 
-    def test_empty_raises(self, validator: InputValidator):
+    def test_empty_raises(self, mocker: MockerFixture, validator: InputValidator):
         with pytest.raises(ToolError, match="required"):
             validator.job_id("")
 
-    def test_not_found_raises(self, tmp_path: Path):
-        store = MagicMock()
+    def test_not_found_raises(self, mocker: MockerFixture, tmp_path: Path):
+        store = mocker.MagicMock()
         store.get.return_value = None
         v = InputValidator(tmp_path, sessions={}, job_store=store)
         with pytest.raises(ToolError, match="not found"):

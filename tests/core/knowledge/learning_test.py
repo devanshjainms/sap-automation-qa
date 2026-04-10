@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator, List
-from unittest.mock import MagicMock
+from pytest_mock import MockerFixture
 
 import pytest
 from src.core.storage.knowledge_graph import KnowledgeGraph
@@ -124,9 +124,6 @@ class _FailingProvider(_FakeProvider):
         raise RuntimeError("embedding service unavailable")
 
 
-# ─── Novel pattern tests ──────────────────────────────────────
-
-
 class TestProcessSessionNovel:
     """Tests for the full pipeline when candidate is novel."""
 
@@ -158,9 +155,6 @@ class TestProcessSessionNovel:
         ]
         pipeline.process_session(_make_candidate(), _make_experience(), gaps=gaps)
         assert len(store.get_unresolved_gaps()) == 1
-
-
-# ─── Consolidation tests ──────────────────────────────────────
 
 
 class TestConsolidateNearDuplicate:
@@ -227,9 +221,6 @@ class TestConsolidateRelated:
         assert store.get_learned_pattern(result.id) is not None
 
 
-# ─── Reinforce tests ──────────────────────────────────────────
-
-
 class TestReinforce:
     """Tests for the _reinforce method directly."""
 
@@ -279,9 +270,6 @@ class TestReinforce:
         )
         result = pipeline._reinforce(existing, candidate)
         assert result.confidence == 0.5
-
-
-# ─── CBR Revise (outcome-weighted confidence) tests ───────────
 
 
 class TestRevise:
@@ -346,9 +334,6 @@ class TestRevise:
         assert abs(loaded.confidence - expected) < 1e-9
 
 
-# ─── Confidence decay tests ───────────────────────────────────
-
-
 class TestApplyDecay:
     """Tests for age-based confidence decay."""
 
@@ -406,17 +391,18 @@ class TestApplyDecay:
         assert decayed[0].id == "LP-2"
 
 
-# ─── Embedding tests ──────────────────────────────────────────
-
-
 class TestEmbed:
     """Tests for embedding computation during Retain step."""
 
     def test_embed_called_when_provider_configured(
-        self, store: KnowledgeStore, graph: KnowledgeGraph, retriever: HybridRetriever
+        self,
+        store: KnowledgeStore,
+        graph: KnowledgeGraph,
+        retriever: HybridRetriever,
+        mocker: MockerFixture,
     ) -> None:
         """Verify embedding is stored when provider + store are present."""
-        mock_emb_store = MagicMock()
+        mock_emb_store = mocker.MagicMock()
         provider = _FakeProvider(dims=4)
         pl = LearningPipeline(
             store,
@@ -432,17 +418,23 @@ class TestEmbed:
         assert call_kwargs[1]["item_id"] == "LP-NEW"
         assert call_kwargs[1]["item_type"] == "learned_pattern"
 
-    def test_embed_noop_without_provider(self, pipeline: LearningPipeline) -> None:
+    def test_embed_noop_without_provider(
+        self, pipeline: LearningPipeline, mocker: MockerFixture
+    ) -> None:
         """Verify _embed is a no-op when no provider is configured."""
         pattern = _make_candidate()
         # Should not raise
         pipeline._embed(pattern)
 
     def test_embed_failure_does_not_break_pipeline(
-        self, store: KnowledgeStore, graph: KnowledgeGraph, retriever: HybridRetriever
+        self,
+        store: KnowledgeStore,
+        graph: KnowledgeGraph,
+        retriever: HybridRetriever,
+        mocker: MockerFixture,
     ) -> None:
         """Verify provider failure is logged but pipeline continues."""
-        mock_emb_store = MagicMock()
+        mock_emb_store = mocker.MagicMock()
         provider = _FailingProvider(dims=4)
         pl = LearningPipeline(
             store,
@@ -460,12 +452,16 @@ class TestEmbed:
         mock_emb_store.store.assert_not_called()
 
     def test_embed_computes_text_hash(
-        self, store: KnowledgeStore, graph: KnowledgeGraph, retriever: HybridRetriever
+        self,
+        store: KnowledgeStore,
+        graph: KnowledgeGraph,
+        retriever: HybridRetriever,
+        mocker: MockerFixture,
     ) -> None:
         """Verify text_hash is a SHA-256 of the pattern text."""
         import hashlib
 
-        mock_emb_store = MagicMock()
+        mock_emb_store = mocker.MagicMock()
         provider = _FakeProvider(dims=4)
         pl = LearningPipeline(
             store,

@@ -8,23 +8,17 @@ pattern as the tool tests in ``server_test.py``.
 """
 
 from __future__ import annotations
-
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
-
+from pytest_mock import MockerFixture
 import pytest
-
 from src.core.models.knowledge import Playbook, Rule
 from src.mcp_server.server import SapContext
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+from src.mcp_server.ttl_dict import TtlDict
 
 
 @pytest.fixture()
-def tmp_workspaces(tmp_path: Path) -> Path:
+def tmp_workspaces(mocker: MockerFixture, tmp_path: Path) -> Path:
     """Workspace tree with sap-parameters.yaml and hosts.yaml."""
     base = tmp_path / "WORKSPACES" / "SYSTEM"
 
@@ -37,8 +31,8 @@ def tmp_workspaces(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
-def mock_knowledge_store() -> MagicMock:
-    store = MagicMock()
+def mock_knowledge_store(mocker: MockerFixture):
+    store = mocker.MagicMock()
     store.load_rules.return_value = [
         Rule(
             id="DB-HANA-0001",
@@ -69,51 +63,47 @@ def mock_knowledge_store() -> MagicMock:
     return store
 
 
-def _make_ctx(sap: SapContext) -> MagicMock:
-    ctx = MagicMock()
+def _make_ctx(sap: SapContext, mocker: MockerFixture):
+    ctx = mocker.MagicMock()
     ctx.request_context.lifespan_context = sap
     return ctx
 
 
 def _sap(
     tmp_workspaces: Path,
-    knowledge_store: MagicMock,
+    knowledge_store,
+    mocker: MockerFixture,
 ) -> SapContext:
     """Minimal SapContext with only the fields resources need."""
     return SapContext(
-        job_store=MagicMock(),
+        job_store=mocker.MagicMock(),
         knowledge_store=knowledge_store,
-        schedule_store=MagicMock(),
+        schedule_store=mocker.MagicMock(),
         scheduler_service=None,
-        analyzer=MagicMock(),
-        triage_executor=MagicMock(),
-        triage_sessions={},
+        analyzer=mocker.MagicMock(),
+        triage_executor=mocker.MagicMock(),
+        triage_sessions=TtlDict(),
         workspaces_base=tmp_workspaces,
         core_api_url="http://localhost:8000",
-        ssh_provider=MagicMock(),
-        ssh_cache=MagicMock(),
-        validator=MagicMock(),
-        formatter=MagicMock(),
-        retriever=MagicMock(),
-        learning_pipeline=MagicMock(),
+        ssh_provider=mocker.MagicMock(),
+        ssh_cache=mocker.MagicMock(),
+        validator=mocker.MagicMock(),
+        formatter=mocker.MagicMock(),
+        retriever=mocker.MagicMock(),
+        learning_pipeline=mocker.MagicMock(),
     )
-
-
-# ---------------------------------------------------------------------------
-# workspace://{workspace_id}/config
-# ---------------------------------------------------------------------------
 
 
 class TestGetWorkspaceConfig:
     """Test the workspace config resource."""
 
     def test_returns_parsed_yaml_as_json(
-        self, tmp_workspaces: Path, mock_knowledge_store: MagicMock
+        self, tmp_workspaces: Path, mock_knowledge_store, mocker: MockerFixture
     ):
         from src.mcp_server.resources import get_workspace_config
 
-        sap = _sap(tmp_workspaces, mock_knowledge_store)
-        ctx = _make_ctx(sap)
+        sap = _sap(tmp_workspaces, mock_knowledge_store, mocker)
+        ctx = _make_ctx(sap, mocker)
 
         result = get_workspace_config(workspace_id="WS_A", ctx=ctx)
         data = json.loads(result)
@@ -122,12 +112,12 @@ class TestGetWorkspaceConfig:
         assert data["database_high_availability"] is True
 
     def test_missing_workspace_returns_error(
-        self, tmp_workspaces: Path, mock_knowledge_store: MagicMock
+        self, tmp_workspaces: Path, mock_knowledge_store, mocker: MockerFixture
     ):
         from src.mcp_server.resources import get_workspace_config
 
-        sap = _sap(tmp_workspaces, mock_knowledge_store)
-        ctx = _make_ctx(sap)
+        sap = _sap(tmp_workspaces, mock_knowledge_store, mocker)
+        ctx = _make_ctx(sap, mocker)
 
         result = get_workspace_config(workspace_id="NOPE", ctx=ctx)
         data = json.loads(result)
@@ -136,34 +126,28 @@ class TestGetWorkspaceConfig:
         assert "NOPE" in data["error"]
 
     def test_invalid_yaml_returns_raw_text(
-        self, tmp_workspaces: Path, mock_knowledge_store: MagicMock
+        self, tmp_workspaces: Path, mock_knowledge_store, mocker: MockerFixture
     ):
         from src.mcp_server.resources import get_workspace_config
 
         bad_file = tmp_workspaces / "WS_A" / "sap-parameters.yaml"
         bad_file.write_text(":\n  - [invalid yaml\n")
-
-        sap = _sap(tmp_workspaces, mock_knowledge_store)
-        ctx = _make_ctx(sap)
-
+        sap = _sap(tmp_workspaces, mock_knowledge_store, mocker)
+        ctx = _make_ctx(sap, mocker)
         result = get_workspace_config(workspace_id="WS_A", ctx=ctx)
-        # Should fall back to raw text, not raise.
         assert "invalid yaml" in result
-
-
-# ---------------------------------------------------------------------------
-# workspace://{workspace_id}/hosts
-# ---------------------------------------------------------------------------
 
 
 class TestGetWorkspaceHosts:
     """Test the workspace hosts resource."""
 
-    def test_returns_parsed_hosts(self, tmp_workspaces: Path, mock_knowledge_store: MagicMock):
+    def test_returns_parsed_hosts(
+        self, mocker: MockerFixture, tmp_workspaces: Path, mock_knowledge_store
+    ):
         from src.mcp_server.resources import get_workspace_hosts
 
-        sap = _sap(tmp_workspaces, mock_knowledge_store)
-        ctx = _make_ctx(sap)
+        sap = _sap(tmp_workspaces, mock_knowledge_store, mocker)
+        ctx = _make_ctx(sap, mocker)
 
         result = get_workspace_hosts(workspace_id="WS_A", ctx=ctx)
         data = json.loads(result)
@@ -171,11 +155,13 @@ class TestGetWorkspaceHosts:
         assert "all" in data
         assert "node1" in data["all"]["hosts"]
 
-    def test_missing_hosts_file(self, tmp_workspaces: Path, mock_knowledge_store: MagicMock):
+    def test_missing_hosts_file(
+        self, mocker: MockerFixture, tmp_workspaces: Path, mock_knowledge_store
+    ):
         from src.mcp_server.resources import get_workspace_hosts
 
-        sap = _sap(tmp_workspaces, mock_knowledge_store)
-        ctx = _make_ctx(sap)
+        sap = _sap(tmp_workspaces, mock_knowledge_store, mocker)
+        ctx = _make_ctx(sap, mocker)
 
         result = get_workspace_hosts(workspace_id="NOPE", ctx=ctx)
         data = json.loads(result)
@@ -183,33 +169,30 @@ class TestGetWorkspaceHosts:
         assert "error" in data
 
     def test_invalid_yaml_returns_raw_text(
-        self, tmp_workspaces: Path, mock_knowledge_store: MagicMock
+        self, tmp_workspaces: Path, mock_knowledge_store, mocker: MockerFixture
     ):
         from src.mcp_server.resources import get_workspace_hosts
 
         bad = tmp_workspaces / "WS_A" / "hosts.yaml"
         bad.write_text(":\n  - [invalid\n")
 
-        sap = _sap(tmp_workspaces, mock_knowledge_store)
-        ctx = _make_ctx(sap)
+        sap = _sap(tmp_workspaces, mock_knowledge_store, mocker)
+        ctx = _make_ctx(sap, mocker)
 
         result = get_workspace_hosts(workspace_id="WS_A", ctx=ctx)
         assert "invalid" in result
 
 
-# ---------------------------------------------------------------------------
-# knowledge://rules
-# ---------------------------------------------------------------------------
-
-
 class TestGetKnowledgeRules:
     """Test the knowledge rules resource."""
 
-    def test_returns_all_rules(self, tmp_workspaces: Path, mock_knowledge_store: MagicMock):
+    def test_returns_all_rules(
+        self, mocker: MockerFixture, tmp_workspaces: Path, mock_knowledge_store
+    ):
         from src.mcp_server.resources import get_knowledge_rules
 
-        sap = _sap(tmp_workspaces, mock_knowledge_store)
-        ctx = _make_ctx(sap)
+        sap = _sap(tmp_workspaces, mock_knowledge_store, mocker)
+        ctx = _make_ctx(sap, mocker)
 
         result = get_knowledge_rules(ctx=ctx)
         data = json.loads(result)
@@ -220,32 +203,29 @@ class TestGetKnowledgeRules:
         assert data[0]["tags"] == ["hana", "hsr"]
         assert data[1]["id"] == "DB-HANA-0002"
 
-    def test_empty_knowledge_base(self, tmp_workspaces: Path):
+    def test_empty_knowledge_base(self, mocker: MockerFixture, tmp_workspaces: Path):
         from src.mcp_server.resources import get_knowledge_rules
 
-        store = MagicMock()
+        store = mocker.MagicMock()
         store.load_rules.return_value = []
 
-        sap = _sap(tmp_workspaces, store)
-        ctx = _make_ctx(sap)
+        sap = _sap(tmp_workspaces, store, mocker)
+        ctx = _make_ctx(sap, mocker)
 
         result = get_knowledge_rules(ctx=ctx)
         assert json.loads(result) == []
 
 
-# ---------------------------------------------------------------------------
-# knowledge://playbooks
-# ---------------------------------------------------------------------------
-
-
 class TestGetKnowledgePlaybooks:
     """Test the knowledge playbooks resource."""
 
-    def test_returns_all_playbooks(self, tmp_workspaces: Path, mock_knowledge_store: MagicMock):
+    def test_returns_all_playbooks(
+        self, mocker: MockerFixture, tmp_workspaces: Path, mock_knowledge_store
+    ):
         from src.mcp_server.resources import get_knowledge_playbooks
 
-        sap = _sap(tmp_workspaces, mock_knowledge_store)
-        ctx = _make_ctx(sap)
+        sap = _sap(tmp_workspaces, mock_knowledge_store, mocker)
+        ctx = _make_ctx(sap, mocker)
 
         result = get_knowledge_playbooks(ctx=ctx)
         data = json.loads(result)
@@ -254,14 +234,14 @@ class TestGetKnowledgePlaybooks:
         assert data[0]["id"] == "PB-HANA-HSR-0001"
         assert "secondary not replicating" in data[0]["symptoms"]
 
-    def test_empty_playbooks(self, tmp_workspaces: Path):
+    def test_empty_playbooks(self, mocker: MockerFixture, tmp_workspaces: Path):
         from src.mcp_server.resources import get_knowledge_playbooks
 
-        store = MagicMock()
+        store = mocker.MagicMock()
         store.load_playbooks.return_value = []
 
-        sap = _sap(tmp_workspaces, store)
-        ctx = _make_ctx(sap)
+        sap = _sap(tmp_workspaces, store, mocker)
+        ctx = _make_ctx(sap, mocker)
 
         result = get_knowledge_playbooks(ctx=ctx)
         assert json.loads(result) == []

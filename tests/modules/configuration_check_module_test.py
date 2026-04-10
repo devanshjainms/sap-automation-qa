@@ -6,13 +6,12 @@ Unit tests for the ConfigurationCheckModule.
 
 This test suite provides comprehensive coverage for configuration check execution,
 validation, parallel processing, and error handling.
-Tests use pytest with monkeypatch for mocking, avoiding unittest entirely.
 """
 
 import json
 from datetime import datetime
 from typing import Any, Dict, Optional
-from unittest.mock import Mock, patch
+from pytest_mock import MockerFixture
 
 import pytest
 
@@ -373,7 +372,9 @@ class TestValidators:
 class TestValidateResult:
     """Test suite for validate_result method"""
 
-    def test_validate_result_with_registered_validator(self, config_module, sample_check):
+    def test_validate_result_with_registered_validator(
+        self, mocker: MockerFixture, config_module, sample_check
+    ):
         """Test validate_result with registered validator"""
         sample_check.validator_type = "string"
         sample_check.validator_args = {"expected": "test"}
@@ -381,7 +382,9 @@ class TestValidateResult:
         assert "status" in result
         assert result["status"] == TestStatus.SUCCESS.value
 
-    def test_validate_result_with_unregistered_validator(self, config_module, sample_check):
+    def test_validate_result_with_unregistered_validator(
+        self, mocker: MockerFixture, config_module, sample_check
+    ):
         """Test validate_result with unregistered validator"""
         sample_check.validator_type = "unknown_validator"
         result = config_module.validate_result(sample_check, "data")
@@ -392,20 +395,24 @@ class TestValidateResult:
 class TestExecuteCheck:
     """Test suite for execute_check method"""
 
-    def test_execute_check_success(self, config_module, sample_check, monkeypatch):
+    def test_execute_check_success(
+        self, mocker: MockerFixture, config_module, sample_check, monkeypatch
+    ):
         """Test successful check execution"""
         config_module.set_context({"hostname": "testhost"})
 
         def mock_collect(check, context):
             return "test"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
-            result = config_module.execute_check(sample_check)
-            assert isinstance(result, CheckResult)
-            assert result.status == TestStatus.SUCCESS.value
-            assert result.hostname == "testhost"
+        mocker.patch(
+            "src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect
+        )
+        result = config_module.execute_check(sample_check)
+        assert isinstance(result, CheckResult)
+        assert result.status == TestStatus.SUCCESS.value
+        assert result.hostname == "testhost"
 
-    def test_execute_check_not_applicable(self, config_module, sample_check):
+    def test_execute_check_not_applicable(self, mocker: MockerFixture, config_module, sample_check):
         """Test check execution when check is not applicable"""
         config_module.set_context({"os": "RHEL"})
         sample_check.applicability = [ApplicabilityRule(property="os", value="SLES")]
@@ -413,7 +420,9 @@ class TestExecuteCheck:
         assert result.status == TestStatus.SKIPPED.value
         assert "not applicable" in result.details
 
-    def test_execute_check_info_severity(self, config_module, sample_check, monkeypatch):
+    def test_execute_check_info_severity(
+        self, mocker: MockerFixture, config_module, sample_check, monkeypatch
+    ):
         """Test check execution with INFO severity"""
         config_module.set_context({"hostname": "testhost"})
         sample_check.severity = TestSeverity.INFO
@@ -421,11 +430,15 @@ class TestExecuteCheck:
         def mock_collect(check, context):
             return "info_data"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
-            result = config_module.execute_check(sample_check)
-            assert result.status == TestStatus.INFO.value
+        mocker.patch(
+            "src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect
+        )
+        result = config_module.execute_check(sample_check)
+        assert result.status == TestStatus.INFO.value
 
-    def test_execute_check_collector_not_found(self, config_module, sample_check):
+    def test_execute_check_collector_not_found(
+        self, mocker: MockerFixture, config_module, sample_check
+    ):
         """Test check execution with unknown collector"""
         config_module.set_context({"hostname": "testhost"})
         sample_check.collector_type = "unknown_collector"
@@ -433,21 +446,23 @@ class TestExecuteCheck:
         assert result.status == TestStatus.ERROR.value
         assert "not found" in result.details
 
-    def test_execute_check_exception_handling(self, config_module, sample_check):
+    def test_execute_check_exception_handling(
+        self, mocker: MockerFixture, config_module, sample_check
+    ):
         """Test check execution handles exceptions"""
         config_module.set_context({"hostname": "testhost"})
 
         def mock_collect_error(check, context):
             raise Exception("Collection failed")
 
-        with patch(
+        mocker.patch(
             "src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect_error
-        ):
-            result = config_module.execute_check(sample_check)
-            assert result.status == TestStatus.ERROR.value
-            assert "Error" in result.details
+        )
+        result = config_module.execute_check(sample_check)
+        assert result.status == TestStatus.ERROR.value
+        assert "Error" in result.details
 
-    def test_execute_check_min_list_validator_success(self, config_module):
+    def test_execute_check_min_list_validator_success(self, mocker: MockerFixture, config_module):
         """Test check execution with min_list validator - values meet minimum"""
         config_module.set_context({"hostname": "testhost"})
         check = Check(
@@ -473,13 +488,15 @@ class TestExecuteCheck:
         def mock_collect(check_obj, context):
             return "32000 1024000000 500 32768"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
-            result = config_module.execute_check(check)
-            assert result.status == TestStatus.SUCCESS.value
-            assert result.expected_value == "Min: 32000 1024000000 500 32000"
-            assert result.actual_value == "32000 1024000000 500 32768"
+        mocker.patch(
+            "src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect
+        )
+        result = config_module.execute_check(check)
+        assert result.status == TestStatus.SUCCESS.value
+        assert result.expected_value == "Min: 32000 1024000000 500 32000"
+        assert result.actual_value == "32000 1024000000 500 32768"
 
-    def test_execute_check_min_list_validator_failure(self, config_module):
+    def test_execute_check_min_list_validator_failure(self, mocker: MockerFixture, config_module):
         """Test check execution with min_list validator - values below minimum"""
         config_module.set_context({"hostname": "testhost"})
         check = Check(
@@ -505,54 +522,66 @@ class TestExecuteCheck:
         def mock_collect(check_obj, context):
             return "32000 1024000000 500 31999"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
-            result = config_module.execute_check(check)
-            assert result.status == TestStatus.ERROR.value
-            assert result.expected_value == "Min: 32000 1024000000 500 32000"
-            assert result.actual_value == "32000 1024000000 500 31999"
+        mocker.patch(
+            "src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect
+        )
+        result = config_module.execute_check(check)
+        assert result.status == TestStatus.ERROR.value
+        assert result.expected_value == "Min: 32000 1024000000 500 32000"
+        assert result.actual_value == "32000 1024000000 500 31999"
 
 
 class TestExecuteCheckWithRetry:
     """Test suite for execute_check_with_retry method"""
 
-    def test_execute_check_with_retry_success_first_attempt(self, config_module, sample_check):
+    def test_execute_check_with_retry_success_first_attempt(
+        self, mocker: MockerFixture, config_module, sample_check
+    ):
         """Test retry mechanism succeeds on first attempt"""
         config_module.set_context({"hostname": "testhost"})
 
         def mock_collect(check, context):
             return "test"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
-            result = config_module.execute_check_with_retry(sample_check, max_retries=3)
-            assert result.status == TestStatus.SUCCESS.value
+        mocker.patch(
+            "src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect
+        )
+        result = config_module.execute_check_with_retry(sample_check, max_retries=3)
+        assert result.status == TestStatus.SUCCESS.value
 
-    def test_execute_check_with_retry_eventual_success(self, config_module, sample_check):
+    def test_execute_check_with_retry_eventual_success(
+        self, mocker: MockerFixture, config_module, sample_check
+    ):
         """Test retry mechanism succeeds on first attempt (no retry needed)"""
         config_module.set_context({"hostname": "testhost"})
 
         def mock_collect(check, context):
             return "test"
 
-        with patch("src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect):
-            with patch("time.sleep"):  # Skip actual sleep
-                result = config_module.execute_check_with_retry(sample_check, max_retries=3)
-                assert result.status == TestStatus.SUCCESS.value
+        mocker.patch(
+            "src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect
+        )
+        mocker.patch("time.sleep")  # Skip actual sleep
+        result = config_module.execute_check_with_retry(sample_check, max_retries=3)
+        assert result.status == TestStatus.SUCCESS.value
 
-    def test_execute_check_with_retry_all_attempts_fail(self, config_module, sample_check):
+    def test_execute_check_with_retry_all_attempts_fail(
+        self, mocker: MockerFixture, config_module, sample_check
+    ):
         """Test retry mechanism fails after all attempts"""
         config_module.set_context({"hostname": "testhost"})
 
         def mock_collect_error(check, context):
             raise Exception("Persistent failure")
 
-        with patch(
+        mocker.patch(
             "src.module_utils.collector.CommandCollector.collect", side_effect=mock_collect_error
-        ):
-            with patch("time.sleep"):  # Skip actual sleep
-                result = config_module.execute_check_with_retry(sample_check, max_retries=3)
-                assert result.status == TestStatus.ERROR.value
-                assert result.details is not None
-                assert "Error" in result.details or "failure" in result.details
+        )
+        mocker.patch("time.sleep")  # Skip actual sleep
+        result = config_module.execute_check_with_retry(sample_check, max_retries=3)
+        assert result.status == TestStatus.ERROR.value
+        assert result.details is not None
+        assert "Error" in result.details or "failure" in result.details
 
 
 class TestBuildExecutionOrder:
@@ -610,7 +639,7 @@ class TestBuildExecutionOrder:
 class TestExecuteChecks:
     """Test suite for execute_checks method"""
 
-    def test_execute_checks_sequential(self, config_module):
+    def test_execute_checks_sequential(self, mocker: MockerFixture, config_module):
         """Test sequential check execution"""
         config_module.set_context({"hostname": "testhost"})
         yaml_content = """
@@ -628,12 +657,12 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
-            results = config_module.execute_checks(parallel=False)
-            assert len(results) == 1
-            assert results[0].status == TestStatus.INFO.value
+        mocker.patch("src.module_utils.collector.CommandCollector.collect", return_value="test")
+        results = config_module.execute_checks(parallel=False)
+        assert len(results) == 1
+        assert results[0].status == TestStatus.INFO.value
 
-    def test_execute_checks_with_tag_filter(self, config_module):
+    def test_execute_checks_with_tag_filter(self, mocker: MockerFixture, config_module):
         """Test check execution with tag filtering"""
         config_module.set_context({"hostname": "testhost"})
         yaml_content = """
@@ -647,12 +676,12 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
-            results = config_module.execute_checks(filter_tags=["production"])
-            assert len(results) == 1
-            assert results[0].check.id == "check_001"
+        mocker.patch("src.module_utils.collector.CommandCollector.collect", return_value="test")
+        results = config_module.execute_checks(filter_tags=["production"])
+        assert len(results) == 1
+        assert results[0].check.id == "check_001"
 
-    def test_execute_checks_with_category_filter(self, config_module):
+    def test_execute_checks_with_category_filter(self, mocker: MockerFixture, config_module):
         """Test check execution with category filtering"""
         config_module.set_context({"hostname": "testhost"})
         yaml_content = """
@@ -666,12 +695,12 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
-            results = config_module.execute_checks(filter_categories=["System"])
-            assert len(results) == 1
-            assert results[0].check.category == "System"
+        mocker.patch("src.module_utils.collector.CommandCollector.collect", return_value="test")
+        results = config_module.execute_checks(filter_categories=["System"])
+        assert len(results) == 1
+        assert results[0].check.category == "System"
 
-    def test_execute_checks_no_matching_filters(self, config_module):
+    def test_execute_checks_no_matching_filters(self, mocker: MockerFixture, config_module):
         """Test check execution with filters that match nothing"""
         config_module.set_context({"hostname": "testhost"})
         yaml_content = """
@@ -688,24 +717,26 @@ checks:
 class TestGetResultsSummary:
     """Test suite for get_results_summary method"""
 
-    def test_get_results_summary_empty(self, config_module):
+    def test_get_results_summary_empty(self, mocker: MockerFixture, config_module):
         """Test summary with no results"""
         summary = config_module.get_results_summary()
         assert summary["total"] == 0
         assert summary["passed"] == 0
         assert summary["failed"] == 0
 
-    def test_get_results_summary_with_results(self, config_module, sample_check):
+    def test_get_results_summary_with_results(
+        self, mocker: MockerFixture, config_module, sample_check
+    ):
         """Test summary with mixed results"""
-        result1 = Mock()
+        result1 = mocker.Mock()
         result1.status = TestStatus.SUCCESS.value
         result1.check = sample_check
 
-        result2 = Mock()
+        result2 = mocker.Mock()
         result2.status = TestStatus.ERROR.value
         result2.check = sample_check
 
-        result3 = Mock()
+        result3 = mocker.Mock()
         result3.status = TestStatus.WARNING.value
         result3.check = sample_check
 
@@ -764,7 +795,7 @@ class TestFormatResultsForHtmlReport:
 class TestRunMethod:
     """Test suite for the main run method"""
 
-    def test_run_successful_execution(self, mock_ansible_module):
+    def test_run_successful_execution(self, mocker: MockerFixture, mock_ansible_module):
         """Test successful run with valid checks"""
         mock_ansible_module.params.update(
             {
@@ -786,8 +817,8 @@ checks:
 
         module = ConfigurationCheckModule(mock_ansible_module)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
-            module.run()
+        mocker.patch("src.module_utils.collector.CommandCollector.collect", return_value="test")
+        module.run()
 
         assert len(mock_ansible_module.exit_calls) == 1
         result = mock_ansible_module.exit_calls[0]
@@ -805,7 +836,7 @@ checks:
         assert len(mock_ansible_module.fail_calls) == 1
         assert "No check file content" in mock_ansible_module.fail_calls[0]["msg"]
 
-    def test_run_exception_handling(self, mock_ansible_module):
+    def test_run_exception_handling(self, mocker: MockerFixture, mock_ansible_module):
         """Test run handles exceptions gracefully"""
         mock_ansible_module.params.update(
             {
@@ -816,8 +847,8 @@ checks:
 
         module = ConfigurationCheckModule(mock_ansible_module)
 
-        with patch.object(module, "parse_yaml_from_content", side_effect=Exception("Parse error")):
-            module.run()
+        mocker.patch.object(module, "parse_yaml_from_content", side_effect=Exception("Parse error"))
+        module.run()
 
         assert len(mock_ansible_module.fail_calls) == 1
         assert "failed" in mock_ansible_module.fail_calls[0]["msg"]
@@ -850,7 +881,7 @@ class TestCreateValidationResult:
 class TestExecuteChecksParallel:
     """Test suite for execute_checks_parallel method"""
 
-    def test_execute_checks_parallel_basic(self, config_module):
+    def test_execute_checks_parallel_basic(self, mocker: MockerFixture, config_module):
         """Test parallel execution with basic checks"""
         config_module.set_context({"hostname": "testhost"})
         yaml_content = """
@@ -878,12 +909,12 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect") as mock_collect:
-            mock_collect.side_effect = lambda check, context: f"test{check.id[-1]}"
-            results = config_module.execute_checks_parallel(max_workers=2, enable_retry=False)
-            assert len(results) == 2
+        mock_collect = mocker.patch("src.module_utils.collector.CommandCollector.collect")
+        mock_collect.side_effect = lambda check, context: f"test{check.id[-1]}"
+        results = config_module.execute_checks_parallel(max_workers=2, enable_retry=False)
+        assert len(results) == 2
 
-    def test_execute_checks_parallel_with_retry_enabled(self, config_module):
+    def test_execute_checks_parallel_with_retry_enabled(self, mocker: MockerFixture, config_module):
         """Test parallel execution with retry enabled"""
         config_module.set_context({"hostname": "testhost"})
         yaml_content = """
@@ -896,11 +927,13 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
-            results = config_module.execute_checks_parallel(max_workers=1, enable_retry=True)
-            assert len(results) == 1
+        mocker.patch("src.module_utils.collector.CommandCollector.collect", return_value="test")
+        results = config_module.execute_checks_parallel(max_workers=1, enable_retry=True)
+        assert len(results) == 1
 
-    def test_execute_checks_parallel_no_checks_after_filter(self, config_module):
+    def test_execute_checks_parallel_no_checks_after_filter(
+        self, mocker: MockerFixture, config_module
+    ):
         """Test parallel execution with filters that match nothing"""
         config_module.set_context({"hostname": "testhost"})
         yaml_content = """
@@ -913,7 +946,7 @@ checks:
         results = config_module.execute_checks_parallel(filter_tags=["nonexistent"])
         assert len(results) == 0
 
-    def test_execute_checks_parallel_execution_summary(self, config_module):
+    def test_execute_checks_parallel_execution_summary(self, mocker: MockerFixture, config_module):
         """Test parallel execution updates result with execution summary"""
         config_module.set_context({"hostname": "testhost"})
         yaml_content = """
@@ -925,11 +958,11 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
-            config_module.execute_checks_parallel(max_workers=1)
-            assert "execution_summary" in config_module.result
-            assert "total_checks" in config_module.result["execution_summary"]
-            assert "execution_time" in config_module.result["execution_summary"]
+        mocker.patch("src.module_utils.collector.CommandCollector.collect", return_value="test")
+        config_module.execute_checks_parallel(max_workers=1)
+        assert "execution_summary" in config_module.result
+        assert "total_checks" in config_module.result["execution_summary"]
+        assert "execution_time" in config_module.result["execution_summary"]
 
 
 class TestParseYamlFromContent:
@@ -971,7 +1004,7 @@ checks:
 class TestCollectorRegistration:
     """Test suite for collector registration"""
 
-    def test_register_custom_collector(self, config_module):
+    def test_register_custom_collector(self, mocker: MockerFixture, config_module):
         """Test registering a custom collector"""
 
         class CustomCollector:
@@ -981,7 +1014,9 @@ class TestCollectorRegistration:
         assert "custom" in config_module._collector_registry
         assert config_module._collector_registry["custom"] == CustomCollector
 
-    def test_execute_check_with_custom_collector(self, config_module, sample_check):
+    def test_execute_check_with_custom_collector(
+        self, mocker: MockerFixture, config_module, sample_check
+    ):
         """Test executing check with unregistered collector type"""
         config_module.set_context({"hostname": "testhost"})
         sample_check.collector_type = "unregistered_type"
@@ -992,13 +1027,15 @@ class TestCollectorRegistration:
 class TestEdgeCases:
     """Test suite for edge cases and error conditions"""
 
-    def test_execute_check_with_empty_context(self, config_module, sample_check):
+    def test_execute_check_with_empty_context(
+        self, mocker: MockerFixture, config_module, sample_check
+    ):
         """Test executing check with empty context"""
         config_module.set_context({})
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
-            result = config_module.execute_check(sample_check)
-            assert isinstance(result, CheckResult)
+        mocker.patch("src.module_utils.collector.CommandCollector.collect", return_value="test")
+        result = config_module.execute_check(sample_check)
+        assert isinstance(result, CheckResult)
 
     def test_validate_string_with_none_collected_data(self, config_module, sample_check):
         """Test string validation with None collected data"""
@@ -1050,7 +1087,7 @@ class TestEdgeCases:
         result = config_module.validate_properties(sample_check, collected)
         assert result["status"] in [TestStatus.WARNING.value, TestStatus.ERROR.value]
 
-    def test_execute_checks_with_multiple_filters(self, config_module):
+    def test_execute_checks_with_multiple_filters(self, mocker: MockerFixture, config_module):
         """Test check execution with both tag and category filters"""
         config_module.set_context({"hostname": "testhost"})
         yaml_content = """
@@ -1070,9 +1107,9 @@ checks:
 """
         config_module.load_checks(yaml_content)
 
-        with patch("src.module_utils.collector.CommandCollector.collect", return_value="test"):
-            results = config_module.execute_checks(
-                filter_tags=["production"], filter_categories=["System"]
-            )
-            assert len(results) == 1
-            assert results[0].check.id == "check_001"
+        mocker.patch("src.module_utils.collector.CommandCollector.collect", return_value="test")
+        results = config_module.execute_checks(
+            filter_tags=["production"], filter_categories=["System"]
+        )
+        assert len(results) == 1
+        assert results[0].check.id == "check_001"

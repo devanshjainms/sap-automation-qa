@@ -6,7 +6,6 @@ Unit tests for the FileSystemCollector module.
 
 This test suite provides comprehensive coverage for filesystem data collection,
 LVM volume parsing, Azure disk correlation, and NFS storage (ANF/AFS) integration.
-Tests use pytest with monkeypatch for mocking, avoiding unittest entirely.
 """
 
 import pytest

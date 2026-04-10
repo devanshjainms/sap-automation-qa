@@ -4,11 +4,7 @@
 """Tests for ``SapWorkflow`` and ``register_ag_ui``."""
 
 from __future__ import annotations
-
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
-
+from pytest_mock import MockerFixture
 from src.agents.ag_ui import SapWorkflow
 
 
@@ -39,10 +35,10 @@ class TestSapWorkflowExtractUserText:
         }
         assert SapWorkflow._extract_user_text(input_data) == "hello world"
 
-    def test_empty_messages(self):
+    def test_empty_messages(self, mocker: MockerFixture):
         assert SapWorkflow._extract_user_text({"messages": []}) == ""
 
-    def test_no_user_messages(self):
+    def test_no_user_messages(self, mocker: MockerFixture):
         input_data = {"messages": [{"role": "assistant", "content": "hi"}]}
         assert SapWorkflow._extract_user_text(input_data) == ""
 
@@ -50,11 +46,11 @@ class TestSapWorkflowExtractUserText:
 class TestSapWorkflowPersistence:
     """Validate SapWorkflow persistence at workflow boundary."""
 
-    def test_ensure_conversation_creates_new(self):
+    def test_ensure_conversation_creates_new(self, mocker: MockerFixture):
         """_ensure_conversation creates conv when none exists."""
-        store = MagicMock()
+        store = mocker.MagicMock()
         store.get.return_value = None
-        factory = MagicMock()
+        factory = mocker.MagicMock()
 
         workflow = SapWorkflow(
             factory=factory,
@@ -68,11 +64,11 @@ class TestSapWorkflowPersistence:
         created = store.create.call_args[0][0]
         assert str(created.id) == thread_id
 
-    def test_ensure_conversation_skips_existing(self):
+    def test_ensure_conversation_skips_existing(self, mocker: MockerFixture):
         """_ensure_conversation does not create when conv exists."""
-        store = MagicMock()
-        store.get.return_value = MagicMock()  # exists
-        factory = MagicMock()
+        store = mocker.MagicMock()
+        store.get.return_value = mocker.MagicMock()
+        factory = mocker.MagicMock()
 
         workflow = SapWorkflow(
             factory=factory,
@@ -83,10 +79,10 @@ class TestSapWorkflowPersistence:
 
         store.create.assert_not_called()
 
-    def test_save_user_message(self):
+    def test_save_user_message(self, mocker: MockerFixture):
         """_save_user_message persists a user message."""
-        store = MagicMock()
-        factory = MagicMock()
+        store = mocker.MagicMock()
+        factory = mocker.MagicMock()
 
         workflow = SapWorkflow(
             factory=factory,
@@ -99,10 +95,10 @@ class TestSapWorkflowPersistence:
         msg = store.add_message.call_args[0][1]
         assert msg.role == "user"
 
-    def test_save_assistant_message(self):
+    def test_save_assistant_message(self, mocker: MockerFixture):
         """_save_assistant_message persists an assistant message with ordered parts."""
-        store = MagicMock()
-        factory = MagicMock()
+        store = mocker.MagicMock()
+        factory = mocker.MagicMock()
 
         workflow = SapWorkflow(
             factory=factory,
@@ -115,7 +111,6 @@ class TestSapWorkflowPersistence:
         store.add_message.assert_called_once()
         msg = store.add_message.call_args[0][1]
         assert msg.role == "assistant"
-        # Text should be in the contents
         contents = msg.to_dict().get("contents", [])
         text_parts = [c for c in contents if c.get("type") == "text"]
         assert len(text_parts) == 1

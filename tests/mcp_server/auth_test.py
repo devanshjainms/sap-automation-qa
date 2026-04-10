@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import hashlib
-from unittest.mock import patch
 
 import pytest
 
@@ -134,31 +133,22 @@ class TestNoneMode:
 
 class TestCreateTokenVerifier:
 
-    @patch.dict("os.environ", {"MCP_AUTH_MODE": "none"}, clear=False)
-    def test_returns_none_when_disabled(self):
+    def test_returns_none_when_disabled(self, monkeypatch):
+        monkeypatch.setenv("MCP_AUTH_MODE", "none")
         assert create_token_verifier() is None
 
-    @patch.dict("os.environ", {}, clear=False)
-    def test_returns_none_by_default(self):
-        import os
-
-        os.environ.pop("MCP_AUTH_MODE", None)
+    def test_returns_none_by_default(self, monkeypatch):
+        monkeypatch.delenv("MCP_AUTH_MODE", raising=False)
         assert create_token_verifier() is None
 
-    @patch.dict(
-        "os.environ",
-        {"MCP_AUTH_MODE": "api_key", "MCP_API_KEY": "k"},
-        clear=False,
-    )
-    def test_returns_verifier_for_api_key(self):
+    def test_returns_verifier_for_api_key(self, monkeypatch):
+        monkeypatch.setenv("MCP_AUTH_MODE", "api_key")
+        monkeypatch.setenv("MCP_API_KEY", "k")
         v = create_token_verifier()
         assert isinstance(v, SapTokenVerifier)
 
-    @patch.dict(
-        "os.environ",
-        {"MCP_AUTH_MODE": "bearer", "MCP_BEARER_TOKEN": "t"},
-        clear=False,
-    )
-    def test_returns_verifier_for_bearer(self):
+    def test_returns_verifier_for_bearer(self, monkeypatch):
+        monkeypatch.setenv("MCP_AUTH_MODE", "bearer")
+        monkeypatch.setenv("MCP_BEARER_TOKEN", "t")
         v = create_token_verifier()
         assert isinstance(v, SapTokenVerifier)

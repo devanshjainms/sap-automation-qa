@@ -4,18 +4,11 @@
 """Tests for ReportFormatter — structured findings to Markdown."""
 
 from __future__ import annotations
-
-from unittest.mock import AsyncMock, MagicMock
-
 import pytest
-
+from pytest_mock import MockerFixture
 from src.agents.formatter import ReportFormatter
 from src.core.models.failure import FailureClass, Severity
 from src.core.models.triage import TriageFinding, TriageReport
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 def _finding(
@@ -50,11 +43,6 @@ def _report(
         rules_evaluated=100,
         duration_seconds=12.5,
     )
-
-
-# ---------------------------------------------------------------------------
-# Deterministic formatting
-# ---------------------------------------------------------------------------
 
 
 class TestDeterministicFormat:
@@ -121,11 +109,6 @@ class TestDeterministicFormat:
         assert "Failure class" not in md
 
 
-# ---------------------------------------------------------------------------
-# Streaming format
-# ---------------------------------------------------------------------------
-
-
 class TestStreamFormat:
     @pytest.mark.asyncio
     async def test_stream_without_factory_yields_deterministic(self):
@@ -137,11 +120,11 @@ class TestStreamFormat:
         assert "Test finding" in chunks[0]
 
     @pytest.mark.asyncio
-    async def test_stream_with_factory_uses_llm(self):
-        update = MagicMock()
+    async def test_stream_with_factory_uses_llm(self, mocker: MockerFixture):
+        update = mocker.MagicMock()
         update.text = "LLM summary"
 
-        final = MagicMock()
+        final = mocker.MagicMock()
         final.text = "LLM summary"
 
         class FakeStream:
@@ -151,10 +134,10 @@ class TestStreamFormat:
             async def get_final_response(self):
                 return final
 
-        agent = MagicMock()
+        agent = mocker.MagicMock()
         agent.run.return_value = FakeStream()
 
-        factory = MagicMock()
+        factory = mocker.MagicMock()
         factory.create.return_value = agent
 
         fmt = ReportFormatter(agent_factory=factory)
@@ -164,11 +147,11 @@ class TestStreamFormat:
         assert "LLM summary" in chunks
 
     @pytest.mark.asyncio
-    async def test_stream_llm_failure_falls_back(self):
-        agent = MagicMock()
+    async def test_stream_llm_failure_falls_back(self, mocker: MockerFixture):
+        agent = mocker.MagicMock()
         agent.run.side_effect = RuntimeError("LLM down")
 
-        factory = MagicMock()
+        factory = mocker.MagicMock()
         factory.create.return_value = agent
 
         fmt = ReportFormatter(agent_factory=factory)
@@ -177,11 +160,6 @@ class TestStreamFormat:
             chunks.append(chunk)
         assert len(chunks) == 1
         assert "Test finding" in chunks[0]
-
-
-# ---------------------------------------------------------------------------
-# Text serialization
-# ---------------------------------------------------------------------------
 
 
 class TestFindingsAsText:
