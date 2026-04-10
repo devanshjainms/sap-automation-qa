@@ -133,7 +133,7 @@ async def get_version() -> dict:
     """Return running version and whether an update is available.
 
     Compares the build-time commit hash against the latest commit
-    on the ``Azure/sap-automation-qa`` GitHub repository.
+    on the ``Azure/sap-automation-qa`` GitHub repository
     """
     build_commit = _read_build_commit()
     latest_commit = await _fetch_remote_commit()
