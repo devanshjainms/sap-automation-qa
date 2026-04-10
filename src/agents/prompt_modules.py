@@ -241,8 +241,6 @@ class PromptModuleRegistry:
         return self.modules.get(name)
 
 
-
-# Module-level default registry
 default_registry = PromptModuleRegistry()
 
 

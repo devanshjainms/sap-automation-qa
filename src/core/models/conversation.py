@@ -112,4 +112,3 @@ class CreateConversationRequest(BaseModel):
     """
 
     workspace_id: str = ""
-

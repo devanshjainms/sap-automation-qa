@@ -14,11 +14,8 @@ its own ``TriageExecutorProtocol`` as specified in the design doc.
 
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Optional, Protocol, runtime_checkable
-
-from src.core.execution.command_allow_list import CommandAllowList
 from src.core.execution.evidence_collector import (
     EvidenceCollector,
     EvidenceDefinition,

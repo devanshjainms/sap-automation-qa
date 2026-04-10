@@ -8,30 +8,22 @@ mock-Context pattern as ``server_test.py``.
 """
 
 from __future__ import annotations
-
 import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
-
 from mcp.server.fastmcp.exceptions import ToolError
 from src.core.models.knowledge import Rule
 from src.core.models.triage import (
     TriageFinding,
     TriageReport,
     TriageSession,
-    TriageStatus,
 )
 from src.core.models.failure import Severity
 from src.core.knowledge.retrieval import HybridRetriever
 from src.mcp_server.server import SapContext
 from src.mcp_server.validation import InputValidator
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture()
@@ -125,17 +117,12 @@ def _make_ctx(sap: SapContext) -> MagicMock:
     return ctx
 
 
-# ---------------------------------------------------------------------------
-# run_staf_test
-# ---------------------------------------------------------------------------
-
-
 class TestRunStafTest:
     """Test run_staf_test tool."""
 
     @pytest.mark.asyncio
     async def test_submits_job_and_returns_id(self, sap_context: SapContext):
-        from src.mcp_server.tools.staf import StafTools
+        from src.mcp_server.tools.staf import run_staf_test
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
@@ -152,7 +139,7 @@ class TestRunStafTest:
         ctx = _make_ctx(sap_context)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            result = await StafTools.run_staf_test(
+            result = await run_staf_test(
                 workspace_id="WS_A",
                 test_group="ConfigurationChecks",
                 ctx=ctx,
@@ -165,7 +152,7 @@ class TestRunStafTest:
 
     @pytest.mark.asyncio
     async def test_passes_test_ids_in_payload(self, sap_context: SapContext):
-        from src.mcp_server.tools.staf import StafTools
+        from src.mcp_server.tools.staf import run_staf_test
 
         mock_response = MagicMock()
         mock_response.json.return_value = {"id": "job-456", "status": "submitted"}
@@ -179,7 +166,7 @@ class TestRunStafTest:
         ctx = _make_ctx(sap_context)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            await StafTools.run_staf_test(
+            await run_staf_test(
                 workspace_id="WS_A",
                 test_group="DatabaseHighAvailability",
                 test_ids=["ha-config", "azure-lb"],
@@ -192,9 +179,8 @@ class TestRunStafTest:
 
     @pytest.mark.asyncio
     async def test_handles_job_id_key_fallback(self, sap_context: SapContext):
-        from src.mcp_server.tools.staf import StafTools
+        from src.mcp_server.tools.staf import run_staf_test
 
-        # Some API versions return "job_id" instead of "id".
         mock_response = MagicMock()
         mock_response.json.return_value = {"job_id": "job-789", "status": "queued"}
         mock_response.raise_for_status = MagicMock()
@@ -207,7 +193,7 @@ class TestRunStafTest:
         ctx = _make_ctx(sap_context)
 
         with patch("httpx.AsyncClient", return_value=mock_client):
-            result = await StafTools.run_staf_test(
+            result = await run_staf_test(
                 workspace_id="WS_A",
                 test_group="ConfigurationChecks",
                 ctx=ctx,
@@ -218,7 +204,7 @@ class TestRunStafTest:
     @pytest.mark.asyncio
     async def test_http_error_propagates(self, sap_context: SapContext):
         import httpx
-        from src.mcp_server.tools.staf import StafTools
+        from src.mcp_server.tools.staf import run_staf_test
 
         mock_response = MagicMock()
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
@@ -236,7 +222,7 @@ class TestRunStafTest:
 
         with patch("httpx.AsyncClient", return_value=mock_client):
             with pytest.raises(httpx.HTTPStatusError):
-                await StafTools.run_staf_test(
+                await run_staf_test(
                     workspace_id="WS_A",
                     test_group="ConfigurationChecks",
                     ctx=ctx,
@@ -244,7 +230,7 @@ class TestRunStafTest:
 
     @pytest.mark.asyncio
     async def test_uses_core_api_url(self, sap_context: SapContext):
-        from src.mcp_server.tools.staf import StafTools
+        from src.mcp_server.tools.staf import run_staf_test
 
         sap_context.core_api_url = "http://custom:9999"
 
@@ -260,7 +246,7 @@ class TestRunStafTest:
         ctx = _make_ctx(sap_context)
 
         with patch("httpx.AsyncClient", return_value=mock_client) as ctor:
-            await StafTools.run_staf_test(
+            await run_staf_test(
                 workspace_id="WS_A",
                 test_group="ConfigurationChecks",
                 ctx=ctx,
@@ -269,26 +255,25 @@ class TestRunStafTest:
         ctor.assert_called_once_with(base_url="http://custom:9999", timeout=30.0)
 
 
-# ---------------------------------------------------------------------------
-# run_analysis
-# ---------------------------------------------------------------------------
-
-
 class TestRunAnalysis:
     """Test run_analysis tool."""
 
     @pytest.mark.asyncio
     async def test_analyzes_session_and_returns_report(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
-        # Create a session in ANALYZING state (collector already ran).
         session = TriageSession(workspace_id="WS_A")
         session.start_collection()
-        session.complete_collection([])  # moves to ANALYZING
+        session.complete_collection([])
         sid = str(session.id)
         sap_context.triage_sessions[sid] = session
 
-        # Mock the analyzer to return a report with findings.
         report = TriageReport(
             session_id=sid,
             workspace_id="WS_A",
@@ -309,7 +294,7 @@ class TestRunAnalysis:
         sap_context.analyzer.analyze.return_value = report
 
         ctx = _make_ctx(sap_context)
-        result = await TriageAnalyzerTools.run_analysis(session_id=sid, ctx=ctx)
+        result = await run_analysis(session_id=sid, ctx=ctx)
 
         assert result["session_id"] == sid
         assert result["checks_failed"] == 1
@@ -319,7 +304,13 @@ class TestRunAnalysis:
 
     @pytest.mark.asyncio
     async def test_empty_findings(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         session = TriageSession(workspace_id="WS_A")
         session.start_collection()
@@ -338,7 +329,7 @@ class TestRunAnalysis:
         sap_context.analyzer.analyze.return_value = report
 
         ctx = _make_ctx(sap_context)
-        result = await TriageAnalyzerTools.run_analysis(session_id=sid, ctx=ctx)
+        result = await run_analysis(session_id=sid, ctx=ctx)
 
         assert result["checks_failed"] == 0
         assert result["health"] == "HEALTHY"
@@ -346,19 +337,30 @@ class TestRunAnalysis:
 
     @pytest.mark.asyncio
     async def test_missing_session_raises(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         ctx = _make_ctx(sap_context)
         with pytest.raises(ToolError, match="not found"):
-            await TriageAnalyzerTools.run_analysis(session_id="nonexistent", ctx=ctx)
+            await run_analysis(session_id="nonexistent", ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_rebuilds_artifacts_from_evidence(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         session = TriageSession(workspace_id="WS_A")
         session.start_collection()
-        # Simulate stored evidence dicts (as the real collector stores them).
         session.evidence = [
             {
                 "evidence_id": "ev-1",
@@ -383,23 +385,28 @@ class TestRunAnalysis:
         sap_context.analyzer.analyze.return_value = report
 
         ctx = _make_ctx(sap_context)
-        await TriageAnalyzerTools.run_analysis(session_id=sid, ctx=ctx)
+        await run_analysis(session_id=sid, ctx=ctx)
 
-        # The analyzer should have received rebuilt EvidenceArtifact objects.
         call_args = sap_context.analyzer.analyze.call_args
-        artifacts = call_args[0][1]  # second positional arg
+        artifacts = call_args[0][1]
         assert len(artifacts) == 1
         assert artifacts[0].evidence_id == "ev-1"
         assert artifacts[0].host == "node1"
 
     @pytest.mark.asyncio
     async def test_skips_malformed_evidence_entries(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         session = TriageSession(workspace_id="WS_A")
         session.start_collection()
         session.evidence = [
-            {"broken": True},  # Missing required keys.
+            {"broken": True},
             {
                 "evidence_id": "ev-2",
                 "evidence_type": "command_output",
@@ -416,16 +423,11 @@ class TestRunAnalysis:
         sap_context.analyzer.analyze.return_value = report
 
         ctx = _make_ctx(sap_context)
-        await TriageAnalyzerTools.run_analysis(session_id=sid, ctx=ctx)
+        await run_analysis(session_id=sid, ctx=ctx)
 
         artifacts = sap_context.analyzer.analyze.call_args[0][1]
         assert len(artifacts) == 1
         assert artifacts[0].evidence_id == "ev-2"
-
-
-# ---------------------------------------------------------------------------
-# query_knowledge — additional coverage
-# ---------------------------------------------------------------------------
 
 
 class TestQueryKnowledgeExtended:
@@ -433,74 +435,64 @@ class TestQueryKnowledgeExtended:
 
     @pytest.mark.asyncio
     async def test_matches_rules_by_name(self, sap_context: SapContext):
-        from src.mcp_server.tools.retrieval import RetrievalTools
+        from src.mcp_server.tools.retrieval import query_knowledge
 
         ctx = _make_ctx(sap_context)
-        result = await RetrievalTools.query_knowledge(query="HANA HSR", ctx=ctx)
+        result = await query_knowledge(query="HANA HSR", ctx=ctx)
 
         assert result["total_rules"] == 1
         assert result["rules"][0]["id"] == "DB-HANA-0001"
 
     @pytest.mark.asyncio
     async def test_matches_rules_by_tag(self, sap_context: SapContext):
-        from src.mcp_server.tools.retrieval import RetrievalTools
+        from src.mcp_server.tools.retrieval import query_knowledge
 
         ctx = _make_ctx(sap_context)
-        result = await RetrievalTools.query_knowledge(query="hsr", ctx=ctx)
+        result = await query_knowledge(query="hsr", ctx=ctx)
 
         assert result["total_rules"] == 1
 
     @pytest.mark.asyncio
     async def test_filters_by_category(self, sap_context: SapContext):
-        from src.mcp_server.tools.retrieval import RetrievalTools
+        from src.mcp_server.tools.retrieval import query_knowledge
 
         ctx = _make_ctx(sap_context)
-
-        # Match with correct category.
-        result = await RetrievalTools.query_knowledge(query="hana", category="ha_check", ctx=ctx)
+        result = await query_knowledge(query="hana", category="ha_check", ctx=ctx)
         assert result["total_rules"] == 1
 
-        # No match with wrong category.
-        result = await RetrievalTools.query_knowledge(query="hana", category="os_config", ctx=ctx)
+        result = await query_knowledge(query="hana", category="os_config", ctx=ctx)
         assert result["total_rules"] == 0
 
     @pytest.mark.asyncio
     async def test_respects_limit(self, sap_context: SapContext):
-        from src.mcp_server.tools.retrieval import RetrievalTools
+        from src.mcp_server.tools.retrieval import query_knowledge
 
-        # Add many rules.
         sap_context.knowledge_store.load_rules.return_value = [
             Rule(id=f"R-{i}", name=f"Rule {i}", description="test", tags=["test"])
             for i in range(50)
         ]
 
         ctx = _make_ctx(sap_context)
-        result = await RetrievalTools.query_knowledge(query="test", limit=5, ctx=ctx)
+        result = await query_knowledge(query="test", limit=5, ctx=ctx)
 
         assert len(result["rules"]) == 5
         assert result["total_rules"] == 50
 
     @pytest.mark.asyncio
     async def test_clamps_limit(self, sap_context: SapContext):
-        from src.mcp_server.tools.retrieval import RetrievalTools
+        from src.mcp_server.tools.retrieval import query_knowledge
 
         ctx = _make_ctx(sap_context)
-        # Limit clamped to max 100.
-        result = await RetrievalTools.query_knowledge(query="hana", limit=9999, ctx=ctx)
+        result = await query_knowledge(query="hana", limit=9999, ctx=ctx)
         assert isinstance(result, dict)
 
     @pytest.mark.asyncio
     async def test_case_insensitive_search(self, sap_context: SapContext):
-        from src.mcp_server.tools.retrieval import RetrievalTools
+        from src.mcp_server.tools.retrieval import query_knowledge
 
         ctx = _make_ctx(sap_context)
-        result = await RetrievalTools.query_knowledge(query="hana hsr STATUS", ctx=ctx)
+        result = await query_knowledge(query="hana hsr STATUS", ctx=ctx)
         assert result["total_rules"] == 1
-
-
-# ---------------------------------------------------------------------------
-# get_triage_report — additional coverage
-# ---------------------------------------------------------------------------
 
 
 class TestGetTriageReportExtended:
@@ -508,7 +500,13 @@ class TestGetTriageReportExtended:
 
     @pytest.mark.asyncio
     async def test_returns_full_report(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         session = TriageSession(workspace_id="WS_A")
         session.start_collection()
@@ -530,16 +528,11 @@ class TestGetTriageReportExtended:
         sap_context.triage_sessions[sid] = session
 
         ctx = _make_ctx(sap_context)
-        result = await TriageAnalyzerTools.get_triage_report(session_id=sid, ctx=ctx)
+        result = await get_triage_report(session_id=sid, ctx=ctx)
 
         assert result["report"] is not None
         assert result["report"]["summary"] == "All clear"
         assert len(result["report"]["findings"]) == 1
-
-
-# ---------------------------------------------------------------------------
-# get_workspace — SAP system attributes
-# ---------------------------------------------------------------------------
 
 
 class TestGetWorkspaceAttributes:
@@ -576,7 +569,11 @@ class TestGetWorkspaceAttributes:
     async def test_includes_sap_system_attributes(
         self, sap_context: SapContext, enriched_workspaces: Path
     ):
-        from src.mcp_server.tools.workspace_ops import WorkspaceOpsTools
+        from src.mcp_server.tools.workspace_ops import (
+            list_workspaces,
+            get_workspace,
+            _extract_sap_attributes,
+        )
 
         sap_context.workspaces_base = enriched_workspaces
         sap_context.validator = InputValidator(
@@ -585,7 +582,7 @@ class TestGetWorkspaceAttributes:
             job_store=sap_context.job_store,
         )
         ctx = _make_ctx(sap_context)
-        result = await WorkspaceOpsTools.get_workspace(workspace_id="WS_E", ctx=ctx)
+        result = await get_workspace(workspace_id="WS_E", ctx=ctx)
 
         assert "sap_system" in result
         sap_sys = result["sap_system"]
@@ -598,18 +595,17 @@ class TestGetWorkspaceAttributes:
 
     @pytest.mark.asyncio
     async def test_empty_params_returns_empty_sap_system(self, sap_context: SapContext):
-        from src.mcp_server.tools.workspace_ops import WorkspaceOpsTools
+        from src.mcp_server.tools.workspace_ops import (
+            list_workspaces,
+            get_workspace,
+            _extract_sap_attributes,
+        )
 
         ctx = _make_ctx(sap_context)
-        result = await WorkspaceOpsTools.get_workspace(workspace_id="WS_A", ctx=ctx)
+        result = await get_workspace(workspace_id="WS_A", ctx=ctx)
 
         assert "sap_system" in result
         assert result["sap_system"]["sap_sid"] == "HA1"
-
-
-# ---------------------------------------------------------------------------
-# list_evidence_catalog
-# ---------------------------------------------------------------------------
 
 
 class TestListEvidenceCatalog:
@@ -618,7 +614,13 @@ class TestListEvidenceCatalog:
     @pytest.mark.asyncio
     async def test_returns_all_definitions(self, sap_context: SapContext):
         from src.core.models.knowledge import EvidenceCollectorDef
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         sap_context.knowledge_store.load_evidence_definitions.return_value = [
             EvidenceCollectorDef(
@@ -638,7 +640,7 @@ class TestListEvidenceCatalog:
             ),
         ]
         ctx = _make_ctx(sap_context)
-        result = await TriageAnalyzerTools.list_evidence_catalog(ctx=ctx)
+        result = await list_evidence_catalog(ctx=ctx)
 
         assert result["total"] == 2
         ids = [d["id"] for d in result["definitions"]]
@@ -648,7 +650,13 @@ class TestListEvidenceCatalog:
     @pytest.mark.asyncio
     async def test_filters_by_category(self, sap_context: SapContext):
         from src.core.models.knowledge import EvidenceCollectorDef
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         sap_context.knowledge_store.load_evidence_definitions.return_value = [
             EvidenceCollectorDef(
@@ -667,7 +675,7 @@ class TestListEvidenceCatalog:
             ),
         ]
         ctx = _make_ctx(sap_context)
-        result = await TriageAnalyzerTools.list_evidence_catalog(category="pacemaker", ctx=ctx)
+        result = await list_evidence_catalog(category="pacemaker", ctx=ctx)
 
         assert result["total"] == 1
         assert result["definitions"][0]["id"] == "EC-CLUSTER-MON-0001"
@@ -675,7 +683,13 @@ class TestListEvidenceCatalog:
     @pytest.mark.asyncio
     async def test_empty_category_returns_all(self, sap_context: SapContext):
         from src.core.models.knowledge import EvidenceCollectorDef
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         sap_context.knowledge_store.load_evidence_definitions.return_value = [
             EvidenceCollectorDef(
@@ -687,14 +701,9 @@ class TestListEvidenceCatalog:
             ),
         ]
         ctx = _make_ctx(sap_context)
-        result = await TriageAnalyzerTools.list_evidence_catalog(category="", ctx=ctx)
+        result = await list_evidence_catalog(category="", ctx=ctx)
 
         assert result["total"] == 1
-
-
-# ---------------------------------------------------------------------------
-# run_evidence_collector
-# ---------------------------------------------------------------------------
 
 
 class TestRunEvidenceCollector:
@@ -702,13 +711,19 @@ class TestRunEvidenceCollector:
 
     @pytest.mark.asyncio
     async def test_unknown_definition_raises(self, sap_context: SapContext):
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         sap_context.knowledge_store.load_evidence_definitions.return_value = []
         ctx = _make_ctx(sap_context)
 
         with pytest.raises(ToolError, match="Unknown definition_id"):
-            await TriageAnalyzerTools.run_evidence_collector(
+            await run_evidence_collector(
                 workspace_id="WS_A",
                 definition_id="EC-NONEXISTENT-0001",
                 ctx=ctx,
@@ -717,7 +732,13 @@ class TestRunEvidenceCollector:
     @pytest.mark.asyncio
     async def test_no_hosts_raises(self, sap_context: SapContext, tmp_path: Path):
         from src.core.models.knowledge import EvidenceCollectorDef
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         sap_context.knowledge_store.load_evidence_definitions.return_value = [
             EvidenceCollectorDef(
@@ -743,7 +764,7 @@ class TestRunEvidenceCollector:
         ctx = _make_ctx(sap_context)
 
         with pytest.raises(ToolError, match="No hosts found"):
-            await TriageAnalyzerTools.run_evidence_collector(
+            await run_evidence_collector(
                 workspace_id="EMPTY",
                 definition_id="EC-DF-0001",
                 ctx=ctx,
@@ -753,7 +774,13 @@ class TestRunEvidenceCollector:
     async def test_resolves_placeholders_and_executes(self, sap_context: SapContext, tmp_path):
         from src.core.models.knowledge import EvidenceCollectorDef
         from src.core.models.evidence import EvidenceArtifact, CollectionStatus
-        from src.mcp_server.tools.triage_analyzer import TriageAnalyzerTools
+        from src.mcp_server.tools.triage_evidence import (
+            collect_evidence,
+            list_evidence_catalog,
+            run_evidence_collector,
+        )
+        from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
+        from src.mcp_server.tools.triage_commands import search_logs, record_investigation_outcome
 
         sap_context.knowledge_store.load_evidence_definitions.return_value = [
             EvidenceCollectorDef(
@@ -764,22 +791,20 @@ class TestRunEvidenceCollector:
                 tags=["hana", "hsr"],
             ),
         ]
-        # Mock SSH credential
         cred = MagicMock()
         cred.private_key_path = "/tmp/key.ppk"
         cred.auth_type.value = "SSHKEY"
         sap_context.ssh_cache.provision.return_value = cred
 
-        # Mock SshCollectorStrategy.collect
         mock_artifact = MagicMock()
         mock_artifact.content = "mode: sync\nsiteId: 1\n"
         mock_artifact.error = ""
         mock_artifact.metadata = {"return_code": 0}
 
         ctx = _make_ctx(sap_context)
-        with patch("src.mcp_server.tools.triage_analyzer.SshCollectorStrategy") as mock_ssh:
+        with patch("src.mcp_server.tools.triage_evidence.SshCollectorStrategy") as mock_ssh:
             mock_ssh.return_value.collect.return_value = mock_artifact
-            result = await TriageAnalyzerTools.run_evidence_collector(
+            result = await run_evidence_collector(
                 workspace_id="WS_A",
                 definition_id="EC-HANA-SR-STATE-0001",
                 ctx=ctx,
@@ -789,6 +814,5 @@ class TestRunEvidenceCollector:
         assert result["name"] == "hana_sr_state"
         assert result["stdout"] == "mode: sync\nsiteId: 1\n"
         assert result["exit_code"] == 0
-        # Verify placeholder was resolved — <sid> should become ha1
         call_def = mock_ssh.return_value.collect.call_args[0][0]
         assert "ha1adm" in call_def.command

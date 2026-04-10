@@ -397,4 +397,3 @@ class JobWorker:
                 exc_info=True,
             )
             return None
-

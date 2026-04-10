@@ -30,7 +30,7 @@ from src.core.knowledge.loader import JsonlLoader
 from src.core.knowledge.retrieval import HybridRetriever
 from src.core.models.embedding import EmbeddingProvider
 from src.core.models.knowledge import EvidenceCollectorDef
-from src.core.models.triage import TriageSession
+from src.mcp_server.ttl_dict import TtlDict
 from src.core.services.scheduler import SchedulerService
 from src.core.storage.staf_store import StafStore
 from src.core.storage.embedding_store import EmbeddingStore
@@ -126,7 +126,7 @@ class SapContext:
     scheduler_service: SchedulerService | None
     analyzer: Analyzer
     triage_executor: TriageExecutor
-    triage_sessions: dict[str, TriageSession]
+    triage_sessions: TtlDict
     workspaces_base: Path
     core_api_url: str
     ssh_provider: SshCredentialProvider
@@ -237,7 +237,7 @@ def _init_shared_context() -> SapContext:
         embedding_store=embedding_store,
         embedding_provider=embedding_provider,
     )
-    triage_sessions: dict[str, TriageSession] = {}
+    triage_sessions: TtlDict = TtlDict(ttl_seconds=3600, max_size=100)
 
     evidence_collector = EvidenceCollector(allow_list=CommandAllowList.default())
     evidence_collector.register_strategy(CollectorType.SSH, SshCollectorStrategy())
@@ -279,19 +279,16 @@ def _init_shared_context() -> SapContext:
     return ctx
 
 
-_shared_context = _init_shared_context()
-
-
 @asynccontextmanager
 async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
-    """
-    Yield the pre-built shared context on each request.
+    """Initialize shared services on startup, yield context per request.
 
     :param server: The ``FastMCP`` server instance.
     :yields: The shared :class:`SapContext`.
     """
-    assert _shared_context is not None, "Shared context not initialized"
-    yield _shared_context
+    ctx = _init_shared_context()
+    src.mcp_server.resources.set_sap_context(ctx)
+    yield ctx
 
 
 _token_verifier = create_token_verifier()
@@ -324,9 +321,6 @@ mcp = FastMCP(
 import src.mcp_server.tools  # noqa: E402, F401
 import src.mcp_server.resources  # noqa: E402
 import src.mcp_server.prompts  # noqa: E402
-
-if _shared_context is not None:
-    src.mcp_server.resources.set_sap_context(_shared_context)
 
 _mcp_asgi = mcp.streamable_http_app()
 http_app = create_rate_limiter(_mcp_asgi)

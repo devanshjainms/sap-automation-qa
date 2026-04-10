@@ -15,8 +15,7 @@ from src.core.analyzer.normalizers import NormalizedData, NormalizerRegistry
 from src.core.analyzer.report import ReportBuilder
 from src.core.analyzer.validators import RuleValidator
 from src.core.models.evidence import EvidenceArtifact, EvidenceType
-from src.core.models.knowledge import Playbook, Reference, Rule
-from src.core.models.system import SystemProperties
+from src.core.models.knowledge import Rule
 from src.core.models.triage import TriageReport, TriageSession
 from src.core.models.validators import ValidatorResult
 

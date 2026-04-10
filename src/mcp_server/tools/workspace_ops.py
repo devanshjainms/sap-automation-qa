@@ -16,6 +16,7 @@ from mcp.types import ToolAnnotations
 from src.core.services.workspace_discovery import load_workspaces_from_directory
 from src.mcp_server.server import SapContext, mcp
 from src.mcp_server.tools._helpers import (
+    get_sap_context,
     ICON_FOLDER,
     load_workspace_host_details,
     load_workspace_params,
@@ -24,103 +25,98 @@ from src.mcp_server.tools._helpers import (
 logger = logging.getLogger(__name__)
 
 
-class WorkspaceOpsTools:
-    """List and inspect SAP system workspaces."""
+@staticmethod
+@mcp.tool(
+    name="list_workspaces",
+    title="List Workspaces",
+    description=(
+        "List available SAP system workspaces. Each workspace represents "
+        "one SAP landscape (SID). Returns workspace IDs, names, and "
+        "environment tags."
+    ),
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+    icons=[ICON_FOLDER],
+    structured_output=False,
+)
+async def list_workspaces(
+    ctx: Context[ServerSession, SapContext] | None = None,
+) -> dict[str, Any]:
+    """List available SAP system workspaces."""
+    logger.info("Tool called: list_workspaces()")
+    sap = get_sap_context(ctx)
 
-    @staticmethod
-    @mcp.tool(
-        name="list_workspaces",
-        title="List Workspaces",
-        description=(
-            "List available SAP system workspaces. Each workspace represents "
-            "one SAP landscape (SID). Returns workspace IDs, names, and "
-            "environment tags."
-        ),
-        annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=False,
-        ),
-        icons=[ICON_FOLDER],
-        structured_output=False,
-    )
-    async def list_workspaces(
-        ctx: Context[ServerSession, SapContext] | None = None,
-    ) -> dict[str, Any]:
-        """List available SAP system workspaces."""
-        logger.info("Tool called: list_workspaces()")
-        assert ctx is not None
-        sap: SapContext = ctx.request_context.lifespan_context
+    workspaces = load_workspaces_from_directory(base_dir=str(sap.workspaces_base))
 
-        workspaces = load_workspaces_from_directory(base_dir=str(sap.workspaces_base))
-
-        return {
-            "workspaces": [
-                {
-                    "id": ws.id,
-                    "name": ws.name,
-                    "environment": ws.environment,
-                }
-                for ws in workspaces
-            ],
-            "total": len(workspaces),
-        }
-
-    @staticmethod
-    @mcp.tool(
-        name="get_workspace",
-        title="Get Workspace",
-        description=(
-            "Get details of a specific SAP workspace. Returns workspace ID, "
-            "name, environment, path, host count, tier breakdown, and SAP "
-            "system attributes (SID, platform, instance numbers, HA config, "
-            "topology, NFS provider)."
-        ),
-        annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=False,
-        ),
-        icons=[ICON_FOLDER],
-        structured_output=False,
-    )
-    async def get_workspace(
-        workspace_id: str,
-        ctx: Context[ServerSession, SapContext] | None = None,
-    ) -> dict[str, Any]:
-        """Get details of a specific SAP workspace."""
-        logger.info("Tool called: get_workspace(workspace_id=%s)", workspace_id)
-        assert ctx is not None
-        sap: SapContext = ctx.request_context.lifespan_context
-        sap.validator.workspace_id(workspace_id)
-
-        workspaces = load_workspaces_from_directory(base_dir=str(sap.workspaces_base))
-        for ws in workspaces:
-            if ws.id == workspace_id:
-                host_details = load_workspace_host_details(sap.workspaces_base, workspace_id)
-                tiers: dict[str, list[str]] = {}
-                for hd in host_details:
-                    tier = hd.get("node_tier", "unknown")
-                    tiers.setdefault(tier, []).append(hd["ansible_host"])
-
-                params = load_workspace_params(sap.workspaces_base, workspace_id)
-                sap_system = _extract_sap_attributes(params)
-
-                return {
-                    "id": ws.id,
-                    "name": ws.name,
-                    "environment": ws.environment,
-                    "path": ws.path,
-                    "host_count": len(host_details),
-                    "tiers": tiers,
-                    "sap_system": sap_system,
-                }
-        raise ToolError(f"Workspace '{workspace_id}' not found")
+    return {
+        "workspaces": [
+            {
+                "id": ws.id,
+                "name": ws.name,
+                "environment": ws.environment,
+            }
+            for ws in workspaces
+        ],
+        "total": len(workspaces),
+    }
 
 
-# Keys from sap-parameters.yaml exposed to the LLM via get_workspace.
+@staticmethod
+@mcp.tool(
+    name="get_workspace",
+    title="Get Workspace",
+    description=(
+        "Get details of a specific SAP workspace. Returns workspace ID, "
+        "name, environment, path, host count, tier breakdown, and SAP "
+        "system attributes (SID, platform, instance numbers, HA config, "
+        "topology, NFS provider)."
+    ),
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+    icons=[ICON_FOLDER],
+    structured_output=False,
+)
+async def get_workspace(
+    workspace_id: str,
+    ctx: Context[ServerSession, SapContext] | None = None,
+) -> dict[str, Any]:
+    """Get details of a specific SAP workspace."""
+    logger.info("Tool called: get_workspace(workspace_id=%s)", workspace_id)
+    sap = get_sap_context(ctx)
+    sap.validator.workspace_id(workspace_id)
+
+    workspaces = load_workspaces_from_directory(base_dir=str(sap.workspaces_base))
+    for ws in workspaces:
+        if ws.id == workspace_id:
+            host_details = load_workspace_host_details(sap.workspaces_base, workspace_id)
+            tiers: dict[str, list[str]] = {}
+            for hd in host_details:
+                tier = hd.get("node_tier", "unknown")
+                tiers.setdefault(tier, []).append(hd["ansible_host"])
+
+            params = load_workspace_params(sap.workspaces_base, workspace_id)
+            sap_system = _extract_sap_attributes(params)
+
+            return {
+                "id": ws.id,
+                "name": ws.name,
+                "environment": ws.environment,
+                "path": ws.path,
+                "host_count": len(host_details),
+                "tiers": tiers,
+                "sap_system": sap_system,
+            }
+    raise ToolError(f"Workspace '{workspace_id}' not found")
+
+
 _SAP_ATTRIBUTE_KEYS: tuple[str, ...] = (
     "sap_sid",
     "db_sid",

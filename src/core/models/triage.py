@@ -11,7 +11,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.core.models.evidence import EvidenceArtifact
 from src.core.models.failure import FailureClass, Severity
 from src.core.models.system import SystemProperties
-from src.core.models.validators import ValidatorResult
 
 
 class TriageStatus(str, Enum):

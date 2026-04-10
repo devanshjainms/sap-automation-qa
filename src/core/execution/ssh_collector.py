@@ -14,14 +14,12 @@ import subprocess
 from datetime import datetime, timezone
 
 from src.core.execution.evidence_collector import (
-    CollectorStrategy,
     EvidenceDefinition,
 )
 from src.core.models.evidence import (
     CollectionStatus,
     CollectorType,
     EvidenceArtifact,
-    EvidenceType,
 )
 
 logger = logging.getLogger(__name__)

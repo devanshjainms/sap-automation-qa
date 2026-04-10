@@ -213,7 +213,6 @@ class HybridRetriever:
         results.sort(key=lambda r: r.score, reverse=True)
         return results[:limit]
 
-
     def _vector_scores(
         self,
         query: str,
@@ -266,7 +265,6 @@ class HybridRetriever:
                 scores[iid] = max(0.0, 1.0 - distance)
         return scores
 
-
     @staticmethod
     def _keyword_relevance(query: str, fields: list[str]) -> float:
         """Compute keyword relevance score.
@@ -292,7 +290,6 @@ class HybridRetriever:
         matched = query_tokens & field_tokens
         return len(matched) / len(query_tokens)
 
-
     @staticmethod
     def _recency_score(
         last_seen: datetime,
@@ -314,7 +311,6 @@ class HybridRetriever:
 
         age_days = max(0.0, (now - last_seen).total_seconds() / 86400.0)
         return math.exp(-0.693 * age_days / _RECENCY_HALF_LIFE_DAYS)
-
 
     def search_evidence_definitions(
         self,
@@ -361,7 +357,6 @@ class HybridRetriever:
             )
         results.sort(key=lambda r: r.score, reverse=True)
         return results[:limit]
-
 
     def search_references(
         self,

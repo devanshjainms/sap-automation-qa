@@ -16,9 +16,8 @@ the cache is only accessed from the async MCP tool handlers.
 from __future__ import annotations
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional
-
 from src.core.execution.ssh_provider import SshCredentialProvider
 from src.core.models.ssh import SshCredential
 

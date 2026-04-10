@@ -61,7 +61,6 @@ class SpecialistConfig:
     role_prompt: str = ""
 
 
-
 COORDINATOR_ROLE_PROMPT = (
     "\n\n**ROLE: COORDINATOR**\n"
     "You are the entry point. Your job:\n"
@@ -150,7 +149,6 @@ class AgentConfig:
     inject_kb: bool = False
     coordinator_turn_limit: int = 10
     specialists: tuple[SpecialistConfig, ...] = ()
-
 
 
 _ALL_MODULES = [

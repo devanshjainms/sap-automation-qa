@@ -22,6 +22,7 @@ MAX_QUERY_LENGTH = 500
 MAX_WORKSPACE_ID_LENGTH = 128
 MAX_DEFINITION_ID_LENGTH = 128
 MAX_DEFINITIONS_COUNT = 50
+MAX_LIST_ITEMS = 50
 MIN_TIMEOUT = 10
 MAX_TIMEOUT = 300
 
@@ -142,3 +143,23 @@ class InputValidator:
         if job is None:
             raise ToolError(f"Job '{job_id}' not found")
         return job
+
+    @staticmethod
+    def string_list(
+        items: list[str] | None,
+        name: str,
+        max_items: int = MAX_LIST_ITEMS,
+    ) -> list[str] | None:
+        """Validate a list of string items.
+
+        :param items: List to validate, or None.
+        :param name: Parameter name for error messages.
+        :param max_items: Maximum allowed items.
+        :returns: Validated list or None.
+        :raises ToolError: If list exceeds max_items.
+        """
+        if items is None:
+            return None
+        if len(items) > max_items:
+            raise ToolError(f"{name} exceeds maximum of {max_items} items")
+        return items

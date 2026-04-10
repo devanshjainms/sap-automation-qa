@@ -7,12 +7,59 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-
 import yaml
+from mcp.server.fastmcp import Context
+from mcp.server.fastmcp.exceptions import ToolError
+from mcp.server.session import ServerSession
 from mcp.types import Icon
-
 from src.core.models.evidence import EvidenceArtifact
 from src.core.models.triage import TriageSession
+from src.mcp_server.server import SapContext
+
+
+def get_sap_context(
+    ctx: Context[ServerSession, SapContext] | None,
+) -> SapContext:
+    """Extract ``SapContext`` from the MCP request context.
+
+    :param ctx: The MCP tool context (may be None).
+    :returns: The shared application context.
+    :raises ToolError: If context is unavailable.
+    """
+    if ctx is None:
+        raise ToolError("MCP context is not available")
+    return ctx.request_context.lifespan_context
+
+
+async def tool_info(
+    ctx: Context[ServerSession, SapContext] | None,
+    message: str,
+) -> None:
+    """Log an info message via the MCP context (no-op if ctx is None).
+
+    :param ctx: The MCP tool context.
+    :param message: Message to log.
+    """
+    if ctx is not None:
+        await ctx.info(message)
+
+
+async def tool_progress(
+    ctx: Context[ServerSession, SapContext] | None,
+    progress: float,
+    total: float,
+    **kwargs: Any,
+) -> None:
+    """Report progress via the MCP context (no-op if ctx is None).
+
+    :param ctx: The MCP tool context.
+    :param progress: Current step.
+    :param total: Total steps.
+    :param kwargs: Extra keyword args forwarded to ``ctx.report_progress``.
+    """
+    if ctx is not None:
+        await ctx.report_progress(progress, total, **kwargs)
+
 
 _SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23555' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E{0}%3C/svg%3E"  # noqa: E501
 

@@ -10,12 +10,9 @@ Supports TTL-based caching to avoid redundant collection during a session.
 
 import logging
 import time
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Optional, Protocol, runtime_checkable
 from uuid import uuid4
-
 from src.core.execution.command_allow_list import CommandAllowList
 from src.core.models.evidence import (
     CollectionStatus,
@@ -25,8 +22,6 @@ from src.core.models.evidence import (
 )
 
 logger = logging.getLogger(__name__)
-
-
 
 
 @dataclass(frozen=True)
@@ -53,8 +48,6 @@ class EvidenceDefinition:
     metadata: dict = field(default_factory=dict)
 
 
-
-
 @runtime_checkable
 class CollectorStrategy(Protocol):
     """Protocol for a single evidence collection strategy.
@@ -71,16 +64,12 @@ class CollectorStrategy(Protocol):
         ...
 
 
-
-
 @dataclass
 class _CacheEntry:
     """Cached evidence artifact with expiry timestamp."""
 
     artifact: EvidenceArtifact
     expires_at: float
-
-
 
 
 class EvidenceCollector:
@@ -158,7 +147,6 @@ class EvidenceCollector:
     def clear_cache(self) -> None:
         """Clear all cached evidence artifacts."""
         self._cache.clear()
-
 
     def _requires_command_validation(self, definition: EvidenceDefinition) -> bool:
         """Whether this definition needs command allow-list validation."""
