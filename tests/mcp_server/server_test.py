@@ -77,6 +77,12 @@ def mock_knowledge_store(mocker: MockerFixture):
     return store
 
 
+
+@pytest.fixture()
+def mock_ssh_cache(mocker: MockerFixture):
+    return mocker.MagicMock()
+
+
 @pytest.fixture()
 def sap_context(
     mocker: MockerFixture,
@@ -84,6 +90,7 @@ def sap_context(
     tmp_workspaces: Path,
     mock_job_store,
     mock_knowledge_store,
+    mock_ssh_cache,
 ) -> SapContext:
     """Build a SapContext with mocked services."""
     from src.core.analyzer.analyzer import Analyzer
@@ -119,7 +126,7 @@ def sap_context(
         workspaces_base=tmp_workspaces,
         core_api_url="http://localhost:8000",
         ssh_provider=ssh_provider,
-        ssh_cache=mocker.MagicMock(),
+        ssh_cache=mock_ssh_cache,
         validator=validator,
         formatter=mocker.MagicMock(),
         retriever=mocker.MagicMock(),
@@ -138,6 +145,7 @@ class TestServerRegistration:
             "collect_evidence",
             "create_schedule",
             "delete_schedule",
+            "get_evidence_output",
             "get_job_events",
             "get_job_log",
             "get_job_results",
@@ -225,7 +233,7 @@ class TestListWorkspacesTool:
     """Test list_workspaces tool."""
 
     @pytest.mark.asyncio
-    async def test_lists_workspaces_from_directory(self, sap_context: SapContext, ctx):
+    async def test_lists_workspaces_from_directory(self, sap_context: SapContext, ctx, mock_job_store):
         from src.mcp_server.tools.workspace_ops import list_workspaces, get_workspace
 
         result = await list_workspaces(ctx=ctx)
@@ -235,7 +243,7 @@ class TestListWorkspacesTool:
         assert ids == ["WS_A", "WS_B"]
 
     @pytest.mark.asyncio
-    async def test_empty_directory(self, sap_context: SapContext, ctx, tmp_path: Path):
+    async def test_empty_directory(self, sap_context: SapContext, ctx, tmp_path: Path, mock_job_store):
         from src.mcp_server.tools.workspace_ops import list_workspaces, get_workspace
 
         sap_context.workspaces_base = tmp_path / "nonexistent"
@@ -249,7 +257,7 @@ class TestGetJobStatusTool:
     """Test get_job_status tool."""
 
     @pytest.mark.asyncio
-    async def test_returns_job_status(self, sap_context: SapContext, ctx):
+    async def test_returns_job_status(self, sap_context: SapContext, ctx, mock_job_store):
         from src.mcp_server.tools.jobs_ops import get_job_status, get_job_results, list_jobs
 
         result = await get_job_status(job_id="job-001", ctx=ctx)
@@ -259,10 +267,10 @@ class TestGetJobStatusTool:
         assert result["is_terminal"] is True
 
     @pytest.mark.asyncio
-    async def test_missing_job_raises(self, sap_context: SapContext, ctx):
+    async def test_missing_job_raises(self, sap_context: SapContext, ctx, mock_job_store):
         from src.mcp_server.tools.jobs_ops import get_job_status, get_job_results, list_jobs
 
-        sap_context.job_store.get.return_value = None
+        mock_job_store.get.return_value = None
 
         with pytest.raises(ToolError, match="not found"):
             await get_job_status(job_id="missing", ctx=ctx)
@@ -329,7 +337,7 @@ class TestCollectEvidenceTool:
     @pytest.mark.asyncio
     async def test_returns_session_id_with_host_and_credentials(
         self, mocker: MockerFixture, sap_context: SapContext, ctx, tmp_workspaces: Path
-    ):
+    , mock_ssh_cache):
         from src.mcp_server.tools.triage_evidence import collect_evidence
 
         (tmp_workspaces / "WS_A" / "ssh_key.ppk").write_text("fake-key")
@@ -345,7 +353,7 @@ class TestCollectEvidenceTool:
     @pytest.mark.asyncio
     async def test_fails_when_no_hosts(
         self, mocker: MockerFixture, sap_context: SapContext, tmp_path: Path, ctx
-    ):
+    , mock_ssh_cache):
         from src.mcp_server.tools.triage_evidence import collect_evidence
 
         empty_ws = sap_context.workspaces_base / "EMPTY"
@@ -358,18 +366,18 @@ class TestCollectEvidenceTool:
     @pytest.mark.asyncio
     async def test_fails_when_no_ssh_credentials(
         self, mocker: MockerFixture, sap_context: SapContext, tmp_workspaces: Path, ctx
-    ):
+    , mock_knowledge_store, mock_ssh_cache):
         from src.mcp_server.tools.triage_evidence import collect_evidence
         from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
 
-        sap_context.ssh_cache.provision.return_value = None
+        mock_ssh_cache.provision.return_value = None
         with pytest.raises(ToolError, match="No SSH credentials"):
             await collect_evidence(workspace_id="WS_A", ctx=ctx)
 
     @pytest.mark.asyncio
     async def test_handles_collection_failure(
         self, mocker: MockerFixture, sap_context: SapContext, tmp_workspaces: Path, ctx
-    ):
+    , mock_knowledge_store):
         from src.mcp_server.tools.triage_evidence import collect_evidence
         from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
 
@@ -383,7 +391,7 @@ class TestCollectEvidenceTool:
     @pytest.mark.asyncio
     async def test_builds_evidence_definitions_with_host(
         self, mocker: MockerFixture, sap_context: SapContext, tmp_workspaces: Path, ctx
-    ):
+    , mock_knowledge_store):
         from src.core.models.knowledge import EvidenceCollectorDef
         from src.mcp_server.tools.triage_evidence import collect_evidence
         from src.mcp_server.tools.triage_analysis import run_analysis, get_triage_report
@@ -391,7 +399,7 @@ class TestCollectEvidenceTool:
         (tmp_workspaces / "WS_A" / "ssh_key.ppk").write_text("fake-key")
         sap_context.triage_executor = mocker.MagicMock()
         sap_context.triage_executor.collect.return_value = []
-        sap_context.knowledge_store.load_evidence_definitions.return_value = [
+        mock_knowledge_store.load_evidence_definitions.return_value = [
             EvidenceCollectorDef(
                 id="cluster-status",
                 name="Cluster Status",
@@ -413,7 +421,7 @@ class TestCollectEvidenceTool:
     @pytest.mark.asyncio
     async def test_filters_ha_definitions_for_non_ha_workspace(
         self, mocker: MockerFixture, sap_context: SapContext, ctx, tmp_workspaces: Path
-    ):
+    , mock_knowledge_store):
         """When workspace has no HA, definitions with requires_ha are filtered."""
         from src.core.models.knowledge import EvidenceCollectorDef
         from src.mcp_server.tools.triage_evidence import collect_evidence
@@ -438,7 +446,7 @@ class TestCollectEvidenceTool:
             description="OS release identification",
             tags=["os", "version"],
         )
-        sap_context.knowledge_store.load_evidence_definitions.return_value = [ha_def, os_def]
+        mock_knowledge_store.load_evidence_definitions.return_value = [ha_def, os_def]
 
         await collect_evidence(workspace_id="WS_A", ctx=ctx)
 
@@ -451,7 +459,7 @@ class TestCollectEvidenceTool:
     @pytest.mark.asyncio
     async def test_keeps_ha_definitions_for_ha_workspace(
         self, mocker: MockerFixture, sap_context: SapContext, ctx, tmp_workspaces: Path
-    ):
+    , mock_knowledge_store):
         """When workspace has HA enabled, HA definitions are kept."""
         from src.core.models.knowledge import EvidenceCollectorDef
         from src.mcp_server.tools.triage_evidence import collect_evidence
@@ -476,7 +484,7 @@ class TestCollectEvidenceTool:
             description="OS release identification",
             tags=["os", "version"],
         )
-        sap_context.knowledge_store.load_evidence_definitions.return_value = [ha_def, os_def]
+        mock_knowledge_store.load_evidence_definitions.return_value = [ha_def, os_def]
 
         await collect_evidence(workspace_id="WS_B", ctx=ctx)
 
@@ -489,7 +497,7 @@ class TestCollectEvidenceTool:
     @pytest.mark.asyncio
     async def test_explicit_definitions_bypass_ha_filter(
         self, mocker: MockerFixture, sap_context: SapContext, ctx, tmp_workspaces: Path
-    ):
+    , mock_knowledge_store):
         """Explicit definitions param bypasses topology filtering."""
         from src.core.models.knowledge import EvidenceCollectorDef
         from src.mcp_server.tools.triage_evidence import collect_evidence
@@ -507,7 +515,7 @@ class TestCollectEvidenceTool:
             tags=["pacemaker", "cluster", "ha"],
             requires_ha=True,
         )
-        sap_context.knowledge_store.load_evidence_definitions.return_value = [ha_def]
+        mock_knowledge_store.load_evidence_definitions.return_value = [ha_def]
 
         await collect_evidence(
             workspace_id="WS_A",

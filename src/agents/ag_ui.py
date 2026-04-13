@@ -19,6 +19,7 @@ from ag_ui.core.events import (
     MessagesSnapshotEvent,
     ReasoningMessageStartEvent,
     TextMessageContentEvent,
+    TextMessageEndEvent,
     ToolCallArgsEvent,
     ToolCallEndEvent,
     ToolCallResultEvent,
@@ -110,69 +111,88 @@ class SapWorkflow(AgentFrameworkWorkflow):
         pending_text: list[str] = []
         tool_call_names: dict[str, str] = {}
         tool_call_args: dict[str, list[str]] = {}
+        completed_text_blocks: list[str] = []
 
-        async for event in delegate.run(input_data):
-            if isinstance(event, MessagesSnapshotEvent):
-                continue
+        try:
+            async for event in delegate.run(input_data):
+                if isinstance(event, MessagesSnapshotEvent):
+                    continue
 
-            if isinstance(event, ReasoningMessageStartEvent):
-                event = ReasoningMessageStartEvent.model_construct(
-                    type="REASONING_MESSAGE_START",
-                    message_id=event.message_id,
-                    role="reasoning",
-                )
+                if isinstance(event, ReasoningMessageStartEvent):
+                    event = ReasoningMessageStartEvent.model_construct(
+                        type="REASONING_MESSAGE_START",
+                        message_id=event.message_id,
+                        role="reasoning",
+                    )
+                    yield event
+                    continue
+
+                if isinstance(event, ToolCallStartEvent):
+                    tool_call_names[event.tool_call_id] = event.tool_call_name or "tool"
+                    tool_call_args[event.tool_call_id] = []
+
+                if isinstance(event, ToolCallArgsEvent):
+                    if event.tool_call_id in tool_call_args:
+                        tool_call_args[event.tool_call_id].append(event.delta)
+
+                if isinstance(event, ToolCallEndEvent):
+                    tc_id = event.tool_call_id
+                    name = tool_call_names.get(tc_id, "tool")
+                    args = "".join(tool_call_args.pop(tc_id, []))
+                    if pending_text:
+                        text = "".join(pending_text)
+                        ordered_parts.append({"type": "text", "text": text})
+                        pending_text.clear()
+
+                    ordered_parts.append({"type": "tool_ref", "id": tc_id})
+                    completed_tools.append(
+                        {"id": tc_id, "name": name, "arguments": args, "result": ""},
+                    )
+
+                if isinstance(event, ToolCallResultEvent):
+                    for tc in completed_tools:
+                        if tc["id"] == event.tool_call_id:
+                            tc["result"] = event.content or ""
+                            break
+
+                if isinstance(event, TextMessageContentEvent):
+                    pending_text.append(event.delta)
+
+                if isinstance(event, TextMessageEndEvent):
+                    if pending_text:
+                        completed_text_blocks.append("".join(pending_text))
+                        pending_text.clear()
+
                 yield event
-                continue
+        except Exception:
+            logger.warning(
+                "AG-UI stream error: thread=%s — saving partial results",
+                thread_id[:8] if thread_id else "",
+                exc_info=True,
+            )
+        finally:
+            if pending_text:
+                completed_text_blocks.append("".join(pending_text))
+                pending_text.clear()
 
-            if isinstance(event, ToolCallStartEvent):
-                tool_call_names[event.tool_call_id] = event.tool_call_name or "tool"
-                tool_call_args[event.tool_call_id] = []
+            if completed_text_blocks:
+                ordered_parts.append({"type": "text", "text": completed_text_blocks[-1]})
 
-            if isinstance(event, ToolCallArgsEvent):
-                if event.tool_call_id in tool_call_args:
-                    tool_call_args[event.tool_call_id].append(event.delta)
-
-            if isinstance(event, ToolCallEndEvent):
-                tc_id = event.tool_call_id
-                name = tool_call_names.get(tc_id, "tool")
-                args = "".join(tool_call_args.pop(tc_id, []))
-                if pending_text:
-                    ordered_parts.append({"type": "text", "text": "".join(pending_text)})
-                    pending_text.clear()
-                ordered_parts.append({"type": "tool_ref", "id": tc_id})
-                completed_tools.append(
-                    {"id": tc_id, "name": name, "arguments": args, "result": ""},
-                )
-
-            if isinstance(event, ToolCallResultEvent):
-                for tc in completed_tools:
-                    if tc["id"] == event.tool_call_id:
-                        tc["result"] = event.content or ""
-                        break
-
-            if isinstance(event, TextMessageContentEvent):
-                pending_text.append(event.delta)
-
-            yield event
-
-        if pending_text:
-            ordered_parts.append({"type": "text", "text": "".join(pending_text)})
-
-        duration = int((time.perf_counter() - stream_start) * 1000)
-        logger.info(
-            "AG-UI done: thread=%s intent=%s duration=%dms tools=%s",
-            thread_id[:8] if thread_id else "",
-            intent.value,
-            duration,
-            [tc["name"] for tc in completed_tools] or "none",
-        )
-        if self._store and thread_id:
-            if ordered_parts:
-                self._save_assistant_message(thread_id, ordered_parts, completed_tools)
-            if user_text and self._needs_title(thread_id):
-                asyncio.create_task(
-                    self._factory._generate_title(user_text),
-                ).add_done_callback(lambda fut: self._apply_title(thread_id, fut))
+            duration = int((time.perf_counter() - stream_start) * 1000)
+            logger.info(
+                "AG-UI done: thread=%s intent=%s duration=%dms tools=%s",
+                thread_id[:8] if thread_id else "",
+                intent.value,
+                duration,
+                [tc["name"] for tc in completed_tools] or "none",
+            )
+            if self._store and thread_id:
+                if ordered_parts:
+                    self._save_assistant_message(thread_id, ordered_parts, completed_tools)
+                if user_text and self._needs_title(thread_id):
+                    asyncio.create_task(
+                        self._factory._generate_title(user_text),
+                    ).add_done_callback(lambda fut: self._apply_title(thread_id, fut))
 
     @staticmethod
     def _sanitize_messages(input_data: dict[str, Any]) -> dict[str, Any]:

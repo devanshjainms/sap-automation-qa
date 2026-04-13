@@ -107,6 +107,66 @@ async def list_evidence_catalog(
 
 
 @mcp.tool(
+    name="get_evidence_output",
+    title="Get Evidence Output",
+    description=(
+        "Read the raw output of a collected evidence artifact. "
+        "After calling collect_evidence, use this to read the actual "
+        "command output, error messages, and stderr from specific artifacts. "
+        "Pass the session_id from collect_evidence and the evidence_id "
+        "from the artifact list (e.g. 'EC-CLUSTER-MON-0001@172.238.0.25'). "
+        "If the artifact failed, the error and stderr fields explain why."
+    ),
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+    icons=[ICON_SEARCH],
+    structured_output=False,
+)
+async def get_evidence_output(
+    session_id: str,
+    evidence_id: str,
+    ctx: Context[ServerSession, SapContext] | None = None,
+) -> dict[str, Any]:
+    """Read the raw output of a collected evidence artifact.
+
+    :param session_id: Triage session ID from collect_evidence.
+    :param evidence_id: Artifact ID (e.g. ``EC-CLUSTER-MON-0001@172.238.0.25``).
+    """
+    logger.info(
+        "Tool called: get_evidence_output(session_id=%s, evidence_id=%s)",
+        session_id,
+        evidence_id,
+    )
+    sap = get_sap_context(ctx)
+    session = sap.validator.session_id(session_id)
+
+    if not evidence_id:
+        raise ToolError("evidence_id is required")
+
+    for ev in session.evidence:
+        if ev.get("evidence_id") == evidence_id:
+            return {
+                "evidence_id": ev.get("evidence_id", ""),
+                "host": ev.get("host", ""),
+                "command": ev.get("command", ""),
+                "status": ev.get("status", ""),
+                "content": ev.get("content", ""),
+                "error": ev.get("error"),
+                "duration_ms": ev.get("duration_ms", 0),
+                "metadata": ev.get("metadata", {}),
+            }
+
+    raise ToolError(
+        f"Evidence '{evidence_id}' not found in session '{session_id}'. "
+        f"Available: {[e.get('evidence_id', '?') for e in session.evidence[:10]]}"
+    )
+
+
+@mcp.tool(
     name="collect_evidence",
     title="Collect Evidence",
     description=(
@@ -346,6 +406,7 @@ async def collect_evidence(
                 "evidence_type": str(a.evidence_type),
                 "status": str(a.status),
                 "host": a.host,
+                **({"error": a.error} if a.error else {}),
             }
             for a in artifacts
         ],

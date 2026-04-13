@@ -98,7 +98,9 @@ INVESTIGATOR_SPEC = SpecialistConfig(
         "3. Analyze the result — what does it tell you?\n"
         "4. Decide: need more evidence, or ready to conclude?\n\n"
         "When done, hand back to the Coordinator with your "
-        "complete findings and diagnosis."
+        "complete findings and diagnosis.\n\n"
+        "NEVER ask the user whether to continue — always continue "
+        "autonomously until you have a complete evidence-based answer."
     ),
 )
 

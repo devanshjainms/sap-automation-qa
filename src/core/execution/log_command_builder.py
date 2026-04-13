@@ -86,13 +86,24 @@ class LogCommandBuilder:
         path = self._resolve_path()
         if not path:
             raise ValueError("metadata.path_template is required for file access")
-        if time_window and pattern:
-            return (
-                f"grep '{time_window.strip()}' {path}"
-                f" | grep -iE '{pattern}' | tail -{max_lines}"
-            )
+
+        tw_grep = ""
         if time_window:
-            return f"grep '{time_window.strip()}' {path} | tail -{max_lines}"
+            tw = time_window.strip()
+            if " to " in tw:
+                since, _until = tw.split(" to ", 1)
+                date_part = since.strip()[:10]  # "2026-04-10"
+                tw_grep = date_part
+            elif tw.startswith("last "):
+                #
+                tw_grep = ""
+            else:
+                tw_grep = tw[:10]
+
+        if tw_grep and pattern:
+            return f"grep '{tw_grep}' {path}" f" | grep -iE '{pattern}' | tail -{max_lines}"
+        if tw_grep:
+            return f"grep '{tw_grep}' {path} | tail -{max_lines}"
         if pattern:
             return f"grep -iE '{pattern}' {path} | tail -{max_lines}"
         return f"tail -{max_lines} {path}"

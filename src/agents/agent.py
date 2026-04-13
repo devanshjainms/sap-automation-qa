@@ -461,7 +461,7 @@ class SapAgentFactory:
         func_config = FunctionInvocationConfiguration(
             max_iterations=config.max_rounds,
             max_consecutive_errors_per_request=self._MAX_CONSECUTIVE_ERRORS,
-            include_detailed_errors=False,
+            include_detailed_errors=True,
         )
         middleware = [
             AgentExceptionMiddleware(),
@@ -538,7 +538,7 @@ class SapAgentFactory:
         func_config = FunctionInvocationConfiguration(
             max_iterations=config.max_rounds,
             max_consecutive_errors_per_request=self._MAX_CONSECUTIVE_ERRORS,
-            include_detailed_errors=False,
+            include_detailed_errors=True,
         )
         middleware = [
             AgentExceptionMiddleware(),

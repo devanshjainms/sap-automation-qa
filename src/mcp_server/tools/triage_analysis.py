@@ -61,7 +61,38 @@ async def run_analysis(
 
     await tool_progress(ctx, progress=0.3, total=1.0, message="Loaded rules, analyzing...")
 
-    report = sap.analyzer.analyze(session, artifacts, rules)
+    usable = [a for a in artifacts if a.is_usable]
+    if not usable:
+        failed_ids = [a.evidence_id for a in artifacts if not a.is_usable][:10]
+        return {
+            "session_id": session_id,
+            "health": "UNKNOWN",
+            "error": "No usable evidence artifacts to analyze.",
+            "total_artifacts": len(artifacts),
+            "usable_artifacts": 0,
+            "failed_artifacts": failed_ids,
+            "hint": (
+                "Use get_evidence_output(session_id, evidence_id) to inspect "
+                "individual artifact errors, then retry collection with "
+                "corrected parameters."
+            ),
+        }
+
+    try:
+        report = sap.analyzer.analyze(session, artifacts, rules)
+    except Exception as exc:
+        logger.warning("Analysis failed for session %s: %s", session_id, exc)
+        return {
+            "session_id": session_id,
+            "health": "UNKNOWN",
+            "error": f"Analysis engine failed: {exc}",
+            "total_artifacts": len(artifacts),
+            "usable_artifacts": len(usable),
+            "hint": (
+                "The analyzer could not process the evidence. "
+                "Use get_evidence_output to inspect artifacts manually."
+            ),
+        }
 
     await tool_progress(ctx, progress=0.9, total=1.0, message="Learning from session...")
 

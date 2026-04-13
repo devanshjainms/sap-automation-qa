@@ -747,9 +747,9 @@ class TestAgenticLoopConfiguration:
         assert fic["max_consecutive_errors_per_request"] == 5
 
     @pytest.mark.asyncio
-    async def test_detailed_errors_disabled(self, mocker: MockerFixture) -> None:
+    async def test_detailed_errors_enabled(self, mocker: MockerFixture) -> None:
         mock_client_cls = mocker.patch("src.agents.agent.AzureOpenAIResponsesClient")
-        """include_detailed_errors is False (middleware handles errors)."""
+        """include_detailed_errors is True so the agent sees error details."""
         mock_client_cls.return_value.as_agent.side_effect = lambda **kw: _mock_as_agent(
             mocker, **kw
         )
@@ -765,7 +765,7 @@ class TestAgenticLoopConfiguration:
 
         call = mock_client_cls.return_value.as_agent.call_args
         fic = call[1]["function_invocation_configuration"]
-        assert fic["include_detailed_errors"] is False
+        assert fic["include_detailed_errors"] is True
 
     @pytest.mark.asyncio
     async def test_instructions_contain_agentic_loop(self, mocker: MockerFixture) -> None:

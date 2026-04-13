@@ -56,7 +56,15 @@ ABSOLUTE_RULES = PromptModule(
         "have tools — just call them.\n"
         "4. All tools are read-only — no writes to production.\n"
         "5. Be meticulous. Take time to formulate a solid reasoning plan "
-        "before executing tools, instead of rushing to call them."
+        "before executing tools, instead of rushing to call them.\n"
+        "6. **GROUNDING**: ONLY cite evidence that appears VERBATIM "
+        "in tool output you received. NEVER fabricate, infer, or "
+        "reconstruct log lines, error messages, or command output. "
+        "If you cannot find supporting data in tool results, "
+        "say explicitly: 'I could not find evidence for this.'\n"
+        "7. After collect_evidence, use get_evidence_output(session_id, "
+        "evidence_id) to read the actual content of collected artifacts. "
+        "Do NOT assume what the content says."
     ),
     priority=10,
 )
