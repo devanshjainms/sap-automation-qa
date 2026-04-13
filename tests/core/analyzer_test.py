@@ -260,14 +260,21 @@ class TestFilterRulesWithEvidence:
     """Tests for filtering rules by available evidence."""
 
     def test_keeps_rules_with_evidence(self) -> None:
-        rules = [_rule(source="sysctl")]
-        data_map = {"sysctl": NormalizedData(source="sysctl")}
+        rules = [_rule(source="sysctl", parameter="vm.swappiness")]
+        data_map = {"sysctl": NormalizedData(source="sysctl", values={"vm.swappiness": "10"})}
         result = Analyzer()._filter_rules_with_evidence(rules, data_map)
         assert len(result) == 1
 
     def test_skips_rules_without_evidence(self) -> None:
         rules = [_rule(source="sysctl")]
         result = Analyzer()._filter_rules_with_evidence(rules, {})
+        assert len(result) == 0
+
+    def test_skips_rules_when_parameter_missing(self) -> None:
+        """Rule source exists but the specific parameter is not in the data."""
+        rules = [_rule(source="command", parameter="stonith-enabled")]
+        data_map = {"command": NormalizedData(source="command", values={"hdbnameserver": "running"})}
+        result = Analyzer()._filter_rules_with_evidence(rules, data_map)
         assert len(result) == 0
 
     def test_rules_without_source_kept(self) -> None:
@@ -277,8 +284,11 @@ class TestFilterRulesWithEvidence:
         assert len(result) == 1
 
     def test_mixed(self) -> None:
-        rules = [_rule(rule_id="R1", source="sysctl"), _rule(rule_id="R2", source="missing")]
-        data_map = {"sysctl": NormalizedData(source="sysctl")}
+        rules = [
+            _rule(rule_id="R1", source="sysctl", parameter="vm.swappiness"),
+            _rule(rule_id="R2", source="missing"),
+        ]
+        data_map = {"sysctl": NormalizedData(source="sysctl", values={"vm.swappiness": "10"})}
         result = Analyzer()._filter_rules_with_evidence(rules, data_map)
         assert len(result) == 1
         assert result[0].id == "R1"

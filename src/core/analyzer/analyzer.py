@@ -201,24 +201,36 @@ class Analyzer:
         rules: list[Rule],
         data_map: dict[str, NormalizedData],
     ) -> list[Rule]:
-        """Keep only rules whose evidence source is available.
+        """Keep only rules whose evidence source AND parameter are available.
 
         :param rules: All candidate rules.
         :param data_map: Available normalized evidence.
         :returns: Rules that can be evaluated.
         """
-        available = set(data_map.keys())
         evaluable: list[Rule] = []
-        skipped = 0
+        skipped_source = 0
+        skipped_param = 0
 
         for rule in rules:
             source = rule.validator.source if rule.validator else ""
-            if not source or source in available:
+            if not source:
                 evaluable.append(rule)
-            else:
-                skipped += 1
+                continue
+            data = data_map.get(source)
+            if data is None:
+                skipped_source += 1
+                continue
+            param = rule.validator.parameter if rule.validator else ""
+            if param and data.get(param) is None:
+                skipped_param += 1
+                continue
+            evaluable.append(rule)
 
-        if skipped:
-            logger.info("Skipped %d rules — evidence source not available", skipped)
+        if skipped_source or skipped_param:
+            logger.info(
+                "Skipped %d rules (no source) + %d rules (parameter not in evidence)",
+                skipped_source,
+                skipped_param,
+            )
 
         return evaluable
