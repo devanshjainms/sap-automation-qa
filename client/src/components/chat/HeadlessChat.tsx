@@ -22,6 +22,7 @@ import { getConversation } from "../../lib/api";
 import type { Message } from "../../lib/types";
 import { addOptimisticConversation } from "../../lib/conversationEvents";
 import { useStyles } from "../../styles/headlessChat.styles";
+import { useAgentHITL } from "../../hooks/useAgentHITL";
 
 const sapAgent = new HttpAgent({
   url: "/ag-ui",
@@ -232,6 +233,7 @@ function SapChatInner() {
   const { agent } = useAgent({ agentId: "sap-agent" });
 
   useDefaultRenderTool();
+  useAgentHITL();
 
   const emittedRef = useRef<string | null>(null);
   useEffect(() => {

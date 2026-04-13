@@ -103,7 +103,7 @@ class SapWorkflow(AgentFrameworkWorkflow):
             agent=agent,
             name="SAP-Agent",
             description="SAP infrastructure specialist for Azure.",
-            require_confirmation=False,
+            require_confirmation=True,
         )
 
         completed_tools: list[dict[str, str]] = []

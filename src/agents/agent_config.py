@@ -24,6 +24,7 @@ from src.agents.prompt_modules import (
     HOW_TO_WORK,
     PAST_EXPERIENCE,
     REMINDERS,
+    THINK_OUT_LOUD,
     TOOLS_REFERENCE,
 )
 
@@ -62,16 +63,17 @@ class SpecialistConfig:
 
 COORDINATOR_ROLE_PROMPT = (
     "\n\n**ROLE: COORDINATOR**\n"
-    "You are the entry point. Your job:\n"
-    "1. Identify the target SAP system — call "
-    "`list_workspaces` and `get_workspace`.\n"
-    "2. Understand the user's request.\n"
-    "3. Hand off to the right specialist:\n"
+    "You are the entry point. Your ONLY job is to route:\n"
+    "1. Read the user's request.\n"
+    "2. Hand off IMMEDIATELY to the right specialist:\n"
     "   - **Investigator** for troubleshooting, diagnostics, "
     "health checks, and configuration review.\n"
     "   - **TestRunner** for running HA/functional tests.\n"
+    "3. Do NOT call any tools yourself — let the specialist do it.\n"
     "4. After the specialist returns, present the findings "
     "to the user with evidence and remediation steps.\n\n"
+    "NEVER call `list_workspaces`, `get_workspace`, `collect_evidence`, "
+    "or any investigation tools. That is the Investigator's job.\n\n"
     "NEVER ask the user for confirmation. Just route and go.\n\n"
     "**CRITICAL: Produce exactly ONE final summary.** "
     "Do NOT repeat findings you have already presented. "
@@ -86,6 +88,7 @@ INVESTIGATOR_SPEC = SpecialistConfig(
         CORE_IDENTITY.name,
         ABSOLUTE_RULES.name,
         HOW_TO_WORK.name,
+        THINK_OUT_LOUD.name,
         HOW_TO_INVESTIGATE.name,
         TOOLS_REFERENCE.name,
         PAST_EXPERIENCE.name,
@@ -93,16 +96,22 @@ INVESTIGATOR_SPEC = SpecialistConfig(
     ],
     role_prompt=(
         "\n\n**ROLE: INVESTIGATOR**\n"
-        "You investigate SAP system issues step by step.\n"
-        "For each step:\n"
-        "1. Call the tool — keep reasoning brief (1-2 sentences).\n"
-        "2. Analyze the result — what does it tell you?\n"
-        "3. Decide: need more evidence, or ready to conclude?\n\n"
-        "**IMPORTANT: Do NOT produce a full summary between tool calls.** "
-        "Use SHORT intermediate notes only (1-3 sentences). "
+        "You own the full investigation lifecycle:\n"
+        "1. **Find the system** — call `list_workspaces` + `get_workspace` "
+        "to identify the target.\n"
+        "2. **Collect evidence** — use `collect_evidence`, "
+        "`run_evidence_collector`, or `search_logs`.\n"
+        "3. **Read artifacts** — use `get_evidence_output` to read "
+        "the actual command output.\n"
+        "4. **Analyze** — call `run_analysis` to check against rules.\n"
+        "5. **Diagnose** — form your conclusion with evidence.\n\n"
+        "Keep reasoning brief between tool calls (1-2 sentences).\n"
         "Save your complete diagnosis for the FINAL handoff.\n\n"
         "When done, hand back to the Coordinator with your "
         "complete findings and diagnosis.\n\n"
+        "NEVER hand back to the Coordinator without having called "
+        "at least one evidence collection tool. You MUST investigate "
+        "before returning.\n\n"
         "NEVER ask the user whether to continue — always continue "
         "autonomously until you have a complete evidence-based answer."
     ),
@@ -160,6 +169,7 @@ _ALL_MODULES = [
     CORE_IDENTITY.name,
     ABSOLUTE_RULES.name,
     HOW_TO_WORK.name,
+    THINK_OUT_LOUD.name,
     HOW_TO_INVESTIGATE.name,
     TOOLS_REFERENCE.name,
     PAST_EXPERIENCE.name,

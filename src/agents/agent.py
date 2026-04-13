@@ -27,6 +27,7 @@ from agent_framework import (
     ToolResultCompactionStrategy,
 )
 from agent_framework.azure import AzureOpenAIResponsesClient
+from agent_framework._mcp import MCPSpecificApproval
 from src.mcp_server.server import mcp as _mcp_server
 from agent_framework._types import Message as AFMessage
 from agent_framework.orchestrations import HandoffBuilder
@@ -85,10 +86,13 @@ class SapAgentFactory:
     """
 
     _MAX_CONSECUTIVE_ERRORS = 5
-
     _MCP_CONNECT_RETRIES = 5
     _MCP_CONNECT_BACKOFF = 2.0
     _MSLEARN_MCP_URL = "https://learn.microsoft.com/api/mcp"
+    _APPROVAL_REQUIRED_TOOLS: list[str] = [
+        "run_staf_test",
+        "cancel_job",
+    ]
 
     def __init__(
         self,
@@ -332,6 +336,9 @@ class SapAgentFactory:
             name="sap-tools",
             url=self._mcp_url,
             allowed_tools=sorted(t.name for t in _mcp_server._tool_manager.list_tools()),
+            approval_mode=MCPSpecificApproval(
+                always_require_approval=self._APPROVAL_REQUIRED_TOOLS,
+            ),
         )
         delay = self._MCP_CONNECT_BACKOFF
         for attempt in range(1, self._MCP_CONNECT_RETRIES + 1):

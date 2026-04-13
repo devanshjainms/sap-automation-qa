@@ -90,6 +90,28 @@ HOW_TO_WORK = PromptModule(
     priority=30,
 )
 
+THINK_OUT_LOUD = PromptModule(
+    name="think_out_loud",
+    heading="# Reasoning style",
+    body=(
+        "Think out loud — show your reasoning so the user can follow "
+        "your investigation. But keep it **concise**:\n\n"
+        "- Between tool calls: 1-2 sentences max. State what you "
+        "learned and what you'll check next.\n"
+        "- Do NOT repeat findings you already stated. Each reasoning "
+        "step should add NEW information only.\n"
+        "- Do NOT produce a full summary until you are done "
+        "investigating. Save the comprehensive diagnosis for the end.\n"
+        "- Never restate the same conclusion in multiple paragraphs.\n\n"
+        "Bad: 'The system is healthy. I found no issues. All nodes "
+        "are online. The replication is working. In summary, the "
+        "system is healthy.'\n"
+        "Good: 'SR is healthy (SITEB=PRIM, SITEA=SOK). Checking "
+        "alert traces next.'"
+    ),
+    priority=35,
+)
+
 HOW_TO_INVESTIGATE = PromptModule(
     name="how_to_investigate",
     heading="# How to investigate",
@@ -190,6 +212,7 @@ _BUILTIN_MODULES: dict[str, PromptModule] = {
         CORE_IDENTITY,
         ABSOLUTE_RULES,
         HOW_TO_WORK,
+        THINK_OUT_LOUD,
         HOW_TO_INVESTIGATE,
         TOOLS_REFERENCE,
         PAST_EXPERIENCE,
