@@ -85,12 +85,15 @@ class SshCollectorStrategy:
                 text=True,
                 timeout=timeout,
             )
-            status = CollectionStatus.SUCCESS if result.returncode == 0 else CollectionStatus.FAILED
             return EvidenceArtifact(
                 evidence_id=definition.definition_id,
                 evidence_type=definition.evidence_type,
                 collector_type=CollectorType.SSH,
-                status=status,
+                status=(
+                    CollectionStatus.SUCCESS
+                    if result.returncode in definition.metadata.get("ok_exit_codes", [0])
+                    else CollectionStatus.FAILED
+                ),
                 host=host,
                 command=command,
                 collected_at=datetime.now(timezone.utc),

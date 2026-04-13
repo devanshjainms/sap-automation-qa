@@ -56,7 +56,7 @@ async def run_analysis(
 
     await tool_info(ctx, f"Running analysis on session {session_id}")
 
-    rules = sap.knowledge_store.load_rules()
+    rules = sap.knowledge_store.load_rules(system=session.system_properties)
     artifacts = rebuild_artifacts(session)
 
     await tool_progress(ctx, progress=0.3, total=1.0, message="Loaded rules, analyzing...")

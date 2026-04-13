@@ -90,11 +90,30 @@ def _sync_embed_seed_knowledge(
         return
 
     texts = [t[2] for t in to_embed]
-    try:
-        vectors = provider.embed_batch(texts)
-    except Exception:
-        logger.warning("Seed embedding failed; vector search will use keyword fallback")
-        return
+    max_retries = 3
+    vectors: list[list[float]] = []
+    for attempt in range(1, max_retries + 1):
+        try:
+            vectors = provider.embed_batch(texts)
+            break
+        except Exception:
+            if attempt < max_retries:
+                import time
+
+                logger.info(
+                    "Seed embedding attempt %d/%d failed, retrying in %ds...",
+                    attempt,
+                    max_retries,
+                    attempt * 5,
+                )
+                time.sleep(attempt * 5)
+            else:
+                logger.warning(
+                    "Seed embedding failed after %d attempts; "
+                    "vector search will use keyword fallback",
+                    max_retries,
+                )
+                return
 
     for (item_id, item_type, _), vec in zip(to_embed, vectors):
         embedding_store.store(item_id, item_type, vec)

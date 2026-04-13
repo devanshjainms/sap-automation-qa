@@ -17,6 +17,7 @@ from src.core.execution.ssh_collector import SshCollectorStrategy
 from src.core.models.evidence import CollectorType, EvidenceArtifact, EvidenceType
 from src.core.models.knowledge import EvidenceCollectorDef
 from src.core.models.ssh import SshCredential
+from src.core.models.system import SystemProperties
 from src.core.models.triage import TriageSession
 from src.mcp_server.server import SapContext, mcp
 from src.mcp_server.tools._helpers import (
@@ -235,6 +236,15 @@ async def collect_evidence(
     hosts = [h["ansible_host"] for h in host_details]
 
     extra_vars = load_workspace_params(sap.workspaces_base, workspace_id)
+    session.system_properties = SystemProperties(
+        database_type=extra_vars.get("platform", "").upper() or None,
+        ha_enabled=extra_vars.get("database_high_availability", False),
+        hana_topology=("scale_out" if extra_vars.get("database_scale_out") else "scale_up"),
+        os_family=None,
+        instance_type=(
+            "DB" if target_tiers and "hana" in [t.lower() for t in target_tiers] else None
+        ),
+    )
     ssh_credential: SshCredential | None = None
     try:
         await tool_info(ctx, f"Provisioning SSH credentials for workspace {workspace_id}")
@@ -339,6 +349,7 @@ async def collect_evidence(
                         "become_user": meta.get("become_user", become_user),
                         "node_tier": meta.get("node_tier", ""),
                         "source": cd.source,
+                        "ok_exit_codes": cd.ok_exit_codes,
                     },
                 )
             )

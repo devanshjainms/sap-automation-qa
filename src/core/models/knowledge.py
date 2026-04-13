@@ -223,13 +223,7 @@ class EvidenceCollectorDef(BaseModel):
     :param max_timeout_seconds: Maximum execution time.
     :param tags: Searchable tags.
     :param requires_ha: True if this definition should only run on HA systems.
-    :param metadata: Structured execution metadata. For log sources this
-        includes ``access_method`` (``file``, ``journalctl``, ``grep_filter``,
-        ``dmesg``), ``path_template``, ``timestamp_format`` (``iso``,
-        ``syslog``, ``hana``), ``run_as`` (e.g. ``<sid>adm``),
-        ``service_units`` (journalctl -u args), ``base_filter`` (grep
-        pattern for syslog-based sources), and ``key_patterns`` (useful
-        grep patterns for the LLM).
+    :param metadata: Structured execution metadata.
     """
 
     id: str
@@ -245,4 +239,5 @@ class EvidenceCollectorDef(BaseModel):
     max_timeout_seconds: int = 30
     tags: list[str] = Field(default_factory=list)
     requires_ha: bool = False
+    ok_exit_codes: list[int] = Field(default_factory=lambda: [0])
     metadata: dict[str, Any] = Field(default_factory=dict)
