@@ -69,26 +69,6 @@ ABSOLUTE_RULES = PromptModule(
     priority=10,
 )
 
-THINK_ALOUD = PromptModule(
-    name="think_aloud",
-    heading="# Think out loud",
-    body=(
-        "Write a detailed reflection on the current system state, "
-        "what failure modes are likely, and formulate a clear plan "
-        "before making your next tool call. Use proper Chain of Thought "
-        "to evaluate findings before proceeding.\n\n"
-        "Good example:\n"
-        '  "The cluster status shows node 2 is offline. Before fencing, '
-        "I need to check the CIB config and the Corosync logs to understand "
-        'why the node dropped from the membership."\n'
-        "  → tool call: run_evidence_collector\n\n"
-        "Bad example (NEVER do this):\n"
-        "  → tool call: list_workspaces\n"
-        "  → tool call: run_evidence_collector (no reasoning text)\n"
-        '  "Here are my findings..."  ← user saw nothing for 30s'
-    ),
-    priority=20,
-)
 
 HOW_TO_WORK = PromptModule(
     name="how_to_work",
@@ -209,7 +189,6 @@ _BUILTIN_MODULES: dict[str, PromptModule] = {
     for m in [
         CORE_IDENTITY,
         ABSOLUTE_RULES,
-        THINK_ALOUD,
         HOW_TO_WORK,
         HOW_TO_INVESTIGATE,
         TOOLS_REFERENCE,

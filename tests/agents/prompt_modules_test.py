@@ -14,7 +14,6 @@ from src.agents.prompt_modules import (
     HOW_TO_WORK,
     PAST_EXPERIENCE,
     REMINDERS,
-    THINK_ALOUD,
     TOOLS_REFERENCE,
     PromptModule,
     PromptModuleRegistry,

@@ -24,7 +24,6 @@ from src.agents.prompt_modules import (
     HOW_TO_WORK,
     PAST_EXPERIENCE,
     REMINDERS,
-    THINK_ALOUD,
     TOOLS_REFERENCE,
 )
 
@@ -82,7 +81,6 @@ INVESTIGATOR_SPEC = SpecialistConfig(
     module_names=[
         CORE_IDENTITY.name,
         ABSOLUTE_RULES.name,
-        THINK_ALOUD.name,
         HOW_TO_WORK.name,
         HOW_TO_INVESTIGATE.name,
         TOOLS_REFERENCE.name,
@@ -110,7 +108,6 @@ TEST_RUNNER_SPEC = SpecialistConfig(
     module_names=[
         CORE_IDENTITY.name,
         ABSOLUTE_RULES.name,
-        THINK_ALOUD.name,
         HOW_TO_WORK.name,
         TOOLS_REFERENCE.name,
         REMINDERS.name,
@@ -156,7 +153,6 @@ class AgentConfig:
 _ALL_MODULES = [
     CORE_IDENTITY.name,
     ABSOLUTE_RULES.name,
-    THINK_ALOUD.name,
     HOW_TO_WORK.name,
     HOW_TO_INVESTIGATE.name,
     TOOLS_REFERENCE.name,
@@ -179,7 +175,6 @@ TEST_CONFIG = AgentConfig(
     module_names=[
         CORE_IDENTITY.name,
         ABSOLUTE_RULES.name,
-        THINK_ALOUD.name,
         HOW_TO_WORK.name,
         TOOLS_REFERENCE.name,
         REMINDERS.name,
@@ -196,7 +191,6 @@ KNOWLEDGE_CONFIG = AgentConfig(
     module_names=[
         CORE_IDENTITY.name,
         ABSOLUTE_RULES.name,
-        THINK_ALOUD.name,
         HOW_TO_WORK.name,
         TOOLS_REFERENCE.name,
         PAST_EXPERIENCE.name,
@@ -212,7 +206,6 @@ GENERAL_CONFIG = AgentConfig(
     module_names=[
         CORE_IDENTITY.name,
         ABSOLUTE_RULES.name,
-        THINK_ALOUD.name,
         HOW_TO_WORK.name,
         TOOLS_REFERENCE.name,
         REMINDERS.name,
