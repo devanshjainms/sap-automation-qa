@@ -136,34 +136,40 @@ async def get_evidence_output(
     :param session_id: Triage session ID from collect_evidence.
     :param evidence_id: Artifact ID (e.g. ``EC-CLUSTER-MON-0001@172.238.0.25``).
     """
-    logger.info(
-        "Tool called: get_evidence_output(session_id=%s, evidence_id=%s)",
-        session_id,
-        evidence_id,
-    )
-    sap = get_sap_context(ctx)
-    session = sap.validator.session_id(session_id)
+    try:
+        logger.info(
+            "Tool called: get_evidence_output(session_id=%s, evidence_id=%s)",
+            session_id,
+            evidence_id,
+        )
+        sap = get_sap_context(ctx)
+        session = sap.validator.session_id(session_id)
 
-    if not evidence_id:
-        raise ToolError("evidence_id is required")
+        if not evidence_id:
+            raise ToolError("evidence_id is required")
 
-    for ev in session.evidence:
-        if ev.get("evidence_id") == evidence_id:
-            return {
-                "evidence_id": ev.get("evidence_id", ""),
-                "host": ev.get("host", ""),
-                "command": ev.get("command", ""),
-                "status": ev.get("status", ""),
-                "content": ev.get("content", ""),
-                "error": ev.get("error"),
-                "duration_ms": ev.get("duration_ms", 0),
-                "metadata": ev.get("metadata", {}),
-            }
+        for ev in session.evidence:
+            if ev.get("evidence_id") == evidence_id:
+                return {
+                    "evidence_id": ev.get("evidence_id", ""),
+                    "host": ev.get("host", ""),
+                    "command": ev.get("command", ""),
+                    "status": ev.get("status", ""),
+                    "content": ev.get("content", ""),
+                    "error": ev.get("error"),
+                    "duration_ms": ev.get("duration_ms", 0),
+                    "metadata": ev.get("metadata", {}),
+                }
 
-    raise ToolError(
-        f"Evidence '{evidence_id}' not found in session '{session_id}'. "
-        f"Available: {[e.get('evidence_id', '?') for e in session.evidence[:10]]}"
-    )
+        raise ToolError(
+            f"Evidence '{evidence_id}' not found in session '{session_id}'. "
+            f"Available: {[e.get('evidence_id', '?') for e in session.evidence[:10]]}"
+        )
+    except ToolError:
+        raise
+    except Exception:
+        logger.exception("get_evidence_output failed unexpectedly")
+        raise
 
 
 @mcp.tool(

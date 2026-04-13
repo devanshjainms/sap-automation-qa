@@ -72,7 +72,11 @@ COORDINATOR_ROLE_PROMPT = (
     "   - **TestRunner** for running HA/functional tests.\n"
     "4. After the specialist returns, present the findings "
     "to the user with evidence and remediation steps.\n\n"
-    "NEVER ask the user for confirmation. Just route and go."
+    "NEVER ask the user for confirmation. Just route and go.\n\n"
+    "**CRITICAL: Produce exactly ONE final summary.** "
+    "Do NOT repeat findings you have already presented. "
+    "If you have already delivered the investigation results, STOP. "
+    "Do NOT produce another summary or re-state your conclusion."
 )
 
 INVESTIGATOR_SPEC = SpecialistConfig(
@@ -91,10 +95,12 @@ INVESTIGATOR_SPEC = SpecialistConfig(
         "\n\n**ROLE: INVESTIGATOR**\n"
         "You investigate SAP system issues step by step.\n"
         "For each step:\n"
-        "1. Explain what you're about to check and why.\n"
-        "2. Call the tool.\n"
-        "3. Analyze the result — what does it tell you?\n"
-        "4. Decide: need more evidence, or ready to conclude?\n\n"
+        "1. Call the tool — keep reasoning brief (1-2 sentences).\n"
+        "2. Analyze the result — what does it tell you?\n"
+        "3. Decide: need more evidence, or ready to conclude?\n\n"
+        "**IMPORTANT: Do NOT produce a full summary between tool calls.** "
+        "Use SHORT intermediate notes only (1-3 sentences). "
+        "Save your complete diagnosis for the FINAL handoff.\n\n"
         "When done, hand back to the Coordinator with your "
         "complete findings and diagnosis.\n\n"
         "NEVER ask the user whether to continue — always continue "
@@ -146,7 +152,7 @@ class AgentConfig:
     max_rounds: int = 75
     token_budget: int = 120_000
     inject_kb: bool = False
-    coordinator_turn_limit: int = 10
+    coordinator_turn_limit: int = 5
     specialists: tuple[SpecialistConfig, ...] = ()
 
 
@@ -166,7 +172,7 @@ TRIAGE_CONFIG = AgentConfig(
     max_rounds=75,
     token_budget=120_000,
     inject_kb=True,
-    coordinator_turn_limit=10,
+    coordinator_turn_limit=5,
     specialists=(INVESTIGATOR_SPEC, TEST_RUNNER_SPEC),
 )
 
@@ -182,7 +188,7 @@ TEST_CONFIG = AgentConfig(
     max_rounds=50,
     token_budget=80_000,
     inject_kb=False,
-    coordinator_turn_limit=10,
+    coordinator_turn_limit=5,
     specialists=(INVESTIGATOR_SPEC, TEST_RUNNER_SPEC),
 )
 

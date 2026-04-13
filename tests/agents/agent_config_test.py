@@ -34,7 +34,7 @@ class TestAgentConfig:
         assert cfg.inject_kb is True
         assert "how_to_investigate" in cfg.module_names
         assert len(cfg.specialists) == 2
-        assert cfg.coordinator_turn_limit == 10
+        assert cfg.coordinator_turn_limit == 5
         names = {s.name for s in cfg.specialists}
         assert names == {"Investigator", "TestRunner"}
 

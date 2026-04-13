@@ -786,7 +786,7 @@ class TestAgenticLoopConfiguration:
         call = mock_client_cls.return_value.as_agent.call_args
         instructions = call[1]["instructions"]
         assert "ABSOLUTE RULES" in instructions
-        assert "Think out loud" in instructions
+        assert "Keep calling tools" in instructions
         assert "How to work" in instructions
         assert "Reminders" in instructions
 

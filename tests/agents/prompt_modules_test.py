@@ -67,7 +67,7 @@ class TestAssemble:
     def test_all_builtins_included_by_default(self) -> None:
         result = assemble()
         assert "ABSOLUTE RULES" in result
-        assert "Think out loud" in result
+        assert "Keep calling tools" in result
         assert "How to work" in result
         assert "How to investigate" in result
         assert "Reminders" in result

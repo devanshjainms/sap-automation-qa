@@ -283,12 +283,19 @@ def _init_shared_context() -> SapContext:
 async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
     """Initialize shared services on startup, yield context per request.
 
+    In ``stateless_http=True`` mode the MCP SDK calls the lifespan
+    **once per HTTP request**, so we cache the ``SapContext`` in the
+    module-level ``_shared_context`` to ensure triage sessions, SSH
+    caches, and knowledge stores are shared across tool calls.
+
     :param server: The ``FastMCP`` server instance.
     :yields: The shared :class:`SapContext`.
     """
-    ctx = _init_shared_context()
-    src.mcp_server.resources.set_sap_context(ctx)
-    yield ctx
+    global _shared_context
+    if _shared_context is None:
+        _shared_context = _init_shared_context()
+        src.mcp_server.resources.set_sap_context(_shared_context)
+    yield _shared_context
 
 
 _token_verifier = create_token_verifier()

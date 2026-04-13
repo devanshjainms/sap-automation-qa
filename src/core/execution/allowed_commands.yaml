@@ -58,8 +58,28 @@ commands:
     description: "Proc filesystem reads"
     max_timeout_seconds: 10
 
-  - pattern: "^cat\\s+/etc/(os-release|hostname)"
+  - pattern: "^cat\\s+/etc/(os-release|hostname|fstab|hosts|resolv\\.conf)"
     description: "OS configuration reads"
+    max_timeout_seconds: 10
+
+  - pattern: "^hostname(\\s|$)"
+    description: "Hostname query"
+    max_timeout_seconds: 10
+
+  - pattern: "^uptime"
+    description: "System uptime"
+    max_timeout_seconds: 10
+
+  - pattern: "^ls\\s+(-[a-zA-Z]+\\s+)?/usr/sap"
+    description: "SAP directory listing"
+    max_timeout_seconds: 10
+
+  - pattern: "^ps\\s+(-ef|aux|fx)"
+    description: "Process listing"
+    max_timeout_seconds: 15
+
+  - pattern: "^free\\s+"
+    description: "Memory usage"
     max_timeout_seconds: 10
 
   - pattern: "^systemctl\\s+(status|is-active|is-enabled|show)"
