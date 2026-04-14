@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sap-staf": {
+      "type": "streamableHttp",
+      "url": "http://localhost:8001/mcp"
+    }
+  }
+}

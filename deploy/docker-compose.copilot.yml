@@ -1,0 +1,86 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+# Lightweight compose — MCP server + Ollama only.
+# Used by: ./scripts/setup.sh copilot start
+#
+# This profile is for GitHub Copilot integration (VS Code, CLI, Cloud Agent).
+# It exposes the SAP STAF MCP server on port 8001 for tool discovery.
+
+services:
+  sap-mcp-server:
+    build:
+      context:            ..
+      dockerfile:         deploy/Dockerfile
+      args:
+                          - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    image:                sap-qa:latest
+    container_name:       sap-mcp-server
+    user:                 "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart:              unless-stopped
+    command:              ["uvicorn", "src.mcp_server.server:http_app", "--host", "0.0.0.0", "--port", "8001"]
+    ports:
+                          - "${MCP_PORT:-8001}:8001"
+    environment:
+                          - LOG_FORMAT=${LOG_FORMAT:-json}
+                          - LOG_LEVEL=${LOG_LEVEL:-INFO}
+                          - PYTHONPATH=/app
+                          - MCP_HOST=0.0.0.0
+                          - MCP_PORT=8001
+                          - DATA_DIR=/app/data
+                          - WORKSPACES_BASE=/app/WORKSPACES/SYSTEM
+                          - OLLAMA_BASE_URL=http://sap-ollama:11434/v1
+                          - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+                          - EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-768}
+    volumes:
+                          - mcp-data:/app/data
+                          - ../WORKSPACES:/app/WORKSPACES
+                          - ../vars.yaml:/app/vars.yaml:ro
+    depends_on:
+      sap-ollama:
+        condition:        service_healthy
+    healthcheck:
+      test:               ["CMD", "curl", "-sf", "http://localhost:8001/mcp"]
+      interval:           15s
+      timeout:            5s
+      retries:            5
+      start_period:       30s
+    networks:
+                          - mcp-network
+    logging:
+      driver:             "json-file"
+      options:
+        max-size:         "10m"
+        max-file:         "3"
+
+  sap-ollama:
+    build:
+      context:            ..
+      dockerfile:         deploy/Dockerfile.ollama
+    container_name:       sap-ollama
+    restart:              unless-stopped
+    environment:
+                          - OLLAMA_HOST=0.0.0.0:11434
+    volumes:
+                          - ollama-data:/root/.ollama
+    healthcheck:
+      test:               ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval:           15s
+      timeout:            10s
+      retries:            10
+      start_period:       60s
+    networks:
+                          - mcp-network
+    logging:
+      driver:             "json-file"
+      options:
+        max-size:         "10m"
+        max-file:         "3"
+
+volumes:
+  mcp-data:
+  ollama-data:
+
+networks:
+  mcp-network:
+    driver:               bridge
