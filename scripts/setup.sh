@@ -9,6 +9,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${script_dir}/utils.sh"
 source "${script_dir}/container_setup.sh"
+source "${script_dir}/copilot.sh"
 set_output_context
 
 PROJECT_ROOT="$(dirname "$script_dir")"
@@ -168,6 +169,9 @@ Commands:
   container update      Rebuild and restart the SAP AUTOMATION QA service
   container stop        Stop the SAP AUTOMATION QA service
   container remove      Remove the container, network, and volumes
+  copilot start         Build and start the SAP STAF MCP server to use with GitHub Copilot CLI/Chat
+  copilot stop          Stop the SAP STAF MCP server
+  copilot update        Rebuild and restart the SAP STAF MCP server to use with GitHub Copilot CLI/Chat
   -h, --help            Show this help message
 
 Setup options:
@@ -202,6 +206,8 @@ Examples:
   $(basename "$0") container update         # Update service
   $(basename "$0") container stop
   $(basename "$0") container remove
+  $(basename "$0") copilot start           # Start SAP STAF MCP server
+  $(basename "$0") copilot stop            # Stop SAP STAF MCP server
 EOF
 }
 
@@ -247,6 +253,10 @@ main() {
         container)
             shift
             run_container "$@"
+            ;;
+        copilot)
+            shift
+            run_copilot "$@"
             ;;
         -h|--help)
             show_help
