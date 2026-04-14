@@ -3,7 +3,18 @@
 
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { Text, mergeClasses } from "@fluentui/react-components";
+import {
+  Text,
+  Button,
+  Tooltip,
+  Menu,
+  MenuTrigger,
+  MenuList,
+  MenuItem,
+  MenuPopover,
+  Avatar,
+  mergeClasses,
+} from "@fluentui/react-components";
 import {
   DataBarVertical24Regular,
   ClipboardTask24Regular,
@@ -11,6 +22,8 @@ import {
   BuildingMultiple24Regular,
   ChevronDown16Regular,
   ChevronRight16Regular,
+  SignOut20Regular,
+  Person20Regular,
 } from "@fluentui/react-icons";
 import { useApi } from "../../hooks/useApi";
 import { listConversations } from "../../lib/api";
@@ -20,6 +33,7 @@ import {
   removeOptimistic,
 } from "../../lib/conversationEvents";
 import { useStyles } from "../../styles/navSidebar.styles";
+import { useAuth } from "../../providers/AuthProvider";
 
 const NAV_ITEMS = [
   {
@@ -51,6 +65,8 @@ export function NavSidebar() {
   const [expanded, setExpanded] = useState(true);
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
   const [, forceUpdate] = useState(0);
+  const { isAuthenticated, isLoading, account, loginPopup, logoutPopup } =
+    useAuth();
 
   useEffect(() => {
     return onConversationsChanged(() => {
@@ -72,6 +88,14 @@ export function NavSidebar() {
   const allChats = [...pending, ...serverChats];
   const visibleChats = allChats.slice(0, visibleCount);
   const hasMore = allChats.length > visibleCount;
+
+  const displayName = account?.name ?? account?.username ?? "";
+  const initials = displayName
+    .split(" ")
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <nav className={classes.nav}>
@@ -137,6 +161,52 @@ export function NavSidebar() {
               </>
             )}
           </div>
+        )}
+      </div>
+
+      {/* User account — pinned to bottom */}
+      <div className={classes.userSection}>
+        {isAuthenticated && account ? (
+          <Menu>
+            <MenuTrigger disableButtonEnhancement>
+              <button type="button" className={classes.userButton}>
+                <Avatar
+                  name={displayName}
+                  initials={initials}
+                  size={28}
+                  color="brand"
+                />
+                <span className={classes.userName}>{displayName}</span>
+              </button>
+            </MenuTrigger>
+            <MenuPopover>
+              <MenuList>
+                <MenuItem disabled>
+                  <Text size={200}>
+                    {account.username}
+                  </Text>
+                </MenuItem>
+                <MenuItem
+                  icon={<SignOut20Regular />}
+                  onClick={() => void logoutPopup()}
+                >
+                  Sign out
+                </MenuItem>
+              </MenuList>
+            </MenuPopover>
+          </Menu>
+        ) : (
+          <Tooltip content="Sign in" relationship="label">
+            <Button
+              appearance="subtle"
+              size="small"
+              icon={<Person20Regular />}
+              disabled={isLoading}
+              onClick={() => void loginPopup()}
+            >
+              Sign in
+            </Button>
+          </Tooltip>
         )}
       </div>
     </nav>

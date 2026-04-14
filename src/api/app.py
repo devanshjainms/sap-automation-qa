@@ -36,8 +36,12 @@ from src.api.routes import (
     set_workspace_loader,
     set_conversation_store,
 )
-from src.agents.ag_ui import register_ag_ui
 from src.api.routes.health import set_service_status, set_health_service
+from src.api.auth import (
+    AuthMiddleware,
+    create_auth_provider,
+    get_public_paths,
+)
 from src.core.services.health import HealthService
 from src.api.routes.workspaces import default_workspace_loader
 from src.core.storage.staf_store import StafStore
@@ -204,6 +208,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.add_middleware(ObservabilityMiddleware)
+try:
+    _auth_provider = create_auth_provider()
+    app.add_middleware(
+        AuthMiddleware,
+        auth_provider=_auth_provider,
+        public_paths=get_public_paths(),
+    )
+    logger.info("Azure AD authentication enabled")
+except ValueError as _auth_err:
+    logger.error("Auth initialization failed: %s", _auth_err)
+    raise
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -216,6 +232,27 @@ app.include_router(jobs_router, prefix=API_V1_PREFIX)
 app.include_router(schedules_router, prefix=API_V1_PREFIX)
 app.include_router(workspaces_router, prefix=API_V1_PREFIX)
 app.include_router(chat_router, prefix=API_V1_PREFIX)
+
+
+@app.get("/auth/config")
+async def auth_config() -> dict:
+    """Return auth configuration for frontend clients.
+
+    This endpoint is public (no auth required) and returns only
+    non-sensitive configuration needed by the frontend to acquire tokens.
+
+    :returns: Auth configuration dictionary.
+    :rtype: dict
+    """
+    client_id = os.environ.get("AZURE_CLIENT_ID", "")
+    return {
+        "tenant_id": os.environ.get("AZURE_TENANT_ID", ""),
+        "client_id": client_id,
+        "authority": f"https://login.microsoftonline.com/"
+        f"{os.environ.get('AZURE_TENANT_ID', '')}",
+        "scopes": ["openid", "profile", "User.Read"],
+    }
+
 
 _static_dir = Path(__file__).resolve().parent.parent.parent / "static"
 if _static_dir.is_dir():

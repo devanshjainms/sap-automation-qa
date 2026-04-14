@@ -20,7 +20,7 @@ def _rule(
     source: str = "crm_config",
     parameter: str = "stonith-enabled",
     expected: str = "true",
-    vtype: str = "exact_match",
+    vtype: ValidatorType = ValidatorType.EXACT_MATCH,
     **kwargs,
 ) -> Rule:
     """Create a minimal Rule with a validator spec."""

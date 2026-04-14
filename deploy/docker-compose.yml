@@ -27,6 +27,9 @@ services:
                           - OLLAMA_URL=http://sap-ollama:11434
                           - AZURE_MCP_URL=http://sap-azure-mcp:5000
                           - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
+                          - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+                          - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+                          - AUTH_DEV_MODE=${AUTH_DEV_MODE:-false}
                           - GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-Azure/sap-automation-qa}
                           - GITHUB_BRANCH=${GITHUB_BRANCH:-main}
                           - TELEMETRY_DATA_DESTINATION=${TELEMETRY_DATA_DESTINATION:-}
@@ -143,6 +146,9 @@ services:
                           - MCP_AUTH_MODE=${MCP_AUTH_MODE:-none}
                           - MCP_API_KEY=${MCP_API_KEY:-}
                           - MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN:-}
+                          - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+                          - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+                          - AUTH_DEV_MODE=${AUTH_DEV_MODE:-false}
                           - MCP_RATE_LIMIT_RPM=${MCP_RATE_LIMIT_RPM:-300}
                           - MCP_RATE_LIMIT_BURST=${MCP_RATE_LIMIT_BURST:-50}
     volumes:

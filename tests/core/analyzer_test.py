@@ -30,6 +30,7 @@ from src.core.models.evidence import (
 from src.core.models.failure import FailureClass, Severity
 from src.core.models.knowledge import Playbook, Reference, Rule, ValidatorSpec
 from src.core.models.triage import TriageSession, TriageStatus
+from src.core.models.validators import ValidatorType
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -62,7 +63,7 @@ def _rule(
     source: str = "crm_config",
     parameter: str = "stonith-enabled",
     expected: str = "true",
-    vtype: str = "exact_match",
+    vtype: ValidatorType = ValidatorType.EXACT_MATCH,
     severity: str = "CRITICAL",
     category: str = "ha_cluster",
     tags: list[str] | None = None,
@@ -273,7 +274,9 @@ class TestFilterRulesWithEvidence:
     def test_skips_rules_when_parameter_missing(self) -> None:
         """Rule source exists but the specific parameter is not in the data."""
         rules = [_rule(source="command", parameter="stonith-enabled")]
-        data_map = {"command": NormalizedData(source="command", values={"hdbnameserver": "running"})}
+        data_map = {
+            "command": NormalizedData(source="command", values={"hdbnameserver": "running"})
+        }
         result = Analyzer()._filter_rules_with_evidence(rules, data_map)
         assert len(result) == 0
 

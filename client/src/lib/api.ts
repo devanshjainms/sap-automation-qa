@@ -11,11 +11,32 @@ import type {
   Schedule,
   Workspace,
 } from "./types";
+import { acquireToken } from "./auth";
 
 const BASE = "/api/v1";
 
+/**
+ * Merge an Authorization header into the request init.
+ * Acquires a token silently (or via popup fallback) before each call.
+ */
+async function withAuth(init?: RequestInit): Promise<RequestInit> {
+  const token = await acquireToken();
+  const headers = new Headers(init?.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return { ...init, headers };
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const authedInit = await withAuth(init);
+  let res = await fetch(url, authedInit);
+
+  if (res.status === 401) {
+    const retryInit = await withAuth(init);
+    res = await fetch(url, retryInit);
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`${res.status}: ${text}`);
@@ -51,10 +72,11 @@ export function cancelJob(id: string): Promise<void> {
   });
 }
 
-export function getJobLog(id: string, tail?: number): Promise<string> {
+export async function getJobLog(id: string, tail?: number): Promise<string> {
   const qs = tail ? `?tail=${tail}` : "";
-  return fetch(`${BASE}/jobs/${encodeURIComponent(id)}/log${qs}`).then((r) =>
-    r.text(),
+  const init = await withAuth();
+  return fetch(`${BASE}/jobs/${encodeURIComponent(id)}/log${qs}`, init).then(
+    (r) => r.text(),
   );
 }
 
