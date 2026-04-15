@@ -9,7 +9,9 @@ import type {
   Job,
   Message,
   Schedule,
+  TestReport,
   Workspace,
+  WorkspaceConfig,
 } from "./types";
 import { acquireToken } from "./auth";
 
@@ -118,6 +120,33 @@ export async function listWorkspaces(): Promise<Workspace[]> {
     { workspaces: Workspace[]; total: number } | Workspace[]
   >(`${BASE}/workspaces`);
   return Array.isArray(res) ? res : res.workspaces;
+}
+
+export function getWorkspaceConfig(id: string): Promise<WorkspaceConfig> {
+  return fetchJson<WorkspaceConfig>(
+    `${BASE}/workspaces/${encodeURIComponent(id)}/config`,
+  );
+}
+
+export async function listWorkspaceReports(id: string): Promise<TestReport[]> {
+  return fetchJson<TestReport[]>(
+    `${BASE}/workspaces/${encodeURIComponent(id)}/reports`,
+  );
+}
+
+export async function getWorkspaceReportHtml(
+  id: string,
+  filename: string,
+): Promise<string> {
+  const init = await withAuth();
+  const res = await fetch(
+    `${BASE}/workspaces/${encodeURIComponent(id)}/reports/${encodeURIComponent(filename)}`,
+    init,
+  );
+  if (!res.ok) {
+    throw new Error(`${res.status}: ${await res.text().catch(() => res.statusText)}`);
+  }
+  return res.text();
 }
 
 export function createConversation(): Promise<Conversation> {

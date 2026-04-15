@@ -52,8 +52,32 @@ export interface Schedule {
 
 export interface Workspace {
   id: string;
+  name: string;
+  environment: string;
   path: string;
   config_exists: boolean;
+}
+
+export interface WorkspaceConfig {
+  sap_sid: string;
+  db_sid: string;
+  platform: string;
+  db_instance_number: string;
+  scs_instance_number: string;
+  ers_instance_number: string;
+  database_high_availability: boolean;
+  scs_high_availability: boolean;
+  database_cluster_type: string;
+  scs_cluster_type: string;
+  database_scale_out: boolean;
+  nfs_provider: string;
+  hosts: string[];
+}
+
+export interface TestReport {
+  filename: string;
+  modified_at: string;
+  size_bytes: number;
 }
 
 export interface Conversation {

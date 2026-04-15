@@ -58,6 +58,7 @@ def load_workspaces_from_directory(base_dir: str = "WORKSPACES/SYSTEM") -> List[
                 name=sap_sid or workspace_dir.name,
                 environment=(workspace_dir.name.split("-")[0] if "-" in workspace_dir.name else ""),
                 path=str(workspace_dir),
+                config_exists=params_file.exists(),
             )
         )
 
