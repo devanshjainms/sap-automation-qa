@@ -19,7 +19,7 @@ const BASE = "/api/v1";
 
 /**
  * Merge an Authorization header into the request init.
- * Acquires a token silently (or via popup fallback) before each call.
+ * Acquires a token silently (or via redirect fallback) before each call.
  */
 async function withAuth(init?: RequestInit): Promise<RequestInit> {
   const token = await acquireToken();
@@ -32,12 +32,7 @@ async function withAuth(init?: RequestInit): Promise<RequestInit> {
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const authedInit = await withAuth(init);
-  let res = await fetch(url, authedInit);
-
-  if (res.status === 401) {
-    const retryInit = await withAuth(init);
-    res = await fetch(url, retryInit);
-  }
+  const res = await fetch(url, authedInit);
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
@@ -48,6 +43,10 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 export function getHealth(): Promise<HealthResponse> {
   return fetchJson<HealthResponse>("/healthz");
+}
+
+export function getVersion(): Promise<{ update_available: boolean }> {
+  return fetchJson<{ update_available: boolean }>(`${BASE}/version`);
 }
 
 export async function listJobs(params?: {

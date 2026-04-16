@@ -16,6 +16,8 @@ import {
   webDarkTheme,
 } from "@fluentui/react-components";
 
+import { STORAGE_KEYS } from "../lib/constants";
+
 type ThemeMode = "light" | "dark" | "system";
 
 interface ThemeContextValue {
@@ -24,8 +26,6 @@ interface ThemeContextValue {
   setMode: (mode: ThemeMode) => void;
   toggle: () => void;
 }
-
-const STORAGE_KEY = "sap-qa-theme";
 
 const ThemeContext = createContext<ThemeContextValue>({
   mode: "system",
@@ -40,7 +40,7 @@ function resolveSystemDark(): boolean {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(STORAGE_KEYS.theme);
     return (stored as ThemeMode) ?? "system";
   });
 
@@ -51,7 +51,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setMode = useCallback((m: ThemeMode) => {
     setModeState(m);
-    localStorage.setItem(STORAGE_KEY, m);
+    localStorage.setItem(STORAGE_KEYS.theme, m);
   }, []);
 
   const toggle = useCallback(() => {

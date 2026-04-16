@@ -172,6 +172,8 @@ Commands:
   copilot start         Build and start the SAP STAF MCP server to use with GitHub Copilot CLI/Chat
   copilot stop          Stop the SAP STAF MCP server
   copilot update        Rebuild and restart the SAP STAF MCP server to use with GitHub Copilot CLI/Chat
+  deploy [OPTIONS]      Deploy MCP server to Azure Container Apps (run deploy -h for details)
+  deploy --destroy      Remove deployed Container Apps resources
   -h, --help            Show this help message
 
 Setup options:
@@ -208,6 +210,7 @@ Examples:
   $(basename "$0") container remove
   $(basename "$0") copilot start           # Start SAP STAF MCP server
   $(basename "$0") copilot stop            # Stop SAP STAF MCP server
+  $(basename "$0") deploy -s <sub> -g <rg>  # Deploy MCP to Container Apps
 EOF
 }
 
@@ -257,6 +260,10 @@ main() {
         copilot)
             shift
             run_copilot "$@"
+            ;;
+        deploy)
+            shift
+            "${script_dir}/deploy_aca.sh" "$@"
             ;;
         -h|--help)
             show_help

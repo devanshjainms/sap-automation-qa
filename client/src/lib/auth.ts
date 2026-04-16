@@ -15,7 +15,7 @@ import {
 import type {
   Configuration,
   SilentRequest,
-  PopupRequest,
+  RedirectRequest,
   AccountInfo,
 } from "@azure/msal-browser";
 
@@ -85,7 +85,7 @@ export async function getMsalInstance(): Promise<PublicClientApplication> {
 }
 
 /**
- * Acquire an access token silently, falling back to popup on failure.
+ * Acquire an access token silently, falling back to redirect on failure.
  *
  * @returns Bearer token string, or null if not authenticated.
  */
@@ -94,7 +94,10 @@ export async function acquireToken(): Promise<string | null> {
   const config = await fetchAuthConfig();
   const accounts = instance.getAllAccounts();
 
-  if (accounts.length === 0) return null;
+  if (accounts.length === 0) {
+    console.warn("[Auth] No MSAL accounts found — user not logged in");
+    return null;
+  }
 
   const silentRequest: SilentRequest = {
     scopes: config.scopes,
@@ -103,15 +106,16 @@ export async function acquireToken(): Promise<string | null> {
 
   try {
     const response = await instance.acquireTokenSilent(silentRequest);
-    return response.accessToken;
-  } catch {
-    try {
-      const popupRequest: PopupRequest = { scopes: config.scopes };
-      const response = await instance.acquireTokenPopup(popupRequest);
-      return response.accessToken;
-    } catch {
-      return null;
+    if (!response.accessToken) {
+      console.warn("[Auth] acquireTokenSilent returned empty accessToken");
     }
+    return response.accessToken || null;
+  } catch (silentErr) {
+    console.warn("[Auth] acquireTokenSilent failed, redirecting", silentErr);
+    const redirectRequest: RedirectRequest = { scopes: config.scopes };
+    await instance.acquireTokenRedirect(redirectRequest);
+    // Browser will redirect; this line is not reached.
+    return null;
   }
 }
 
@@ -125,12 +129,12 @@ export async function getActiveAccount(): Promise<AccountInfo | null> {
 }
 
 /**
- * Trigger interactive login via popup.
+ * Trigger interactive login via redirect.
  */
 export async function login(): Promise<void> {
   const instance = await getMsalInstance();
   const config = await fetchAuthConfig();
-  await instance.loginPopup({ scopes: config.scopes });
+  await instance.loginRedirect({ scopes: config.scopes });
 }
 
 /**
@@ -140,6 +144,6 @@ export async function logout(): Promise<void> {
   const instance = await getMsalInstance();
   const accounts = instance.getAllAccounts();
   if (accounts.length > 0) {
-    await instance.logoutPopup({ account: accounts[0] });
+    await instance.logoutRedirect({ account: accounts[0] });
   }
 }

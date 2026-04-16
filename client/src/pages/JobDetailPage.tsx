@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useCallback, useState } from "react";
 import { Button, Text, Card, Spinner } from "@fluentui/react-components";
 import {
@@ -14,9 +14,12 @@ import { getJob, getJobLog, cancelJob } from "../lib/api";
 import { useApi } from "../hooks/useApi";
 import { StatusBadge } from "../components/shared/StatusBadge";
 import { useStyles } from "../styles/jobDetailPage.styles";
+import { strings } from "../lib/strings";
+import { JOB_ID_DISPLAY_LENGTH, JOB_LOG_TAIL_LINES } from "../lib/constants";
 
 export function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const {
     data: job,
     loading,
@@ -28,7 +31,7 @@ export function JobDetailPage() {
   const classes = useStyles();
 
   const loadLog = useCallback(() => {
-    if (id) getJobLog(id, 200).then(setLog);
+    if (id) getJobLog(id, JOB_LOG_TAIL_LINES).then(setLog);
   }, [id]);
 
   const handleCancel = useCallback(async () => {
@@ -42,9 +45,9 @@ export function JobDetailPage() {
     }
   }, [id, refetch]);
 
-  if (loading) return <Spinner size="small" label="Loading..." />;
-  if (error) return <Text size={300}>Error: {error}</Text>;
-  if (!job) return <Text size={300}>Job not found.</Text>;
+  if (loading) return <Spinner size="small" label={strings.shared.loading} />;
+  if (error) return <Text size={300}>{error}</Text>;
+  if (!job) return <Text size={300}>{strings.pages.jobDetail.notFound}</Text>;
 
   return (
     <div className={classes.page}>
@@ -56,46 +59,58 @@ export function JobDetailPage() {
           href="/jobs"
           onClick={(e) => {
             e.preventDefault();
-            window.location.href = "/jobs";
+            navigate("/jobs");
           }}
           size="small"
         >
-          Jobs
+          {strings.pages.jobs.title}
         </Button>
         <Text size={500} weight="semibold" font="monospace">
-          {job.id.slice(0, 8)}
+          {job.id.slice(0, JOB_ID_DISPLAY_LENGTH)}
         </Text>
         <StatusBadge status={job.status} />
       </div>
 
       <Card className={classes.meta}>
         <MetaField
-          label="Workspace"
+          label={strings.pages.jobDetail.fields.workspace}
           value={job.workspace_id}
           classes={classes}
         />
-        <MetaField label="Playbook" value={job.playbook} classes={classes} />
         <MetaField
-          label="Created"
+          label={strings.pages.jobDetail.fields.playbook}
+          value={job.playbook}
+          classes={classes}
+        />
+        <MetaField
+          label={strings.pages.jobDetail.fields.created}
           value={new Date(job.created_at).toLocaleString()}
           classes={classes}
         />
         <MetaField
-          label="Started"
+          label={strings.pages.jobDetail.fields.started}
           value={
-            job.started_at ? new Date(job.started_at).toLocaleString() : "—"
+            job.started_at
+              ? new Date(job.started_at).toLocaleString()
+              : strings.shared.emptyValue
           }
           classes={classes}
         />
         <MetaField
-          label="Completed"
+          label={strings.pages.jobDetail.fields.completed}
           value={
-            job.completed_at ? new Date(job.completed_at).toLocaleString() : "—"
+            job.completed_at
+              ? new Date(job.completed_at).toLocaleString()
+              : strings.shared.emptyValue
           }
           classes={classes}
         />
         {job.error && (
-          <MetaField label="Error" value={job.error} classes={classes} />
+          <MetaField
+            label={strings.pages.jobDetail.fields.error}
+            value={job.error}
+            classes={classes}
+          />
         )}
       </Card>
 
@@ -107,7 +122,9 @@ export function JobDetailPage() {
             onClick={handleCancel}
             disabled={cancelling}
           >
-            {cancelling ? "Cancelling..." : "Cancel"}
+            {cancelling
+              ? strings.pages.jobDetail.cancelling
+              : strings.pages.jobDetail.cancel}
           </Button>
         )}
         <Button
@@ -115,19 +132,23 @@ export function JobDetailPage() {
           icon={<DocumentText24Regular />}
           onClick={loadLog}
         >
-          {log !== null ? "Refresh Log" : "Load Log"}
+          {log !== null
+            ? strings.pages.jobDetail.refreshLog
+            : strings.pages.jobDetail.loadLog}
         </Button>
         <Button
           appearance="secondary"
           icon={<ArrowClockwise24Regular />}
           onClick={refetch}
         >
-          Refresh
+          {strings.pages.jobDetail.refresh}
         </Button>
       </div>
 
       {log !== null && (
-        <div className={classes.logBox}>{log || "(empty log)"}</div>
+        <div className={classes.logBox}>
+          {log || strings.pages.jobDetail.emptyLog}
+        </div>
       )}
     </div>
   );

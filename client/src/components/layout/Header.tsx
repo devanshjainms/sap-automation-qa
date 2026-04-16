@@ -14,8 +14,9 @@ import {
 } from "@fluentui/react-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useStyles } from "../../styles/header.styles";
-
-const DEVUI_URL = `${window.location.protocol}//${window.location.hostname}:8080`;
+import { getVersion } from "../../lib/api";
+import { strings } from "../../lib/strings";
+import { getDevUiUrl } from "../../lib/constants";
 
 export function Header() {
   const navigate = useNavigate();
@@ -24,8 +25,7 @@ export function Header() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
   useEffect(() => {
-    fetch("/api/v1/version")
-      .then((r) => r.json())
+    getVersion()
       .then((d) => setUpdateAvailable(d.update_available === true))
       .catch(() => {});
   }, []);
@@ -47,10 +47,10 @@ export function Header() {
             S
           </text>
         </svg>
-        <Text className={classes.title}>SAP Testing Automation</Text>
+        <Text className={classes.title}>{strings.app.name}</Text>
         {updateAvailable && (
           <Tooltip
-            content="Update available — fetch latest and restart containers"
+            content={strings.version.updateAvailable}
             relationship="label"
           >
             <div className={classes.updateIcon}>
@@ -61,7 +61,7 @@ export function Header() {
       </div>
 
       <div className={classes.actions}>
-        <Tooltip content="New chat" relationship="label">
+        <Tooltip content={strings.nav.newChat} relationship="label">
           <Button
             appearance="subtle"
             size="small"
@@ -70,7 +70,7 @@ export function Header() {
             onClick={() => navigate("/")}
           />
         </Tooltip>
-        <Tooltip content="Service Status" relationship="label">
+        <Tooltip content={strings.nav.serviceStatus} relationship="label">
           <Button
             appearance="subtle"
             size="small"
@@ -79,19 +79,21 @@ export function Header() {
             onClick={() => navigate("/status")}
           />
         </Tooltip>
-        <Tooltip content="Agent DevUI" relationship="label">
+        <Tooltip content={strings.nav.agentDevUi} relationship="label">
           <Button
             appearance="subtle"
             size="small"
             icon={<Wrench20Regular />}
             className={classes.themeBtn}
             onClick={() =>
-              window.open(DEVUI_URL, "_blank", "noopener,noreferrer")
+              window.open(getDevUiUrl(), "_blank", "noopener,noreferrer")
             }
           />
         </Tooltip>
         <Tooltip
-          content={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          content={
+            isDark ? strings.theme.switchToLight : strings.theme.switchToDark
+          }
           relationship="label"
         >
           <Button

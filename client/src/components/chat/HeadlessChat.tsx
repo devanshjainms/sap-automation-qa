@@ -23,10 +23,42 @@ import type { Message } from "../../lib/types";
 import { addOptimisticConversation } from "../../lib/conversationEvents";
 import { useStyles } from "../../styles/headlessChat.styles";
 import { useAgentHITL } from "../../hooks/useAgentHITL";
+import { acquireToken } from "../../lib/auth";
+import { strings } from "../../lib/strings";
+import { AGENT_ID } from "../../lib/constants";
+import type { RunAgentInput } from "@ag-ui/client";
 
-const sapAgent = new HttpAgent({
+/**
+ * Module-level token cache. Updated before each agent run
+ * via the ``useAgentAuth`` hook below.
+ */
+let _cachedToken: string | null = null;
+
+/** Call before each agent interaction to refresh the token. */
+export async function refreshAgentToken(): Promise<void> {
+  _cachedToken = await acquireToken();
+}
+
+/**
+ * HttpAgent subclass that injects the cached Azure AD Bearer token.
+ * ``requestInit`` is synchronous so we read from the module cache
+ * which is populated by ``refreshAgentToken()`` in the React hook.
+ */
+class AuthenticatedHttpAgent extends HttpAgent {
+  protected requestInit(input: RunAgentInput): RequestInit {
+    const base = super.requestInit(input);
+    if (_cachedToken) {
+      const headers = new Headers(base.headers);
+      headers.set("Authorization", `Bearer ${_cachedToken}`);
+      return { ...base, headers };
+    }
+    return base;
+  }
+}
+
+const sapAgent = new AuthenticatedHttpAgent({
   url: "/ag-ui",
-  agentId: "sap-agent",
+  agentId: AGENT_ID,
 });
 
 interface ReasoningMsg {
@@ -43,6 +75,7 @@ function ReasoningMessage({
   messages: ReasoningMsg[];
   isRunning: boolean;
 }) {
+  const classes = useStyles();
   const isLatest = messages?.[messages.length - 1]?.id === message.id;
   const isStreaming = !!(isRunning && isLatest);
   const hasContent = !!(message.content && message.content.length > 0);
@@ -73,36 +106,18 @@ function ReasoningMessage({
 
   const secs = Math.round(elapsed);
   const label = isStreaming
-    ? "Thinking…"
-    : `Thought for ${secs < 1 ? "a moment" : secs === 1 ? "1 second" : `${secs} seconds`}`;
+    ? strings.chat.thinking
+    : `${strings.chat.thoughtPrefix} ${secs < 1 ? strings.chat.thoughtMoment : secs === 1 ? "1 second" : `${secs} seconds`}`;
 
   return (
-    <div style={{ margin: "4px 0" }}>
+    <div className={classes.reasoningWrapper}>
       <button
         type="button"
         onClick={() => hasContent && setOpen((p) => !p)}
-        style={{
-          all: "unset",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          fontSize: 13,
-          color: "var(--muted-foreground, #888)",
-          cursor: hasContent ? "pointer" : "default",
-          userSelect: "none",
-        }}
+        className={`${classes.reasoningButton} ${hasContent ? classes.reasoningButtonClickable : classes.reasoningButtonDefault}`}
       >
         <span
-          style={{
-            display: "inline-block",
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: isStreaming
-              ? "var(--primary, #0f6cbd)"
-              : "var(--muted-foreground, #888)",
-            animation: isStreaming ? "pulse-dot 1.2s infinite" : "none",
-          }}
+          className={`${classes.reasoningDot} ${isStreaming ? classes.reasoningDotActive : classes.reasoningDotInactive}`}
         />
         <span>{label}</span>
         {hasContent && (
@@ -111,10 +126,7 @@ function ReasoningMessage({
             height="12"
             viewBox="0 0 16 16"
             fill="currentColor"
-            style={{
-              transition: "transform 150ms",
-              transform: open ? "rotate(90deg)" : "rotate(0deg)",
-            }}
+            className={`${classes.reasoningChevron} ${open ? classes.reasoningChevronOpen : classes.reasoningChevronClosed}`}
           >
             <path
               d="M6 4l4 4-4 4"
@@ -126,33 +138,9 @@ function ReasoningMessage({
         )}
       </button>
       {open && hasContent && (
-        <div
-          style={{
-            marginTop: 4,
-            paddingLeft: 14,
-            fontSize: 12,
-            lineHeight: 1.5,
-            color: "var(--muted-foreground, #888)",
-            whiteSpace: "pre-wrap",
-            overflowWrap: "break-word",
-            borderLeft: "2px solid var(--border, #e0e0e0)",
-          }}
-        >
+        <div className={classes.reasoningContent}>
           {message.content}
-          {isStreaming && (
-            <span
-              style={{
-                display: "inline-block",
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "var(--muted-foreground, #888)",
-                marginLeft: 4,
-                verticalAlign: "middle",
-                animation: "pulse-dot 1.2s infinite",
-              }}
-            />
-          )}
+          {isStreaming && <span className={classes.reasoningStreamDot} />}
         </div>
       )}
     </div>
@@ -207,12 +195,17 @@ function toAgMessages(messages: Message[]): AGMessage[] {
         } as AGMessage);
         pendingText = "";
 
-        result.push({
-          id: trId,
-          role: "tool",
-          content: part.toolCall.result || "",
-          toolCallId: tcId,
-        } as AGMessage);
+        // Only emit a tool result when one actually exists.
+        // Pending approvals have no result yet — emitting an
+        // empty result would mark them as completed on reload.
+        if (part.toolCall.result) {
+          result.push({
+            id: trId,
+            role: "tool",
+            content: part.toolCall.result,
+            toolCallId: tcId,
+          } as AGMessage);
+        }
       }
     }
 
@@ -230,10 +223,16 @@ function toAgMessages(messages: Message[]): AGMessage[] {
 function SapChatInner() {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const classes = useStyles();
-  const { agent } = useAgent({ agentId: "sap-agent" });
+  const { agent } = useAgent({ agentId: AGENT_ID });
 
   useDefaultRenderTool();
   useAgentHITL();
+
+  useEffect(() => {
+    refreshAgentToken();
+    const interval = setInterval(refreshAgentToken, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const emittedRef = useRef<string | null>(null);
   useEffect(() => {
@@ -249,7 +248,7 @@ function SapChatInner() {
         const preview =
           typeof firstUser.content === "string"
             ? firstUser.content.slice(0, 60)
-            : "New chat";
+            : strings.chat.newConversation;
         addOptimisticConversation({
           id: threadId,
           title: preview,
@@ -294,16 +293,16 @@ function SapChatInner() {
   return (
     <div className={classes.container}>
       <CopilotChat
-        agentId="sap-agent"
+        agentId={AGENT_ID}
         threadId={conversationId}
         className="copilot-chat-fullpage"
         messageView={{
           reasoningMessage: ReasoningMessage as any,
         }}
         labels={{
-          modalHeaderTitle: "SAP Assistant",
-          welcomeMessageText: "How can I help you with your SAP systems today?",
-          chatInputPlaceholder: "Ask about SAP systems...",
+          modalHeaderTitle: strings.chat.modalTitle,
+          welcomeMessageText: strings.chat.welcomeMessage,
+          chatInputPlaceholder: strings.chat.inputPlaceholder,
         }}
       />
     </div>
@@ -316,7 +315,7 @@ export function SapChat() {
   return (
     <CopilotKitProvider
       key={conversationId ?? "new"}
-      agents__unsafe_dev_only={{ "sap-agent": sapAgent }}
+      agents__unsafe_dev_only={{ [AGENT_ID]: sapAgent }}
       showDevConsole={false}
     >
       <SapChatInner />

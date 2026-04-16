@@ -6,16 +6,8 @@ import { getHealth } from "../lib/api";
 import { useApi } from "../hooks/useApi";
 import type { HealthComponent } from "../lib/types";
 import { useStyles } from "../styles/status.styles";
-
-const SERVICE_KEYS = ["core", "mcp", "llm", "ollama", "azure_mcp"] as const;
-
-const SERVICE_LABELS: Record<string, string> = {
-  core: "Core API",
-  mcp: "MCP Server",
-  llm: "LLM Connection",
-  ollama: "Ollama (Embeddings)",
-  azure_mcp: "Azure MCP",
-};
+import { strings } from "../lib/strings";
+import { SERVICE_KEYS, SERVICE_LABELS } from "../lib/constants";
 
 export function Status() {
   const { data: health, loading, error } = useApi(getHealth, []);
@@ -30,19 +22,22 @@ export function Status() {
         className={classes.heading}
         block
       >
-        Service Status
+        {strings.pages.status.title}
       </Text>
 
       {loading ? (
-        <Spinner size="small" label="Checking services..." />
+        <Spinner size="small" label={strings.pages.status.checking} />
       ) : (
         <div className={classes.list}>
           {SERVICE_KEYS.map((key) => {
             const comp: HealthComponent = error
-              ? { status: "unhealthy", detail: "Backend unreachable" }
+              ? {
+                  status: "unhealthy",
+                  detail: strings.pages.status.backendUnreachable,
+                }
               : (health?.components?.[key] ?? {
                   status: "unconfigured",
-                  detail: "Not reported",
+                  detail: strings.pages.status.notReported,
                 });
             const dotClass =
               comp.status === "healthy"

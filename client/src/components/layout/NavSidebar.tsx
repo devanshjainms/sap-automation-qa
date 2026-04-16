@@ -16,10 +16,6 @@ import {
   mergeClasses,
 } from "@fluentui/react-components";
 import {
-  DataBarVertical24Regular,
-  ClipboardTask24Regular,
-  CalendarClock24Regular,
-  BuildingMultiple24Regular,
   ChevronDown16Regular,
   ChevronRight16Regular,
   SignOut20Regular,
@@ -34,38 +30,16 @@ import {
 } from "../../lib/conversationEvents";
 import { useStyles } from "../../styles/navSidebar.styles";
 import { useAuth } from "../../providers/AuthProvider";
-
-const NAV_ITEMS = [
-  {
-    to: "/dashboard",
-    icon: <DataBarVertical24Regular />,
-    label: "Dashboard",
-    end: false,
-  },
-  { to: "/jobs", icon: <ClipboardTask24Regular />, label: "Jobs", end: false },
-  {
-    to: "/schedules",
-    icon: <CalendarClock24Regular />,
-    label: "Schedules",
-    end: false,
-  },
-  {
-    to: "/workspaces",
-    icon: <BuildingMultiple24Regular />,
-    label: "Workspaces",
-    end: false,
-  },
-] as const;
-
-const INITIAL_VISIBLE = 10;
+import { strings } from "../../lib/strings";
+import { NAV_ITEMS, INITIAL_VISIBLE_CHATS } from "../../lib/constants";
 
 export function NavSidebar() {
   const { data: conversations, refetch } = useApi(listConversations, []);
   const classes = useStyles();
   const [expanded, setExpanded] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_CHATS);
   const [, forceUpdate] = useState(0);
-  const { isAuthenticated, isLoading, account, loginPopup, logoutPopup } =
+  const { isAuthenticated, isLoading, account, loginRedirect, logoutRedirect } =
     useAuth();
 
   useEffect(() => {
@@ -100,7 +74,7 @@ export function NavSidebar() {
   return (
     <nav className={classes.nav}>
       <ul className={classes.list}>
-        {NAV_ITEMS.map(({ to, icon, label, end }) => (
+        {NAV_ITEMS.map(({ to, icon, labelKey, end }) => (
           <li key={to}>
             <NavLink
               to={to}
@@ -110,7 +84,7 @@ export function NavSidebar() {
               }
             >
               {icon}
-              <span>{label}</span>
+              <span>{strings.nav[labelKey]}</span>
             </NavLink>
           </li>
         ))}
@@ -124,14 +98,14 @@ export function NavSidebar() {
         >
           {expanded ? <ChevronDown16Regular /> : <ChevronRight16Regular />}
           <Text size={100} weight="semibold">
-            CHATS
+            {strings.nav.chats}
           </Text>
         </button>
         {expanded && (
           <div className={classes.historyList}>
             {allChats.length === 0 ? (
               <Text size={200} className={classes.historyEmpty} as="p">
-                No conversations yet.
+                {strings.nav.noConversations}
               </Text>
             ) : (
               <>
@@ -153,9 +127,11 @@ export function NavSidebar() {
                   <button
                     type="button"
                     className={classes.loadMore}
-                    onClick={() => setVisibleCount((v) => v + INITIAL_VISIBLE)}
+                    onClick={() =>
+                      setVisibleCount((v) => v + INITIAL_VISIBLE_CHATS)
+                    }
                   >
-                    Load more
+                    {strings.nav.loadMore}
                   </button>
                 )}
               </>
@@ -188,23 +164,23 @@ export function NavSidebar() {
                 </MenuItem>
                 <MenuItem
                   icon={<SignOut20Regular />}
-                  onClick={() => void logoutPopup()}
+                  onClick={() => void logoutRedirect()}
                 >
-                  Sign out
+                  {strings.auth.signOut}
                 </MenuItem>
               </MenuList>
             </MenuPopover>
           </Menu>
         ) : (
-          <Tooltip content="Sign in" relationship="label">
+          <Tooltip content={strings.auth.signIn} relationship="label">
             <Button
               appearance="subtle"
               size="small"
               icon={<Person20Regular />}
               disabled={isLoading}
-              onClick={() => void loginPopup()}
+              onClick={() => void loginRedirect()}
             >
-              Sign in
+              {strings.auth.signIn}
             </Button>
           </Tooltip>
         )}

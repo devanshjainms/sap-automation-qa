@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import { useNavigate } from "react-router-dom";
 import {
   Button,
   Text,
@@ -17,39 +18,48 @@ import { listJobs } from "../lib/api";
 import { useApi } from "../hooks/useApi";
 import { StatusBadge } from "../components/shared/StatusBadge";
 import { useStyles } from "../styles/jobs.styles";
+import { strings } from "../lib/strings";
+import { JOB_ID_DISPLAY_LENGTH } from "../lib/constants";
 
 export function Jobs() {
   const { data: jobs, loading, error, refetch } = useApi(listJobs, []);
   const classes = useStyles();
+  const navigate = useNavigate();
 
   return (
     <div className={classes.page}>
       <div className={classes.toolbar}>
         <Text as="h1" size={600} weight="semibold">
-          Jobs
+          {strings.pages.jobs.title}
         </Text>
         <Button
           appearance="primary"
           icon={<ArrowClockwise24Regular />}
           onClick={refetch}
         >
-          Refresh
+          {strings.pages.jobs.refresh}
         </Button>
       </div>
 
-      {loading && <Spinner size="small" label="Loading..." />}
-      {error && (
-        <Text size={300}>Unable to load jobs — backend may be offline.</Text>
-      )}
+      {loading && <Spinner size="small" label={strings.shared.loading} />}
+      {error && <Text size={300}>{strings.pages.jobs.loadError}</Text>}
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHeaderCell>ID</TableHeaderCell>
-            <TableHeaderCell>Workspace</TableHeaderCell>
-            <TableHeaderCell>Playbook</TableHeaderCell>
-            <TableHeaderCell>Status</TableHeaderCell>
-            <TableHeaderCell>Created</TableHeaderCell>
+            <TableHeaderCell>{strings.pages.jobs.columns.id}</TableHeaderCell>
+            <TableHeaderCell>
+              {strings.pages.jobs.columns.workspace}
+            </TableHeaderCell>
+            <TableHeaderCell>
+              {strings.pages.jobs.columns.playbook}
+            </TableHeaderCell>
+            <TableHeaderCell>
+              {strings.pages.jobs.columns.status}
+            </TableHeaderCell>
+            <TableHeaderCell>
+              {strings.pages.jobs.columns.created}
+            </TableHeaderCell>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -57,11 +67,11 @@ export function Jobs() {
             <TableRow
               key={job.id}
               className={classes.row}
-              onClick={() => (window.location.href = `/jobs/${job.id}`)}
+              onClick={() => navigate(`/jobs/${job.id}`)}
             >
               <TableCell>
                 <Text font="monospace" size={200}>
-                  {job.id.slice(0, 8)}
+                  {job.id.slice(0, JOB_ID_DISPLAY_LENGTH)}
                 </Text>
               </TableCell>
               <TableCell>{job.workspace_id}</TableCell>
@@ -80,7 +90,7 @@ export function Jobs() {
             <TableRow>
               <TableCell colSpan={5}>
                 <Text size={300} align="center" block>
-                  No jobs found.
+                  {strings.pages.jobs.noJobs}
                 </Text>
               </TableCell>
             </TableRow>

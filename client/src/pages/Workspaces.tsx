@@ -34,6 +34,7 @@ import {
 import type { Workspace, WorkspaceConfig, TestReport } from "../lib/types";
 import { useApi } from "../hooks/useApi";
 import { useStyles } from "../styles/workspaces.styles";
+import { strings } from "../lib/strings";
 
 export function Workspaces() {
   const {
@@ -106,23 +107,19 @@ export function Workspaces() {
     <div className={classes.page}>
       <div className={classes.toolbar}>
         <Text as="h1" size={600} weight="semibold">
-          Workspaces
+          {strings.pages.workspaces.title}
         </Text>
         <Button
           appearance="primary"
           icon={<ArrowClockwise24Regular />}
           onClick={refetch}
         >
-          Refresh
+          {strings.pages.workspaces.refresh}
         </Button>
       </div>
 
-      {loading && <Spinner size="small" label="Loading..." />}
-      {error && (
-        <Text size={300}>
-          Unable to load workspaces — backend may be offline.
-        </Text>
-      )}
+      {loading && <Spinner size="small" label={strings.shared.loading} />}
+      {error && <Text size={300}>{strings.pages.workspaces.loadError}</Text>}
 
       <div className={classes.grid}>
         {(workspaces ?? []).map((ws) => (
@@ -146,12 +143,14 @@ export function Workspaces() {
               color={ws.config_exists ? "success" : "warning"}
               size="small"
             >
-              {ws.config_exists ? "Configured" : "No Config"}
+              {ws.config_exists
+                ? strings.pages.workspaces.configured
+                : strings.pages.workspaces.noConfig}
             </Badge>
           </Card>
         ))}
         {(workspaces ?? []).length === 0 && !loading && (
-          <Text size={300}>No workspaces found.</Text>
+          <Text size={300}>{strings.pages.workspaces.noWorkspaces}</Text>
         )}
       </div>
 

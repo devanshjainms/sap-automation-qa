@@ -63,4 +63,11 @@ export const useStyles = makeStyles({
     alignItems: "center",
     gap: tokens.spacingHorizontalM,
   },
+  emptyJobsText: {
+    paddingTop: tokens.spacingVerticalL,
+    paddingBottom: tokens.spacingVerticalL,
+    paddingLeft: tokens.spacingHorizontalL,
+    paddingRight: tokens.spacingHorizontalL,
+  },
 });
+

@@ -4,15 +4,12 @@
 """STAF tools — test execution."""
 
 from __future__ import annotations
-
 import logging
 from typing import Any
-
 import httpx
 from mcp.server.fastmcp import Context
 from mcp.server.session import ServerSession
 from mcp.types import ToolAnnotations
-
 from src.mcp_server.server import SapContext, mcp
 from src.mcp_server.tools._helpers import get_sap_context, tool_info, ICON_PLAY
 
@@ -30,7 +27,7 @@ logger = logging.getLogger(__name__)
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
-        destructiveHint=False,
+        destructiveHint=True,
         idempotentHint=False,
         openWorldHint=True,
     ),

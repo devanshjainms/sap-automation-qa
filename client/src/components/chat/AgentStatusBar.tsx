@@ -11,6 +11,7 @@
 
 import { useAgent, UseAgentUpdate } from "@copilotkit/react-core/v2";
 import { makeStyles, tokens, Spinner } from "@fluentui/react-components";
+import { AGENT_ID } from "../../lib/constants";
 
 /* ── Styles ──────────────────────────────────────────────── */
 
@@ -82,7 +83,7 @@ const STATUS_LABELS: Record<string, string> = {
 export function AgentStatusBar() {
   const classes = useStyles();
   const { agent } = useAgent({
-    agentId: "sap-agent",
+    agentId: AGENT_ID,
     updates: [UseAgentUpdate.OnStateChanged],
   });
 

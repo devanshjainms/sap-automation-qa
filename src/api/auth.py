@@ -96,14 +96,19 @@ class AzureADAuthProvider:
                 "Authentication service unavailable", status_code=503
             ) from exc
         except jwt.PyJWKClientError as exc:
-            raise AuthenticationError(f"Invalid token: {exc}") from exc
+            logger.warning("JWKS key resolution failed: %s", exc)
+            raise AuthenticationError("Invalid token") from exc
 
         try:
+            accepted_audiences = [
+                self._client_id,
+                f"api://{self._client_id}",
+            ]
             claims = jwt.decode(
                 token,
                 signing_key.key,
                 algorithms=_ALGORITHMS,
-                audience=self._client_id,
+                audience=accepted_audiences,
                 issuer=self._issuer,
                 options={
                     "require": ["exp", "iss", "aud", "oid"],
@@ -119,7 +124,8 @@ class AzureADAuthProvider:
         except jwt.InvalidIssuerError as exc:
             raise AuthenticationError("Invalid issuer") from exc
         except jwt.InvalidTokenError as exc:
-            raise AuthenticationError(f"Invalid token: {exc}") from exc
+            logger.warning("JWT validation failed: %s", exc)
+            raise AuthenticationError("Invalid token") from exc
 
         tid = claims.get("tid", "")
         if tid != self._tenant_id:
@@ -146,7 +152,8 @@ class AzureADAuthProvider:
                 algorithms=_ALGORITHMS,
             )
         except jwt.InvalidTokenError as exc:
-            raise AuthenticationError(f"Malformed token: {exc}") from exc
+            logger.warning("Dev-mode token decode failed: %s", exc)
+            raise AuthenticationError("Malformed token") from exc
 
         logger.warning(
             "AUTH_DEV_MODE: token accepted without verification " "(oid=%s)",

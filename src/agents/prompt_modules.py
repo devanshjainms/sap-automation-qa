@@ -84,8 +84,17 @@ HOW_TO_WORK = PromptModule(
         "which works on both SUSE and RHEL).  After 3 consecutive "
         "failures on the same step, skip it and proceed.\n\n"
         "Produce your final response when the user's question "
-        "is fully answered with evidence. NEVER ask the user for "
-        "confirmation or approval before proceeding — just do the work."
+        "is fully answered with evidence.\n\n"
+        "**Human-in-the-loop approval:**\n"
+        "The system automatically asks the user for approval before "
+        "running any gated tool (e.g. `run_staf_test`, `cancel_job`). "
+        "You do NOT need to call a separate approval tool — just "
+        "explain what you plan to do and then call the tool directly. "
+        "If the user rejects, explain what you would have done and "
+        "ask for guidance.\n\n"
+        "For read-only investigation tools (evidence collection, "
+        "log searches, status checks), proceed autonomously "
+        "without explanation delays."
     ),
     priority=30,
 )

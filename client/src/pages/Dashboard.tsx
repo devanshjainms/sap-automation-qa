@@ -1,17 +1,21 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+import { useNavigate } from "react-router-dom";
 import { Card, Text, Spinner, mergeClasses } from "@fluentui/react-components";
 import { listJobs, listSchedules, listWorkspaces } from "../lib/api";
 import { useApi } from "../hooks/useApi";
 import { StatusBadge } from "../components/shared/StatusBadge";
 import { useStyles } from "../styles/dashboard.styles";
+import { strings } from "../lib/strings";
+import { RECENT_JOBS_COUNT, JOB_ID_DISPLAY_LENGTH } from "../lib/constants";
 
 export function Dashboard() {
   const jobs = useApi(listJobs, []);
   const schedules = useApi(listSchedules, []);
   const workspaces = useApi(listWorkspaces, []);
   const classes = useStyles();
+  const navigate = useNavigate();
 
   return (
     <div className={classes.page}>
@@ -22,30 +26,30 @@ export function Dashboard() {
         className={classes.heading}
         block
       >
-        Dashboard
+        {strings.pages.dashboard.title}
       </Text>
 
       {/* Summary cards */}
       <div className={mergeClasses(classes.grid3, classes.section)}>
         <SummaryCard
-          label="Jobs"
-          value={jobs.error ? "—" : (jobs.data?.length ?? "—")}
+          label={strings.nav.jobs}
+          value={jobs.error ? strings.shared.emptyValue : (jobs.data?.length ?? strings.shared.emptyValue)}
           loading={jobs.loading}
-          href="/jobs"
+          onNavigate={() => navigate("/jobs")}
           classes={classes}
         />
         <SummaryCard
-          label="Schedules"
-          value={schedules.error ? "—" : (schedules.data?.length ?? "—")}
+          label={strings.nav.schedules}
+          value={schedules.error ? strings.shared.emptyValue : (schedules.data?.length ?? strings.shared.emptyValue)}
           loading={schedules.loading}
-          href="/schedules"
+          onNavigate={() => navigate("/schedules")}
           classes={classes}
         />
         <SummaryCard
-          label="Workspaces"
-          value={workspaces.error ? "—" : (workspaces.data?.length ?? "—")}
+          label={strings.nav.workspaces}
+          value={workspaces.error ? strings.shared.emptyValue : (workspaces.data?.length ?? strings.shared.emptyValue)}
           loading={workspaces.loading}
-          href="/workspaces"
+          onNavigate={() => navigate("/workspaces")}
           classes={classes}
         />
       </div>
@@ -59,24 +63,28 @@ export function Dashboard() {
           className={classes.sectionTitle}
           block
         >
-          RECENT JOBS
+          {strings.pages.dashboard.recentJobs}
         </Text>
         {jobs.loading ? (
-          <Spinner size="small" label="Loading..." />
+          <Spinner size="small" label={strings.shared.loading} />
         ) : jobs.error ? (
-          <Text size={300}>Unable to load jobs — backend offline.</Text>
+          <Text size={300}>{strings.pages.jobs.loadError}</Text>
         ) : (
           <Card>
             <div className={classes.jobList}>
-              {(jobs.data ?? []).slice(0, 5).map((job) => (
+              {(jobs.data ?? []).slice(0, RECENT_JOBS_COUNT).map((job) => (
                 <a
                   key={job.id}
                   href={`/jobs/${job.id}`}
                   className={classes.jobRow}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(`/jobs/${job.id}`);
+                  }}
                 >
                   <div className={classes.jobMeta}>
                     <Text font="monospace" size={200}>
-                      {job.id.slice(0, 8)}
+                      {job.id.slice(0, JOB_ID_DISPLAY_LENGTH)}
                     </Text>
                     <Text size={300}>{job.playbook}</Text>
                   </div>
@@ -88,9 +96,9 @@ export function Dashboard() {
                   size={300}
                   align="center"
                   block
-                  style={{ padding: "1rem" }}
+                  className={classes.emptyJobsText}
                 >
-                  No jobs yet.
+                  {strings.pages.dashboard.noJobs}
                 </Text>
               )}
             </div>
@@ -107,20 +115,20 @@ function SummaryCard({
   label,
   value,
   loading,
-  href,
+  onNavigate,
   classes,
 }: {
   label: string;
   value: string | number;
   loading: boolean;
-  href: string;
+  onNavigate: () => void;
   classes: ReturnType<typeof useStyles>;
 }) {
   return (
     <Card
       className={classes.summaryCard}
       size="small"
-      onClick={() => (window.location.href = href)}
+      onClick={onNavigate}
     >
       <Text size={200} weight="semibold" block>
         {label}

@@ -8,6 +8,7 @@ Handoff intents use ``workflow.as_agent()`` → ``AgentFrameworkAgent``.
 
 from __future__ import annotations
 import asyncio
+import json
 import logging
 import time
 from collections.abc import AsyncGenerator
@@ -103,7 +104,6 @@ class SapWorkflow(AgentFrameworkWorkflow):
             agent=agent,
             name="SAP-Agent",
             description="SAP infrastructure specialist for Azure.",
-            require_confirmation=True,
         )
 
         completed_tools: list[dict[str, str]] = []
@@ -164,10 +164,11 @@ class SapWorkflow(AgentFrameworkWorkflow):
                         pending_text.clear()
 
                 yield event
-        except Exception:
+        except Exception as exc:
             logger.warning(
-                "AG-UI stream error: thread=%s — saving partial results",
+                "AG-UI stream error: thread=%s — saving partial results: %s",
                 thread_id[:8] if thread_id else "",
+                exc,
                 exc_info=True,
             )
         finally:
@@ -200,12 +201,24 @@ class SapWorkflow(AgentFrameworkWorkflow):
         messages = input_data.get("messages")
         if not messages:
             return input_data
+
         tool_ids: set[str] = set()
         for msg in messages:
             if msg.get("role") == "tool":
                 tc_id = msg.get("toolCallId") or msg.get("tool_call_id") or ""
                 if tc_id:
                     tool_ids.add(tc_id)
+                content = msg.get("content", "")
+                if isinstance(content, str) and content:
+                    try:
+                        parsed = json.loads(content)
+                        if isinstance(parsed, dict) and "accepted" in parsed:
+                            ref_id = parsed.get("function_call_id", "")
+                            if ref_id:
+                                tool_ids.add(ref_id)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
         clean: list[dict[str, Any]] = []
         for msg in messages:
             if msg.get("role") == "assistant":

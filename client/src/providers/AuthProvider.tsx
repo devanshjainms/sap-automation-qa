@@ -6,7 +6,8 @@
  *
  * Wraps the app with ``MsalProvider`` from ``@azure/msal-react`` and
  * exposes auth state (user, loading, error) via a custom hook.
- * Includes ``AuthGuard`` to block rendering until the user is signed in.
+ * Includes ``AuthGuard`` to block rendering until the user is signed in,
+ * showing a branded landing page for unauthenticated visitors.
  */
 
 import {
@@ -15,7 +16,6 @@ import {
   useEffect,
   useState,
   useCallback,
-  useRef,
   type ReactNode,
 } from "react";
 import { MsalProvider, useMsal, useIsAuthenticated } from "@azure/msal-react";
@@ -26,7 +26,9 @@ import {
   fetchAuthConfig,
   type AuthConfig,
 } from "../lib/auth";
+import { strings } from "../lib/strings";
 import { useStyles } from "../styles/authGuard.styles";
+import { LandingPage } from "../pages/LandingPage";
 
 interface AuthContextValue {
   ready: boolean;
@@ -81,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error ? err.message : "Auth initialization failed",
+            err instanceof Error ? err.message : strings.shared.error,
           );
         }
       }
@@ -129,14 +131,20 @@ export function useAuth() {
 
   const account: AccountInfo | null = accounts[0] ?? null;
 
-  const loginPopup = useCallback(async () => {
+  const loginRedirect = useCallback(async () => {
     if (!config) return;
-    await instance.loginPopup({ scopes: config.scopes });
+    await instance.loginRedirect({
+      scopes: config.scopes,
+      redirectUri: window.location.origin,
+    });
   }, [instance, config]);
 
-  const logoutPopup = useCallback(async () => {
+  const logoutRedirect = useCallback(async () => {
     if (!account) return;
-    await instance.logoutPopup({ account });
+    await instance.logoutRedirect({
+      account,
+      postLogoutRedirectUri: window.location.origin,
+    });
   }, [instance, account]);
 
   return {
@@ -145,57 +153,26 @@ export function useAuth() {
     isAuthenticated,
     isLoading: !ready || inProgress !== InteractionStatus.None,
     account,
-    loginPopup,
-    logoutPopup,
+    loginRedirect,
+    logoutRedirect,
   };
 }
 
 /**
  * Auth guard that blocks rendering until the user is authenticated.
- * Automatically triggers a redirect login when MSAL is ready but
- * no user session exists.
+ * Shows a branded landing page with sign-in button instead of
+ * auto-redirecting to Azure AD.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const { ready, error, config } = useAuthContext();
-  const { instance, inProgress, accounts } = useMsal();
+  const { ready, error } = useAuthContext();
+  const { inProgress, accounts } = useMsal();
   const isAuthenticated = useIsAuthenticated();
-  const loginAttempted = useRef(false);
   const classes = useStyles();
-
-  useEffect(() => {
-    if (
-      ready &&
-      config &&
-      !isAuthenticated &&
-      inProgress === InteractionStatus.None &&
-      !loginAttempted.current
-    ) {
-      loginAttempted.current = true;
-      instance.loginRedirect({ scopes: config.scopes }).catch(() => {
-        loginAttempted.current = false;
-      });
-    }
-  }, [ready, config, isAuthenticated, inProgress, instance]);
 
   if (!ready && !error) {
     return (
       <div className={classes.overlay}>
-        <p>Initializing authentication…</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className={classes.overlay}>
-        <h2>Authentication Error</h2>
-        <p>{error}</p>
-        <button
-          className={classes.retryButton}
-          onClick={() => window.location.reload()}
-        >
-          Retry
-        </button>
+        <p>{strings.auth.initializingAuth}</p>
       </div>
     );
   }
@@ -203,18 +180,13 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   if (inProgress !== InteractionStatus.None) {
     return (
       <div className={classes.overlay}>
-        <p>Signing in…</p>
+        <p>{strings.auth.signingIn}</p>
       </div>
     );
   }
 
-  if (!isAuthenticated || accounts.length === 0) {
-    return (
-      <div className={classes.overlay}>
-        <h2>Sign in required</h2>
-        <p>Redirecting to Azure AD…</p>
-      </div>
-    );
+  if (error || !isAuthenticated || accounts.length === 0) {
+    return <LandingPage />;
   }
 
   return <>{children}</>;

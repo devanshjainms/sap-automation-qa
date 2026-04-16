@@ -76,4 +76,37 @@ export const useHitlStyles = makeStyles({
   completedText: {
     color: tokens.colorNeutralForeground3,
   },
+  codeBlock: {
+    fontSize: "12px",
+    padding: "8px 10px",
+    borderRadius: "6px",
+    backgroundColor: tokens.colorNeutralBackground3,
+    overflowX: "auto",
+    maxHeight: "150px",
+    margin: 0,
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+  },
+  argsList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px",
+    padding: "8px 10px",
+    borderRadius: "6px",
+    backgroundColor: tokens.colorNeutralBackground3,
+    fontSize: "12px",
+  },
+  argRow: {
+    display: "flex",
+    gap: "6px",
+  },
+  argKey: {
+    color: tokens.colorNeutralForeground3,
+    fontWeight: 500,
+    flexShrink: 0,
+  },
+  argValue: {
+    color: tokens.colorNeutralForeground1,
+    wordBreak: "break-word",
+  },
 });
