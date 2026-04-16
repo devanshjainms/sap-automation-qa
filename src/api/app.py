@@ -47,6 +47,7 @@ from src.api.routes.workspaces import default_workspace_loader
 from src.core.storage.staf_store import StafStore
 from src.core.knowledge.retrieval import HybridRetriever
 from src.core.services.mcp_config_loader import load_mcp_servers_config
+from src.mcp_server.server import get_sap_context
 from src.agents.agent import SapAgentFactory
 
 API_V1_PREFIX = "/api/v1"
@@ -133,6 +134,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     retriever=HybridRetriever(
                         store=staf_db.knowledge, embedding_store=staf_db.embeddings
                     ),
+                    sap_context=get_sap_context(),
                     endpoint=AZURE_OPENAI_ENDPOINT,
                     deployment_name=AZURE_OPENAI_DEPLOYMENT,
                     api_key=AZURE_OPENAI_API_KEY or None,
@@ -224,8 +226,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Correlation-ID"],
 )
 app.include_router(health_router)
 app.include_router(jobs_router, prefix=API_V1_PREFIX)
@@ -245,12 +247,16 @@ async def auth_config() -> dict:
     :rtype: dict
     """
     client_id = os.environ.get("AZURE_CLIENT_ID", "")
+    api_scope = os.environ.get("AZURE_API_SCOPE", "")
+    if not api_scope and client_id:
+        api_scope = f"api://{client_id}/access_as_user"
+    scopes = [api_scope] if api_scope else []
     return {
         "tenant_id": os.environ.get("AZURE_TENANT_ID", ""),
         "client_id": client_id,
         "authority": f"https://login.microsoftonline.com/"
         f"{os.environ.get('AZURE_TENANT_ID', '')}",
-        "scopes": ["openid", "profile", "User.Read"],
+        "scopes": scopes,
     }
 
 

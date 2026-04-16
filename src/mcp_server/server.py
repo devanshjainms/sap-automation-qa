@@ -173,6 +173,15 @@ def create_rate_limiter(app: Callable) -> McpRateLimiter:
 _shared_context: SapContext | None = None
 
 
+def get_sap_context() -> SapContext | None:
+    """Return the shared ``SapContext`` if initialized, else ``None``.
+
+    This accessor is safe to call from any module in the same process.
+    The context is lazily created during the MCP server lifespan.
+    """
+    return _shared_context
+
+
 def _init_shared_context() -> SapContext:
     """Build the shared SapContext once (called at import time)."""
     logger.info("MCP server starting — initializing services...")

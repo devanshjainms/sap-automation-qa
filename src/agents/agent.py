@@ -45,6 +45,7 @@ from src.agents.agent_config import (
 from src.agents.prompt_modules import assemble
 from src.agents.providers.history_provider import ConversationHistoryProvider
 from src.agents.providers.knowledge_provider import KnowledgeContextProvider
+from src.agents.skills import build_skills_provider
 from src.core.knowledge.retrieval import HybridRetriever
 from src.core.models.mcp_config import (
     BearerAuth,
@@ -101,6 +102,7 @@ class SapAgentFactory:
         mcp_config: Optional[McpServersConfig] = None,
         conversation_store: Optional[ConversationStore] = None,
         retriever: Optional[HybridRetriever] = None,
+        sap_context: Optional[Any] = None,
         endpoint: Optional[str] = None,
         deployment_name: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -110,6 +112,8 @@ class SapAgentFactory:
         self._mcp_config = mcp_config or McpServersConfig()
         self._conversation_store = conversation_store
         self._retriever = retriever
+        self._sap_context = sap_context
+        self._skills_provider = build_skills_provider(sap_context) if sap_context else None
         self._client_kwargs = self._build_client_kwargs(
             endpoint,
             deployment_name,
@@ -154,6 +158,7 @@ class SapAgentFactory:
         mcp_config: Optional[McpServersConfig] = None,
         conversation_store: Optional[ConversationStore] = None,
         retriever: Optional[HybridRetriever] = None,
+        sap_context: Optional[Any] = None,
         endpoint: Optional[str] = None,
         deployment_name: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -165,6 +170,8 @@ class SapAgentFactory:
         :param mcp_config: External MCP server configuration.
         :param conversation_store: SQLite conversation persistence.
         :param retriever: Knowledge retriever for proactive KB injection.
+        :param sap_context: Optional ``SapContext`` from the MCP server.
+            When provided, agent skills (triage, STAF test) are enabled.
         :param endpoint: Azure OpenAI endpoint URL.
         :param deployment_name: Deployment / model name.
         :param api_key: API key (omit for managed-identity auth).
@@ -176,6 +183,7 @@ class SapAgentFactory:
             mcp_config=mcp_config,
             conversation_store=conversation_store,
             retriever=retriever,
+            sap_context=sap_context,
             endpoint=endpoint,
             deployment_name=deployment_name,
             api_key=api_key,
@@ -444,6 +452,8 @@ class SapAgentFactory:
         client = AzureOpenAIResponsesClient(**self._client_kwargs)
 
         context_providers: list[Any] = []
+        if self._skills_provider:
+            context_providers.append(self._skills_provider)
         if self._conversation_store:
             context_providers.append(
                 ConversationHistoryProvider(
@@ -528,6 +538,8 @@ class SapAgentFactory:
         client = AzureOpenAIResponsesClient(**self._client_kwargs)
 
         context_providers: list[Any] = []
+        if self._skills_provider:
+            context_providers.append(self._skills_provider)
         if workspace_context:
             context_providers.append(WorkspaceContextProvider(workspace_context))
         if config.inject_kb and self._retriever:
