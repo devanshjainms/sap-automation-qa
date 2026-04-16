@@ -1,8 +1,9 @@
 # PRD: End-to-End Testing & Release Pipeline for SAP Testing Automation Framework
 
 > **Authors**: Ripley (QA Architect) · Hicks (E2E & Release Validation Specialist)
-> **Version**: 1.0 | **Status**: Draft
-> **Date**: 2025-07-14
+> **Version**: 1.1 | **Status**: Draft
+> **Date**: 2026-04-16
+> **Reviewed by**: Squad (Ripley, Hicks, Ash, Lambert)
 > **Stakeholders**: Engineering Leadership, DevOps, QA, SAP Basis Teams
 
 ---
@@ -45,8 +46,9 @@ verifies that:
 - Telemetry data lands in Azure Log Analytics and Azure Data Explorer
 - A release image built from `main` actually functions end-to-end
 
-This PRD defines a **four-tier E2E testing strategy** and a **release pipeline** that closes
-the gap between "all tests pass" and "this release works in production."
+This PRD defines a **multi-tier E2E testing strategy** (six stages plus security, agent,
+and upgrade sub-stages) and a **release pipeline** that closes the gap between "all tests
+pass" and "this release works in production."
 
 ### Business Value
 
@@ -217,6 +219,20 @@ customer workloads.
 | **E2E-SCS-RHEL** | SCS ENSA2 | 2-node ASCS/ERS | RHEL 8.8 | Nightly schedule |
 | **E2E-BACKUP** | Azure Backup HANA | Single-node HANA | SUSE 15 SP5 | On-demand |
 
+> **Phased rollout**: Start with **2 SAP systems** (E2E-HANA-SU and E2E-SCS-SUSE, both
+> SUSE) in Phase 3. Add RHEL systems (E2E-HANA-RH, E2E-SCS-RHEL) in Phase 5. RHEL 9
+> matrix expansion is Phase 5+.
+
+#### Backup & Recovery Infrastructure
+
+| Resource | Purpose | Configuration |
+|----------|---------|---------------|
+| Recovery Services Vault | VM-level and HANA backup | GRS, default backup policy (daily, 30-day retention) |
+| Backup policy | HANA database backup | Daily full + 15-min log backup |
+| Initial backup seed | Baseline backup for restore tests | Must be completed before first E2E backup test |
+| Cross-VM restore target | `restore-cross-vm` test | E2E-BACKUP-RESTORE VM (same VNet, no HANA instance) |
+| HANA userstore key | `hdbuserstore Set` | BACKUP key for system DB access, stored in Key Vault |
+
 **Workspace Configurations**: Each system gets a workspace directory under `WORKSPACES/SYSTEM/`:
 
 ```
@@ -257,13 +273,19 @@ WORKSPACES/SYSTEM/E2E-HANA-SU/
 | Self-hosted runner VM (D4s_v5) | ~$140 | Deallocate when idle |
 | SAP HANA VMs (4× E32s_v5) | ~$4,800 | Deallocate outside test windows |
 | SAP SCS VMs (4× D4s_v5) | ~$560 | Deallocate outside test windows |
+| Managed disks (Premium SSD) | ~$150 | Persistent OS + data disks for SAP VMs |
 | Azure Data Explorer (Dev) | ~$120 | Dev/Test SKU |
 | Key Vault + Storage + Networking | ~$30 | Minimal usage |
-| **Total (always-on)** | **~$5,650** | |
-| **Total (on-demand, 8hr/day)** | **~$2,000** | Auto-start/stop |
+| SUSE subscriptions (PAYG) | ~$200 | 6 VMs × ~$33/mo SUSE PAYG |
+| RHEL subscriptions (PAYG) | ~$100 | 4 VMs × ~$25/mo RHEL PAYG (Phase 5) |
+| Ops time (estimate) | ~$800 | ~4 hrs/week @ $50/hr for maintenance |
+| **Total (always-on, full fleet)** | **~$6,900** | |
+| **Total (on-demand, 8hr/day)** | **~$2,500** | Auto-start/stop |
+| **Total (Phase 3 start: 2 SUSE systems)** | **~$1,300** | Halved initial cost |
 
 **Recommendation**: Use Azure Automation or start/stop schedules to deallocate SAP VMs
-outside nightly test windows. Target ~$2,000/month.
+outside nightly test windows. Start with 2 SUSE systems (~$1,300/month) and expand as
+pipeline matures. Target ~$2,500/month at full fleet.
 
 ---
 
@@ -274,14 +296,20 @@ outside nightly test windows. Target ~$2,000/month.
 ```mermaid
 graph LR
     S1["Stage 1<br/>Build & Static<br/>Analysis"] --> S2["Stage 2<br/>Container<br/>Integration"]
-    S2 --> S3["Stage 3<br/>API Smoke<br/>Tests"]
-    S3 --> S4["Stage 4<br/>Offline SAP<br/>Validation"]
+    S2 --> S2b["Stage 2b<br/>Agent & MCP<br/>Integration"]
+    S2b --> S3["Stage 3<br/>API Smoke<br/>Tests"]
+    S3 --> S3b["Stage 3b<br/>API Security<br/>Tests"]
+    S3b --> S3c["Stage 3c<br/>Upgrade &<br/>Rollback"]
+    S3c --> S4["Stage 4<br/>Offline SAP<br/>Validation"]
     S4 --> S5["Stage 5<br/>Live SAP<br/>System Tests"]
     S5 --> S6["Stage 6<br/>Release<br/>Gate"]
 
     style S1 fill:#2d6a4f,color:#fff
     style S2 fill:#40916c,color:#fff
+    style S2b fill:#3a8663,color:#fff
     style S3 fill:#52b788,color:#000
+    style S3b fill:#48a87c,color:#000
+    style S3c fill:#4eaf82,color:#000
     style S4 fill:#74c69d,color:#000
     style S5 fill:#95d5b2,color:#000
     style S6 fill:#b7e4c7,color:#000
@@ -398,9 +426,79 @@ exit $FAILURES
 
 ---
 
+### Stage 2b: Agent & MCP Integration Tests (NEW)
+
+**Goal**: Validate agent architecture components — MCP tool registration, agent skill
+dispatch, prompt module rendering, and Ollama model availability — without requiring
+SAP or Azure access.
+
+**Runner**: GitHub-hosted (ubuntu-latest). Docker-compose stack from Stage 2 is reused.
+
+**Prerequisites**: Running docker-compose stack with MCP server and Ollama services healthy.
+
+#### Test Cases
+
+| ID | Test | Validation | Timeout |
+|----|------|-----------|---------|
+| `MCP-001` | MCP tool registration | `GET :8001/mcp/tools` returns registered tool list | 30s |
+| `MCP-002` | MCP tool invocation round-trip | `POST :8001/mcp/tools/{name}/invoke` returns valid response | 60s |
+| `MCP-003` | Agent skill dispatch | Submit skill request via API, verify dispatch to MCP server | 60s |
+| `MCP-004` | Prompt module rendering | Render a prompt template via MCP, verify output structure | 30s |
+| `MCP-005` | Ollama model availability | `GET :11434/api/tags` lists expected model(s) | 30s |
+| `MCP-006` | MCP auth enforcement | Unauthenticated request to MCP tool endpoint → rejected | 15s |
+| `MCP-007` | MCP rate limiting | Burst 50 rapid requests → rate limit response (429) | 30s |
+| `MCP-008` | Azure MCP tool registration | `GET :8002/mcp/tools` returns Azure-specific tools | 30s |
+
+> **Note**: Pin Ollama model references by SHA digest (not mutable tags) to ensure
+> reproducible E2E runs. Use `ollama pull <model>@sha256:<digest>` in container setup.
+
+#### Implementation
+
+```bash
+# tests/e2e/test_agent_mcp.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+API="http://localhost:8000"
+MCP="http://localhost:8001"
+OLLAMA="http://localhost:11434"
+FAILURES=0
+
+log() { echo "[$(date -u +%H:%M:%S)] $*"; }
+
+# MCP-001: Tool registration
+log "MCP-001: Checking MCP tool registration..."
+TOOLS=$(curl -sf "$MCP/mcp/tools" 2>/dev/null) || { log "FAIL: MCP-001"; ((FAILURES++)); }
+echo "$TOOLS" | python3 -c "
+import json, sys
+tools = json.load(sys.stdin)
+assert isinstance(tools, (list, dict)), 'Unexpected tools response'
+print(f'PASS: MCP-001 ({len(tools) if isinstance(tools, list) else \"ok\"} tools)')
+" || { log "FAIL: MCP-001 (validation)"; ((FAILURES++)); }
+
+# MCP-005: Ollama model availability
+log "MCP-005: Checking Ollama models..."
+curl -sf "$OLLAMA/api/tags" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+models = data.get('models', [])
+assert len(models) > 0, 'No models available in Ollama'
+print(f'PASS: MCP-005 ({len(models)} model(s) available)')
+" || { log "FAIL: MCP-005"; ((FAILURES++)); }
+
+log "Agent & MCP integration: $FAILURES failures"
+exit $FAILURES
+```
+
+---
+
 ### Stage 3: API Smoke Tests (NEW)
 
 **Goal**: Validate the full API lifecycle against a running stack with `AUTH_DEV_MODE=true`.
+
+> ⚠️ **AUTH_DEV_MODE boundary**: `AUTH_DEV_MODE=true` is permitted ONLY for Stage 2 and
+> Stage 3 (container integration and API smoke tests). Stage 5 (live SAP) and all
+> production-facing tiers **MUST** use real Azure AD authentication. See [Section 9](#9-security-considerations).
 
 **Runner**: GitHub-hosted (ubuntu-latest). Stack started in Stage 2 is reused (or re-started).
 
@@ -551,6 +649,170 @@ class TestErrorHandling:
 
 ---
 
+### Stage 3b: API Security Tests (NEW)
+
+**Goal**: Validate API input sanitization, authentication enforcement, and boundary
+protection before any SAP system access is involved.
+
+**Runner**: GitHub-hosted (ubuntu-latest). Reuses docker-compose stack from Stage 2/3.
+
+> 💡 **Recommendation**: Run OWASP ZAP (DAST) as an additional scan alongside Stage 3b
+> for automated vulnerability discovery against the running API.
+
+#### Test Cases
+
+| ID | Test | Method | Endpoint | Validation |
+|----|------|--------|----------|-----------|
+| `SEC-001` | Unauthenticated request | GET | `/api/v1/jobs` (no token, `AUTH_DEV_MODE=false`) | 401 Unauthorized |
+| `SEC-002` | Path traversal in workspace_id | POST | `/api/v1/jobs` with `workspace_id: "../../etc/passwd"` | 422 Validation Error |
+| `SEC-003` | Shell metacharacters in test_group | POST | `/api/v1/jobs` with `test_group: "; rm -rf /"` | Safe rejection (422) |
+| `SEC-004` | Oversized request body | POST | `/api/v1/jobs` with 10 MB body | 413 or 422 |
+| `SEC-005` | CORS preflight (unauthorized origin) | OPTIONS | `/api/v1/jobs` with `Origin: https://evil.com` | CORS headers absent or rejected |
+| `SEC-006` | Cross-workspace job access | GET | `/api/v1/jobs/{id}` (job belongs to workspace A, request from workspace B context) | 403 Forbidden |
+
+#### Implementation
+
+```python
+# tests/e2e/test_api_security.py
+"""
+API security tests — validates input sanitization, auth enforcement,
+and boundary protection.
+
+Usage:
+  AUTH_DEV_MODE=false STAF_API_URL=http://localhost:8000 \
+    pytest tests/e2e/test_api_security.py -v
+"""
+import os
+
+import httpx
+import pytest
+
+BASE_URL = os.environ.get("STAF_API_URL", "http://localhost:8000")
+API = f"{BASE_URL}/api/v1"
+
+
+@pytest.fixture(scope="module")
+def client():
+    with httpx.Client(base_url=BASE_URL, timeout=30.0) as c:
+        yield c
+
+
+class TestAuthEnforcement:
+    def test_unauthenticated_request(self, client):  # SEC-001
+        r = client.get(f"{API}/jobs")
+        assert r.status_code == 401
+
+
+class TestInputSanitization:
+    def test_path_traversal_workspace(self, client):  # SEC-002
+        r = client.post(f"{API}/jobs", json={
+            "workspace_id": "../../etc/passwd",
+            "test_group": "ConfigurationChecks",
+        })
+        assert r.status_code == 422
+
+    def test_shell_metacharacters(self, client):  # SEC-003
+        r = client.post(f"{API}/jobs", json={
+            "workspace_id": "E2E-SMOKE",
+            "test_group": "; rm -rf /",
+        })
+        assert r.status_code == 422
+
+    def test_oversized_body(self, client):  # SEC-004
+        r = client.post(f"{API}/jobs", content="X" * (10 * 1024 * 1024),
+                        headers={"Content-Type": "application/json"})
+        assert r.status_code in (413, 422)
+
+
+class TestBoundaryProtection:
+    def test_cors_unauthorized_origin(self, client):  # SEC-005
+        r = client.options(f"{API}/jobs", headers={
+            "Origin": "https://evil.example.com",
+            "Access-Control-Request-Method": "POST",
+        })
+        acl = r.headers.get("Access-Control-Allow-Origin", "")
+        assert "evil.example.com" not in acl
+
+    def test_cross_workspace_access(self, client):  # SEC-006
+        # Create a job in workspace A, attempt access from workspace B context
+        # Implementation depends on auth token scoping
+        pass  # TODO: implement when workspace-scoped tokens are available
+```
+
+---
+
+### Stage 3c: Upgrade & Rollback Tests (NEW)
+
+**Goal**: Validate that upgrades from a previous release preserve data and configuration,
+and that container restarts maintain state.
+
+**Runner**: GitHub-hosted (ubuntu-latest). Uses docker-compose stack.
+
+#### Test Cases
+
+| ID | Test | Validation |
+|----|------|-----------|
+| `UPG-001` | Deploy previous version → create data → upgrade to current | Jobs, schedules, and workspace data survive upgrade |
+| `UPG-002` | SQLite schema migration | `staf.db` migrated; job and schedule records intact after upgrade |
+| `UPG-003` | Workspace config backward compatibility | Workspace configs from previous version are parsed correctly |
+| `UPG-004` | Container restart preserves schedule state | Active schedules fire after `docker compose restart` |
+
+#### Implementation
+
+```bash
+# tests/e2e/test_upgrade_rollback.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+COMPOSE="deploy/docker-compose.yml"
+API="http://localhost:8000/api/v1"
+PREV_TAG="${STAF_PREV_VERSION:-latest}"
+
+log() { echo "[$(date -u +%H:%M:%S)] $*"; }
+
+# UPG-001: Deploy previous version, seed data, upgrade
+log "UPG-001: Starting previous version ($PREV_TAG)..."
+STAF_IMAGE_TAG="$PREV_TAG" docker compose -f "$COMPOSE" up -d
+timeout 120 bash -c 'until curl -sf http://localhost:8000/healthz; do sleep 3; done'
+
+log "UPG-001: Seeding data on old version..."
+JOB=$(curl -sf -X POST "$API/jobs" \
+  -H "Content-Type: application/json" \
+  -d '{"workspace_id":"E2E-SMOKE","test_group":"ConfigurationChecks"}')
+JOB_ID=$(echo "$JOB" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+SCHED=$(curl -sf -X POST "$API/schedules" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"upgrade-test","cron_expression":"0 0 * * *","workspace_ids":["E2E-SMOKE"],"test_group":"ConfigurationChecks"}')
+SCHED_ID=$(echo "$SCHED" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+log "UPG-001: Upgrading to current version..."
+docker compose -f "$COMPOSE" up -d --build
+timeout 120 bash -c 'until curl -sf http://localhost:8000/healthz; do sleep 3; done'
+
+log "UPG-001: Verifying data survived upgrade..."
+curl -sf "$API/jobs/$JOB_ID" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['id']=='$JOB_ID'"
+curl -sf "$API/schedules/$SCHED_ID" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['id']=='$SCHED_ID'"
+log "PASS: UPG-001"
+
+# UPG-004: Container restart preserves schedule state
+log "UPG-004: Restarting containers..."
+docker compose -f "$COMPOSE" restart
+timeout 120 bash -c 'until curl -sf http://localhost:8000/healthz; do sleep 3; done'
+curl -sf "$API/schedules/$SCHED_ID" | python3 -c "
+import sys, json
+s = json.load(sys.stdin)
+assert s['id'] == '$SCHED_ID', 'Schedule not found after restart'
+print('PASS: UPG-004')
+"
+
+# Cleanup
+curl -sf -X DELETE "$API/schedules/$SCHED_ID" || true
+docker compose -f "$COMPOSE" down --volumes --remove-orphans
+```
+
+---
+
 ### Stage 4: Offline SAP Validation (NEW)
 
 **Goal**: Run Ansible playbooks in offline mode using cached CIB XML fixtures. Validates the
@@ -570,8 +832,13 @@ resource detection, and constraint evaluation.
 | `OFF-002` | Offline HANA HA config (RHEL) | `playbook_01_ha_offline_tests.yml` | RHEL CIB variant parsed correctly |
 | `OFF-003` | Offline SCS HA config (SUSE) | `playbook_01_ha_offline_tests.yml` | SCS resources, ENSA2 detected |
 | `OFF-004` | Offline SCS HA config (RHEL) | `playbook_01_ha_offline_tests.yml` | RHEL pcs CIB variant |
-| `OFF-005` | HTML report generation | `render_html_report.py` module | Report file created in `quality_assurance/` |
-| `OFF-006` | Job lifecycle (offline) | API → job → offline playbook → complete | Job transitions: pending → running → completed |
+| `OFF-005` | Offline Scale-Out HSR CIB (SUSE) | `playbook_01_ha_offline_tests.yml` | Scale-Out HSR multi-node CIB parsed, site-aware resources detected |
+| `OFF-006` | Offline SAPHanaSR-angi CIB | `playbook_01_ha_offline_tests.yml` | SAPHanaSR-angi provider attributes parsed (different resource ID discovery) |
+| `OFF-007` | HTML report generation | `render_html_report.py` module | Report file created in `quality_assurance/` |
+| `OFF-008` | Job lifecycle (offline) | API → job → offline playbook → complete | Job transitions: pending → running → completed |
+
+> **Note**: Scale-Out HSR (OFF-005) and SAPHanaSR-angi (OFF-006) fixtures provide offline
+> coverage in Phase 2. Live Scale-Out E2E tests remain Phase 5+ (see Q-006).
 
 #### Implementation
 
@@ -599,6 +866,20 @@ WORKSPACES/SYSTEM/E2E-OFFLINE-SUSE/
     ├── cib.xml                 # Captured CIB from real SUSE cluster
     ├── sbd_config              # SBD device configuration
     └── corosync.conf           # Corosync configuration
+
+WORKSPACES/SYSTEM/E2E-OFFLINE-SCALEOUT-HSR/
+├── hosts.yaml                  # Multi-node localhost inventory
+├── sap-parameters.yaml         # Scale-Out HSR flags, offline mode
+└── offline_validation/
+    ├── cib.xml                 # Captured CIB from Scale-Out HSR cluster (3+3 nodes)
+    └── corosync.conf           # Multi-ring corosync config
+
+WORKSPACES/SYSTEM/E2E-OFFLINE-ANGI/
+├── hosts.yaml                  # localhost inventory
+├── sap-parameters.yaml         # SAPHanaSR-angi provider flags
+└── offline_validation/
+    ├── cib.xml                 # CIB with SAPHanaSR-angi resource IDs
+    └── corosync.conf           # Corosync configuration
 ```
 
 ---
@@ -621,11 +902,24 @@ Before running any destructive tests, validate system readiness:
 
 | Check | Command | Pass Criteria |
 |-------|---------|---------------|
+| Container SSH connectivity | `docker exec sap-qa-service ssh -o ConnectTimeout=10 {host} echo ok` | "ok" returned from inside container |
 | SSH connectivity | `ssh -o ConnectTimeout=10 {host}` | All hosts reachable |
 | SAP HANA status | `sapcontrol -nr {instance} -function GetProcessList` | GREEN |
 | Cluster status | `crm status` (SUSE) / `pcs status` (RHEL) | All resources started |
 | Azure LB health | Azure SDK: LB probe status | All probes healthy |
 | Key Vault access | `az keyvault secret list` | Credentials accessible |
+| Python interpreter | `ssh {host} python3 --version` | Python 3.10+ on target hosts |
+
+> **Recommendation**: Use a `docker-compose.e2e.yml` override file for E2E-specific
+> settings (extended timeouts, test workspace volume mounts, `AUTH_DEV_MODE=false`).
+> Apply via `docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d`.
+
+> **Ansible execution note**: STAF executes Ansible via `subprocess.Popen` (not
+> `ansible-runner`). Ensure `ansible.cfg` includes:
+> - `host_key_checking = False` (test environments only)
+> - `timeout = 30`
+> - `forks = 10`
+> - `retry_files_enabled = False`
 
 #### 5b. Test Execution Strategy
 
@@ -637,6 +931,32 @@ Tests are organized into **risk tiers** based on destructiveness:
 | **Recoverable** | resource-migration, ascs-migration, manual-restart | Every release | 2-5 min auto |
 | **Destructive** | node-crash, node-kill, block-network, fs-freeze | Nightly only | 5-15 min auto |
 | **High-risk** | sbd-fencing, echo-b, block-hana-shared | Weekly only | 10-20 min, may need manual |
+
+##### Circuit Breaker for Cluster Recovery
+
+If **2 consecutive destructive tests** fail cluster recovery, the pipeline **MUST**:
+
+1. **Skip all remaining destructive and high-risk tests** for the current run.
+2. **Alert** via the configured notification channel (Slack/Teams webhook).
+3. **Run `ha-config` validation** as an interstitial gate between each destructive test
+   to confirm the cluster is healthy before proceeding to the next destructive scenario.
+4. **Record** the circuit-breaker activation in ADX for trend analysis.
+
+**Weekly full cluster reset**: As a prerequisite for Monday nightly runs, schedule a
+full cluster reset (Sunday night) that restores all SAP systems to a known-good baseline:
+`pacemaker cleanup`, `SAPHanaSR` attribute reset, SAP instance restart, and `ha-config`
+validation.
+
+##### Flaky Test Quarantine
+
+To distinguish genuine cluster failures from slow recovery or transient issues:
+
+- After a destructive test failure, automatically re-run the **non-destructive `ha-config`
+  test** to determine if the cluster recovered (just slowly) vs. truly broke.
+- Track **historical flake rates** per test case in ADX using the
+  `e2e_flake_rate` metric.
+- **Policy**: If a test case exceeds **15% flake rate over a 2-week window**, it is
+  automatically moved to **weekly-only** execution tier and flagged for investigation.
 
 #### 5c. HANA Database HA Tests
 
@@ -721,7 +1041,10 @@ az kusto query \
 |-------|:---:|---------------|
 | Stage 1: Build & Static | ✅ | All existing CI checks pass |
 | Stage 2: Container Integration | ✅ | All CI-xxx tests pass |
+| Stage 2b: Agent & MCP Integration | ✅ | All MCP-xxx tests pass |
 | Stage 3: API Smoke | ✅ | All API-xxx tests pass |
+| Stage 3b: API Security | ✅ | All SEC-xxx tests pass |
+| Stage 3c: Upgrade & Rollback | ✅ | All UPG-xxx tests pass |
 | Stage 4: Offline Validation | ✅ | All OFF-xxx tests pass |
 | Stage 5a: Non-destructive SAP | ✅ | ha-config, azure-lb, config checks pass |
 | Stage 5b: Destructive SAP | ⚠️ | Required for major releases only |
@@ -732,6 +1055,9 @@ az kusto query \
 | Artifact | Location | Naming Convention |
 |----------|----------|-------------------|
 | Docker image | Azure Container Registry | `staf:{version}`, `staf:{git-sha}`, `staf:latest` |
+| Image signature | Azure Container Registry | `cosign sign` with OIDC keyless signing |
+| SBOM | Release assets + ACR | Generated via `syft` (SPDX format): `sbom-{version}.spdx.json` |
+| SLSA provenance | Release assets | SLSA v1.0 provenance attestation |
 | GitHub Release | GitHub Releases | `v{version}` tag |
 | Changelog | `CHANGELOG.md` / Release notes | Auto-generated from commits |
 | Test report | Release assets | `e2e-report-{version}.html` |
@@ -806,10 +1132,13 @@ explicit **reset gate**:
 | Step | Action | Validation |
 |------|--------|-----------|
 | Post-test validation | Run `ha-config` test | Cluster resources online |
+| Interstitial gate | Mandatory `ha-config` between each destructive test | Cluster healthy before next scenario |
 | HANA SR status | Check `SAPHanaSR` attributes | SOK/PRIM/SYNC |
 | Pacemaker cleanup | `crm resource cleanup` / `pcs resource cleanup` | No failed actions |
 | SAP start | `sapcontrol StartSystem` | All instances GREEN |
+| Circuit breaker | If 2 consecutive destructive tests fail recovery | Skip remaining destructive tests + alert |
 | Timeout escalation | If not recovered in 15 min | Alert + manual intervention |
+| Weekly full reset | Sunday night: full cluster restore to baseline | All systems GREEN for Monday nightly |
 
 ### 6.4 State Management
 
@@ -827,13 +1156,13 @@ explicit **reset gate**:
 
 ### 7.1 Trigger → Stage Mapping
 
-| Trigger | S1 Build | S2 Container | S3 API | S4 Offline | S5 Live SAP | S6 Release |
-|---------|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Pull Request** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **Push to main** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **Nightly (cron)** | ✅ | ✅ | ✅ | ✅ | ✅ (full) | ❌ |
-| **Release (manual)** | ✅ | ✅ | ✅ | ✅ | ✅ (gated) | ✅ |
-| **Hotfix** | ✅ | ✅ | ✅ | ✅ | ✅ (subset) | ✅ |
+| Trigger | S1 Build | S2 Container | S2b Agent | S3 API | S3b Security | S3c Upgrade | S4 Offline | S5 Live SAP | S6 Release |
+|---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Pull Request** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Push to main** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **Nightly (cron)** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (full) | ❌ |
+| **Release (manual)** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (gated) | ✅ |
+| **Hotfix** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ (subset) | ✅ |
 
 ### 7.2 Live SAP Test Frequency
 
@@ -856,9 +1185,20 @@ explicit **reset gate**:
 
 ### 7.4 Parallelization Strategy
 
+> ⚠️ **Runner requirement**: The Gantt chart below assumes **4 self-hosted runners** for
+> true parallelism in Stage 5. Two deployment options:
+>
+> | Option | Runners | Stage 5 Duration | Total Pipeline |
+> |--------|---------|-----------------|----------------|
+> | **(a) Parallel** | 4 self-hosted runners | ~60 min | ~95 min |
+> | **(b) Sequential** | 1 self-hosted runner | ~240 min | ~275 min |
+>
+> **Recommendation**: Start with option (b) on 1 runner. Add runners as nightly cadence
+> matures and parallelism becomes a bottleneck.
+
 ```mermaid
 gantt
-    title E2E Pipeline Execution Timeline
+    title E2E Pipeline Execution Timeline (parallel, 4 runners)
     dateFormat X
     axisFormat %M min
 
@@ -868,26 +1208,36 @@ gantt
     section Stage 2 (5 min)
     Container Integration     :s2, 5, 10
 
+    section Stage 2b (5 min)
+    Agent & MCP Integration   :s2b, 10, 15
+
     section Stage 3 (10 min)
-    API Smoke Tests           :s3, 10, 20
+    API Smoke Tests           :s3, 15, 25
+
+    section Stage 3b (5 min)
+    API Security Tests        :s3b, 15, 20
+
+    section Stage 3c (10 min)
+    Upgrade & Rollback        :s3c, 15, 25
 
     section Stage 4 (5 min)
-    Offline Validation        :s4, 10, 15
+    Offline Validation        :s4, 15, 20
 
     section Stage 5 (parallel, 60 min)
-    HANA HA (SUSE)           :s5a, 20, 80
-    HANA HA (RHEL)           :s5b, 20, 80
-    SCS HA (SUSE)            :s5c, 20, 60
-    SCS HA (RHEL)            :s5d, 20, 60
-    Config Checks            :s5e, 20, 35
-    Backup Tests             :s5f, 20, 50
+    HANA HA (SUSE)           :s5a, 25, 85
+    HANA HA (RHEL)           :s5b, 25, 85
+    SCS HA (SUSE)            :s5c, 25, 65
+    SCS HA (RHEL)            :s5d, 25, 65
+    Config Checks            :s5e, 25, 40
+    Backup Tests             :s5f, 25, 55
 
     section Stage 6 (15 min)
-    Release Gate             :s6, 80, 95
+    Release Gate             :s6, 85, 100
 ```
 
-**Key**: Stages 3 and 4 run in parallel. Within Stage 5, each SAP system runs independently
-on separate self-hosted runners (or sequentially on a single runner with system isolation).
+**Key**: Stages 3, 3b, 3c, and 4 run in parallel. Within Stage 5, each SAP system runs
+independently on separate self-hosted runners. On a single runner, Stage 5 executes
+sequentially (~240 min total: HANA SUSE → HANA RHEL → SCS SUSE → SCS RHEL → Config → Backup).
 
 ### 7.5 Timeout & Retry Policies
 
@@ -942,11 +1292,25 @@ During E2E execution, logs from all layers are collected:
 | Ansible playbook | `WORKSPACES/SYSTEM/{ID}/quality_assurance/*.log` | Artifact upload |
 | SAP system logs | `/var/log/messages` on SAP VMs | `log_parser.py` module |
 | Pacemaker logs | `/var/log/pacemaker/pacemaker.log` | Collected post-test |
+| HANA trace files | `/usr/sap/{SID}/HDB{NR}/trace/` | Collected post-test (tail last 1000 lines) |
+| Corosync ring state | `corosync-cfgtool -s` output | Collected pre/post-test |
+| SBD device status | `sbd -d {device} list` output | Collected pre/post-test |
+| Azure Activity Log | Azure Monitor (test time window) | `az monitor activity-log list --start-time` |
 | Pipeline logs | GitHub Actions log | Native |
 
 ### 8.3 Artifact Collection on Failure
 
 When any E2E stage fails, the pipeline collects diagnostic artifacts:
+
+> ⚠️ **CIB XML sanitization**: Before uploading any CIB XML artifact, **strip `nvpair`
+> elements** containing passwords, STONITH secrets, and other sensitive values. Use:
+> ```bash
+> xmlstarlet ed -d '//nvpair[contains(@name,"passwd") or contains(@name,"password") or contains(@name,"secret")]' cib.xml
+> ```
+
+> **Private artifact storage**: For sensitive artifacts (CIB dumps, cluster state), prefer
+> uploading to a private **Azure Blob Storage** container (with SAS token, 30-day expiry)
+> instead of GitHub Artifacts. GitHub Artifacts are suitable for non-sensitive logs only.
 
 ```yaml
 # In GitHub Actions workflow
@@ -988,9 +1352,60 @@ curl -H "X-Correlation-ID: $CORRELATION_ID" http://localhost:8000/api/v1/jobs ..
 This enables tracing a single E2E run across API logs, Ansible output, telemetry records,
 and ADX queries.
 
+### 8.5 Nightly Failure Alerting
+
+When a nightly E2E run fails, the pipeline **MUST** notify the on-call team:
+
+| Channel | Configuration | Trigger |
+|---------|---------------|---------|
+| **Slack webhook** | `E2E_SLACK_WEBHOOK_URL` secret | Any nightly stage failure |
+| **Teams webhook** | `E2E_TEAMS_WEBHOOK_URL` secret (alternative) | Any nightly stage failure |
+| **PagerDuty** | `E2E_PAGERDUTY_KEY` secret (escalation) | Circuit breaker activation or 2+ consecutive nightly failures |
+
+**Alert payload**: Include run URL, failed stage, workspace, correlation ID, and link to
+failure artifacts.
+
+**Escalation path**:
+1. **Slack/Teams notification** → on-call engineer reviews within 4 hours.
+2. **PagerDuty escalation** → if not acknowledged within 4 hours (nightly) or 1 hour (release).
+3. **Weekly triage** → all nightly failures reviewed in weekly E2E health meeting.
+
+> **Note**: Define an on-call rotation (minimum 2 engineers) before enabling nightly runs
+> in Phase 3.
+
 ---
 
 ## 9. Security Considerations
+
+### 9.0 Non-Negotiable Auth Boundary
+
+**`AUTH_DEV_MODE=true` is permitted ONLY for Tier 1-2 (container integration and API smoke
+tests)**. This is a non-negotiable security boundary:
+
+| Tier | Auth Mode | Rationale |
+|------|-----------|-----------|
+| Tier 1-2 (Container, API Smoke) | `AUTH_DEV_MODE=true` | No SAP access, no sensitive data |
+| Tier 3+ (Offline, Live SAP, Release) | Real Azure AD JWT | Access to SAP systems, Key Vault, telemetry sinks |
+
+Any pipeline configuration that enables `AUTH_DEV_MODE` for stages with SAP or Azure
+resource access **MUST** be rejected in code review.
+
+### 9.0.1 Supply Chain Integrity — SHA-Pinned Actions
+
+All GitHub Actions references in production workflows **MUST** use full SHA pins, not
+mutable version tags. Example:
+
+```yaml
+# ❌ WRONG: mutable tag can be hijacked
+- uses: actions/checkout@v4
+
+# ✅ CORRECT: immutable SHA pin
+- uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+```
+
+> **Implementation note**: All `@v3` and `@v4` tags in Appendix A workflow snippets are
+> illustrative. Before implementation, replace every action reference with its full SHA
+> pin. Use `step-security/harden-runner` and Dependabot to maintain pin freshness.
 
 ### 9.1 Credential Management
 
@@ -1032,6 +1447,20 @@ and ADX queries.
 - Key Vault uses private endpoint + MI-based access (no network exposure)
 - NSG on SAP subnet allows SSH only from runner subnet CIDR
 - All Azure resource access via Managed Identity (no service principal secrets)
+- **Outbound NSG egress restrictions**: Runner subnet should restrict outbound traffic
+  to only required destinations (GitHub, Azure services, SAP subnet)
+
+### 9.2.1 Self-Hosted Runner Hardening
+
+| Control | Implementation | Priority |
+|---------|---------------|----------|
+| **Ephemeral/JIT runners** | Use `actions/runner` with `--ephemeral` flag; runner de-registers after each job | High |
+| **Entra PIM for MI** | Just-In-Time Managed Identity activation via Entra PIM; MI active only during E2E window | High |
+| **Outbound NSG egress** | Restrict egress to: GitHub API, Azure Resource Manager, SAP VNet, Key Vault, ACR | High |
+| **Host-based monitoring** | Enable Microsoft Defender for Servers (EDR) on runner VM | Medium |
+| **Environment approval gate** | GitHub environment protection: require approval before dispatching destructive tests | High |
+| **Disk encryption** | Azure Disk Encryption (ADE) on runner OS disk | Medium |
+| **Auto-patching** | Azure Update Management for OS security patches | Medium |
 
 ### 9.3 Least Privilege
 
@@ -1062,33 +1491,42 @@ and ADX queries.
 gantt
     title E2E Testing Implementation Roadmap
     dateFormat YYYY-MM-DD
-    axisFormat %b %Y
+    axisFormat Week %W
 
-    section Phase 1
-    Container Integration Tests      :p1a, 2025-07-21, 2w
-    E2E test directory structure      :p1b, 2025-07-21, 3d
-    CI workflow for Tier 1-2          :p1c, 2025-07-28, 1w
+    section Phase 1 (Weeks 1-2)
+    Container Integration Tests      :p1a, 2026-04-20, 2w
+    Agent & MCP Integration Tests    :p1a2, 2026-04-20, 2w
+    E2E test directory structure      :p1b, 2026-04-20, 3d
+    CI workflow for Tier 1-2          :p1c, 2026-04-27, 1w
 
-    section Phase 2
-    API Smoke Tests                   :p2a, 2025-08-04, 2w
-    Offline SAP Validation            :p2b, 2025-08-04, 2w
-    Test workspace fixtures           :p2c, 2025-08-04, 1w
-    PR gate integration               :p2d, 2025-08-18, 3d
+    section Phase 2 (Weeks 3-5)
+    API Smoke Tests                   :p2a, 2026-05-04, 2w
+    API Security Tests (SEC-xxx)      :p2a2, 2026-05-04, 1w
+    Upgrade & Rollback Tests          :p2a3, 2026-05-11, 1w
+    Offline SAP Validation            :p2b, 2026-05-04, 2w
+    Scale-Out HSR + angi fixtures     :p2b2, 2026-05-11, 1w
+    Test workspace fixtures           :p2c, 2026-05-04, 1w
+    PR gate integration               :p2d, 2026-05-18, 3d
 
-    section Phase 3
-    Self-hosted runner setup          :p3a, 2025-08-25, 1w
-    SAP test landscape provisioning   :p3b, 2025-08-25, 3w
-    Live SAP test implementation      :p3c, 2025-09-08, 3w
-    Nightly schedule                  :p3d, 2025-09-22, 1w
+    section Phase 3 (Weeks 6-12)
+    Self-hosted runner setup          :p3a, 2026-05-25, 1w
+    Runner hardening (ephemeral, NSG) :p3a2, 2026-05-25, 1w
+    SAP test landscape (2× SUSE)      :p3b, 2026-05-25, 3w
+    Live SAP test implementation      :p3c, 2026-06-15, 3w
+    Circuit breaker + flaky quarantine:p3c2, 2026-06-22, 1w
+    Nightly schedule + alerting       :p3d, 2026-07-06, 1w
 
-    section Phase 4
-    Release pipeline                  :p4a, 2025-09-29, 2w
-    Approval gates                    :p4b, 2025-10-06, 1w
-    Dashboards & alerting             :p4c, 2025-10-06, 1w
-    Documentation & runbooks          :p4d, 2025-10-13, 1w
+    section Phase 4 (Weeks 13-14)
+    Release pipeline + SBOM/signing   :p4a, 2026-07-13, 2w
+    Approval gates                    :p4b, 2026-07-20, 1w
+    Dashboards & alerting             :p4c, 2026-07-20, 1w
+    Documentation & runbooks          :p4d, 2026-07-27, 1w
 ```
 
-### Phase 1: Container Integration Tests (Weeks 1-2)
+> **Note**: Phase 5 (not shown) adds RHEL systems, Scale-Out live E2E, RHEL 9 matrix
+> expansion, and `make e2e-local` developer workflow.
+
+### Phase 1: Container & Agent Integration Tests (Weeks 1-2)
 
 **No SAP or Azure access needed. Runs on GitHub-hosted runners.**
 
@@ -1096,66 +1534,82 @@ gantt
 |------------|-------------|
 | `tests/e2e/` directory | New test directory with E2E marker |
 | `tests/e2e/test_container_integration.sh` | Shell-based container integration tests (CI-001 through CI-013) |
+| `tests/e2e/test_agent_mcp.sh` | Agent & MCP integration tests (MCP-001 through MCP-008) |
 | `tests/e2e/conftest.py` | Shared fixtures (API base URL, workspace IDs, timeouts) |
-| `.github/workflows/e2e-container.yml` | New workflow: build → start → health check → teardown |
+| `.github/workflows/e2e-container.yml` | New workflow: build → start → health check → agent tests → teardown |
 | `tests/e2e/fixtures/` | Minimal workspace configs for smoke testing |
 
 **Dependencies**: None (uses existing Dockerfile and docker-compose.yml)
 
 **Estimated effort**: 1 engineer, 2 weeks
 
-### Phase 2: API Smoke Tests + Offline Validation (Weeks 3-4)
+### Phase 2: API Smoke Tests + Offline Validation + Security (Weeks 3-5)
 
 **Requires running docker-compose stack. No SAP systems.**
 
 | Deliverable | Description |
 |------------|-------------|
 | `tests/e2e/test_api_smoke.py` | Python-based API lifecycle tests (API-001 through API-021) |
+| `tests/e2e/test_api_security.py` | API security tests (SEC-001 through SEC-006) |
+| `tests/e2e/test_upgrade_rollback.sh` | Upgrade and rollback tests (UPG-001 through UPG-004) |
 | `tests/e2e/test_offline_validation.py` | Offline HA test orchestrator |
-| `tests/e2e/fixtures/workspaces/` | Pre-built workspace configs with CIB XML fixtures |
-| `.github/workflows/e2e-api.yml` | Extended workflow: container start → API tests → offline tests |
-| PR gate update | Stages 1-4 required for PR merge |
+| `tests/e2e/fixtures/workspaces/` | Pre-built workspace configs with CIB XML fixtures (incl. Scale-Out HSR + SAPHanaSR-angi) |
+| `.github/workflows/e2e-api.yml` | Extended workflow: container start → API tests → security tests → offline tests |
+| PR gate update | Stages 1-4 (incl. 2b, 3b, 3c) required for PR merge |
 
 **Dependencies**: Phase 1 complete, CIB XML fixtures collected from existing SUSE/RHEL systems
+(including Scale-Out HSR and SAPHanaSR-angi clusters for OFF-005/OFF-006)
 
-**Estimated effort**: 1 engineer, 2 weeks
+**Estimated effort**: 1-2 engineers, 3 weeks
 
-### Phase 3: Live SAP System Tests (Weeks 5-8)
+### Phase 3: Live SAP System Tests (Weeks 6-12)
 
-**Requires dedicated SAP test landscape on Azure.**
+**Requires dedicated SAP test landscape on Azure. Start with 2 SUSE systems only.**
 
 | Deliverable | Description |
 |------------|-------------|
-| Self-hosted runner VM | Azure VM in SAP VNet, configured as GitHub Actions runner |
-| SAP test systems | HANA Scale-Up (SUSE + RHEL), SCS ENSA2 (SUSE + RHEL) |
+| Self-hosted runner VM | Azure VM in SAP VNet, hardened (ephemeral, NSG egress, Defender) |
+| SAP test systems (initial) | HANA Scale-Up (SUSE) + SCS ENSA2 (SUSE) — 2 systems only |
 | Workspace configs | `WORKSPACES/SYSTEM/E2E-*` directories with production-like configs |
 | `tests/e2e/test_sap_live.py` | Live SAP test orchestrator (submit jobs, wait, validate) |
-| Pre-flight check script | System readiness validation before destructive tests |
-| Post-test reset script | Cluster recovery and validation |
+| Pre-flight check script | System readiness validation (incl. container SSH connectivity) |
+| Post-test reset script | Cluster recovery, circuit breaker, and validation |
+| Flaky test quarantine | ADX-backed flake rate tracking, auto-quarantine at >15% threshold |
 | `.github/workflows/e2e-nightly.yml` | Nightly cron workflow for full SAP test suite |
 | Environment locking | Azure Storage blob lease for concurrent run prevention |
+| Nightly alerting | Slack/Teams webhook on failure, PagerDuty escalation |
 
-**Dependencies**: Phase 2 complete, SAP landscape provisioned, network connectivity established,
-Key Vault credentials provisioned
+**Dependencies**: Phase 2 complete, SAP landscape provisioned (SUSE only), network connectivity
+established, Key Vault credentials provisioned, on-call rotation defined
 
-**Estimated effort**: 2 engineers, 4 weeks (includes infrastructure provisioning)
+**Estimated effort**: 2 engineers, 6-7 weeks (includes infrastructure provisioning and hardening)
 
-### Phase 4: Full Release Pipeline (Weeks 9-10)
+> **Note**: RHEL systems (E2E-HANA-RH, E2E-SCS-RHEL) are added in Phase 5.
+
+### Phase 4: Full Release Pipeline (Weeks 13-14)
 
 **Integrates all stages into a unified release workflow.**
 
 | Deliverable | Description |
 |------------|-------------|
-| `.github/workflows/release.yml` | Full release pipeline (Stages 1-6) |
+| `.github/workflows/release.yml` | Full release pipeline (Stages 1-6, all SHA-pinned actions) |
 | Version bump script | Automated semver bump based on commit messages |
 | Changelog generator | Conventional commits → CHANGELOG.md |
 | Approval gate | GitHub environment protection rules |
+| SBOM generation | `syft` SPDX SBOM attached to each release |
+| Image signing | `cosign` keyless signing (OIDC) + SLSA provenance |
 | ADX dashboards | E2E run summary, trend analysis, flaky test detection |
+| `make e2e-local` | Developer-friendly local E2E runner (Stages 2-4 only) |
+| `docker-compose.e2e.yml` | E2E override file (extended timeouts, test volumes) |
 | Runbook documentation | `docs/e2e-runbook.md` with troubleshooting guides |
 
 **Dependencies**: Phase 3 complete, Azure environment protection rules configured
 
 **Estimated effort**: 1 engineer, 2 weeks
+
+**Total implementation timeline**: ~14 weeks (Phases 1-4). Phase 5+ (RHEL expansion,
+Scale-Out live E2E, RHEL 9, performance testing) is ongoing after initial pipeline
+is operational.
 
 ### Dependency Graph
 
@@ -1182,10 +1636,13 @@ graph LR
 | **R-004** | E2E execution time exceeds 90-minute budget | Medium | Medium | Parallel execution across SAP systems; risk-tiered test selection; subset for release, full for nightly | QA |
 | **R-005** | SSH credential management complexity | Low | High | Azure Key Vault + Managed Identity; `SshCredentialProvider` already handles this; auto-rotation alerts | Security |
 | **R-006** | SUSE vs RHEL behavioral differences in HA tests | Medium | Medium | Separate test systems per OS family; OS-dispatched commands in `module_utils/commands.py` already handle this | Dev |
-| **R-007** | Self-hosted runner security (access to SAP VMs) | Low | Critical | Dedicated VM in isolated subnet; MI with least privilege; NSG rules; no internet-facing services on runner | Security |
+| **R-007** | Self-hosted runner security (access to SAP VMs) | Low | Critical | Ephemeral/JIT runner provisioning; Entra PIM for JIT MI activation; dedicated VM in isolated subnet; NSG egress restrictions; Defender for Servers (EDR); environment approval gate for destructive dispatch | Security |
 | **R-008** | Docker-compose stack changes break E2E tests | Medium | Low | E2E tests use the same `deploy/docker-compose.yml`; any service addition must include health check | Dev |
 | **R-009** | Test data leaks between E2E runs | Low | Medium | Fresh SQLite per run; unique correlation IDs; workspace isolation | QA |
 | **R-010** | CIB XML fixtures become stale (cluster config drift) | Medium | Low | Monthly fixture refresh from live systems; version-tracked in repo | QA |
+| **R-011** | Supply chain attack via mutable action tags | Low | Critical | SHA-pin all GitHub Actions; Dependabot for pin freshness; `step-security/harden-runner` | Security |
+| **R-012** | Cluster unrecoverable after destructive tests | Medium | High | Circuit breaker (2 consecutive failures → skip); weekly full cluster reset; ha-config interstitial gates | QA |
+| **R-013** | Data loss during version upgrade | Low | High | UPG-001/UPG-002 tests validate data survival; SQLite schema migration tested before release | Dev |
 
 ---
 
@@ -1200,11 +1657,16 @@ graph LR
 | **Q-005** | Should E2E failures block PR merge? | (a) Tier 1-4 block PR (b) Only Tier 1-2 block PR (c) Advisory only | Phase 2 | **Tier 1-4 block PR** (container + API + offline); Tier 5 is nightly-only |
 | **Q-006** | Scale-Out HSR and Scale-Out Standby — when to add E2E coverage? | (a) Phase 3 (b) Phase 5+ | Phase 3 | **Phase 5+** — start with Scale-Up (most common topology) |
 | **Q-007** | Who owns the SAP test landscape maintenance? | (a) STAF team (b) Shared with SDAF team (c) Dedicated infra person | Phase 3 | **Shared with SDAF team** — they own the provisioning tooling |
-| **Q-008** | Should E2E tests use `AUTH_DEV_MODE=true` or real Azure AD auth? | (a) Dev mode for all tiers (b) Real auth for Tier 3+ | Phase 2 | **Dev mode for Tier 1-3**; real auth for Tier 4-5 to validate the auth flow |
+| **Q-008** | Should E2E tests use `AUTH_DEV_MODE=true` or real Azure AD auth? | (a) Dev mode for all tiers (b) Real auth for Tier 3+ | Phase 2 | **Dev mode for Tier 1-2 ONLY**; Tier 3+ MUST use real Azure AD auth. This is a non-negotiable security boundary — see Section 9.0 |
 
 ---
 
 ## Appendix A: Example Workflow Snippets
+
+> ⚠️ **SHA-Pinning Notice**: All `@v3` and `@v4` action tags in these snippets are for
+> readability. **Before implementation**, every `uses:` reference MUST be replaced with
+> its full SHA pin (e.g., `actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11`).
+> See [Section 9.0.1](#901-supply-chain-integrity--sha-pinned-actions).
 
 ### A.1 Container Integration Workflow
 
@@ -1550,6 +2012,7 @@ echo "Schedule deleted"
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
+| 1.1 | 2026-04-16 | Ripley (QA Architect) — Squad review | v1.1: Agent/MCP testing stage (2b), API security tests (3b), upgrade/rollback tests (3c), AUTH_DEV_MODE boundary fix, SHA-pinned actions, CIB artifact sanitization, runner parallelization options, circuit breaker + flaky quarantine, Scale-Out offline fixtures, self-hosted runner hardening, SBOM/signing, nightly alerting, cost estimate updates, timeline reset to 14 weeks |
 | 1.0 | 2025-07-14 | Ripley (QA Architect) · Hicks (E2E & Release Validation) | Initial PRD |
 
 ---
