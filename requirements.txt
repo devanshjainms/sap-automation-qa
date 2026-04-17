@@ -193,7 +193,7 @@ packaging==26.1
     #   ansible-runner
     #   black
     #   pytest
-pandas==3.0.2
+pandas==2.3.3
     # via -r requirements.in
 pathspec==1.0.4
     # via
@@ -275,7 +275,7 @@ requests==2.33.1
     #   requests-oauthlib
 requests-oauthlib==2.0.0
     # via msrest
-resolvelib==1.2.1
+resolvelib==1.0.1
     # via ansible-core
 rich==15.0.0
     # via -r requirements.in
