@@ -179,7 +179,7 @@ msrest==0.7.1
     # via azure-mgmt-recoveryservicesbackup
 mypy-extensions==1.1.0
     # via black
-numpy==2.4.4
+numpy==2.2.6
     # via
     #   -r requirements.in
     #   pandas
