@@ -35,7 +35,7 @@ author:
 notes:
     - This module requires access to the global.ini file in the SAP HANA installation path
     - The checks are specific to each operating system distribution
-    - For RedHat, it checks for ChkSrv provider configuration
+    - For RedHat, it checks for ChkSrv and susChkSrv provider configurations
     - For SUSE, it checks for susChkSrv provider configuration
 """
 
