@@ -187,7 +187,7 @@ class IndexServerCheck(SapAutomationQA):
                     }
 
                     if all(
-                        extracted_properties.get(key) == value
+                        value in extracted_properties.get(key, "")
                         for key, value in os_props[section_title].items()
                     ):
                         self.result.update(
