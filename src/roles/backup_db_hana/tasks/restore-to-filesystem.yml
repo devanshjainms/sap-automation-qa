@@ -442,7 +442,7 @@
       register:                     tenant_start_result
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
-      changed_when:                 tenant_start_result.rc == 0
+      changed_when:                 true
       loop:                         "{{ backup_tenant_items | default([]) }}"
       loop_control:
         loop_var:                   db_item

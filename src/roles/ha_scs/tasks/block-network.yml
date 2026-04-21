@@ -50,7 +50,7 @@
           args:
             executable:                 /bin/bash
           register:                     block_network_result
-          changed_when:                 block_network_result.rc == 0
+          changed_when:                 true
 
         - name:                         "Test Execution: Wait for the cluster to be in a stable state"
           ansible.builtin.wait_for:
