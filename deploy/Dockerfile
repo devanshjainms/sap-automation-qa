@@ -50,6 +50,10 @@ ENV HOME=/app
 
 RUN chown -R appuser:appgroup /opt/venv /app
 
+# Pre-create data directories so named-volume mounts inherit correct ownership
+RUN mkdir -p /app/data/logs/service \
+    && chown -R appuser:appgroup /app/data
+
 USER appuser
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

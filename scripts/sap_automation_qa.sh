@@ -443,6 +443,11 @@ run_ansible_playbook() {
         command+=" $ANSIBLE_VERBOSE"
     fi
 
+    if [[ "${ANSIBLE_CHECK_MODE:-}" == "true" ]]; then
+        command+=" --syntax-check"
+        log "INFO" "Syntax-check mode enabled (ANSIBLE_CHECK_MODE=true)"
+    fi
+
     # Set ANSIBLE_LOG_PATH so execution output is captured for HTML reports
     local log_dir="${system_config_folder}/logs"
     mkdir -p "$log_dir"
