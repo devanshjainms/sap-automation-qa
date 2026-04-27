@@ -541,6 +541,11 @@ main() {
 
     # Override SAP_FUNCTIONAL_TEST_TYPE based on --test_groups if specified
     if [[ -n "$TEST_GROUPS" ]]; then
+        if [[ "$TEST_TYPE" != "SAPFunctionalTests" ]]; then
+            log "INFO" "Overriding TEST_TYPE: '$TEST_TYPE' -> 'SAPFunctionalTests' (--test_groups implies functional tests)"
+            TEST_TYPE="SAPFunctionalTests"
+        fi
+
         local test_filter_script="${cmd_dir}/../src/module_utils/filter_tests.py"
         local input_api_file="${cmd_dir}/../src/vars/input-api.yaml"
         local resolved_type
