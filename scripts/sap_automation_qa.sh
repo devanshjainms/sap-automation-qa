@@ -443,9 +443,9 @@ run_ansible_playbook() {
         command+=" $ANSIBLE_VERBOSE"
     fi
 
-    if [[ "${ANSIBLE_CHECK_MODE:-}" == "true" ]]; then
+    if [[ "${ANSIBLE_SYNTAX_CHECK:-}" == "true" ]]; then
         command+=" --syntax-check"
-        log "INFO" "Syntax-check mode enabled (ANSIBLE_CHECK_MODE=true)"
+        log "INFO" "Syntax-check mode enabled (ANSIBLE_SYNTAX_CHECK=true)"
     fi
 
     # Set ANSIBLE_LOG_PATH so execution output is captured for HTML reports
