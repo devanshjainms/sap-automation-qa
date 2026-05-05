@@ -87,7 +87,8 @@
                                             cluster_status_post.primary_node != "" and
                                             cluster_status_post.secondary_node != "" and
                                             cluster_status_post.primary_node in cluster_status_pre.primary_site_nodes and
-                                            cluster_status_post.secondary_node in cluster_status_pre.secondary_site_nodes
+                                            cluster_status_post.secondary_node in cluster_status_pre.secondary_site_nodes and
+                                            (cluster_status_post.worker_node_scores_valid | default(false))
 
     - name:                                 "Test Execution: Stop timer"
       ansible.builtin.set_fact:
