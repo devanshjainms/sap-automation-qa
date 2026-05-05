@@ -109,7 +109,7 @@
         test_case_details_from_test_case: {
                                             "Pre Validations: Remove any location_constraints": "{{ location_constraints_results }}",
                                             "Pre Validations: Validate HANA DB cluster status": "{{ cluster_status_pre }}",
-                                            "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
+                                            "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre | default('Not Executed') }}",
                                             "Test Execution: Network blocked on secondary site": "{{ firewall_rule_created | default('iptables -P DROP applied') }}",
                                             "Test Execution: Cluster Status during partition": "{{ cluster_status_test_execution }}",
                                             "Test Execution: Firewall removed by": "Secondary site nodes rebooted by fencing",
@@ -152,7 +152,7 @@
         test_case_details_from_test_case: {
                                             "Pre Validations: Remove any location_constraints": "{{ location_constraints_results }}",
                                             "Pre Validations: Validate HANA DB cluster status": "{{ cluster_status_pre }}",
-                                            "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre }}",
+                                            "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre | default('Not Executed') }}",
                                             "Cluster Status": "{{ cluster_status_pre }}",
                                           }
 
