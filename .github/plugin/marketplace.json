@@ -1,0 +1,46 @@
+{
+  "name": "SAP Testing Automation Framework (STAF)",
+  "description": "End-to-end SAP cluster triage, HA testing, and configuration validation for Azure SRE Agent. Connects to STAF's MCP server to provide automated evidence collection, analysis, and controlled failover testing for SAP HANA, SCS, and Pacemaker clusters.",
+  "version": "1.0.0",
+  "author": "Microsoft",
+  "license": "MIT",
+  "homepage": "https://github.com/Azure/sap-automation-qa",
+  "plugins": [
+    {
+      "name": "sap-cluster-triage",
+      "description": "Automated triage for SAP cluster incidents — collects evidence, analyzes cluster state, queries the SAP knowledge base, and produces severity-ranked findings with remediation guidance.",
+      "skills": [
+        ".github/skills/sap-cluster-triage"
+      ],
+      "tags": [
+        "sap",
+        "hana",
+        "pacemaker",
+        "triage",
+        "ha"
+      ]
+    },
+    {
+      "name": "sap-ha-testing",
+      "description": "On-demand and scheduled HA functional testing — runs STAF configuration checks and controlled failover tests (resource migration, node crash, network isolation) with full result reporting.",
+      "skills": [
+        ".github/skills/sap-ha-testing"
+      ],
+      "tags": [
+        "sap",
+        "hana",
+        "scs",
+        "testing",
+        "ha"
+      ]
+    }
+  ],
+  "mcp_servers": {
+    "staf-mcp": {
+      "url": "${STAF_MCP_URL}",
+      "headers": {
+        "Authorization": "Bearer ${STAF_MCP_TOKEN}"
+      }
+    }
+  }
+}

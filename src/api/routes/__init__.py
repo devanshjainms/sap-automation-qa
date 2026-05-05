@@ -3,7 +3,7 @@
 
 """API routes package."""
 
-from src.api.routes.health import router as health_router
+from src.api.routes.health import router as health_router, set_health_service
 from src.api.routes.jobs import router as jobs_router, set_job_store, set_job_worker
 from src.api.routes.schedules import (
     router as schedules_router,
@@ -22,4 +22,5 @@ __all__ = [
     "set_schedule_store",
     "set_scheduler_service",
     "set_workspace_loader",
+    "set_health_service",
 ]

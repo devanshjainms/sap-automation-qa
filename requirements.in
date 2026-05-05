@@ -31,6 +31,10 @@ pytest-mock
 numpy
 pandas
 
+# Vector search
+sqlite-vec
+pysqlite3-binary
+
 # Core utilities
 jmespath
 Jinja2
@@ -46,3 +50,8 @@ uvicorn
 pydantic
 apscheduler
 python-multipart
+mcp
+
+# LLM / Agent Framework
+
+# Dev tools (agent debugging)

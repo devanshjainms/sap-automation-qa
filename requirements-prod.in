@@ -1,0 +1,47 @@
+# Production dependencies only (excludes dev/test tools).
+# Generate the lockfile: pip-compile requirements-prod.in -o requirements-prod.txt
+
+# Ansible packages
+ansible-core
+ansible-runner
+
+# Azure packages
+azure-identity
+azure-keyvault-secrets
+azure-kusto-data
+azure-kusto-ingest
+azure-mgmt-compute
+azure-mgmt-loganalytics
+azure-mgmt-network
+azure-mgmt-recoveryservicesbackup
+azure-storage-blob
+azure-storage-queue
+
+# Data processing
+numpy
+pandas
+
+# Vector search
+sqlite-vec
+pysqlite3-binary
+
+# Core utilities
+jmespath
+Jinja2
+PyYAML
+requests
+httpx
+
+# CLI tools
+click
+rich
+
+# API
+fastapi
+uvicorn
+pydantic
+apscheduler
+python-multipart
+mcp
+
+# LLM / Agent Framework
