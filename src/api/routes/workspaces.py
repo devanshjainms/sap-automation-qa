@@ -164,12 +164,8 @@ async def get_workspace_config(workspace_id: str) -> WorkspaceConfig:
         db_instance_number=str(params.get("db_instance_number", "")),
         scs_instance_number=str(params.get("scs_instance_number", "")),
         ers_instance_number=str(params.get("ers_instance_number", "")),
-        database_high_availability=bool(
-            params.get("database_high_availability", False)
-        ),
-        scs_high_availability=bool(
-            params.get("scs_high_availability", False)
-        ),
+        database_high_availability=bool(params.get("database_high_availability", False)),
+        scs_high_availability=bool(params.get("scs_high_availability", False)),
         database_cluster_type=str(params.get("database_cluster_type", "")),
         scs_cluster_type=str(params.get("scs_cluster_type", "")),
         database_scale_out=bool(params.get("database_scale_out", False)),
@@ -201,9 +197,7 @@ async def list_workspace_reports(workspace_id: str) -> List[TestReport]:
         reports.append(
             TestReport(
                 filename=html_file.name,
-                modified_at=datetime.fromtimestamp(
-                    stat.st_mtime, tz=timezone.utc
-                ).isoformat(),
+                modified_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
                 size_bytes=stat.st_size,
             )
         )
@@ -213,9 +207,7 @@ async def list_workspace_reports(workspace_id: str) -> List[TestReport]:
 
 
 @router.get("/{workspace_id}/reports/{filename}")
-async def get_workspace_report(
-    workspace_id: str, filename: str
-) -> HTMLResponse:
+async def get_workspace_report(workspace_id: str, filename: str) -> HTMLResponse:
     """Get the HTML content of a specific test report.
 
     :param workspace_id: ID of the workspace.
@@ -229,14 +221,10 @@ async def get_workspace_report(
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
     if not filename.endswith(".html"):
-        raise HTTPException(
-            status_code=400, detail="Only .html files are allowed"
-        )
+        raise HTTPException(status_code=400, detail="Only .html files are allowed")
 
     workspace_dir = _resolve_workspace_path(workspace_id)
-    report_path = (
-        workspace_dir / "quality_assurance" / filename
-    ).resolve()
+    report_path = (workspace_dir / "quality_assurance" / filename).resolve()
 
     qa_dir = (workspace_dir / "quality_assurance").resolve()
     if not str(report_path).startswith(str(qa_dir)):
@@ -250,9 +238,7 @@ async def get_workspace_report(
         content=content,
         headers={
             "Content-Security-Policy": (
-                "default-src 'none'; "
-                "style-src 'unsafe-inline'; "
-                "img-src data:;"
+                "default-src 'none'; " "style-src 'unsafe-inline'; " "img-src data:;"
             ),
         },
     )

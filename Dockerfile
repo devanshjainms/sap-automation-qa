@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-# syntax=docker/dockerfile:1
+
 
 # ---------------------------------------------------------------------------
 # Stage 1: Build stage — install Python deps into an isolated venv
@@ -17,9 +17,8 @@ COPY requirements-prod.txt .
 RUN python3 -m venv /opt/venv && . /opt/venv/bin/activate \
     && pip install --upgrade pip
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    . /opt/venv/bin/activate \
-    && pip install -r requirements-prod.txt
+RUN . /opt/venv/bin/activate \
+    && pip install --no-cache-dir -r requirements-prod.txt
 
 # ---------------------------------------------------------------------------
 # Stage 2: Runtime
@@ -38,8 +37,7 @@ RUN tdnf update -y && tdnf install -y \
     && ln -sf /usr/bin/python3 /usr/bin/python
 
 # Layer 2 — azure-cli (cached independently from source code changes)
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install azure-cli
+RUN pip install --no-cache-dir azure-cli
 
 # Layer 3 — non-root user
 RUN groupadd --gid 1000 appgroup \
@@ -70,7 +68,7 @@ ENV HOME=/app
 
 USER appuser
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/healthz || exit 1
-EXPOSE 8000 8001 8080
-CMD ["uvicorn", "src.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -sf -o /dev/null -w '%{http_code}' http://localhost:8001/mcp | grep -qE '^[2-5]' || exit 1
+EXPOSE 8000 8001
+CMD ["uvicorn", "src.mcp_server.server:http_app", "--host", "0.0.0.0", "--port", "8001"]

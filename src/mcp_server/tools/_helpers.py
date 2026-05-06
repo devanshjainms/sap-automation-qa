@@ -15,6 +15,8 @@ from mcp.types import Icon
 from src.core.models.evidence import EvidenceArtifact
 from src.core.models.triage import TriageSession
 from src.mcp_server.server import SapContext
+from src.core.services.workspace_discovery import get_workspace_backend
+from src.core.services.workspace_backend import FilesystemBackend, WorkspaceBackend
 
 
 def get_sap_context(
@@ -133,26 +135,44 @@ ICON_LOG = _icon(
 )
 
 
+def _effective_backend(workspaces_base: Path) -> WorkspaceBackend:
+    """Return a backend that honours the *workspaces_base* parameter.
+
+    When the singleton is a :class:`FilesystemBackend` whose base
+    directory differs from *workspaces_base*, a one-off backend is
+    returned so that callers that pass an explicit path still work.
+
+    :param workspaces_base: Caller-supplied base path.
+    :returns: Workspace backend to use for this call.
+    """
+    backend = get_workspace_backend()
+    if isinstance(backend, FilesystemBackend):
+        if str(backend._base) != str(workspaces_base):
+            return FilesystemBackend(base_dir=str(workspaces_base))
+    return backend
+
+
 def load_workspace_params(workspaces_base: Path, workspace_id: str) -> dict[str, Any]:
     """Load sap-parameters.yaml for a workspace.
 
-    :param workspaces_base: Base path to WORKSPACES/SYSTEM.
+    Delegates to the active :class:`WorkspaceBackend`.  The
+    *workspaces_base* parameter is retained for backward compatibility.
+
+    :param workspaces_base: Base path (used for filesystem fallback).
     :param workspace_id: Workspace directory name.
     :returns: Parsed YAML dict, or empty dict if not found.
     """
-    params_file = workspaces_base / workspace_id / "sap-parameters.yaml"
-    if not params_file.is_file():
-        return {}
-    with open(params_file, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+    backend = _effective_backend(workspaces_base)
+    return backend.read_yaml(workspace_id, "sap-parameters.yaml")
 
 
 def load_workspace_hosts(workspaces_base: Path, workspace_id: str) -> list[str]:
     """Parse host IPs/names from hosts.yaml Ansible inventory.
 
     Prefers ``ansible_host`` (IP) over the inventory key (hostname).
+    Delegates to the active :class:`WorkspaceBackend` for file I/O.
 
-    :param workspaces_base: Base path to WORKSPACES/SYSTEM.
+    :param workspaces_base: Base path (used for filesystem fallback).
     :param workspace_id: Workspace directory name.
     :returns: List of host addresses (IPs preferred). Empty if not found.
     """
@@ -167,16 +187,18 @@ def load_workspace_host_details(workspaces_base: Path, workspace_id: str) -> lis
     ``ansible_user``, ``become_user``, ``node_tier``, and ``name``
     (inventory key) for each host.
 
-    :param workspaces_base: Base path to WORKSPACES/SYSTEM.
+    Delegates to the active :class:`WorkspaceBackend` for file I/O.
+
+    :param workspaces_base: Base path (used for filesystem fallback).
     :param workspace_id: Workspace directory name.
     :returns: List of host detail dicts. Empty if file not found.
     """
-    hosts_file = workspaces_base / workspace_id / "hosts.yaml"
-    if not hosts_file.is_file():
+    backend = _effective_backend(workspaces_base)
+    content = backend.read_file(workspace_id, "hosts.yaml")
+    if content is None:
         return []
 
-    with open(hosts_file, encoding="utf-8") as f:
-        inventory = yaml.safe_load(f) or {}
+    inventory = yaml.safe_load(content) or {}
 
     hosts: list[dict[str, str]] = []
 

@@ -12,20 +12,12 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
-from pydantic import AnyHttpUrl
-from mcp.server.auth.settings import AuthSettings
+from typing import Any, Callable
 from mcp.server.fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 from src.core.formatter import ReportFormatter
-
-try:
-    from agent_framework.azure import AzureOpenAIEmbeddingClient
-    from agent_framework.openai import OpenAIEmbeddingClient
-
-    _HAS_AGENT_FRAMEWORK = True
-except ImportError:
-    _HAS_AGENT_FRAMEWORK = False
-
+from src.core.services.embedding import OpenAICompatibleEmbedding
 from src.core.analyzer.analyzer import Analyzer
 from src.core.execution.command_allow_list import CommandAllowList
 from src.core.execution.evidence_collector import EvidenceCollector
@@ -233,27 +225,22 @@ def _init_shared_context() -> SapContext:
     embed_dims = int(os.environ.get("EMBEDDING_DIMENSIONS", "768"))
 
     try:
-        if _HAS_AGENT_FRAMEWORK:
-            from src.agents.providers.embedding_adapter import EmbeddingAdapter
-
-            if embed_endpoint and embed_deployment:
-                af_client = AzureOpenAIEmbeddingClient(
-                    endpoint=embed_endpoint,
-                    deployment_name=embed_deployment,
-                    api_key=os.environ.get("AZURE_OPENAI_EMBEDDING_KEY") or None,
-                )
-                embedding_provider = EmbeddingAdapter(af_client, dimensions=embed_dims)
-                logger.info("Embedding provider: Azure OpenAI (%s)", embed_deployment)
-            else:
-                af_client = OpenAIEmbeddingClient(
-                    model_id=ollama_model,
-                    base_url=ollama_url,
-                    api_key="ollama",
-                )
-                embedding_provider = EmbeddingAdapter(af_client, dimensions=embed_dims)
-                logger.info("Embedding provider: Ollama (%s @ %s)", ollama_model, ollama_url)
-        else:
-            logger.info("agent_framework not installed; embeddings disabled")
+        if embed_endpoint and embed_deployment:
+            embedding_provider = OpenAICompatibleEmbedding(
+                base_url=embed_endpoint,
+                model=embed_deployment,
+                api_key=os.environ.get("AZURE_OPENAI_EMBEDDING_KEY", ""),
+                dimensions=embed_dims,
+            )
+            logger.info("Embedding provider: Azure OpenAI (%s)", embed_deployment)
+        elif ollama_url:
+            embedding_provider = OpenAICompatibleEmbedding(
+                base_url=ollama_url,
+                model=ollama_model,
+                api_key="ollama",
+                dimensions=embed_dims,
+            )
+            logger.info("Embedding provider: Ollama (%s @ %s)", ollama_model, ollama_url)
 
         if embedding_provider is not None:
             embedding_store = EmbeddingStore(
@@ -339,14 +326,9 @@ async def sap_lifespan(server: FastMCP) -> AsyncIterator[SapContext]:
 
 
 _token_verifier = create_token_verifier()
-_auth_settings: AuthSettings | None = None
 
 if _token_verifier is not None:
-    _auth_settings = AuthSettings(
-        issuer_url=AnyHttpUrl(f"http://{MCP_HOST}:{MCP_PORT}"),
-        resource_server_url=AnyHttpUrl(f"http://{MCP_HOST}:{MCP_PORT}"),
-        required_scopes=["mcp:tools"],
-    )
+    logger.info("MCP auth enabled (mode: %s)", os.environ.get("MCP_AUTH_MODE", "none"))
 
 mcp = FastMCP(
     "SAP STAF",
@@ -361,8 +343,6 @@ mcp = FastMCP(
     json_response=True,
     host=MCP_HOST,
     port=MCP_PORT,
-    auth=_auth_settings,
-    token_verifier=_token_verifier,
 )
 
 import src.mcp_server.tools  # noqa: E402, F401
@@ -370,9 +350,38 @@ import src.mcp_server.resources  # noqa: E402
 import src.mcp_server.prompts  # noqa: E402
 
 _mcp_asgi = mcp.streamable_http_app()
+
+
+def _create_auth_middleware(app, verifier):
+    """Wrap ASGI app with bearer token authentication."""
+
+    async def middleware(scope, receive, send):
+        if scope["type"] == "http":
+            request = Request(scope, receive)
+            auth_header = request.headers.get("authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+            else:
+                token = ""
+            result = await verifier.verify_token(token)
+            if result is None:
+                response = JSONResponse(
+                    {"error": "invalid_token", "error_description": "Authentication required"},
+                    status_code=401,
+                )
+                await response(scope, receive, send)
+                return
+        await app(scope, receive, send)
+
+    return middleware
+
+
+if _token_verifier is not None:
+    _mcp_asgi = _create_auth_middleware(_mcp_asgi, _token_verifier)
+
 http_app = create_rate_limiter(_mcp_asgi)
 
 
 if __name__ == "__main__":
-    transport = os.environ.get("MCP_TRANSPORT", "streamable-http")
+    transport: Any = os.environ.get("MCP_TRANSPORT", "streamable-http")
     mcp.run(transport=transport)
