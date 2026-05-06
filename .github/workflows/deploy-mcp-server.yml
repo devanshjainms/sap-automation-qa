@@ -4,6 +4,9 @@
 name:                         Deploy MCP Server to Container App
 
 on:
+  push:
+    branches:
+      - mcp-sre-agent
   workflow_dispatch:
     inputs:
       resource_group:
