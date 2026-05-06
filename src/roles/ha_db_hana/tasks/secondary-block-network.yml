@@ -71,6 +71,16 @@
       ansible.builtin.wait_for:
         timeout:                            "{{ default_timeout }}"
 
+    - name:                                 "Test Execution: CleanUp failed SAPHanaController resource"
+      ansible.builtin.command:              crm_resource --cleanup
+      register:                             cleanup_failed_resource_post_execution
+      retries:                              3
+      delay:                                "{{ default_delay }}"
+      until:                                cleanup_failed_resource_post_execution.rc == 0
+      changed_when:                         cleanup_failed_resource_post_execution.rc == 0
+      ignore_errors:                        true
+
+
     - name:                                 "Test Execution: Validate HANA DB cluster status (post recovery)"
       get_cluster_status_db:
         db_instance_number:                 "{{ db_instance_number }}"

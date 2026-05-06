@@ -26,6 +26,7 @@
   delegate_to:                          "{{ worker_node }}"
   changed_when:                         false
   failed_when:                          false
+  run_once:                             true
   loop:                                 "{{ secondary_worker_nodes | default([]) }}"
   loop_control:
     loop_var:                           worker_node
