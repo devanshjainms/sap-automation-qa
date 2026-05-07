@@ -355,44 +355,6 @@ _mcp_asgi = mcp.streamable_http_app()
 _HEALTH_PATHS = {"/healthz", "/health", "/ready"}
 
 
-def _create_health_wrapper(app):
-    """Add unauthenticated health-check endpoints in front of the MCP app."""
-
-    async def wrapper(scope, receive, send):
-        if scope["type"] == "http" and scope.get("path", "") in _HEALTH_PATHS:
-            response = JSONResponse({"status": "ok"})
-            await response(scope, receive, send)
-            return
-        await app(scope, receive, send)
-
-    return wrapper
-
-
-def _create_cors_middleware(app):
-    """Handle CORS preflight (OPTIONS) so connectors can reach the MCP endpoint."""
-
-    _allowed_origin = os.environ.get("CORS_ORIGINS", "*")
-    _allowed_headers = "Authorization, Content-Type, Accept, Mcp-Session-Id"
-    _allowed_methods = "GET, POST, OPTIONS, DELETE"
-
-    async def middleware(scope, receive, send):
-        if scope["type"] == "http" and scope.get("method", "") == "OPTIONS":
-            response = JSONResponse(
-                content=None,
-                status_code=204,
-                headers={
-                    "Access-Control-Allow-Origin": _allowed_origin,
-                    "Access-Control-Allow-Methods": _allowed_methods,
-                    "Access-Control-Allow-Headers": _allowed_headers,
-                    "Access-Control-Max-Age": "86400",
-                },
-            )
-            await response(scope, receive, send)
-            return
-        await app(scope, receive, send)
-
-    return middleware
-
 
 def _create_auth_middleware(app, verifier):
     """Wrap ASGI app with bearer token authentication."""
@@ -418,8 +380,6 @@ def _create_auth_middleware(app, verifier):
     return middleware
 
 
-_mcp_asgi = _create_health_wrapper(_mcp_asgi)
-_mcp_asgi = _create_cors_middleware(_mcp_asgi)
 if _token_verifier is not None:
     _mcp_asgi = _create_auth_middleware(_mcp_asgi, _token_verifier)
 
