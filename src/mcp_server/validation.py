@@ -16,6 +16,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 from src.core.models.job import Job
 from src.core.models.triage import TriageSession
 from src.core.storage.job_store import JobStore
+from src.core.services.workspace_discovery import get_workspace_backend
 
 _WORKSPACE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 MAX_QUERY_LENGTH = 500
@@ -49,7 +50,7 @@ class InputValidator:
         """Validate workspace ID format and existence.
 
         :param workspace_id: The workspace identifier to validate.
-        :raises ToolError: If format is invalid or directory missing.
+        :raises ToolError: If format is invalid or workspace not found.
         """
         if not workspace_id:
             raise ToolError("workspace_id is required")
@@ -60,12 +61,10 @@ class InputValidator:
                 "Must be alphanumeric with hyphens, underscores, or dots."
             )
 
-        workspace_path = (self._workspaces_base / workspace_id).resolve()
-        base_resolved = self._workspaces_base.resolve()
-        if not str(workspace_path).startswith(str(base_resolved)):
-            raise ToolError(f"Path traversal detected in workspace_id: '{workspace_id}'")
-
-        if not workspace_path.is_dir():
+        backend = get_workspace_backend()
+        if not backend.file_exists(workspace_id, "hosts.yaml") and not backend.file_exists(
+            workspace_id, "sap-parameters.yaml"
+        ):
             raise ToolError(f"Workspace '{workspace_id}' not found")
 
     def query(self, query: str) -> str:

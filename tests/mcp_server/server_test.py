@@ -14,6 +14,8 @@ import pytest
 from pytest_mock import MockerFixture
 from src.core.models.evidence import CollectorType
 from mcp.server.fastmcp.exceptions import ToolError
+from src.core.services.workspace_backend import FilesystemBackend
+from src.core.services.workspace_discovery import set_workspace_backend
 from src.mcp_server.server import SapContext, mcp
 from src.mcp_server.ttl_dict import TtlDict
 from src.mcp_server.validation import InputValidator
@@ -34,6 +36,7 @@ def tmp_workspaces(mocker: MockerFixture, tmp_path: Path) -> Path:
     (ws_b / "sap-parameters.yaml").write_text("sap_sid: HA2\ndatabase_high_availability: true\n")
     (ws_b / "hosts.yaml").write_text("all:\n  hosts:\n    node2:\n")
 
+    set_workspace_backend(FilesystemBackend(base_dir=str(base)))
     return base
 
 

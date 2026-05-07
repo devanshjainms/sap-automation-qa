@@ -5,9 +5,12 @@
 
 from __future__ import annotations
 from pathlib import Path
+from typing import Generator
 from pytest_mock import MockerFixture
 import pytest
 from mcp.server.fastmcp.exceptions import ToolError
+from src.core.services.workspace_backend import FilesystemBackend
+from src.core.services.workspace_discovery import set_workspace_backend
 from src.mcp_server.validation import (
     MAX_DEFINITIONS_COUNT,
     MAX_QUERY_LENGTH,
@@ -18,19 +21,23 @@ from src.mcp_server.validation import (
 
 
 @pytest.fixture()
-def validator(tmp_path: Path, mocker: MockerFixture) -> InputValidator:
+def validator(tmp_path: Path, mocker: MockerFixture) -> Generator[InputValidator, None, None]:
     """Build an InputValidator backed by *tmp_path* as the workspace root."""
-    return InputValidator(
+    set_workspace_backend(FilesystemBackend(base_dir=str(tmp_path)))
+    yield InputValidator(
         workspaces_base=tmp_path,
         sessions={},
         job_store=mocker.MagicMock(),
     )
+    set_workspace_backend(None)  # type: ignore[arg-type]
 
 
 class TestWorkspaceId:
 
     def test_valid_id(self, tmp_path: Path, validator: InputValidator):
-        (tmp_path / "WS_A").mkdir()
+        ws = tmp_path / "WS_A"
+        ws.mkdir()
+        (ws / "hosts.yaml").write_text("")
         validator.workspace_id("WS_A")  # should not raise
 
     def test_empty_id_raises(self, validator: InputValidator):
@@ -58,7 +65,9 @@ class TestWorkspaceId:
             validator.workspace_id("MISSING")
 
     def test_dots_and_hyphens_allowed(self, tmp_path: Path, validator: InputValidator):
-        (tmp_path / "my-workspace.v2").mkdir()
+        ws = tmp_path / "my-workspace.v2"
+        ws.mkdir()
+        (ws / "hosts.yaml").write_text("")
         validator.workspace_id("my-workspace.v2")
 
     def test_path_traversal_blocked(self, validator: InputValidator):
@@ -67,7 +76,9 @@ class TestWorkspaceId:
 
     def test_max_length_id(self, tmp_path: Path, validator: InputValidator):
         long_id = "A" * 128
-        (tmp_path / long_id).mkdir()
+        ws = tmp_path / long_id
+        ws.mkdir()
+        (ws / "sap-parameters.yaml").write_text("")
         validator.workspace_id(long_id)
 
     def test_over_max_length_raises(self, validator: InputValidator):

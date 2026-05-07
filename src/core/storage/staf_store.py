@@ -5,7 +5,7 @@
 Unified SQLite store for all STAF application data.
 
 One connection, one ``sync()``, one ``close()``.  Domain stores
-are attributes: ``db.jobs``, ``db.schedules``, ``db.conversations``.
+are attributes: ``db.jobs``, ``db.schedules``, ``db.knowledge``.
 """
 
 from __future__ import annotations
@@ -41,7 +41,6 @@ class StafStore:
         self._schemas: list[str] = []
         self._jobs: Any = None
         self._schedules: Any = None
-        self._conversations: Any = None
         self._knowledge: Any = None
         self._knowledge_graph: Any = None
         self._embeddings: Any = None
@@ -100,11 +99,6 @@ class StafStore:
     def schedules(self) -> Any:
         """ScheduleStore instance."""
         return self._schedules
-
-    @property
-    def conversations(self) -> Any:
-        """ConversationStore instance."""
-        return self._conversations
 
     @property
     def knowledge(self) -> Any:

@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any
 from pytest_mock import MockerFixture
 import pytest
+from src.core.services.workspace_backend import FilesystemBackend
+from src.core.services.workspace_discovery import set_workspace_backend
 from mcp.server.fastmcp.exceptions import ToolError
 from src.core.models.knowledge import Rule
 from src.core.models.evidence import (
@@ -41,6 +43,7 @@ def tmp_workspaces(mocker: MockerFixture, tmp_path: Path) -> Path:
     ws.mkdir(parents=True)
     (ws / "sap-parameters.yaml").write_text("sap_sid: HA1\n")
     (ws / "hosts.yaml").write_text("all:\n  hosts:\n    node1:\n")
+    set_workspace_backend(FilesystemBackend(base_dir=str(base)))
     return base
 
 
@@ -604,6 +607,7 @@ class TestGetWorkspaceAttributes:
             "  vars:\n"
             "    node_tier: hana\n"
         )
+        set_workspace_backend(FilesystemBackend(base_dir=str(base)))
         return base
 
     @pytest.mark.asyncio
@@ -800,6 +804,7 @@ class TestRunEvidenceCollector:
         (empty_ws / "hosts.yaml").write_text("all:\n  hosts:\n")
 
         base = empty_ws.parent
+        set_workspace_backend(FilesystemBackend(base_dir=str(base)))
         sap_context.workspaces_base = base
         sap_context.validator = InputValidator(
             workspaces_base=base,
