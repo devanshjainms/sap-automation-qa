@@ -11,6 +11,8 @@ Workspace storage backends — filesystem and Azure Blob Storage.
 from __future__ import annotations
 import logging
 import os
+import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol
 import yaml
@@ -345,3 +347,62 @@ def create_workspace_backend() -> WorkspaceBackend:
     base_dir = os.environ.get("WORKSPACES_BASE", "WORKSPACES/SYSTEM")
     logger.info("Workspace backend: filesystem (%s)", base_dir)
     return FilesystemBackend(base_dir=base_dir)
+
+
+def create_workspace_config_loader(
+    backend_factory: Callable[[], "WorkspaceBackend"],
+) -> Callable[[str], Dict[str, Any]]:
+    """Create a workspace config loader that uses the active backend.
+
+    For filesystem backends the inventory path points directly at the
+    local ``hosts.yaml``.  For blob backends the files are downloaded
+    to a temporary directory so that Ansible can read them.
+
+    :param backend_factory: Callable returning the workspace backend.
+    :returns: A loader function ``(workspace_id) -> config dict``.
+    :rtype: Callable[[str], Dict[str, Any]]
+    """
+
+    def loader(workspace_id: str) -> Dict[str, Any]:
+        backend = backend_factory()
+
+        hosts_content = backend.read_file(workspace_id, "hosts.yaml")
+        if hosts_content is None:
+            return {}
+
+        params = backend.read_yaml(workspace_id, "sap-parameters.yaml")
+
+        if isinstance(backend, FilesystemBackend):
+            inventory_path = str(backend._base / workspace_id / "hosts.yaml")
+            cleanup_path = ""
+        else:
+            temp_dir = Path(
+                tempfile.mkdtemp(prefix=f"staf-ws-{workspace_id}-")
+            )
+            (temp_dir / "hosts.yaml").write_text(hosts_content, encoding="utf-8")
+            params_content = backend.read_file(
+                workspace_id, "sap-parameters.yaml"
+            )
+            if params_content:
+                (temp_dir / "sap-parameters.yaml").write_text(
+                    params_content, encoding="utf-8"
+                )
+            inventory_path = str(temp_dir / "hosts.yaml")
+            cleanup_path = str(temp_dir)
+
+        config: Dict[str, Any] = {"inventory_path": inventory_path}
+        if cleanup_path:
+            config["_cleanup_path"] = cleanup_path
+        config["sap_sid"] = params.get("sap_sid", "")
+        config["db_sid"] = params.get("db_sid", "")
+        config["database_high_availability"] = params.get(
+            "database_high_availability", False
+        )
+        config["scs_high_availability"] = params.get(
+            "scs_high_availability", False
+        )
+        config["extra_vars"] = params
+
+        return config
+
+    return loader

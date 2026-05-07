@@ -77,6 +77,7 @@ def _sap(
     """Minimal SapContext with only the fields resources need."""
     return SapContext(
         job_store=mocker.MagicMock(),
+        job_worker=mocker.MagicMock(),
         knowledge_store=knowledge_store,
         schedule_store=mocker.MagicMock(),
         scheduler_service=None,
@@ -84,7 +85,6 @@ def _sap(
         triage_executor=mocker.MagicMock(),
         triage_sessions=TtlDict(),
         workspaces_base=tmp_workspaces,
-        core_api_url="http://localhost:8000",
         ssh_provider=mocker.MagicMock(),
         ssh_cache=mocker.MagicMock(),
         validator=mocker.MagicMock(),

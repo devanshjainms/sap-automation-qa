@@ -1,13 +1,12 @@
 # Integrating STAF with Azure SRE Agent
 
-This document describes an alternative way to use STAF — through
+This document describes an alternative way to use SAP Testing Automation Framework — through
 [Azure SRE Agent](https://learn.microsoft.com/en-us/azure/sre-agent/) and the
-Model Context Protocol (MCP). This integration adds AI-driven triage,
+Model Context Protocol (MCP). This integration adds AI-driven troubleshooting,
 conversational test execution, and knowledge retrieval on top of STAF's
 existing capabilities.
 
-> **Note:** Direct execution from a management server using
-> `sap_automation_qa.sh` remains fully supported. See
+> **Note:** Direct execution from a management server remains fully supported. See
 > [SETUP.MD](SETUP.MD) for the standard deployment guide. The SRE Agent
 > integration described here is an additional deployment option that runs
 > the STAF MCP server as a containerized service in Azure.
@@ -25,18 +24,15 @@ the ability to:
 
 - **Discover SAP systems** — list configured workspaces with SID, topology,
   platform, and host details.
-- **Collect cluster evidence** — gather Pacemaker CIB, corosync ring status,
-  HANA SR attributes, SBD device state, and system logs via SSH.
 - **Analyze against SAP best practices** — evaluate collected evidence against
   400+ rules covering cluster properties, resource configuration, fencing,
   load balancer setup, and replication state.
 - **Execute HA functional tests** — run 15 HANA and 14 SCS test scenarios
   including resource migration, node crash, indexserver kill, network
   isolation, and filesystem freeze.
-- **Query SAP knowledge** — search rules, playbooks, and patterns learned
-  from previous investigations.
-- **Manage test schedules** — create, update, and trigger cron-based
-  recurring test executions.
+- **Collect cluster evidence** — gather Pacemaker CIB, corosync ring status,
+  HANA SR attributes, SBD device state, and system logs via SSH.
+- **Manage test schedules** — create, update, and trigger recurring test executions.
 
 The integration uses the **Streamable-HTTP** MCP transport with **Bearer token
 authentication**. STAF runs as a containerized service (Azure Container Apps)
@@ -47,16 +43,23 @@ identity for authentication.
 
 ## Prerequisites
 
-- Azure subscription with SRE Agent enabled (Administrator role)
+- Azure SRE Agent configured in Azure (using SRE Agent Administrator role)
+- Azure Key Vault for SAP environment SSH credentials
 - Azure Blob Storage account for workspace configurations
-- Azure Key Vault for SSH credentials
-- Azure Container Apps environment (or any host with a public HTTPS endpoint)
+- Azure Container Apps
+  - Azure Container Apps environment
+    - Should be added in SAP virtual network
+    - System-assigned or user-assigned managed identity with `Storage Blob Data Contributor` and 
+      `Key Vault Secrets User` roles to access Blob Storage and Key Vault secrets.
+  - Azure Container App for running the STAF MCP server
 
 ---
 
 ## Step 1. Configure Cloud Workspaces
 
-Each workspace represents one SAP landscape (SID) and consists of two files:
+Same as the classic execution using management server, [workspace](./SETUP.MD) represents a system
+which includes configuration files specific to your SAP system. Each workspace represents one SAP
+landscape (SID) and consists of two files:
 `hosts.yaml` (Ansible inventory with host IPs, SSH users, and node tiers) and
 `sap-parameters.yaml` (SAP system attributes including SID, platform, instance
 numbers, HA configuration, and topology).
@@ -67,7 +70,8 @@ Create a blob container (e.g. `workspaces`) in your storage account and upload
 workspace files via **Azure Portal → Storage Browser** (drag-and-drop) or CLI.
 
 If you already have workspaces configured on a management server, you can
-upload the existing `WORKSPACES/SYSTEM` directory as-is:
+upload the existing `WORKSPACES/SYSTEM` directory as-is. Ensure the *Storage Blob Data Contributor*
+role assignement exists for the managed identity of the Management server to access the blob storage.
 
 ```bash
 az storage blob upload-batch -s ./WORKSPACES/SYSTEM -d workspaces \
@@ -78,9 +82,12 @@ Expected blob structure:
 
 ```
 workspaces/
-├── DEV-HANA-01/hosts.yaml
-├── DEV-HANA-01/sap-parameters.yaml
-└── PROD-SCS-01/hosts.yaml
+├── DEV-HANA-01
+    ├── hosts.yaml
+    └── sap-parameters.yaml
+└── PROD-SCS-01
+    ├── hosts.yaml
+    └── sap-parameters.yaml
 ```
 
 ### SSH Credentials

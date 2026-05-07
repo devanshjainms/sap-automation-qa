@@ -7,7 +7,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import Any
-import httpx
 from mcp.server.fastmcp import Context
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.session import ServerSession
@@ -188,14 +187,9 @@ async def cancel_job(
     """Cancel a running STAF job via cancellation signal."""
     sap = get_sap_context(ctx)
 
-    async with httpx.AsyncClient(base_url=sap.core_api_url, timeout=30.0) as client:
-        resp = await client.post(
-            f"/api/v1/jobs/{job_id}/cancel",
-            json={"reason": reason},
-        )
-        if resp.status_code == 404:
-            raise ToolError(f"Job {job_id} not found or not running")
-        resp.raise_for_status()
+    success = await sap.job_worker.cancel_job(job_id, reason or "Cancelled by user")
+    if not success:
+        raise ToolError(f"Job {job_id} not found or not running")
 
     return {"status": "cancelled", "job_id": job_id}
 

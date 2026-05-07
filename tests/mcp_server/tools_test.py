@@ -112,6 +112,7 @@ def sap_context(
     )
     return SapContext(
         job_store=mock_job_store,
+        job_worker=mocker.MagicMock(),
         knowledge_store=mock_knowledge_store,
         schedule_store=mocker.MagicMock(),
         scheduler_service=None,
@@ -119,7 +120,6 @@ def sap_context(
         triage_executor=mocker.MagicMock(),
         triage_sessions=triage_sessions,
         workspaces_base=tmp_workspaces,
-        core_api_url="http://localhost:8000",
         ssh_provider=mocker.MagicMock(),
         ssh_cache=mock_ssh_cache,
         validator=validator,
@@ -149,19 +149,11 @@ class TestRunStafTest:
     ):
         from src.mcp_server.tools.staf import run_staf_test
 
-        mock_response = mocker.MagicMock()
-        mock_response.json.return_value = {
-            "id": "job-123",
-            "status": "submitted",
-        }
-        mock_response.raise_for_status = mocker.MagicMock()
+        mock_job = mocker.MagicMock()
+        mock_job.id = "job-123"
+        mock_job.status = "pending"
+        sap_context.job_worker.submit_job = mocker.AsyncMock(return_value=mock_job)
 
-        mock_client = mocker.AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = mocker.AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = mocker.AsyncMock(return_value=False)
-
-        mocker.patch("httpx.AsyncClient", return_value=mock_client)
         result = await run_staf_test(
             workspace_id="WS_A",
             test_group="ConfigurationChecks",
@@ -171,24 +163,19 @@ class TestRunStafTest:
         assert result["job_id"] == "job-123"
         assert result["workspace_id"] == "WS_A"
         assert result["test_group"] == "ConfigurationChecks"
-        assert result["status"] == "submitted"
+        assert result["status"] == "pending"
 
     @pytest.mark.asyncio
-    async def test_passes_test_ids_in_payload(
+    async def test_passes_test_ids_to_job(
         self, mocker: MockerFixture, sap_context: SapContext, ctx
     ):
         from src.mcp_server.tools.staf import run_staf_test
 
-        mock_response = mocker.MagicMock()
-        mock_response.json.return_value = {"id": "job-456", "status": "submitted"}
-        mock_response.raise_for_status = mocker.MagicMock()
+        mock_job = mocker.MagicMock()
+        mock_job.id = "job-456"
+        mock_job.status = "pending"
+        sap_context.job_worker.submit_job = mocker.AsyncMock(return_value=mock_job)
 
-        mock_client = mocker.AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = mocker.AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = mocker.AsyncMock(return_value=False)
-
-        mocker.patch("httpx.AsyncClient", return_value=mock_client)
         await run_staf_test(
             workspace_id="WS_A",
             test_group="DatabaseHighAvailability",
@@ -196,82 +183,41 @@ class TestRunStafTest:
             ctx=ctx,
         )
 
-        payload = mock_client.post.call_args
-        body = payload.kwargs.get("json") or payload[1].get("json")
-        assert body["test_ids"] == ["ha-config", "azure-lb"]
+        submitted_job = sap_context.job_worker.submit_job.call_args[0][0]
+        assert submitted_job.test_ids == ["ha-config", "azure-lb"]
 
     @pytest.mark.asyncio
-    async def test_handles_job_id_key_fallback(
+    async def test_invalid_test_group_raises(
         self, mocker: MockerFixture, sap_context: SapContext, ctx
     ):
         from src.mcp_server.tools.staf import run_staf_test
 
-        mock_response = mocker.MagicMock()
-        mock_response.json.return_value = {"job_id": "job-789", "status": "queued"}
-        mock_response.raise_for_status = mocker.MagicMock()
-
-        mock_client = mocker.AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = mocker.AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = mocker.AsyncMock(return_value=False)
-
-        mocker.patch("httpx.AsyncClient", return_value=mock_client)
-        result = await run_staf_test(
-            workspace_id="WS_A",
-            test_group="ConfigurationChecks",
-            ctx=ctx,
-        )
-
-        assert result["job_id"] == "job-789"
+        with pytest.raises(ToolError, match="Unknown test_group"):
+            await run_staf_test(
+                workspace_id="WS_A",
+                test_group="NonExistentGroup",
+                ctx=ctx,
+            )
 
     @pytest.mark.asyncio
-    async def test_http_error_propagates(self, mocker: MockerFixture, sap_context: SapContext, ctx):
-        import httpx
+    async def test_worker_error_propagates(
+        self, mocker: MockerFixture, sap_context: SapContext, ctx
+    ):
         from src.mcp_server.tools.staf import run_staf_test
+        from src.core.execution.exceptions import WorkspaceLockError
 
-        mock_response = mocker.MagicMock()
-        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "Server Error",
-            request=mocker.MagicMock(),
-            response=mocker.MagicMock(status_code=500),
+        sap_context.job_worker.submit_job = mocker.AsyncMock(
+            side_effect=WorkspaceLockError(
+                workspace_id="WS_A", active_job_id="existing-job"
+            )
         )
 
-        mock_client = mocker.AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = mocker.AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = mocker.AsyncMock(return_value=False)
-
-        mocker.patch("httpx.AsyncClient", return_value=mock_client)
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(WorkspaceLockError):
             await run_staf_test(
                 workspace_id="WS_A",
                 test_group="ConfigurationChecks",
                 ctx=ctx,
             )
-
-    @pytest.mark.asyncio
-    async def test_uses_core_api_url(self, mocker: MockerFixture, sap_context: SapContext, ctx):
-        from src.mcp_server.tools.staf import run_staf_test
-
-        sap_context.core_api_url = "http://custom:9999"
-
-        mock_response = mocker.MagicMock()
-        mock_response.json.return_value = {"id": "j1", "status": "submitted"}
-        mock_response.raise_for_status = mocker.MagicMock()
-
-        mock_client = mocker.AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client.__aenter__ = mocker.AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = mocker.AsyncMock(return_value=False)
-
-        ctor = mocker.patch("httpx.AsyncClient", return_value=mock_client)
-        await run_staf_test(
-            workspace_id="WS_A",
-            test_group="ConfigurationChecks",
-            ctx=ctx,
-        )
-
-        ctor.assert_called_once_with(base_url="http://custom:9999", timeout=30.0)
 
 
 class TestRunAnalysis:

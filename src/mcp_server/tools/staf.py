@@ -6,10 +6,12 @@
 from __future__ import annotations
 import logging
 from typing import Any
-import httpx
 from mcp.server.fastmcp import Context
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.session import ServerSession
 from mcp.types import ToolAnnotations
+from src.core.models.job import Job
+from src.core.execution.executor import TEST_GROUP_PLAYBOOKS
 from src.mcp_server.server import SapContext, mcp
 from src.mcp_server.tools._helpers import get_sap_context, tool_info, ICON_PLAY
 
@@ -45,21 +47,22 @@ async def run_staf_test(
 
     await tool_info(ctx, f"Submitting STAF test: {test_group} on {workspace_id}")
 
-    payload: dict[str, Any] = {
-        "workspace_id": workspace_id,
-        "test_group": test_group,
-    }
-    if test_ids:
-        payload["test_ids"] = test_ids
+    sap.validator.workspace_id(workspace_id)
 
-    async with httpx.AsyncClient(base_url=sap.core_api_url, timeout=30.0) as client:
-        resp = await client.post("/api/v1/jobs", json=payload)
-        resp.raise_for_status()
-        job_data = resp.json()
+    if test_group not in TEST_GROUP_PLAYBOOKS:
+        valid = sorted(TEST_GROUP_PLAYBOOKS)
+        raise ToolError(f"Unknown test_group '{test_group}'. Valid: {valid}")
+
+    job = Job(
+        workspace_id=workspace_id,
+        test_group=test_group,
+        test_ids=test_ids or [],
+    )
+    submitted = await sap.job_worker.submit_job(job)
 
     return {
-        "job_id": job_data.get("id", job_data.get("job_id", "")),
+        "job_id": str(submitted.id),
         "workspace_id": workspace_id,
         "test_group": test_group,
-        "status": job_data.get("status", "submitted"),
+        "status": submitted.status,
     }

@@ -119,6 +119,7 @@ def sap_context(
     )
     return SapContext(
         job_store=mock_job_store,
+        job_worker=mocker.MagicMock(),
         knowledge_store=mock_knowledge_store,
         schedule_store=mocker.MagicMock(),
         scheduler_service=None,
@@ -126,7 +127,6 @@ def sap_context(
         triage_executor=triage_executor,
         triage_sessions=triage_sessions,
         workspaces_base=tmp_workspaces,
-        core_api_url="http://localhost:8000",
         ssh_provider=ssh_provider,
         ssh_cache=mock_ssh_cache,
         validator=validator,

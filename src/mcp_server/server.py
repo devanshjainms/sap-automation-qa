@@ -8,6 +8,8 @@ SAP STAF MCP server — built on the official MCP Python SDK.
 from __future__ import annotations
 import logging
 import os
+import tempfile
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -24,11 +26,15 @@ from src.core.execution.evidence_collector import EvidenceCollector
 from src.core.execution.ssh_provider import SshCredentialProvider
 from src.core.execution.ssh_cache import SshCredentialCache
 from src.core.execution.triage_executor import ArtifactWriter, TriageExecutor
+from src.core.execution.worker import JobWorker
+from src.core.execution.executor import AnsibleExecutor
 from src.core.knowledge.learning import LearningPipeline
 from src.core.knowledge.loader import JsonlLoader
 from src.core.knowledge.retrieval import HybridRetriever
 from src.core.models.embedding import EmbeddingProvider
 from src.core.models.knowledge import EvidenceCollectorDef
+from src.core.services.workspace_backend import create_workspace_config_loader
+from src.core.services.workspace_discovery import get_workspace_backend
 from src.mcp_server.ttl_dict import TtlDict
 from src.core.services.scheduler import SchedulerService
 from src.core.storage.staf_store import StafStore
@@ -96,8 +102,6 @@ def _sync_embed_seed_knowledge(
             break
         except Exception:
             if attempt < max_retries:
-                import time
-
                 logger.info(
                     "Seed embedding attempt %d/%d failed, retrying in %ds...",
                     attempt,
@@ -121,7 +125,7 @@ def _sync_embed_seed_knowledge(
 MCP_HOST = os.environ.get("MCP_HOST", "0.0.0.0")
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 WORKSPACES_BASE = Path(os.environ.get("WORKSPACES_BASE", "WORKSPACES/SYSTEM"))
-CORE_API_URL = os.environ.get("CORE_API_URL", "http://localhost:8000")
+PLAYBOOK_DIR = Path(os.environ.get("PLAYBOOK_DIR", "src"))
 SEED_DIR = Path(
     os.environ.get(
         "KNOWLEDGE_SEED_DIR",
@@ -138,6 +142,7 @@ class SapContext:
     """
 
     job_store: JobStore
+    job_worker: JobWorker
     knowledge_store: KnowledgeStore
     schedule_store: ScheduleStore
     scheduler_service: SchedulerService | None
@@ -145,7 +150,6 @@ class SapContext:
     triage_executor: TriageExecutor
     triage_sessions: TtlDict
     workspaces_base: Path
-    core_api_url: str
     ssh_provider: SshCredentialProvider
     ssh_cache: SshCredentialCache
     validator: InputValidator
@@ -271,8 +275,19 @@ def _init_shared_context() -> SapContext:
 
     ssh_provider = SshCredentialProvider(workspaces_base=WORKSPACES_BASE)
 
+    executor = AnsibleExecutor(playbook_dir=PLAYBOOK_DIR)
+    workspace_config_loader = create_workspace_config_loader(get_workspace_backend)
+    job_worker = JobWorker(
+        job_store=job_store,
+        executor=executor,
+        workspace_config_loader=workspace_config_loader,
+        workspaces_base=WORKSPACES_BASE,
+        ssh_provider=ssh_provider,
+    )
+
     ctx = SapContext(
         job_store=job_store,
+        job_worker=job_worker,
         knowledge_store=knowledge_store,
         schedule_store=schedule_store,
         scheduler_service=None,
@@ -283,7 +298,6 @@ def _init_shared_context() -> SapContext:
         ),
         triage_sessions=triage_sessions,
         workspaces_base=WORKSPACES_BASE,
-        core_api_url=CORE_API_URL,
         ssh_provider=ssh_provider,
         ssh_cache=SshCredentialCache(ssh_provider),
         validator=InputValidator(
