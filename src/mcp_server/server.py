@@ -339,8 +339,8 @@ mcp = FastMCP(
         "Use list_workspaces to discover available SAP systems."
     ),
     lifespan=sap_lifespan,
-    stateless_http=True,
-    json_response=True,
+    stateless_http=False,
+    json_response=False,
     host=MCP_HOST,
     port=MCP_PORT,
 )
