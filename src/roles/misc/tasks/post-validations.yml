@@ -9,7 +9,6 @@
 
 - name:                                 "Read var log messages by importing role"
   ansible.builtin.include_tasks:        "roles/misc/tasks/var-log-messages.yml"
-  failed_when:                          false
 
 - name:                                 "Determine cluster node roles"
   ansible.builtin.set_fact:
@@ -49,7 +48,7 @@
       ansible.builtin.set_fact:
         test_case_name:                 "{{ item.name }}: {{ test_execution_hostname | default(virtual_host | default(inventory_hostname)) }}"
         test_case_description:          "{{ item.description }}"
-        test_case_status:               "{{ 'SKIPPED' if (pre_validations_status | default('PASSED')) == 'FAILED' else (test_execution_status | default('FAILED')) }}"
+        test_case_status:               "{{ 'FAILED' if (test_case_status | default('')) == 'FAILED' else ('SKIPPED' if (pre_validations_status | default('PASSED')) == 'FAILED' else (test_execution_status | default('FAILED'))) }}"
         test_execution_start_time:      "{{ test_execution_start | default(now(utc=true, fmt='%Y-%m-%d %H:%M:%S')) }}"
         test_case_hostname:             "{{ virtual_host | default(inventory_hostname) }}"
         test_execution_end_time:        "{{ test_execution_end | default(now(utc=true, fmt='%Y-%m-%d %H:%M:%S')) }}"
@@ -60,7 +59,6 @@
     - name:                             "Post Telemetry Data"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-telemetry-data.yml"
       tags:                             [telemetry]
-      failed_when:                      false
 
 - name:                                 "Clear the failed state of hosts"
   ansible.builtin.meta:                 clear_host_errors
