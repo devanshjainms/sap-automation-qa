@@ -145,17 +145,18 @@
                                         "Post Validations: Validate HANA DB cluster status": "{{ cluster_status_post }}",
                                         }
 
+  rescue:
+    - name:                             "Rescue operation"
+      ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
+      tags:                             [cleanup]
+
+  always:
     # /*---------------------------------------------------------------------------
     # |                          Post Validations                                 |
     # +--------------------------------------------------------------------------*/
     - name:                             "Post Validations Tasks"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]
-
-  rescue:
-    - name:                             "Rescue operation"
-      ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
-      tags:                             [cleanup]
 
 - name:                                 "Pre Validations: Test Case Skipped"
   become:                               true

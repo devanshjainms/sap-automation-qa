@@ -213,10 +213,6 @@
                                         "Post Validations: Validate HANA DB cluster status": "{{ cluster_status_post }}",
                                         }
 
-    - name:                             "Post Validations Tasks"
-      ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
-      tags:                             [post-validation]
-
   rescue:
     - name:                             "Rescue: Remove iptables rule blocking /hana/shared NFS"
       become:                           true
@@ -244,6 +240,11 @@
     - name:                             "Rescue operation"
       ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
       tags:                             [cleanup]
+
+  always:
+    - name:                             "Post Validations Tasks"
+      ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
+      tags:                             [post-validation]
 
 - name:                                 "Pre Validations: Test Case Skipped"
   become:                               true
