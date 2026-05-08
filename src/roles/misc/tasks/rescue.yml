@@ -7,7 +7,7 @@
 
 - name:                                 "Read var log messages by importing role"
   ansible.builtin.include_tasks:        "roles/misc/tasks/var-log-messages.yml"
-  ignore_errors:                        true
+  failed_when:                          false
 
 - name:                                 "Post Validations: HA cluster status after test execution"
   block:
@@ -45,7 +45,7 @@
           - "{{ hostvars[first_node]['var_log_messages_output'].filtered_logs | default('[]') if first_node in hostvars else '[]' }}"
           - "{{ hostvars[second_node]['var_log_messages_output'].filtered_logs | default('[]') if second_node in hostvars else '[]' }}"
       register:                         merged_logs_output
-      ignore_errors:                    true
+      failed_when:                      false
 
     - name:                           "Set combined logs variable"
       ansible.builtin.set_fact:

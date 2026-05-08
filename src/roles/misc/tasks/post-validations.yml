@@ -9,7 +9,7 @@
 
 - name:                                 "Read var log messages by importing role"
   ansible.builtin.include_tasks:        "roles/misc/tasks/var-log-messages.yml"
-  ignore_errors:                        true
+  failed_when:                          false
 
 - name:                                 "Determine cluster node roles"
   ansible.builtin.set_fact:
@@ -38,7 +38,7 @@
           - "{{ hostvars[primary_node]['var_log_messages_output'].filtered_logs | default('[]') if primary_node else '[]' }}"
           - "{{ hostvars[secondary_node]['var_log_messages_output'].filtered_logs | default('[]') if secondary_node else '[]' }}"
       register:                         merged_logs_output
-      ignore_errors:                    true
+      failed_when:                      false
 
     - name:                             "Set combined logs variable"
       ansible.builtin.set_fact:
@@ -60,7 +60,7 @@
     - name:                             "Post Telemetry Data"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-telemetry-data.yml"
       tags:                             [telemetry]
-      ignore_errors:                    true
+      failed_when:                      false
 
 - name:                                 "Clear the failed state of hosts"
   ansible.builtin.meta:                 clear_host_errors
