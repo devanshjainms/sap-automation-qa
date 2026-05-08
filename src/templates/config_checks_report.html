@@ -1745,14 +1745,35 @@
     function copyExecutionLog(button) {
       const container = button.closest('.execution-log-container')
       const pre = container.querySelector('.execution-log-content pre')
-      navigator.clipboard.writeText(pre.textContent).then(() => {
+      const text = pre.textContent
+
+      function onSuccess() {
         button.classList.add('copied')
         button.querySelector('span').textContent = 'Copied!'
         setTimeout(() => {
           button.classList.remove('copied')
           button.querySelector('span').textContent = 'Copy'
         }, 2000)
-      })
+      }
+
+      function onError() {
+        button.querySelector('span').textContent = 'Copy failed'
+        setTimeout(() => { button.querySelector('span').textContent = 'Copy' }, 2000)
+      }
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(onError)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = text
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        try { document.execCommand('copy'); onSuccess() }
+        catch (e) { onError() }
+        finally { document.body.removeChild(textarea) }
+      }
     }
   </script>
 </body>

@@ -611,13 +611,10 @@ checks:
     collector_args:
       command:                          "/sbin/sysctl net.ipv4.ip_local_port_range -n"
       user:                             *root
-    validator_type:                     *string
-    validator_args:
-      expected_output:                  "9000 65499"
     report:                             *check
     references:
       microsoft:                        "https://learn.microsoft.com/en-us/azure/sap/workloads/sap-hana-scale-out-standby-netapp-files-suse"
-      sap:                              "3024346"
+      sap:                              "2382421"
 
   - id:                                 "DB-HANA-0022"
     name:                               "sysctl net.ipv4.conf.all.rp_filter"

@@ -175,6 +175,22 @@ cluster_status:
         secondary:
             description: Attributes of the secondary node (scale-up) or dict of nodes (scale-out)
             type: dict
+worker_node_scores_valid:
+    description: Whether all worker node scores match expected values (scale-out HSR only)
+    returned: when hana_topology is scale_out_hsr
+    type: bool
+    sample: true
+worker_node_score_details:
+    description: Per-worker-node score validation details (scale-out HSR only)
+    returned: when hana_topology is scale_out_hsr
+    type: list
+    elements: dict
+    sample:
+        - node: "hanadb2"
+          site_role: "primary"
+          actual_score: "150"
+          expected_score: "150"
+          valid: true
 """
 
 
@@ -268,7 +284,7 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
         )
         angi_score_attr = (
             f"master-{self.hana_primitive_resource_name}"
-            if self.hana_clone_resource_name
+            if self.hana_primitive_resource_name
             else "master-rsc_SAPHanaCon_"
             + f"{self.database_sid.upper()}"
             + f"_HDB{self.db_instance_number}"
@@ -532,6 +548,21 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
 
             score = attrs.get(score_attr, "")
             if not score:
+                result["worker_node_score_details"].append(
+                    {
+                        "node": node_name,
+                        "site_role": site_role,
+                        "actual_score": "missing",
+                        "expected_score": expected_score,
+                        "valid": False,
+                    }
+                )
+                result["worker_node_scores_valid"] = False
+                self.log(
+                    logging.WARNING,
+                    f"Worker node {node_name} on {site_role} site has "
+                    f"no score attribute '{score_attr}'",
+                )
                 continue
 
             is_valid = score == expected_score
