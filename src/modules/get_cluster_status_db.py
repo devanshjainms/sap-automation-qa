@@ -467,9 +467,7 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
             if site == primary_site:
                 result["primary_site_nodes"] = node_names
                 result["cluster_status"]["primary"] = node_attrs
-                self._validate_worker_scores(
-                    nodes, provider_config, "primary", result
-                )
+                self._validate_worker_scores(nodes, provider_config, "primary", result)
             else:
                 result["secondary_site_name"] = site
                 result["secondary_site_nodes"] = node_names
@@ -486,9 +484,7 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
                     ):
                         result["secondary_node"] = node_name
                         break
-                self._validate_worker_scores(
-                    nodes, provider_config, "secondary", result
-                )
+                self._validate_worker_scores(nodes, provider_config, "secondary", result)
 
         if majority_maker_candidates:
             result["majority_maker_node"] = majority_maker_candidates[0]
