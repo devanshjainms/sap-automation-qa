@@ -21,7 +21,7 @@
     test_execution_status:              ""
     test_execution_hostname:            ""
     test_case_message_from_test_case:   ""
-    test_case_details_from_test_case:   ""
+    test_case_details_from_test_case:   []
 
 - name:                                 "Ensure test_case_invocation_id is available on all nodes"
   ansible.builtin.set_fact:
