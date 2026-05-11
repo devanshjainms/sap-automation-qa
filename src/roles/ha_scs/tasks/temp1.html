@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    
+    
+      
+    
+    <title>SAP High Availability QA Results</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --primary-color: #0078d7;
+        --primary-gradient: linear-gradient(135deg, #0078d7 0%, #005a9e 100%);
+        --success-color: #107c10;
+        --success-gradient: linear-gradient(135deg, #107c10 0%, #0e6b0e 100%);
+        --error-color: #d13438;
+        --error-gradient: linear-gradient(135deg, #d13438 0%, #a72b2e 100%);
+        --warning-color: #ff8c00;
+        --warning-gradient: linear-gradient(135deg, #ff8c00 0%, #e67e00 100%);
+        --info-color: #0078d7;
+        --bg-light: #f3f2f1;
+        --bg-pattern: radial-gradient(circle at 20% 50%, rgba(0, 120, 215, 0.05) 0%, transparent 50%),
+                       radial-gradient(circle at 80% 80%, rgba(0, 90, 158, 0.05) 0%, transparent 50%),
+                       repeating-linear-gradient(0deg, rgba(0, 120, 215, 0.03) 0px, transparent 1px, transparent 40px, rgba(0, 120, 215, 0.03) 41px),
+                       repeating-linear-gradient(90deg, rgba(0, 120, 215, 0.03) 0px, transparent 1px, transparent 40px, rgba(0, 120, 215, 0.03) 41px);
+        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+        --radius-sm: 8px;
+        --radius-md: 16px;
+        --radius-lg: 24px;
+        --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      }
+
+      /* Base Styles */
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        overflow-x: hidden;
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        background: var(--bg-light);
+        background-image: var(--bg-pattern);
+        background-attachment: fixed;
+      }
+
+      /* Animations */
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes shimmer {
+        0% { left: -100%; }
+        100% { left: 100%; }
+      }
+
+      @keyframes countUp {
+        from { opacity: 0; transform: scale(0.5); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      @keyframes scaleIn {
+        from { opacity: 0; transform: scale(0.9); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      @keyframes slideDown {
+        from { opacity: 0; max-height: 0; transform: translateY(-10px); }
+        to { opacity: 1; max-height: 5000px; transform: translateY(0); }
+      }
+
+      @keyframes gradientShift {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+      }
+
+      /* Layout Components */
+      .navbar {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 24px;
+        background: var(--primary-gradient);
+        color: #ffffff;
+        transition: var(--transition);
+        font-size: 24px;
+        font-weight: 700;
+        width: 100%;
+        max-width: 100vw;
+        box-shadow: var(--shadow-lg);
+        letter-spacing: -0.5px;
+        position: relative;
+        overflow: hidden;
+        animation: fadeInDown 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .navbar::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        animation: shimmer 30s infinite;
+      }
+
+      .main-content {
+        flex: 1;
+        padding: 32px 20px;
+      }
+
+      .navbar .system-id {
+        font-weight: bold;
+      }
+
+      .container {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(auto, 1400px) minmax(0, 1fr);
+        gap: 20px;
+      }
+
+      .left-bar {
+        grid-column: 2;
+        padding: 20px;
+      }
+
+      /* System Info Styles */
+      .system-info-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        padding: 16px;
+        margin-bottom: 24px;
+        position: relative;
+        transition: var(--transition);
+        border: 1px solid rgba(0, 120, 215, 0.1);
+        animation: fadeInUp 0.6s ease-out;
+      }
+
+      .system-info-container:hover {
+        box-shadow: 0 20px 40px -10px rgba(0, 120, 215, 0.2), 0 0 0 1px rgba(0, 120, 215, 0.1);
+        transform: translateY(-4px);
+        border-color: rgba(0, 120, 215, 0.3);
+      }
+
+      .system-info-heading {
+        width: 100%;
+        text-align: left;
+        margin-bottom: 20px;
+      }
+
+      .system-info-columns {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .system-info-column {
+        width: 30%;
+        position: relative;
+        flex-direction: column;
+        display: flex;
+        align-items: flex-start;
+      }
+
+      .system-info-container h2 {
+        color: #64748b;
+        margin-bottom: 24px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .system-info-container p {
+        color: #475569;
+        margin-bottom: 12px;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .system-info p strong {
+        color: #1e293b;
+        font-weight: 600;
+      }
+
+      /* Summary Box Styles */
+      .summary-box {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 20px;
+        margin-bottom: 24px;
+      }
+
+      .status-count {
+        padding: 10px 10px;
+        border-radius: var(--radius-md);
+        text-align: center;
+        transition: var(--transition-bounce);
+        border: 2px solid;
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+        background: white;
+        animation: scaleIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) backwards;
+      }
+
+      .status-count::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: 0;
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s, opacity 0.6s;
+      }
+
+      .status-count:hover::after {
+        width: 300px;
+        height: 300px;
+        opacity: 0.1;
+      }
+
+      .status-count:hover {
+        transform: translateY(-8px) scale(1.05);
+        box-shadow: 0 12px 24px -8px currentColor;
+        opacity: 0.9;
+        border-width: 3px;
+      }
+
+      .status-count.active {
+        background: currentColor;
+        transform: scale(1.08);
+        box-shadow: 0 16px 32px -12px currentColor;
+        border-width: 3px;
+      }
+
+      .status-count.active h3,
+      .status-count.active p {
+        color: white;
+      }
+
+      .status-count h3 {
+        margin: 0 0 8px 0;
+        font-size: 24px;
+        font-weight: 600;
+        animation: countUp 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) backwards;
+      }
+
+      .status-count p {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.8;
+      }
+
+      .status-count.passed { border-color: var(--success-color); color: var(--success-color); }
+      .status-count.failed { border-color: var(--error-color); color: var(--error-color); }
+      .status-count.warning { border-color: var(--warning-color); color: var(--warning-color); }
+      .status-count:nth-child(1) { animation-delay: 0s; }
+      .status-count:nth-child(2) { animation-delay: 0.1s; }
+      .status-count:nth-child(3) { animation-delay: 0.2s; }
+
+      /* Test Case Styles */
+      .test-cases-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        padding: 32px;
+        margin-bottom: 24px;
+        transition: var(--transition);
+        border: 1px solid rgba(0, 120, 215, 0.1);
+        animation: fadeInUp 0.8s ease-out;
+      }
+
+      .test-cases-container:hover {
+        box-shadow: 0 20px 40px -10px rgba(0, 120, 215, 0.2), 0 0 0 1px rgba(0, 120, 215, 0.1);
+      }
+
+      .test-cases-container h2 {
+        color: #64748b;
+        margin-bottom: 24px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .test-case {
+        margin-bottom: 12px;
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+        transition: var(--transition);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .test-case:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-2px);
+      }
+
+      .test-case .title {
+        cursor: pointer;
+        padding: 10px 12px;
+        transition: var(--transition);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+      }
+
+      .test-case .title .name {
+        display: inline-block;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .test-case .title .duration {
+        display: inline-block;
+        font-size: 13px;
+        font-weight: 500;
+        opacity: 0.9;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 4px 12px;
+        border-radius: 12px;
+      }
+
+      .test-case.failed .title {
+        background: var(--error-gradient);
+        color: white;
+      }
+
+      .test-case.passed .title {
+        background: var(--success-gradient);
+        color: white;
+      }
+
+      .test-case.warning .title {
+        background: var(--warning-gradient);
+        color: white;
+      }
+
+      .test-case .title:hover {
+        filter: brightness(1.1);
+      }
+
+      /* Details Table Styles */
+      .test-case .details {
+        display: none;
+        padding: 0;
+        border: 1px solid #e2e8f0;
+        border-top: none;
+        border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+        font-size: 14px;
+        background: white;
+        animation: slideDown 0.3s ease-out;
+      }
+
+      .details {
+        table-layout: fixed;
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .details th {
+        width: 160px;
+        min-width: 120px;
+      }
+
+      .details th,
+      .details td {
+        padding: 14px 20px;
+        text-align: left;
+        word-wrap: break-word;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        vertical-align: top;
+        border-bottom: 1px solid #e2e8f0;
+      }
+
+      .details th {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        color: #475569;
+        font-weight: 700;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        width: 180px;
+      }
+
+      .details td {
+        color: #334155;
+        font-size: 14px;
+        line-height: 1.6;
+        overflow: hidden;
+      }
+
+      .details tr:hover {
+        background: rgba(0, 120, 215, 0.03);
+      }
+
+      .test-message {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+
+      /* Collapsible SAP Logs */
+      .sap-logs-collapsible {
+        border-radius: var(--radius-sm);
+      }
+
+      .sap-logs-collapsible summary {
+        cursor: pointer;
+        padding: 8px 12px;
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--primary-color);
+        background: rgba(0, 120, 215, 0.05);
+        border-radius: var(--radius-sm);
+        list-style: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: var(--transition);
+      }
+
+      .sap-logs-collapsible summary:hover {
+        background: rgba(0, 120, 215, 0.1);
+      }
+
+      .sap-logs-collapsible summary::before {
+        content: '\25B6';
+        font-size: 10px;
+        transition: transform 0.2s ease;
+      }
+
+      .sap-logs-collapsible[open] summary::before {
+        transform: rotate(90deg);
+      }
+
+      .sap-logs-collapsible summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .sap-logs-content {
+        margin-top: 8px;
+      }
+
+      /* Cluster & Package Table Styles */
+      .cluster-table,
+      .package-table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        margin: 8px 0;
+        border-radius: var(--radius-sm);
+        box-shadow: var(--shadow-sm);
+      }
+
+      /* Column widths for the 6-column cluster table */
+      .cluster-table col.col-category  { width: 18%; }
+      .cluster-table col.col-type      { width: 18%; }
+      .cluster-table col.col-name      { width: 18%; }
+      .cluster-table col.col-value     { width: 18%; }
+      .cluster-table col.col-expected  { width: 18%; }
+      .cluster-table col.col-status    { width: 10%; }
+
+      .cluster-table th,
+      .package-table th {
+        background: linear-gradient(135deg, #334155 0%, #475569 100%);
+        color: white;
+        padding: 10px 10px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        word-wrap: break-word;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+
+      .cluster-table td,
+      .package-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 12px;
+        color: #475569;
+        word-wrap: break-word;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+
+      .cluster-table tbody tr,
+      .package-table tbody tr {
+        transition: var(--transition);
+        background: white;
+      }
+
+      .cluster-table tbody tr:nth-child(even),
+      .package-table tbody tr:nth-child(even) {
+        background: #f8fafc;
+      }
+
+      .cluster-table tbody tr:hover,
+      .package-table tbody tr:hover {
+        background: linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
+      }
+
+      /* Pre / Code Blocks */
+      pre {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        color: #e2e8f0;
+        padding: 16px;
+        border-radius: var(--radius-sm);
+        overflow-x: auto;
+        margin: 8px 0;
+        font-family: 'Fira Code', 'Consolas', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        box-shadow: var(--shadow-md);
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        word-break: break-word;
+      }
+
+      /* Status Badge Styles */
+      .status-passed { color: var(--success-color); font-weight: 700; background-color: rgba(16, 124, 16, 0.1); padding: 4px 8px; border-radius: 4px; }
+      .status-failed { color: var(--error-color); font-weight: 700; background-color: rgba(209, 52, 56, 0.1); padding: 4px 8px; border-radius: 4px; }
+      .status-warning { color: var(--warning-color); font-weight: 700; background-color: rgba(255, 140, 0, 0.1); padding: 4px 8px; border-radius: 4px; }
+      .status-info { color: var(--info-color); font-weight: 700; background-color: rgba(0, 120, 215, 0.1); padding: 4px 8px; border-radius: 4px; }
+
+      /* Execution Log Styles */
+      .execution-log-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        padding: 32px;
+        margin-bottom: 24px;
+        transition: var(--transition);
+        border: 1px solid rgba(0, 120, 215, 0.1);
+        animation: fadeInUp 0.8s ease-out;
+      }
+
+      .execution-log-container:hover {
+        box-shadow: 0 20px 40px -10px rgba(0, 120, 215, 0.2), 0 0 0 1px rgba(0, 120, 215, 0.1);
+      }
+
+      .execution-log-container h2 {
+        color: #64748b;
+        margin-bottom: 24px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        background: var(--primary-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .execution-log-toggle {
+        cursor: pointer;
+        user-select: none;
+        background: #ffffff;
+        border: 1px solid #e1dfdd;
+        border-radius: var(--radius-sm);
+        padding: 14px 20px;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--primary-color);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: var(--transition);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .execution-log-toggle:hover {
+        background: #f3f2f1;
+        box-shadow: var(--shadow-md);
+      }
+
+      .execution-log-toggle .arrow {
+        transition: transform 0.3s ease;
+        font-size: 12px;
+      }
+
+      .execution-log-toggle.open .arrow {
+        transform: rotate(90deg);
+      }
+
+      .execution-log-content {
+        display: none;
+        margin-top: 8px;
+        background: #1e1e1e;
+        border-radius: var(--radius-sm);
+        padding: 20px;
+        overflow-x: auto;
+        max-height: 600px;
+        overflow-y: auto;
+        box-shadow: var(--shadow-md);
+      }
+
+      .execution-log-content pre {
+        margin: 0;
+        font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        color: #d4d4d4;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+
+      .execution-log-content.visible {
+        display: block;
+        animation: slideDown 0.3s ease;
+      }
+
+      .execution-log-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px;
+      }
+
+      .execution-log-header h2 {
+        margin-bottom: 0;
+      }
+
+      .copy-log-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #ffffff;
+        border: 1px solid #e1dfdd;
+        border-radius: var(--radius-sm);
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #605e5c;
+        cursor: pointer;
+        transition: var(--transition);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .copy-log-btn:hover {
+        background: #f3f2f1;
+        color: var(--primary-color);
+        box-shadow: var(--shadow-md);
+      }
+
+      .copy-log-btn.copied {
+        color: #107c10;
+        border-color: #107c10;
+      }
+
+      .copy-log-btn svg {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
+      }
+
+      /* Footer Styles */
+      .footer {
+        bottom: 0;
+        width: 100%;
+        padding: 20px;
+        text-align: center;
+        background: var(--primary-gradient);
+        color: #ffffff;
+        box-shadow: var(--shadow-lg);
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0.3px;
+      }
+
+      /* Media Queries */
+      @media only screen and (max-width: 600px) {
+        .container {
+          max-width: 100%;
+          padding: 0 15px;
+        }
+
+        .navbar,
+        .footer {
+          flex-direction: column;
+          text-align: center;
+        }
+
+        .test-case .title {
+          flex-direction: column;
+        }
+
+        .test-case .title .name,
+        .test-case .title .duration {
+          display: block;
+        }
+
+        .system-info-columns {
+          flex-direction: column;
+        }
+
+        .system-info-column {
+          width: 100%;
+        }
+
+        .summary-box {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="navbar">
+      <div class="system-id">SAP High Availability QA Results</div>
+      
+    </div>
+    <div class="main-content">
+      <div class="container">
+        <div class="left-bar">
+          <div class="system-info-container">
+            <h2 class="system-info-heading">System Information</h2>
+            <div class="system-info-columns">
+              
+              
+
+              
+                  
+              
+
+              
+              
+              
+              
+                  
+              
+              
+                <div class="system-info-column">
+                  
+                    
+                    
+                      <p>
+                        <strong>Test Group Name:</strong> CentralServicesHighAvailability
+                      </p>
+                    
+                  
+                    
+                    
+                      <p>
+                        <strong>DB SID:</strong> HDB
+                      </p>
+                    
+                  
+                    
+                    
+                      <p>
+                        <strong>SAP SID:</strong> SH7
+                      </p>
+                    
+                  
+                </div>
+              
+                <div class="system-info-column">
+                  
+                    
+                    
+                      <p>
+                        <strong>DB Type:</strong> HANA
+                      </p>
+                    
+                  
+                    
+                    
+                      <p>
+                        <strong>Storage Type:</strong> AFS
+                      </p>
+                    
+                  
+                    
+                    
+                      <p>
+                        <strong>OS Version:</strong> SLES_SAP 15.7
+                      </p>
+                    
+                  
+                </div>
+              
+                <div class="system-info-column">
+                  
+                    
+                    
+                      <p>
+                        <strong>Hostnames:</strong> vsh7s00l8c
+                      </p>
+                    
+                  
+                    
+                    
+                      <p>
+                        <strong>SCS Fencing Agent:</strong> AFA
+                      </p>
+                    
+                  
+                    
+                    
+                  
+                </div>
+              
+            </div>
+          </div>
+
+          <div class="system-info-container">
+            <h2 class="system-info-heading">Test Execution Summary</h2>
+            <div class="summary-box">
+              <div class="status-count passed" onclick="filterByStatus('passed')" data-status="passed"
+                   data-results='[""]'>
+                <h3>0</h3>
+                <p>Passed</p>
+              </div>
+              <div class="status-count failed" onclick="filterByStatus('failed')" data-status="failed">
+                <h3>0</h3>
+                <p>Failed</p>
+              </div>
+              <div class="status-count warning" onclick="filterByStatus('warning')" data-status="warning">
+                <h3>0</h3>
+                <p>Warning</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="test-cases-container">
+            <h2>Test Cases</h2>
+            
+              <div class="test-case " data-status="">
+                <div class="title" onclick="toggleDetails(this)">
+                  <span class="name">SAPControl Config Validation: sh7scs00l8c1</span>
+                  <span class="duration">&#x1F550; 0:00:03</span>
+                </div>
+                <table class="details">
+                  <tr>
+                    <th>Test Description</th>
+                    <td>The SAPControl Config Validation test runs multiple sapcontrol commands to validate the
+SCS configuration. It executes commands like HAGetFailoverConfig,
+HACheckFailoverConfig, and HACheckConfig, capturing their outputs and statuses to
+ensure proper configuration and functionality.
+</td>
+                  </tr>
+                  <tr>
+                    <th>Invocation ID</th>
+                    <td>547711db-dbb6-4401-833f-a228911d001e</td>
+                  </tr>
+                  <tr>
+                    <th>Start Time</th>
+                    <td>2026-05-11 22:00:06</td>
+                  </tr>
+                  <tr>
+                    <th>End Time</th>
+                    <td>2026-05-11 22:00:16</td>
+                  </tr>
+                  
+                    <tr>
+                      <th>Test Execution Start Time</th>
+                      <td>2026-05-11 22:00:09</td>
+                    </tr>
+                  
+                  
+                    <tr>
+                      <th>Test Execution End Time</th>
+                      <td>2026-05-11 22:00:12</td>
+                    </tr>
+                  
+                  <tr>
+                    <th>Message</th>
+                    <td class="test-message">Commands executed:   - HAGetFailoverConfig: Success
+  - HACheckFailoverConfig: Success
+  - HACheckConfig: Success
+</td>
+                  </tr>
+                  
+                  <tr>
+                    <th>Test Case Details</th>
+                      
+                      <td class="jsonobject">[{"command": "sapcontrol -nr 00 -function HAGetFailoverConfig", "returnCode": 0, "stdout": ["", "11.05.2026 22:00:11", "HAGetFailoverConfig", "OK", "HAActive: TRUE", "HAProductVersion: SUSE Linux Enterprise Server for SAP Applications 15 SP7", "HASAPInterfaceVersion: SUSE Linux Enterprise Server for SAP Applications 15 SP7 (sap_suse_cluster_connector 3.1.2)", "HADocumentation: https://www.suse.com/products/sles-for-sap/resource-library/sap-best-practices/", "HAActiveNode: sh7scs00l8c1", "HANodes: sh7scs00l8c1, sh7scs01l8c1"], "stderr": []}, {"command": "sapcontrol -nr 00 -function HACheckFailoverConfig", "returnCode": 0, "stdout": ["", "11.05.2026 22:00:11", "HACheckFailoverConfig", "OK", "state, category, description, comment", "SUCCESS, SAP CONFIGURATION, SAPInstance RA sufficient version, SAPInstance includes is-ers patch"], "stderr": []}, {"command": "sapcontrol -nr 00 -function HACheckConfig", "returnCode": 0, "stdout": ["", "11.05.2026 22:00:12", "HACheckConfig", "OK", "state, category, description, comment", "ERROR, SAP CONFIGURATION, Redundant ABAP instance configuration, 1 ABAP instances detected", "SUCCESS, SAP CONFIGURATION, Enqueue separation, All Enqueue server separated from application server", "SUCCESS, SAP CONFIGURATION, MessageServer separation, All MessageServer separated from application server", "ERROR, SAP CONFIGURATION, ABAP instances on multiple hosts, No ABAP instances on multiple hosts detected", "ERROR, SAP CONFIGURATION, Redundant ABAP SPOOL service configuration, 1 ABAP instances with SPOOL service detected", "ERROR, SAP STATE, Redundant ABAP SPOOL service state, 0 ABAP instances with active SPOOL service detected", "ERROR, SAP STATE, ABAP instances with ABAP SPOOL service on multiple hosts, No ABAP instances with active ABAP SPOOL service on multiple hosts detected", "ERROR, SAP CONFIGURATION, Redundant ABAP BATCH service configuration, 1 ABAP instances with BATCH service detected", "ERROR, SAP STATE, Redundant ABAP BATCH service state, 0 ABAP instances with active BATCH service detected", "ERROR, SAP STATE, ABAP instances with ABAP BATCH service on multiple hosts, No ABAP instances with active ABAP BATCH service on multiple hosts detected", "ERROR, SAP CONFIGURATION, Redundant ABAP DIALOG service configuration, 1 ABAP instances with DIALOG service detected", "ERROR, SAP STATE, Redundant ABAP DIALOG service state, 0 ABAP instances with active DIALOG service detected", "ERROR, SAP STATE, ABAP instances with ABAP DIALOG service on multiple hosts, No ABAP instances with active ABAP DIALOG service on multiple hosts detected", "ERROR, SAP CONFIGURATION, Redundant ABAP UPDATE service configuration, 1 ABAP instances with UPDATE service detected", "ERROR, SAP STATE, Redundant ABAP UPDATE service state, 0 ABAP instances with active UPDATE service detected", "ERROR, SAP STATE, ABAP instances with ABAP UPDATE service on multiple hosts, No ABAP instances with active ABAP UPDATE service on multiple hosts detected", "SUCCESS, SAP STATE, SCS instance running, SCS instance status ok", "SUCCESS, SAP CONFIGURATION, SAPInstance RA sufficient version (sh7scs00cl1_SH7_00), SAPInstance includes is-ers patch", "SUCCESS, SAP CONFIGURATION, Enqueue replication (sh7scs00cl1_SH7_00), Enqueue replication enabled", "SUCCESS, SAP STATE, Enqueue replication state (sh7scs00cl1_SH7_00), Enqueue replication active", "SUCCESS, SAP CONFIGURATION, SAPInstance RA sufficient version (sh7ers01cl2_SH7_01), SAPInstance includes is-ers patch"], "stderr": []}]</td>
+                    
+                  </tr>
+                  
+                    <tr>
+                      <th>SAP Logs</th>
+                      <td class="newlinemessages">
+                        <details class="sap-logs-collapsible">
+                          <summary>Show SAP Logs</summary>
+                          <div class="sap-logs-content">["2026-05-11T22:00:08.719751+00:00 sh7scs01l8c1 SAPInstance(rsc_sap_SH7_ERS01)[68365]: INFO: systemd service SAPSH7_01 is active\n", "2026-05-11T22:00:13.919441+00:00 sh7scs00l8c1 SAPInstance(rsc_sap_SH7_ASCS00)[100621]: INFO: systemd service SAPSH7_00 is active\n"]</div>
+                        </details>
+                      </td>
+                    </tr>
+                  
+                </table>
+              </div>
+            
+          </div>
+
+          
+          <div class="execution-log-container">
+            <div class="execution-log-header">
+              <h2>Execution Log</h2>
+              <button class="copy-log-btn" onclick="copyExecutionLog(this)">
+                <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M4 4V1.5C4 .67 4.67 0 5.5 0h9C15.33 0 16 .67 16 1.5v9c0 .83-.67 1.5-1.5 1.5H12v2.5c0 .83-.67 1.5-1.5 1.5h-9C.67 16 0 15.33 0 14.5v-9C0 4.67.67 4 1.5 4H4zm1.5-2.5V4H5.5C4.67 4 4 4.67 4 5.5V10.5h-2.5v-9h9V4H5.5zM1.5 5.5v9h9v-9h-9z"/></svg>
+                <span>Copy</span>
+              </button>
+            </div>
+            <div class="execution-log-toggle" onclick="toggleExecutionLog(this)">
+              <span class="arrow">&#9654;</span>
+              <span>Show Ansible Execution Log</span>
+            </div>
+            <div class="execution-log-content">
+              <pre>2026-05-11 21:59:59,572 p=1534644 u=azureadm n=ansible | PLAY [Setup deployer for HA Testing Framework] *********************************
+2026-05-11 21:59:59,584 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  21:59:59 +0000 (0:00:00.026)       0:00:00.026 ************ 
+2026-05-11 22:00:00,853 p=1534644 u=azureadm n=ansible | TASK [Gathering Facts] *********************************************************
+2026-05-11 22:00:00,853 p=1534644 u=azureadm n=ansible | ok: [localhost]
+2026-05-11 22:00:00,869 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:00 +0000 (0:00:01.284)       0:00:01.311 ************ 
+2026-05-11 22:00:02,086 p=1534644 u=azureadm n=ansible | TASK [Install python azure pacakges required] **********************************
+2026-05-11 22:00:02,087 p=1534644 u=azureadm n=ansible | ok: [localhost]
+2026-05-11 22:00:02,107 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:02 +0000 (0:00:01.238)       0:00:02.549 ************ 
+2026-05-11 22:00:03,413 p=1534644 u=azureadm n=ansible | TASK [Authenticate with --username (az cli &gt;= 2.61)] ***************************
+2026-05-11 22:00:03,414 p=1534644 u=azureadm n=ansible | fatal: [localhost]: FAILED! =&gt; {&#34;changed&#34;: false, &#34;cmd&#34;: [&#34;az&#34;, &#34;login&#34;, &#34;--identity&#34;, &#34;--username&#34;, &#34;77e68e5c-cf3e-4645-ad20-605d87e49f92&#34;], &#34;delta&#34;: &#34;0:00:00.814278&#34;, &#34;end&#34;: &#34;2026-05-11 22:00:03.372735&#34;, &#34;msg&#34;: &#34;non-zero return code&#34;, &#34;rc&#34;: 1, &#34;start&#34;: &#34;2026-05-11 22:00:02.558457&#34;, &#34;stderr&#34;: &#34;ERROR: Passing the managed identity ID with --username is no longer supported. Use --client-id, --object-id or --resource-id instead.&#34;, &#34;stderr_lines&#34;: [&#34;ERROR: Passing the managed identity ID with --username is no longer supported. Use --client-id, --object-id or --resource-id instead.&#34;], &#34;stdout&#34;: &#34;&#34;, &#34;stdout_lines&#34;: []}
+2026-05-11 22:00:03,439 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:03 +0000 (0:00:01.331)       0:00:03.881 ************ 
+2026-05-11 22:00:04,583 p=1534644 u=azureadm n=ansible | TASK [Authenticate with --client-id (az cli &lt; 2.61)] ***************************
+2026-05-11 22:00:04,583 p=1534644 u=azureadm n=ansible | ok: [localhost]
+2026-05-11 22:00:04,635 p=1534644 u=azureadm n=ansible | PLAY [Host tasks] **************************************************************
+2026-05-11 22:00:04,642 p=1534644 u=azureadm n=ansible | [WARNING]: Found variable using reserved name: become_user
+
+2026-05-11 22:00:04,643 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:04 +0000 (0:00:01.203)       0:00:05.085 ************ 
+2026-05-11 22:00:05,974 p=1534644 u=azureadm n=ansible | TASK [Gathering Facts] *********************************************************
+2026-05-11 22:00:05,974 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:06,058 p=1534644 u=azureadm n=ansible | ok: [sh7scs01l8c1]
+2026-05-11 22:00:06,071 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:06 +0000 (0:00:01.427)       0:00:06.513 ************ 
+2026-05-11 22:00:06,094 p=1534644 u=azureadm n=ansible | TASK [Enable profile_tasks callback plugin] ************************************
+2026-05-11 22:00:06,094 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:06,105 p=1534644 u=azureadm n=ansible | ok: [sh7scs01l8c1]
+2026-05-11 22:00:06,117 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:06 +0000 (0:00:00.045)       0:00:06.558 ************ 
+2026-05-11 22:00:06,146 p=1534644 u=azureadm n=ansible | TASK [Set the test group name based on the inputs] *****************************
+2026-05-11 22:00:06,147 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:06,158 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:06 +0000 (0:00:00.040)       0:00:06.599 ************ 
+2026-05-11 22:00:06,196 p=1534644 u=azureadm n=ansible | TASK [Set the test group facts] ************************************************
+2026-05-11 22:00:06,196 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:06,208 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:06 +0000 (0:00:00.050)       0:00:06.650 ************ 
+2026-05-11 22:00:06,238 p=1534644 u=azureadm n=ansible | TASK [Run test cases by including them as roles] *******************************
+2026-05-11 22:00:06,321 p=1534644 u=azureadm n=ansible | included: /home/azureadm/sap-automation-qa/src/roles/ha_scs/tasks/sapcontrol-config.yml for sh7scs00l8c1, sh7scs01l8c1 =&gt; (item={&#39;name&#39;: &#39;SAPControl Config Validation&#39;, &#39;task_name&#39;: &#39;sapcontrol-config&#39;, &#39;description&#39;: &#39;The SAPControl Config Validation test runs multiple sapcontrol commands to validate the\nSCS configuration. It executes commands like HAGetFailoverConfig,\nHACheckFailoverConfig, and HACheckConfig, capturing their outputs and statuses to\nensure proper configuration and functionality.\n&#39;, &#39;enabled&#39;: True})
+2026-05-11 22:00:06,333 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:06 +0000 (0:00:00.124)       0:00:06.774 ************ 
+2026-05-11 22:00:06,345 p=1534644 u=azureadm n=ansible | TASK [Test Setup Tasks] ********************************************************
+2026-05-11 22:00:06,399 p=1534644 u=azureadm n=ansible | included: /home/azureadm/sap-automation-qa/src/roles/misc/tasks/test-case-setup.yml for sh7scs00l8c1
+2026-05-11 22:00:06,411 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:06 +0000 (0:00:00.078)       0:00:06.852 ************ 
+2026-05-11 22:00:06,442 p=1534644 u=azureadm n=ansible | TASK [Setup telemetry data for each test case] *********************************
+2026-05-11 22:00:06,443 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:06,454 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:06 +0000 (0:00:00.043)       0:00:06.896 ************ 
+2026-05-11 22:00:06,490 p=1534644 u=azureadm n=ansible | TASK [Ensure test_case_invocation_id is available on all nodes] ****************
+2026-05-11 22:00:06,490 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1 -&gt; localhost]
+2026-05-11 22:00:06,503 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:06 +0000 (0:00:00.048)       0:00:06.945 ************ 
+2026-05-11 22:00:06,525 p=1534644 u=azureadm n=ansible | TASK [Pre Validations: SCS Nodes] **********************************************
+2026-05-11 22:00:06,569 p=1534644 u=azureadm n=ansible | included: /home/azureadm/sap-automation-qa/src/roles/misc/tasks/pre-validations-scs.yml for sh7scs00l8c1, sh7scs01l8c1
+2026-05-11 22:00:06,581 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:06 +0000 (0:00:00.078)       0:00:07.023 ************ 
+2026-05-11 22:00:08,816 p=1534644 u=azureadm n=ansible | TASK [Pre Validation: Validate SCS cluster status on ASCS node] ****************
+2026-05-11 22:00:08,816 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:08,921 p=1534644 u=azureadm n=ansible | ok: [sh7scs01l8c1]
+2026-05-11 22:00:08,933 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:08 +0000 (0:00:02.351)       0:00:09.375 ************ 
+2026-05-11 22:00:09,552 p=1534644 u=azureadm n=ansible | TASK [Pre Validation: CleanUp any failed resource] *****************************
+2026-05-11 22:00:09,553 p=1534644 u=azureadm n=ansible | changed: [sh7scs00l8c1]
+2026-05-11 22:00:09,572 p=1534644 u=azureadm n=ansible | changed: [sh7scs01l8c1]
+2026-05-11 22:00:09,587 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:09 +0000 (0:00:00.653)       0:00:10.029 ************ 
+2026-05-11 22:00:09,613 p=1534644 u=azureadm n=ansible | TASK [Pre Validation: Set default pre Validation status as false] **************
+2026-05-11 22:00:09,614 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:09,629 p=1534644 u=azureadm n=ansible | ok: [sh7scs01l8c1]
+2026-05-11 22:00:09,644 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:09 +0000 (0:00:00.056)       0:00:10.086 ************ 
+2026-05-11 22:00:09,676 p=1534644 u=azureadm n=ansible | TASK [Pre Validation: Set pre Validation status] *******************************
+2026-05-11 22:00:09,677 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:09,702 p=1534644 u=azureadm n=ansible | ok: [sh7scs01l8c1]
+2026-05-11 22:00:09,716 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:09 +0000 (0:00:00.072)       0:00:10.158 ************ 
+2026-05-11 22:00:09,753 p=1534644 u=azureadm n=ansible | TASK [Test Execution: Start timer] *********************************************
+2026-05-11 22:00:09,753 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:09,780 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:09 +0000 (0:00:00.063)       0:00:10.221 ************ 
+2026-05-11 22:00:11,279 p=1534644 u=azureadm n=ansible | TASK [Test Execution: Run sapcontrol commands {{ sapcontrol_method }}] *********
+2026-05-11 22:00:11,280 p=1534644 u=azureadm n=ansible | changed: [sh7scs00l8c1] =&gt; (item=HAGetFailoverConfig)
+2026-05-11 22:00:11,936 p=1534644 u=azureadm n=ansible | changed: [sh7scs00l8c1] =&gt; (item=HACheckFailoverConfig)
+2026-05-11 22:00:12,833 p=1534644 u=azureadm n=ansible | changed: [sh7scs00l8c1] =&gt; (item=HACheckConfig)
+2026-05-11 22:00:12,847 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:12 +0000 (0:00:03.067)       0:00:13.289 ************ 
+2026-05-11 22:00:12,920 p=1534644 u=azureadm n=ansible | TASK [Test Execution: Validate sapcontrol commands] ****************************
+2026-05-11 22:00:12,921 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:12,948 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:12 +0000 (0:00:00.100)       0:00:13.390 ************ 
+2026-05-11 22:00:12,979 p=1534644 u=azureadm n=ansible | TASK [Test Execution: Collect sapcontrol command details] **********************
+2026-05-11 22:00:12,980 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:13,002 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:13 +0000 (0:00:00.054)       0:00:13.444 ************ 
+2026-05-11 22:00:13,028 p=1534644 u=azureadm n=ansible | TASK [Post Validations Tasks] **************************************************
+2026-05-11 22:00:13,097 p=1534644 u=azureadm n=ansible | included: /home/azureadm/sap-automation-qa/src/roles/misc/tasks/post-validations.yml for sh7scs00l8c1, sh7scs01l8c1
+2026-05-11 22:00:13,111 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:13 +0000 (0:00:00.108)       0:00:13.553 ************ 
+2026-05-11 22:00:13,136 p=1534644 u=azureadm n=ansible | TASK [Read var log messages by importing role] *********************************
+2026-05-11 22:00:13,175 p=1534644 u=azureadm n=ansible | included: /home/azureadm/sap-automation-qa/src/roles/misc/tasks/var-log-messages.yml for sh7scs00l8c1, sh7scs01l8c1
+2026-05-11 22:00:13,187 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:13 +0000 (0:00:00.075)       0:00:13.628 ************ 
+2026-05-11 22:00:14,986 p=1534644 u=azureadm n=ansible | TASK [Read the log file /var/log/messages for given time period] ***************
+2026-05-11 22:00:14,987 p=1534644 u=azureadm n=ansible | ok: [sh7scs01l8c1]
+2026-05-11 22:00:15,152 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:15,165 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:15 +0000 (0:00:01.978)       0:00:15.607 ************ 
+2026-05-11 22:00:15,204 p=1534644 u=azureadm n=ansible | TASK [Determine cluster node roles] ********************************************
+2026-05-11 22:00:15,205 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:15,227 p=1534644 u=azureadm n=ansible | ok: [sh7scs01l8c1]
+2026-05-11 22:00:15,239 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:15 +0000 (0:00:00.074)       0:00:15.681 ************ 
+2026-05-11 22:00:16,573 p=1534644 u=azureadm n=ansible | TASK [Merge and sort logs from all nodes by timestamp] *************************
+2026-05-11 22:00:16,574 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:16,625 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:16 +0000 (0:00:01.385)       0:00:17.067 ************ 
+2026-05-11 22:00:16,666 p=1534644 u=azureadm n=ansible | TASK [Set combined logs variable] **********************************************
+2026-05-11 22:00:16,667 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1]
+2026-05-11 22:00:16,686 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:16 +0000 (0:00:00.061)       0:00:17.128 ************ 
+2026-05-11 22:00:16,750 p=1534644 u=azureadm n=ansible | TASK [Post Validations: Set test case status] **********************************
+2026-05-11 22:00:16,751 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1 -&gt; localhost]
+2026-05-11 22:00:16,767 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:16 +0000 (0:00:00.081)       0:00:17.209 ************ 
+2026-05-11 22:00:16,792 p=1534644 u=azureadm n=ansible | TASK [Post Telemetry Data] *****************************************************
+2026-05-11 22:00:16,826 p=1534644 u=azureadm n=ansible | included: /home/azureadm/sap-automation-qa/src/roles/misc/tasks/post-telemetry-data.yml for sh7scs00l8c1
+2026-05-11 22:00:16,837 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:16 +0000 (0:00:00.069)       0:00:17.279 ************ 
+2026-05-11 22:00:17,821 p=1534644 u=azureadm n=ansible | TASK [Create the telemetry JSON object for the test case] **********************
+2026-05-11 22:00:17,821 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1 -&gt; localhost]
+2026-05-11 22:00:17,834 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:17 +0000 (0:00:00.996)       0:00:18.276 ************ 
+2026-05-11 22:00:17,857 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:17 +0000 (0:00:00.022)       0:00:18.298 ************ 
+2026-05-11 22:00:17,906 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:17 +0000 (0:00:00.049)       0:00:18.348 ************ 
+2026-05-11 22:00:17,955 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:17 +0000 (0:00:00.049)       0:00:18.397 ************ 
+2026-05-11 22:00:17,981 p=1534644 u=azureadm n=ansible | TASK [Render HTML report for the test group logs] ******************************
+2026-05-11 22:00:18,033 p=1534644 u=azureadm n=ansible | included: /home/azureadm/sap-automation-qa/src/roles/misc/tasks/render-html-report.yml for sh7scs00l8c1, sh7scs01l8c1
+2026-05-11 22:00:18,051 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:18 +0000 (0:00:00.096)       0:00:18.493 ************ 
+2026-05-11 22:00:18,148 p=1534644 u=azureadm n=ansible | TASK [Load HTML jinja2 template] ***********************************************
+2026-05-11 22:00:18,149 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1 -&gt; localhost]
+2026-05-11 22:00:18,206 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:18 +0000 (0:00:00.154)       0:00:18.647 ************ 
+2026-05-11 22:00:18,249 p=1534644 u=azureadm n=ansible | TASK [Get framework version] ***************************************************
+2026-05-11 22:00:18,249 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1 -&gt; localhost]
+2026-05-11 22:00:18,261 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:18 +0000 (0:00:00.055)       0:00:18.703 ************ 
+2026-05-11 22:00:18,306 p=1534644 u=azureadm n=ansible | TASK [Resolve execution log path] **********************************************
+2026-05-11 22:00:18,306 p=1534644 u=azureadm n=ansible | ok: [sh7scs00l8c1 -&gt; localhost]
+2026-05-11 22:00:18,319 p=1534644 u=azureadm n=ansible | Monday 11 May 2026  22:00:18 +0000 (0:00:00.058)       0:00:18.761 ************ 
+</pre>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+    <div class="footer">Report generated on: 05/11/2026, 10:00:18 PM with framework version: 1.0.3</div>
+    <script>
+      // YAML-like formatter for readable display of nested test details
+      function toYaml(obj, indent) {
+        indent = indent || 0
+        var pad = '  '.repeat(indent)
+
+        if (obj === null || obj === undefined) return 'null'
+        if (typeof obj === 'boolean') return obj ? 'true' : 'false'
+        if (typeof obj === 'number') return String(obj)
+
+        if (typeof obj === 'string') {
+          if (obj === '') return "''"
+          var clean = obj.replace(/\x1b\[[0-9;]*m/g, '')
+          if (clean.includes('\n')) {
+            return '|\n' + clean.split('\n').map(function (l) { return pad + '  ' + l }).join('\n')
+          }
+          if (/[:{}\[\]&*!|>'"%@`#]/.test(clean) ||
+              clean === 'true' || clean === 'false' || clean === 'null') {
+            return '"' + clean.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'
+          }
+          return clean
+        }
+
+        if (Array.isArray(obj)) {
+          if (obj.length === 0) return '[]'
+          return obj.map(function (item) {
+            if (typeof item === 'object' && item !== null) {
+              return pad + '-\n' + toYaml(item, indent + 1)
+            }
+            return pad + '- ' + toYaml(item, indent + 1)
+          }).join('\n')
+        }
+
+        if (typeof obj === 'object') {
+          var keys = Object.keys(obj)
+          if (keys.length === 0) return '{}'
+          return keys.map(function (key) {
+            var val = obj[key]
+            var k = /[:{}\[\]&*!|>'"%@`#]/.test(key)
+              ? '"' + key.replace(/"/g, '\\"') + '"' : key
+            var v = toYaml(val, indent + 1)
+            if ((typeof val === 'object' && val !== null) &&
+                ((Array.isArray(val) && val.length > 0) ||
+                 (!Array.isArray(val) && Object.keys(val).length > 0))) {
+              return pad + k + ':\n' + v
+            }
+            return pad + k + ': ' + v
+          }).join('\n')
+        }
+
+        return String(obj)
+      }
+
+      // Render test details as readable YAML-like output
+      function formatJsonObjects() {
+        const jsonObjects = document.getElementsByClassName('jsonobject')
+        for (let jsonObjectElement of jsonObjects) {
+          try {
+            const jsonString = jsonObjectElement.textContent.trim()
+            const jsonObject = JSON.parse(jsonString)
+            jsonObjectElement.innerHTML = ''
+            const preElement = document.createElement('pre')
+            preElement.appendChild(document.createTextNode(toYaml(jsonObject)))
+            jsonObjectElement.appendChild(preElement)
+          } catch (error) {
+            console.error('Error parsing test details:', error)
+          }
+        }
+      }
+
+      // Format /var/log/messages (handles string, array, and object)
+      function formatNewLineMessages() {
+        const containers = document.getElementsByClassName('sap-logs-content')
+        for (let container of containers) {
+          try {
+            const parsed = JSON.parse(container.textContent.trim())
+            let text
+            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+              text = toYaml(parsed)
+            } else if (Array.isArray(parsed)) {
+              text = parsed.join('\n')
+            } else {
+              text = String(parsed)
+            }
+            container.innerHTML = ''
+            const pre = document.createElement('pre')
+            pre.textContent = text
+            container.appendChild(pre)
+          } catch (error) {
+            console.error('Error formatting messages:', error)
+          }
+        }
+      }
+
+      // Format test case messages (preserve newlines)
+      function formatTestMessages() {
+        const messages = document.getElementsByClassName('test-message')
+        for (let message of messages) {
+          try {
+            let text = message.textContent
+            text = text.replace(/\\n/g, '\n')
+            text = text.replace(/^["']|["']$/g, '')
+            message.textContent = text
+          } catch (error) {
+            console.error('Error formatting test message:', error)
+          }
+        }
+      }
+
+      // Toggle test case details
+      function toggleDetails(element) {
+        const details = element.nextElementSibling
+        if (details.style.display === 'table') {
+          details.style.display = 'none'
+        } else {
+          details.style.display = 'table'
+        }
+      }
+
+      // Create package version table
+      function createPackageTable(packageList) {
+        if (!packageList) return
+
+        let packages
+        try {
+          packages = JSON.parse(packageList)
+        } catch (e) {
+          console.error('Failed to parse package data:', e)
+          return
+        }
+
+        const table = document.createElement('table')
+        table.className = 'package-table'
+        const thead = document.createElement('thead')
+        const tbody = document.createElement('tbody')
+
+        const headers = ['Package Name', 'Version', 'Release', 'Architecture']
+        const headerRow = document.createElement('tr')
+        headers.forEach((header) => {
+          const th = document.createElement('th')
+          th.textContent = header
+          headerRow.appendChild(th)
+        })
+        thead.appendChild(headerRow)
+
+        packages.forEach((pkg) => {
+          const [packageName, details] = Object.entries(pkg)[0]
+          const row = document.createElement('tr')
+
+          const packageNameCell = document.createElement('td')
+          packageNameCell.textContent = packageName
+          row.appendChild(packageNameCell)
+
+          const versionCell = document.createElement('td')
+          versionCell.textContent = details.version
+          row.appendChild(versionCell)
+
+          const releaseCell = document.createElement('td')
+          releaseCell.textContent = details.release
+          row.appendChild(releaseCell)
+
+          const archCell = document.createElement('td')
+          archCell.textContent = details.architecture
+          row.appendChild(archCell)
+
+          tbody.appendChild(row)
+        })
+
+        table.appendChild(thead)
+        table.appendChild(tbody)
+        return table
+      }
+
+      // Format package lists
+      function formatPackageList() {
+        const packageLists = document.getElementsByClassName('packages')
+        for (let packageList of packageLists) {
+          try {
+            const table = createPackageTable(packageList.textContent)
+            packageList.textContent = ''
+            packageList.appendChild(table)
+          } catch (error) {
+            console.error('Error creating package table:', error)
+          }
+        }
+      }
+
+      // Create cluster parameter table with status coloring
+      function createClusterTable(clusterData) {
+        const table = document.createElement('table')
+        table.className = 'cluster-table'
+
+        // Define column widths via <colgroup>
+        const colgroup = document.createElement('colgroup')
+        ;['col-category','col-type','col-name','col-value','col-expected','col-status'].forEach((cls) => {
+          const col = document.createElement('col')
+          col.className = cls
+          colgroup.appendChild(col)
+        })
+        table.appendChild(colgroup)
+
+        const header = table.createTHead()
+        const headerRow = header.insertRow()
+        ;['Category', 'Type', 'Name', 'Value', 'Expected Value', 'Status'].forEach((text) => {
+          const th = document.createElement('th')
+          th.textContent = text
+          headerRow.appendChild(th)
+        })
+
+        const tbody = table.createTBody()
+
+        clusterData.parameters.forEach(param => {
+          const row = tbody.insertRow()
+          row.insertCell().textContent = param.category
+          row.insertCell().textContent = param.id
+          row.insertCell().textContent = param.name
+          row.insertCell().textContent = param.value
+          row.insertCell().textContent = param.expected_value
+
+          const statusCell = row.insertCell()
+          statusCell.textContent = param.status
+          const statusLower = (param.status || '').toLowerCase()
+          if (statusLower === 'passed') statusCell.className = 'status-passed'
+          else if (statusLower === 'failed') statusCell.className = 'status-failed'
+          else if (statusLower === 'warning') statusCell.className = 'status-warning'
+          else if (statusLower === 'info') statusCell.className = 'status-info'
+        })
+
+        return table
+      }
+
+      // Parse and convert cluster data to tables
+      function parseClusterData() {
+        const clusterElements = document.getElementsByClassName('cluster')
+        for (let clusterElement of clusterElements) {
+          try {
+            const clusterData = JSON.parse(clusterElement.textContent.trim())
+            const clusterTable = createClusterTable(clusterData)
+            clusterElement.textContent = ''
+            clusterElement.appendChild(clusterTable)
+          } catch (error) {
+            console.error('Error parsing cluster data:', error)
+          }
+        }
+      }
+
+      // Initialize summary counts and animations
+      function initializeSummary() {
+        const passedBox = document.querySelector('.status-count.passed')
+        if (!passedBox) return
+
+        const testResults = JSON.parse(passedBox.dataset.results || '[]')
+        const counts = {
+          passed: testResults.filter(r => r === 'PASSED').length,
+          failed: testResults.filter(r => r === 'FAILED').length,
+          warning: testResults.filter(r => r === 'WARNING').length
+        }
+
+        // Animate counters
+        document.querySelectorAll('.status-count').forEach(box => {
+          const status = box.dataset.status
+          const target = counts[status] || 0
+          const h3 = box.querySelector('h3')
+          const duration = 1000
+          const increment = target / (duration / 16)
+          let current = 0
+
+          const update = () => {
+            current += increment
+            if (current < target) {
+              h3.textContent = Math.ceil(current)
+              requestAnimationFrame(update)
+            } else {
+              h3.textContent = target
+            }
+          }
+
+          setTimeout(() => { h3.textContent = '0'; update() }, 300)
+        })
+      }
+
+      // Filter test cases by status
+      let activeFilter = null
+      function filterByStatus(status) {
+        const statusBoxes = document.querySelectorAll('.status-count')
+        const testCases = document.querySelectorAll('.test-case')
+
+        if (activeFilter === status) {
+          activeFilter = null
+          statusBoxes.forEach(box => box.classList.remove('active'))
+          testCases.forEach(tc => tc.style.display = '')
+          return
+        }
+
+        activeFilter = status
+        statusBoxes.forEach(box => {
+          box.classList.toggle('active', box.dataset.status === status)
+        })
+
+        testCases.forEach(tc => {
+          tc.style.display = tc.dataset.status === status ? '' : 'none'
+        })
+      }
+
+      // Toggle execution log visibility
+      function toggleExecutionLog(element) {
+        const content = element.nextElementSibling
+        element.classList.toggle('open')
+        content.classList.toggle('visible')
+        const label = element.querySelector('span:last-child')
+        label.textContent = content.classList.contains('visible')
+          ? 'Hide Ansible Execution Log' : 'Show Ansible Execution Log'
+      }
+
+      // Copy execution log to clipboard
+      function copyExecutionLog(button) {
+        const container = button.closest('.execution-log-container')
+        const pre = container.querySelector('.execution-log-content pre')
+        const text = pre.textContent
+
+        function onSuccess() {
+          button.classList.add('copied')
+          button.querySelector('span').textContent = 'Copied!'
+          setTimeout(() => {
+            button.classList.remove('copied')
+            button.querySelector('span').textContent = 'Copy'
+          }, 2000)
+        }
+
+        function onError() {
+          button.querySelector('span').textContent = 'Copy failed'
+          setTimeout(() => { button.querySelector('span').textContent = 'Copy' }, 2000)
+        }
+
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(onSuccess).catch(onError)
+        } else {
+          const textarea = document.createElement('textarea')
+          textarea.value = text
+          textarea.style.position = 'fixed'
+          textarea.style.opacity = '0'
+          document.body.appendChild(textarea)
+          textarea.select()
+          try { document.execCommand('copy'); onSuccess() }
+          catch (e) { onError() }
+          finally { document.body.removeChild(textarea) }
+        }
+      }
+
+      // Initialize all formatters
+      formatJsonObjects()
+      formatNewLineMessages()
+      formatTestMessages()
+      formatPackageList()
+      parseClusterData()
+
+      document.addEventListener('DOMContentLoaded', () => {
+        initializeSummary()
+      })
+    </script>
+  </body>
+</html>
