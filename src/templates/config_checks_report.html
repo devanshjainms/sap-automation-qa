@@ -1302,25 +1302,19 @@
         </div>
         <div class="system-info-container">
           <h2 class="system-info-heading">Configuration Checks Summary</h2>
-          {% set ns = namespace(ha_failed=0, ha_passed=0, ha_warned=0) %}
+          {% set ns = namespace(ha_failed=0) %}
           {% for result in test_case_results %}
             {% if result.check.report|default('') == 'table' and result.actual_value is iterable and result.actual_value is not string and result.actual_value is not mapping %}
               {% for param in result.actual_value %}
-                {% if param is mapping %}
-                  {% if param.get('status', '')|upper == 'FAILED' %}
-                    {% set ns.ha_failed = ns.ha_failed + 1 %}
-                  {% elif param.get('status', '')|upper == 'PASSED' %}
-                    {% set ns.ha_passed = ns.ha_passed + 1 %}
-                  {% elif param.get('status', '')|upper == 'WARNING' %}
-                    {% set ns.ha_warned = ns.ha_warned + 1 %}
-                  {% endif %}
+                {% if param is mapping and param.get('status', '')|upper == 'FAILED' %}
+                  {% set ns.ha_failed = ns.ha_failed + 1 %}
                 {% endif %}
               {% endfor %}
             {% endif %}
           {% endfor %}
           <div class="summary-box">
             <div class="status-count passed" onclick="filterByStatus('passed')" data-status="passed">
-              <h3>{{ test_case_results|selectattr('status', 'equalto', 'PASSED')|list|length + ns.ha_passed }}</h3>
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'PASSED')|list|length }}</h3>
               <p>Passed</p>
             </div>
             <div class="status-count error" onclick="filterByStatus('error')" data-status="error">
@@ -1328,11 +1322,11 @@
               <p>Error</p>
             </div>
             <div class="status-count warning" onclick="filterByStatus('warning')" data-status="warning">
-              <h3>{{ test_case_results|selectattr('status', 'equalto', 'WARNING')|list|length + ns.ha_warned }}</h3>
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'WARNING')|list|length }}</h3>
               <p>Warning</p>
             </div>
             <div class="status-count info" onclick="filterByStatus('info')" data-status="info">
-              <h3>{{ test_case_results|selectattr('status', 'equalto', 'INFO')|list|length - (ns.ha_failed + ns.ha_passed + ns.ha_warned) }}</h3>
+              <h3>{{ test_case_results|selectattr('status', 'equalto', 'INFO')|list|length }}</h3>
               <p>Info</p>
             </div>
           </div>
