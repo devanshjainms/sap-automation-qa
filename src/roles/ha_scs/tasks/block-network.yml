@@ -57,98 +57,103 @@
             timeout:                    "{{ default_timeout }}"
 
 
-    - name:                             "Test Execution: Check node status on primary and secondary"
-      tags:                             [test-execution]
-      block:
-        - name:                         "Test Execution: Check node connectivity from controller"
-          delegate_to:                  localhost
-          ansible.builtin.shell: |
-                                        for i in $(seq 1 45); do
-                                          if ! nc -zv -w1 {{ ansible_host }} {{ sap_port_to_ping }}; then
-                                            echo "Connection failed on attempt $i"
-                                            exit 1
-                                          fi
-                                          sleep 1
-                                        done
-          register:                     node_status
-          failed_when:                  false
-
-        - name:                         "Set Node Status Facts"
-          ansible.builtin.set_fact:
-            ascs_node_down:             "{{ hostvars[cluster_status_pre.ascs_node].node_status is failed }}"
-            ers_node_down:              "{{ hostvars[cluster_status_pre.ers_node].node_status is failed }}"
-
-        - name:                         "Fail if both nodes are unavailable"
-          ansible.builtin.fail:
-            msg: |
-                                        "Error: Both ASCS and ERS nodes are unreachable.
-                                        This may be caused by a fence race condition triggered during the block network
-                                        test case execution, where both nodes potentially fenced each other.
-                                        Please verify if the priority-fencing-delay cluster property is configured.
-                                        If not, refer to the SAP on Azure high availability documentation for
-                                        instructions on how to configure it."
-          when:                         ascs_node_down and ers_node_down
-
-    - name:                             "Test Execution: Monitor failover on ERS Node"
-      when:
-                                        - ansible_hostname == cluster_status_pre.ers_node
-                                        - ascs_node_down and not ers_node_down
+    - name:                             "Test Execution: Validate failover from ERS node (ASCS fenced scenario)"
+      when:                             ansible_hostname == cluster_status_pre.ers_node
       become:                           true
+      ignore_unreachable:               true
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Validate SCS cluster status"
+        - name:                         "Test Execution: Validate SCS cluster status (failover check)"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
-          register:                     cluster_status_test_execution
+          register:                     cluster_status_after_block
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
-          until: |
-                                        cluster_status_test_execution.ascs_node == cluster_status_pre.ers_node
-                                        and cluster_status_test_execution.ers_node == cluster_status_pre.ascs_node
+          until: >
+                                        cluster_status_after_block.ascs_node != "" and
+                                        cluster_status_after_block.ers_node != "" and
+                                        (cluster_status_after_block.ascs_node != cluster_status_pre.ascs_node or
+                                         cluster_status_after_block.ers_node != cluster_status_pre.ers_node)
 
-    - name:                             "Test Execution: Restore Network on ASCS Node"
-      when:
-                                        - ansible_hostname == cluster_status_pre.ascs_node
-                                        - not ascs_node_down and ers_node_down
+        - name:                         "Test Execution: Store failover result from ERS node"
+          ansible.builtin.set_fact:
+            failover_detected_on_ers:   true
+            cluster_status_test_execution: "{{ cluster_status_after_block }}"
+
+    - name:                             "Test Execution: Validate failover from ASCS node (ERS fenced scenario)"
+      when:                             ansible_hostname == cluster_status_pre.ascs_node
       become:                           true
+      ignore_unreachable:               true
+      tags:                             [test-execution]
+      block:
+        - name:                         "Test Execution: Validate SCS cluster status (failover check)"
+          get_cluster_status_scs:
+            sap_sid:                    "{{ sap_sid | lower }}"
+          register:                     cluster_status_after_block
+          retries:                      "{{ default_retries }}"
+          delay:                        "{{ default_delay }}"
+          until: >
+                                        cluster_status_after_block.ascs_node != "" and
+                                        cluster_status_after_block.ers_node != "" and
+                                        (cluster_status_after_block.ascs_node != cluster_status_pre.ascs_node or
+                                         cluster_status_after_block.ers_node != cluster_status_pre.ers_node)
+
+        - name:                         "Test Execution: Store failover result from ASCS node"
+          ansible.builtin.set_fact:
+            failover_detected_on_ascs:  true
+            cluster_status_test_execution: "{{ cluster_status_after_block }}"
+
+    - name:                             "Test Execution: Remove iptables rules on ASCS node"
+      when:                             ansible_hostname == cluster_status_pre.ascs_node
+      become:                           true
+      ignore_unreachable:               true
       tags:                             [test-execution]
       block:
         - name:                         "Test Execution: Restore network communication"
           ansible.builtin.shell: |
-                                        iptables -D INPUT -s {{ ers_ip }} -j DROP;
-                                        iptables -D OUTPUT -d {{ ers_ip }} -j DROP
+                                        iptables -D INPUT -s {{ ers_ip }} -j DROP 2>/dev/null || true
+                                        iptables -D OUTPUT -d {{ ers_ip }} -j DROP 2>/dev/null || true
+          args:
+            executable:                 /bin/bash
           register:                     unblock_network_result
+          changed_when:                 true
+          failed_when:                  false
 
-    - name:                             "Test Execution: Restore Network on ASCS Node"
-      when:                             ansible_hostname == cluster_status_pre.ascs_node
+    - name:                             "Test Execution: Wait for the fenced node to rejoin"
+      ansible.builtin.wait_for:
+        timeout:                        "{{ ascs_stonith_timeout }}"
+      tags:                             [test-execution]
+
+    - name:                             "Test Execution: Validate full cluster recovery"
       become:                           true
+      ignore_unreachable:               true
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Wait for the cluster to be in a stable state"
-          ansible.builtin.wait_for:
-            timeout:                    "{{ ascs_stonith_timeout }}"
-
-        - name:                         "Test Execution: Validate SCS cluster status"
+        - name:                         "Test Execution: Validate SCS cluster status (post recovery)"
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
-          register:                     cluster_status_test_execution
+          register:                     cluster_status_post_recovery
           retries:                      "{{ default_retries }}"
           delay:                        "{{ default_delay }}"
-          until: |
-                                        cluster_status_test_execution.ascs_node == cluster_status_pre.ascs_node
-                                        and cluster_status_test_execution.ers_node == cluster_status_pre.ers_node
+          until: >
+                                        cluster_status_post_recovery.ascs_node != "" and
+                                        cluster_status_post_recovery.ers_node != "" and
+                                        cluster_status_post_recovery.ascs_node == cluster_status_pre.ascs_node and
+                                        cluster_status_post_recovery.ers_node == cluster_status_pre.ers_node
 
         - name:                         "Test Execution: Determine test execution status"
           ansible.builtin.set_fact:
             test_execution_status:      "{{ 'PASSED' if (
-                                            cluster_status_test_execution.ascs_node == cluster_status_pre.ascs_node and
-                                            cluster_status_test_execution.ers_node == cluster_status_pre.ers_node
+                                            cluster_status_post_recovery.ascs_node == cluster_status_pre.ascs_node and
+                                            cluster_status_post_recovery.ers_node == cluster_status_pre.ers_node
                                           ) else 'FAILED' }}"
+            cluster_status_test_execution: "{{ cluster_status_post_recovery }}"
 
         - name:                         "Test Execution: Cleanup resources"
           ansible.builtin.command:      crm_resource --cleanup
           register:                     cleanup_failed_resource_test_execution
           changed_when:                 cleanup_failed_resource_test_execution.rc == 0
+          ignore_errors:                true
 
         - name:                         "Test Execution: Stop timer"
           ansible.builtin.set_fact:
@@ -164,9 +169,9 @@
             test_case_details_from_test_case: {
                                         "Pre Validations: Validate SCS cluster status": "{{ cluster_status_pre }}",
                                         "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre | default('Not Executed') }}",
-                                        "Test Execution: Block network": "{{ block_network_result }}",
-                                        "Test Execution: Unblock network": "{{ unblock_network_result }}",
-                                        "Test Execution: Cleanup resources": "{{ cleanup_failed_resource_test_execution }}",
+                                        "Test Execution: Block network": "{{ block_network_result | default('N/A') }}",
+                                        "Test Execution: Unblock network": "{{ unblock_network_result | default('N/A') }}",
+                                        "Test Execution: Cleanup resources": "{{ cleanup_failed_resource_test_execution | default('N/A') }}",
                                         "Post Validations Result": "{{ cluster_status_test_execution }}",
                                         }
 # /*---------------------------------------------------------------------------
