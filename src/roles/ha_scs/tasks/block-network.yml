@@ -38,8 +38,11 @@
 
         - name:                         "Test Execution: Block network communication"
           ansible.builtin.shell: |
-                                        iptables -A INPUT -s {{ ers_ip }} -j DROP;
-                                        iptables -A OUTPUT -d {{ ers_ip }} -j DROP
+                                        set -o pipefail
+                                        iptables -C INPUT -s {{ ers_ip }} -j DROP 2>/dev/null || \
+                                          iptables -A INPUT -s {{ ers_ip }} -j DROP
+                                        iptables -C OUTPUT -d {{ ers_ip }} -j DROP 2>/dev/null || \
+                                          iptables -A OUTPUT -d {{ ers_ip }} -j DROP
           register:                     block_network_result
 
         - name:                         "Test Execution: Wait for the cluster to be in a stable state"
