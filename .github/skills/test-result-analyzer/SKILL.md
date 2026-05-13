@@ -5,7 +5,14 @@ description: >
   what went wrong, or to interpret test output. Triggered by "analyze results",
   "why did test fail", "test output", "check test status", "read test log",
   "interpret report", or "what happened in test".
+compatibility: "STAF installed. Access to test output files and logs."
 allowed-tools: shell
+tools:
+  - get_job_status
+  - get_job_results
+  - get_job_log
+  - get_job_events
+  - list_jobs
 ---
 
 # Test Result Analyzer

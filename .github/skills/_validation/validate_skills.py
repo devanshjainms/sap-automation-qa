@@ -2,8 +2,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""
-Validate Copilot CLI skills against the Agent Skills specification.
+"""Validate skills against Agent Skills spec and Azure SRE Agent best practices.
+
+Checks:
+  - agentskills.io/specification (name, description, frontmatter, line count)
+  - agentskills.io/skill-creation/best-practices (progressive disclosure, gotchas)
+  - agentskills.io/skill-creation/optimizing-descriptions (imperative phrasing)
+  - learn.microsoft.com/azure/sre-agent/skills (tool attachment, max 5 active)
 """
 
 from __future__ import annotations
@@ -19,13 +24,36 @@ except ImportError:
     print("Error: PyYAML is required. Install it with: pip install pyyaml")
     sys.exit(1)
 
+# ── Spec limits ──────────────────────────────────────────────────
 MAX_NAME_LENGTH = 64
 MAX_DESCRIPTION_LENGTH = 1024
+MAX_COMPATIBILITY_LENGTH = 500
 MAX_SKILL_LINES = 500
+MAX_RECOMMENDED_TOKENS = 5000
+CHARS_PER_TOKEN = 4
+
 NAME_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
 CONSECUTIVE_HYPHENS = re.compile(r"--")
-REFERENCE_PATTERN = re.compile(r"\((?:scripts|references|assets|templates)/[^)]+\)")
-COMPATIBILITY_PATTERN = re.compile(r"^##\s+Compatibility", re.MULTILINE | re.IGNORECASE)
+REFERENCE_PATTERN = re.compile(
+    r"\((?:scripts|references|assets|templates)/[^)]+\)"
+)
+
+# ── Best-practice patterns ───────────────────────────────────────
+IMPERATIVE_PATTERNS = [
+    re.compile(r"use\s+(this\s+)?when", re.IGNORECASE),
+    re.compile(r"activate\s+when", re.IGNORECASE),
+    re.compile(r"triggered\s+by", re.IGNORECASE),
+    re.compile(r"use\s+this\s+skill", re.IGNORECASE),
+]
+
+VALID_FRONTMATTER_KEYS = {
+    "name",
+    "description",
+    "license",
+    "compatibility",
+    "metadata",
+    "allowed-tools",
+}
 
 
 @dataclass
@@ -33,7 +61,7 @@ class Finding:
     """A single validation finding."""
 
     skill: str
-    level: str
+    level: str  # error | warning | pass
     message: str
 
 
@@ -45,44 +73,37 @@ class ValidationResult:
     skills_checked: int = 0
 
     def error(self, skill: str, message: str) -> None:
-        """Record an error finding."""
         self.findings.append(Finding(skill, "error", message))
 
     def warn(self, skill: str, message: str) -> None:
-        """Record a warning finding."""
         self.findings.append(Finding(skill, "warning", message))
 
     def ok(self, skill: str, message: str) -> None:
-        """Record a passing check."""
         self.findings.append(Finding(skill, "pass", message))
 
     @property
     def errors(self) -> list[Finding]:
-        """Return all error findings."""
         return [f for f in self.findings if f.level == "error"]
 
     @property
     def warnings(self) -> list[Finding]:
-        """Return all warning findings."""
         return [f for f in self.findings if f.level == "warning"]
 
     @property
     def passed(self) -> bool:
-        """Return True if no errors were found."""
         return len(self.errors) == 0
 
 
-def parse_frontmatter(skill_md: Path) -> tuple[dict | None, str]:
-    """Parse YAML frontmatter from a SKILL.md file.
+def parse_frontmatter(skill_md: Path) -> tuple[dict | None, str, str]:
+    """Parse YAML frontmatter and body from a SKILL.md file.
 
-    :param skill_md: Path to SKILL.md.
-    :returns: Tuple of (frontmatter dict or None, error message).
+    :returns: (frontmatter dict or None, error message, body text).
     """
     text = skill_md.read_text(encoding="utf-8")
     lines = text.split("\n")
 
     if not lines or lines[0].strip() != "---":
-        return None, "SKILL.md does not start with YAML frontmatter (---)"
+        return None, "SKILL.md does not start with YAML frontmatter (---)", ""
 
     end_index = -1
     for i, line in enumerate(lines[1:], start=1):
@@ -91,108 +112,144 @@ def parse_frontmatter(skill_md: Path) -> tuple[dict | None, str]:
             break
 
     if end_index == -1:
-        return None, "YAML frontmatter not closed (missing second ---)"
+        return None, "YAML frontmatter not closed (missing second ---)", ""
 
     frontmatter_text = "\n".join(lines[1:end_index])
+    body = "\n".join(lines[end_index + 1 :])
     try:
         data = yaml.safe_load(frontmatter_text)
         if not isinstance(data, dict):
-            return None, "Frontmatter is not a YAML mapping"
-        return data, ""
+            return None, "Frontmatter is not a YAML mapping", ""
+        return data, "", body
     except yaml.YAMLError as exc:
-        return None, f"Invalid YAML in frontmatter: {exc}"
+        return None, f"Invalid YAML in frontmatter: {exc}", ""
 
 
-def validate_name(name: str | None, dir_name: str, result: ValidationResult, skill: str) -> None:
-    """Validate the 'name' frontmatter field.
+def validate_frontmatter_keys(
+    frontmatter: dict, result: ValidationResult, skill: str,
+) -> None:
+    """Warn on unknown frontmatter keys."""
+    unknown = set(frontmatter.keys()) - VALID_FRONTMATTER_KEYS
+    if unknown:
+        result.warn(
+            skill,
+            f"Unknown frontmatter keys: {sorted(unknown)} "
+            f"(valid: {sorted(VALID_FRONTMATTER_KEYS)})",
+        )
 
-    :param name: Value of the name field (or None).
-    :param dir_name: Name of the skill directory.
-    :param result: Validation result to append findings to.
-    :param skill: Skill identifier for reporting.
-    """
+
+def validate_name(
+    name: str | None, dir_name: str, result: ValidationResult, skill: str,
+) -> None:
+    """Validate the 'name' frontmatter field per spec."""
     if not name:
         result.error(skill, "Missing required 'name' field in frontmatter")
         return
 
     if name != dir_name:
-        result.error(skill, f"name '{name}' does not match directory name '{dir_name}'")
+        result.error(skill, f"name '{name}' != directory '{dir_name}'")
         return
 
-    has_error = False
-
     if len(name) > MAX_NAME_LENGTH:
-        result.error(
-            skill,
-            f"name exceeds {MAX_NAME_LENGTH} characters ({len(name)})",
-        )
-        has_error = True
+        result.error(skill, f"name exceeds {MAX_NAME_LENGTH} chars ({len(name)})")
+        return
 
     if not NAME_PATTERN.match(name):
         result.error(
             skill,
-            f"name '{name}' has invalid format " "(must be lowercase a-z, 0-9, hyphens only)",
+            f"name '{name}' invalid (lowercase a-z, 0-9, hyphens only, "
+            f"no leading/trailing hyphens)",
         )
-        has_error = True
+        return
 
     if CONSECUTIVE_HYPHENS.search(name):
         result.error(skill, f"name '{name}' contains consecutive hyphens")
-        has_error = True
+        return
 
-    if not has_error:
-        result.ok(skill, f"name matches directory ({name})")
+    result.ok(skill, f"name valid ({name})")
 
 
-def validate_description(description: str | None, result: ValidationResult, skill: str) -> None:
-    """Validate the 'description' frontmatter field.
-
-    :param description: Value of the description field (or None).
-    :param result: Validation result to append findings to.
-    :param skill: Skill identifier for reporting.
-    """
+def validate_description(
+    description: str | None, result: ValidationResult, skill: str,
+) -> None:
+    """Validate description field per spec + best practices."""
     if not description:
-        result.error(skill, "Missing required 'description' field in frontmatter")
+        result.error(skill, "Missing required 'description' field")
         return
 
     desc_len = len(description)
     if desc_len > MAX_DESCRIPTION_LENGTH:
         result.error(
             skill,
-            f"description exceeds {MAX_DESCRIPTION_LENGTH} " f"characters ({desc_len})",
+            f"description exceeds {MAX_DESCRIPTION_LENGTH} chars ({desc_len})",
         )
     else:
-        result.ok(skill, f"description present ({desc_len} chars)")
+        result.ok(skill, f"description length OK ({desc_len} chars)")
+
+    has_imperative = any(p.search(description) for p in IMPERATIVE_PATTERNS)
+    if not has_imperative:
+        result.warn(
+            skill,
+            "description lacks imperative phrasing "
+            "(recommended: 'Use when...', 'Triggered by...', 'Activate when...')",
+        )
+    else:
+        result.ok(skill, "description has imperative trigger phrasing")
 
 
-def validate_line_count(skill_md: Path, result: ValidationResult, skill: str) -> None:
-    """Check SKILL.md line count against the recommended maximum.
+def validate_compatibility(
+    frontmatter: dict, result: ValidationResult, skill: str,
+) -> None:
+    """Validate optional compatibility field."""
+    compat = frontmatter.get("compatibility")
+    if not compat:
+        result.warn(skill, "No 'compatibility' field (recommended for env requirements)")
+        return
 
-    :param skill_md: Path to SKILL.md.
-    :param result: Validation result to append findings to.
-    :param skill: Skill identifier for reporting.
-    """
-    line_count = len(skill_md.read_text(encoding="utf-8").splitlines())
+    if len(compat) > MAX_COMPATIBILITY_LENGTH:
+        result.error(
+            skill,
+            f"compatibility exceeds {MAX_COMPATIBILITY_LENGTH} chars ({len(compat)})",
+        )
+    else:
+        result.ok(skill, "compatibility field present")
+
+
+def validate_line_count(
+    skill_md: Path, result: ValidationResult, skill: str,
+) -> None:
+    """Check SKILL.md line count and estimated token count."""
+    text = skill_md.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    line_count = len(lines)
+    est_tokens = len(text) // CHARS_PER_TOKEN
+
     if line_count > MAX_SKILL_LINES:
         result.warn(
             skill,
-            f"SKILL.md has {line_count} lines (recommended: <{MAX_SKILL_LINES})",
+            f"SKILL.md has {line_count} lines (spec: <{MAX_SKILL_LINES}). "
+            f"Move detail to references/",
         )
     else:
-        result.ok(skill, f"Line count OK ({line_count})")
+        result.ok(skill, f"line count OK ({line_count})")
+
+    if est_tokens > MAX_RECOMMENDED_TOKENS:
+        result.warn(
+            skill,
+            f"Estimated ~{est_tokens} tokens (recommended: <{MAX_RECOMMENDED_TOKENS}). "
+            f"Consider splitting content.",
+        )
 
 
 def validate_scripts(
-    skill_dir: Path, frontmatter: dict, result: ValidationResult, skill: str
+    skill_dir: Path, frontmatter: dict, result: ValidationResult, skill: str,
 ) -> None:
-    """Check that scripts are executable and allowed-tools is set.
-
-    :param skill_dir: Path to the skill directory.
-    :param frontmatter: Parsed frontmatter dict.
-    :param result: Validation result to append findings to.
-    :param skill: Skill identifier for reporting.
-    """
-    scripts = list(skill_dir.rglob("*.sh")) + list(skill_dir.rglob("*.py"))
-    scripts = [s for s in scripts if "__pycache__" not in str(s) and s.name != "__init__.py"]
+    """Check scripts are executable and allowed-tools is set."""
+    scripts = [
+        s
+        for s in list(skill_dir.rglob("*.sh")) + list(skill_dir.rglob("*.py"))
+        if "__pycache__" not in str(s) and s.name != "__init__.py"
+    ]
 
     for script in scripts:
         if not os.access(script, os.X_OK):
@@ -204,23 +261,14 @@ def validate_scripts(
     if scripts and not allowed_tools:
         result.warn(
             skill,
-            "Skill has scripts but no 'allowed-tools' in frontmatter",
+            "Has scripts but no 'allowed-tools' in frontmatter",
         )
 
 
 def validate_references(
-    skill_md: Path,
-    skill_dir: Path,
-    result: ValidationResult,
-    skill: str,
+    skill_md: Path, skill_dir: Path, result: ValidationResult, skill: str,
 ) -> None:
-    """Check that files referenced in SKILL.md actually exist.
-
-    :param skill_md: Path to SKILL.md.
-    :param skill_dir: Path to the skill directory.
-    :param result: Validation result to append findings to.
-    :param skill: Skill identifier for reporting.
-    """
+    """Check that referenced files exist."""
     text = skill_md.read_text(encoding="utf-8")
     refs = REFERENCE_PATTERN.findall(text)
 
@@ -228,37 +276,66 @@ def validate_references(
         ref_path = ref.strip("()")
         full_path = skill_dir / ref_path
         if not full_path.exists():
-            result.warn(
-                skill,
-                f"SKILL.md references '{ref_path}' but file not found",
+            result.error(
+                skill, f"References '{ref_path}' but file not found",
             )
+        else:
+            result.ok(skill, f"Reference exists: {ref_path}")
 
 
-def validate_compatibility_section(
-    skill_md: Path, result: ValidationResult, skill: str
+def validate_progressive_disclosure(
+    skill_dir: Path, body: str, result: ValidationResult, skill: str,
 ) -> None:
-    """Check that SKILL.md contains a '## Compatibility' section.
+    """Check progressive disclosure best practice.
 
-    :param skill_md: Path to SKILL.md.
-    :param result: Validation result to append findings to.
-    :param skill: Skill identifier for reporting.
+    If SKILL.md is long, it should reference external files rather
+    than inlining everything.
     """
-    text = skill_md.read_text(encoding="utf-8")
-    if COMPATIBILITY_PATTERN.search(text):
-        result.ok(skill, "Compatibility section present")
-    else:
+    line_count = len(body.splitlines())
+    has_refs_dir = (skill_dir / "references").is_dir()
+    has_scripts_dir = (skill_dir / "scripts").is_dir()
+    has_assets_dir = (skill_dir / "assets").is_dir()
+    has_subdirs = has_refs_dir or has_scripts_dir or has_assets_dir
+
+    if line_count > 300 and not has_subdirs:
         result.warn(
             skill,
-            "Missing '## Compatibility' section (recommended)",
+            f"SKILL.md body is {line_count} lines with no references/, "
+            f"scripts/, or assets/ directory. Consider progressive disclosure.",
+        )
+
+    refs_in_body = REFERENCE_PATTERN.findall(body)
+    if has_subdirs and not refs_in_body and line_count > 200:
+        result.warn(
+            skill,
+            "Has subdirectories but SKILL.md doesn't reference them. "
+            "Link to files with (references/file.md) for progressive disclosure.",
+        )
+
+
+def validate_hardcoded_values(
+    body: str, result: ValidationResult, skill: str,
+) -> None:
+    """Warn if SKILL.md contains large property tables.
+
+    Best practice: properties should come from knowledge base / JSONL
+    files, not be hardcoded in skills.
+    """
+    table_rows = [
+        line for line in body.splitlines()
+        if line.strip().startswith("|") and "|" in line[1:]
+    ]
+    if len(table_rows) > 30:
+        result.warn(
+            skill,
+            f"SKILL.md has {len(table_rows)} table rows. "
+            f"Consider referencing knowledge base rules instead of "
+            f"hardcoding property values.",
         )
 
 
 def validate_skill(skill_dir: Path, result: ValidationResult) -> None:
-    """Validate a single skill directory.
-
-    :param skill_dir: Path to the skill directory.
-    :param result: Validation result to append findings to.
-    """
+    """Validate a single skill directory."""
     dir_name = skill_dir.name
     skill_md = skill_dir / "SKILL.md"
 
@@ -268,27 +345,26 @@ def validate_skill(skill_dir: Path, result: ValidationResult) -> None:
 
     result.ok(dir_name, "SKILL.md exists")
 
-    frontmatter, error = parse_frontmatter(skill_md)
+    frontmatter, error, body = parse_frontmatter(skill_md)
     if frontmatter is None:
         result.error(dir_name, error)
         return
 
     result.ok(dir_name, "YAML frontmatter valid")
 
+    validate_frontmatter_keys(frontmatter, result, dir_name)
     validate_name(frontmatter.get("name"), dir_name, result, dir_name)
     validate_description(frontmatter.get("description"), result, dir_name)
+    validate_compatibility(frontmatter, result, dir_name)
     validate_line_count(skill_md, result, dir_name)
     validate_scripts(skill_dir, frontmatter, result, dir_name)
     validate_references(skill_md, skill_dir, result, dir_name)
-    validate_compatibility_section(skill_md, result, dir_name)
+    validate_progressive_disclosure(skill_dir, body, result, dir_name)
+    validate_hardcoded_values(body, result, dir_name)
 
 
 def validate_skills_directory(skills_dir: Path) -> ValidationResult:
-    """Validate all skills in a directory.
-
-    :param skills_dir: Path to the skills root (e.g., .github/skills).
-    :returns: Aggregated validation result.
-    """
+    """Validate all skills in a directory."""
     result = ValidationResult()
 
     if not skills_dir.is_dir():
@@ -310,14 +386,18 @@ def validate_skills_directory(skills_dir: Path) -> ValidationResult:
         result.skills_checked += 1
         validate_skill(skill_dir, result)
 
+    if result.skills_checked > 5:
+        result.warn(
+            "(root)",
+            f"Found {result.skills_checked} skills. Azure SRE Agent supports "
+            f"max 5 concurrent active skills — consider consolidating.",
+        )
+
     return result
 
 
 def print_results(result: ValidationResult) -> None:
-    """Print validation results to stdout.
-
-    :param result: Validation result to print.
-    """
+    """Print validation results to stdout."""
     icons = {"error": "❌", "warning": "⚠️ ", "pass": "✅"}
 
     current_skill = None
@@ -328,9 +408,9 @@ def print_results(result: ValidationResult) -> None:
         icon = icons[finding.level]
         print(f"  {icon} {finding.message}")
 
-    print(f"\n{'=' * 40}")
+    print(f"\n{'=' * 50}")
     print(f"Skills checked: {result.skills_checked}")
-    print(f"Errors: {len(result.errors)}")
+    print(f"Errors:   {len(result.errors)}")
     print(f"Warnings: {len(result.warnings)}")
 
     if result.passed:
@@ -342,11 +422,10 @@ def print_results(result: ValidationResult) -> None:
 
 
 def main() -> int:
-    """Run skill validation from the command line.
-
-    :returns: Exit code (0=pass, 1=fail).
-    """
-    skills_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".github/skills")
+    """Run skill validation from the command line."""
+    skills_dir = (
+        Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".github/skills")
+    )
     result = validate_skills_directory(skills_dir)
     print_results(result)
     return 0 if result.passed else 1

@@ -11,10 +11,11 @@ from typing import List, Optional
 
 from src.core.models.schedule import Schedule
 from src.core.observability import get_logger
+from src.core.storage.staf_store import StafStore
 
 logger = get_logger(__name__)
 
-_SCHEDULES_SCHEMA = """
+SCHEDULES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS schedules (
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL,
@@ -49,38 +50,34 @@ def _dt_to_iso(dt: Optional[datetime]) -> Optional[str]:
 
 
 class ScheduleStore:
-    """SQLite-backed storage for schedules.
+    """Schedules backed by ``StafStore``."""
 
-    Uses WAL journal mode for crash safety. All writes are
-    wrapped in transactions.
-    """
+    SCHEMA = SCHEDULES_SCHEMA
 
     def __init__(
         self,
-        db_path: Path | str = "data/scheduler.db",
+        db: Optional[StafStore] = None,
+        *,
+        db_path: Optional[Path] = None,
     ) -> None:
-        """Initialize the schedule store.
-
-        :param db_path: Path to SQLite database file.
-        """
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        self._conn = sqlite3.connect(
-            str(self.db_path),
-            isolation_level="DEFERRED",
-            check_same_thread=False,
-        )
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-        self._conn.execute("PRAGMA busy_timeout=5000")
-        self._conn.executescript(_SCHEDULES_SCHEMA)
-
-        logger.info(f"Initialized schedule storage at {self.db_path}")
+        if db is None:
+            if db_path is None:
+                raise ValueError("Either db or db_path must be provided")
+            db = StafStore(db_path)
+            self._owns_db = True
+        else:
+            self._owns_db = False
+        self._db = db
+        self._conn = db.conn
+        db.register_schema(self.SCHEMA)
+        if self._owns_db:
+            db.sync()
+        logger.info("Initialized schedule storage")
 
     def close(self) -> None:
-        """Close the database connection."""
-        self._conn.close()
+        """Close the underlying database if this store owns it."""
+        if self._owns_db:
+            self._db.close()
 
     @staticmethod
     def _schedule_to_row(schedule: Schedule) -> dict:

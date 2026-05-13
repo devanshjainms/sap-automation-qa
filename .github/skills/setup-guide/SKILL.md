@@ -5,6 +5,10 @@ description: >
   Use when asked about installation, setup, Docker deployment, or Copilot integration.
   Triggered by "setup environment", "install staf", "how to get started", "container start",
   "setup.sh", "configure vars.yaml", "setup help", or "docker deployment".
+compatibility: "Linux management server with Python 3.10+, SSH access to SAP hosts."
+allowed-tools: shell
+tools:
+  - list_workspaces
 ---
 
 # SAP Testing Automation Framework (STAF) Setup Guide

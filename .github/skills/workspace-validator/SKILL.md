@@ -1,9 +1,14 @@
 ---
 name: workspace-validator
 description: >
-  Validate SAP workspace configurations before running tests.
-  Use when asked to validate a workspace, check config, or troubleshoot workspace setup issues.
+  Use this skill when the user asks to validate a workspace, check SAP configuration,
+  or troubleshoot workspace setup issues before running STAF tests.
+  Triggered by "validate workspace", "check config", "workspace issues", or "fix workspace".
+compatibility: "STAF installed with SSH access to validate host connectivity."
 allowed-tools: shell
+tools:
+  - list_workspaces
+  - get_workspace
 ---
 
 # Workspace Validator

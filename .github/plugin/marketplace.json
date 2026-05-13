@@ -1,0 +1,58 @@
+{
+  "name": "SAP Testing Automation Framework (STAF)",
+  "description": "SAP High Availability testing, evidence collection, and cluster triage for Azure SRE Agent. Provides 23 MCP tools covering workspace discovery, evidence collection, knowledge search, HA functional testing, and job/schedule management for SAP HANA, SCS, and Pacemaker clusters on Azure.",
+  "version": "1.1.0",
+  "author": "Microsoft",
+  "license": "MIT",
+  "homepage": "https://github.com/Azure/sap-automation-qa",
+  "plugins": [
+    {
+      "name": "sap-cluster-triage",
+      "description": "Triage SAP HANA and SCS Pacemaker cluster incidents — collects SSH evidence, queries the SAP knowledge base, and provides evidence context for LLM-driven root cause analysis and remediation.",
+      "skills": [
+        ".github/skills/sap-cluster-triage"
+      ],
+      "tags": ["sap", "hana", "pacemaker", "triage", "cluster", "incident"]
+    },
+    {
+      "name": "setup-guide",
+      "description": "Guide for setting up the SAP Testing Automation Framework environment — installation, Docker deployment, vars.yaml configuration, and Copilot integration.",
+      "skills": [
+        ".github/skills/setup-guide"
+      ],
+      "tags": ["sap", "setup", "installation", "docker", "configuration"]
+    },
+    {
+      "name": "test-runner",
+      "description": "Execute STAF tests — run HA functional tests, configuration checks, and targeted test cases via direct Ansible execution or API mode.",
+      "skills": [
+        ".github/skills/test-runner"
+      ],
+      "tags": ["sap", "testing", "ha", "ansible", "execution"]
+    },
+    {
+      "name": "test-result-analyzer",
+      "description": "Analyze STAF test results and identify root causes — interpret test output, check test status, and read test logs.",
+      "skills": [
+        ".github/skills/test-result-analyzer"
+      ],
+      "tags": ["sap", "testing", "analysis", "results", "troubleshooting"]
+    },
+    {
+      "name": "workspace-creator",
+      "description": "Create new SAP workspace configurations for STAF testing — onboard systems, generate hosts.yaml and sap-parameters.yaml.",
+      "skills": [
+        ".github/skills/workspace-creator"
+      ],
+      "tags": ["sap", "workspace", "onboarding", "configuration"]
+    },
+    {
+      "name": "workspace-validator",
+      "description": "Validate SAP workspace configurations before running tests — check config structure, verify connectivity, troubleshoot setup issues.",
+      "skills": [
+        ".github/skills/workspace-validator"
+      ],
+      "tags": ["sap", "workspace", "validation", "troubleshooting"]
+    }
+  ]
+}

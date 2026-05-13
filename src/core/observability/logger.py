@@ -13,8 +13,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING, Union
-from src.core.observability.context import ObservabilityContextManager
+from typing import Any, Optional, Union
+from src.core.observability.context import ObservabilityContextManager, clear_context
 from src.core.observability.events import (
     ServiceEvent,
     ExecutionEvent,
@@ -165,10 +165,9 @@ class ConsoleFormatter(LogFormatter):
         short_corr = corr_id[:8] if corr_id != "-" else "-"
         color = self.COLORS.get(record.levelname, "")
         reset = self.COLORS["RESET"]
-        timestamp = datetime.utcfromtimestamp(record.created).strftime("%H:%M:%S.%f")[:-3]
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         formatted = (
             f"{color}{record.levelname:5}{reset} "
-            f"[{timestamp}] cid={short_corr} "
             f"{record.name.split('.')[-1]} - {record.getMessage()}"
         )
         extras = []
@@ -322,6 +321,22 @@ class LoggerFactory:
             service_name,
             telemetry_config,
         )
+        cls._configure_logger(
+            "src.agents",
+            level,
+            log_format,
+            service_name,
+            telemetry_config,
+        )
+
+        for noisy in (
+            "httpx",
+            "httpcore",
+            "opentelemetry.trace",
+            "opentelemetry.context",
+        ):
+            logging.getLogger(noisy).setLevel(logging.ERROR)
+
         cls._initialized = True
 
     @classmethod
@@ -446,6 +461,4 @@ def get_logger(name: str) -> StructuredLogger:
 
 def clear_correlation_id() -> None:
     """Clear correlation ID from context."""
-    from src.core.observability.context import clear_context
-
     clear_context()

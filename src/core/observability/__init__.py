@@ -10,26 +10,8 @@ Classes:
 - StructuredLogger: Logger with context injection
 - LoggerFactory: Factory for creating loggers
 - JSONFormatter/ConsoleFormatter: Log formatters
-
-Events:
-- ServiceEvent: HTTP/API layer events
-- ExecutionEvent: Ansible/test events
-
-Usage:
-    from src.core.observability import (
-        LoggerFactory,
-        get_logger,
-    )
-
-    # Initialize once at startup
-    LoggerFactory.initialize(level=logging.INFO, log_format="json")
-
-    # Get logger
-    logger = get_logger(__name__)
-
 """
 
-# Context management
 from src.core.observability.context import (
     ContextData,
     ObservabilityContextManager,

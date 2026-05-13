@@ -1,8 +1,14 @@
 ---
 name: workspace-creator
 description: >
-  Create new SAP workspace configurations for STAF testing.
-  Use when asked to set up a new workspace, onboard a system, or create workspace configs.
+  Use this skill when the user asks to create a new SAP workspace, onboard an SAP system,
+  or generate workspace configuration files (sap-parameters.yaml, hosts.yaml) for STAF testing.
+  Triggered by "create workspace", "new workspace", "onboard system", or "add new system".
+compatibility: "STAF installed. Knowledge of target SAP system SID, hosts, and instance numbers."
+allowed-tools: shell
+tools:
+  - list_workspaces
+  - get_workspace
 ---
 
 # Workspace Creator

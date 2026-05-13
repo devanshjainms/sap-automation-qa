@@ -5,7 +5,16 @@ description: >
   and API mode. Use when asked to run tests, execute configuration checks, or start
   HA tests on SAP systems. Triggered by "run test", "execute ha test", "start test",
   "run configuration check", "test my system", or "trigger test job".
+compatibility: "STAF installed with ansible-core 2.17+. SSH access to SAP hosts."
 allowed-tools: shell
+tools:
+  - run_staf_test
+  - get_job_status
+  - get_job_results
+  - get_job_log
+  - get_job_events
+  - cancel_job
+  - list_workspaces
 ---
 
 # Test Runner

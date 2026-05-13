@@ -4,6 +4,7 @@ ansible-lint
 ansible-runner
 
 # Azure packages
+azure-data-tables
 azure-identity
 azure-keyvault-secrets
 azure-kusto-data
@@ -31,18 +32,24 @@ pytest-mock
 numpy
 pandas
 
+# Semantic search
+sentence-transformers
+
 # Core utilities
 jmespath
 Jinja2
 PyYAML
 requests
+httpx
 
 # CLI tools
 click
 rich
-# API 
+
+# API
 fastapi
 uvicorn
 pydantic
 apscheduler
 python-multipart
+mcp

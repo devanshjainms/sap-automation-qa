@@ -4,6 +4,7 @@
 """Background job worker for async test execution."""
 
 import asyncio
+import shutil
 import time
 from pathlib import Path
 from typing import Any, AsyncGenerator, Callable
@@ -198,6 +199,7 @@ class JobWorker:
         """
         start_time = time.perf_counter()
         ssh_credential = None
+        cleanup_path = ""
 
         with ExecutionScope(
             execution_id=str(job.id),
@@ -221,6 +223,7 @@ class JobWorker:
                 if not workspace_config:
                     raise ValueError(f"Workspace {job.workspace_id} not found")
 
+                cleanup_path = workspace_config.get("_cleanup_path", "")
                 inventory_path = workspace_config.get("inventory_path", "")
                 if not inventory_path:
                     raise ValueError(f"No inventory path for workspace {job.workspace_id}")
@@ -367,6 +370,8 @@ class JobWorker:
             finally:
                 if ssh_credential:
                     ssh_credential.cleanup()
+                if cleanup_path and Path(cleanup_path).is_dir():
+                    shutil.rmtree(cleanup_path, ignore_errors=True)
                 if str(job.id) in self._running_jobs:
                     del self._running_jobs[str(job.id)]
                 if str(job.id) in self._event_queues:
@@ -397,7 +402,3 @@ class JobWorker:
                 exc_info=True,
             )
             return None
-
-    def get_running_job_ids(self) -> list[str]:
-        """Get IDs of currently running jobs."""
-        return list(self._running_jobs.keys())

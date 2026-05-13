@@ -5,7 +5,10 @@ services:
   sap-qa-service:
     build:
       context:            ..
-      dockerfile:         deploy/Dockerfile
+      dockerfile:         Dockerfile
+      args:
+                          - GIT_COMMIT=${GIT_COMMIT:-unknown}
+    image:                sap-qa:latest
     container_name:       sap-qa-service
     user:                 "${HOST_UID:-1000}:${HOST_GID:-1000}"
     restart:              unless-stopped
@@ -16,6 +19,13 @@ services:
                           - LOG_LEVEL=${LOG_LEVEL:-INFO}
                           - SCHEDULER_CHECK_INTERVAL=${SCHEDULER_CHECK_INTERVAL:-60}
                           - PYTHONPATH=/app
+                          - STAF_MCP_URL=http://sap-mcp-server:8001
+                          - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
+                          - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+                          - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+                          - AUTH_DEV_MODE=${AUTH_DEV_MODE:-false}
+                          - GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-Azure/sap-automation-qa}
+                          - GITHUB_BRANCH=${GITHUB_BRANCH:-main}
                           - TELEMETRY_DATA_DESTINATION=${TELEMETRY_DATA_DESTINATION:-}
                           - LAWS_WORKSPACE_ID=${LAWS_WORKSPACE_ID:-}
                           - LAWS_SHARED_KEY=${LAWS_SHARED_KEY:-}
@@ -29,8 +39,53 @@ services:
                           - sap-qa-data:/app/data
                           - ../WORKSPACES:/app/WORKSPACES
                           - ../vars.yaml:/app/vars.yaml:ro
+    depends_on:
+      sap-mcp-server:
+        condition:        service_healthy
     healthcheck:
       test:               ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval:           30s
+      timeout:            10s
+      retries:            5
+      start_period:       60s
+    networks:
+                          - sap-qa-network
+    logging:
+      driver:             "json-file"
+      options:
+        max-size:         "10m"
+        max-file:         "3"
+
+  sap-mcp-server:
+    image:                sap-qa:latest
+    container_name:       sap-mcp-server
+    user:                 "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart:              unless-stopped
+    command:              ["uvicorn", "src.mcp_server.server:http_app", "--host", "0.0.0.0", "--port", "8001"]
+    ports:
+                          - "8001:8001"
+    environment:
+                          - LOG_FORMAT=${LOG_FORMAT:-json}
+                          - LOG_LEVEL=${LOG_LEVEL:-INFO}
+                          - PYTHONPATH=/app
+                          - MCP_HOST=0.0.0.0
+                          - MCP_PORT=8001
+                          - CORE_API_URL=http://sap-qa-service:8000
+                          - DATA_DIR=/app/data
+                          - WORKSPACES_BASE=/app/WORKSPACES/SYSTEM
+                          - MCP_AUTH_MODE=${MCP_AUTH_MODE:-none}
+                          - MCP_API_KEY=${MCP_API_KEY:-}
+                          - MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN:-}
+                          - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+                          - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+                          - AUTH_DEV_MODE=${AUTH_DEV_MODE:-false}
+                          - MCP_RATE_LIMIT_RPM=${MCP_RATE_LIMIT_RPM:-300}
+                          - MCP_RATE_LIMIT_BURST=${MCP_RATE_LIMIT_BURST:-50}
+    volumes:
+                          - sap-qa-data:/app/data
+                          - ../WORKSPACES:/app/WORKSPACES
+    healthcheck:
+      test:               ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8001/mcp | grep -qE '^[2-5]'"]
       interval:           30s
       timeout:            10s
       retries:            3

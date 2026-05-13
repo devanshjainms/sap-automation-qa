@@ -54,15 +54,15 @@ class IContextProvider(Protocol):
 
     def get_context(self) -> ContextData:
         """Get current context data."""
-        raise NotImplementedError
+        ...
 
     def set_context(self, data: ContextData) -> Token:
         """Set context data, returning token for restoration."""
-        raise NotImplementedError
+        ...
 
     def reset(self, token: Token) -> None:
         """Reset context to previous state using token."""
-        raise NotImplementedError
+        ...
 
 
 class ContextVarProvider:
@@ -130,12 +130,6 @@ class ObservabilityContextManager:
         """
         return cls()
 
-    @classmethod
-    def reset_instance(cls) -> None:
-        """Reset singleton (for testing only)."""
-        cls._instance = None
-        cls._provider = None
-
     @property
     def _ctx_provider(self) -> ContextVarProvider:
         """Get provider with type safety.
@@ -176,19 +170,6 @@ class ObservabilityContextManager:
         """
         current = self._ctx_provider.get_context()
         self._ctx_provider.set_context(current.with_updates(workspace_id=value))
-
-    def set_execution_id(self, value: Optional[str] = None) -> str:
-        """Set execution ID (generates UUID if None).
-
-        :param value: Execution ID or None to generate
-        :type value: Optional[str]
-        :returns: The execution ID that was set
-        :rtype: str
-        """
-        eid = value or str(uuid.uuid4())
-        current = self._ctx_provider.get_context()
-        self._ctx_provider.set_context(current.with_updates(execution_id=eid))
-        return eid
 
     def get_all(self) -> dict[str, Optional[str]]:
         """Get all context values as dictionary.
