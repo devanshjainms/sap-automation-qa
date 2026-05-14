@@ -3,12 +3,12 @@ name: test-result-analyzer
 description: Analyze STAF test results and identify root causes. Use when asked about test failures, what went wrong, or to interpret test output.
 metadata:
   examples:
-    - "Why did the HA config check fail on workspace DEV01?"
-    - "Show me the test results for the last job"
-    - "What went wrong in the primary node crash test?"
-    - "Analyze the test log for job abc-123"
-    - "Check the status of my running test"
-compatibility: "STAF installed. Access to test output files and logs."
+    - Why did the HA config check fail on workspace DEV01?
+    - Show me the test results for the last job
+    - What went wrong in the primary node crash test?
+    - Analyze the test log for job abc-123
+    - Check the status of my running test
+compatibility: STAF installed. Access to test output files and logs.
 allowed-tools: shell
 tools:
   - stafmcp_get_job_status

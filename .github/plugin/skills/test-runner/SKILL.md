@@ -3,12 +3,12 @@ name: test-runner
 description: Execute STAF tests using sap_automation_qa.sh. Supports direct Ansible execution and API mode. Use when asked to run tests, execute configuration checks, or start HA tests on SAP systems.
 metadata:
   examples:
-    - "Run HA configuration check on workspace DEV01"
-    - "Execute primary node crash test on my HANA cluster"
-    - "Start SCS failover test for workspace PROD01"
-    - "Run all configuration checks for my SAP system"
-    - "What tests are available for HANA HA?"
-compatibility: "STAF installed with ansible-core 2.17+. SSH access to SAP hosts."
+    - Run HA configuration check on workspace DEV01
+    - Execute primary node crash test on my HANA cluster
+    - Start SCS failover test for workspace PROD01
+    - Run all configuration checks for my SAP system
+    - What tests are available for HANA HA?
+compatibility: STAF installed with ansible-core 2.17+. SSH access to SAP hosts.
 allowed-tools: shell
 tools:
   - stafmcp_run_staf_test

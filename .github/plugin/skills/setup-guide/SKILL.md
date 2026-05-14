@@ -3,12 +3,12 @@ name: setup-guide
 description: Guide for setting up the SAP Testing Automation Framework environment. Use when asked about installation, setup, Docker deployment, or Copilot integration.
 metadata:
   examples:
-    - "How do I set up STAF on my management server?"
-    - "Deploy STAF using Docker containers"
-    - "Configure vars.yaml for my SAP environment"
-    - "What are the prerequisites for STAF installation?"
-    - "How do I connect STAF to my SAP hosts?"
-compatibility: "Linux management server with Python 3.10+, SSH access to SAP hosts."
+    - How do I set up STAF on my management server?
+    - Deploy STAF using Docker containers
+    - Configure vars.yaml for my SAP environment
+    - What are the prerequisites for STAF installation?
+    - How do I connect STAF to my SAP hosts?
+compatibility: Linux management server with Python 3.10+, SSH access to SAP hosts.
 allowed-tools: shell
 tools:
   - stafmcp_list_workspaces

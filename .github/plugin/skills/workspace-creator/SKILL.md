@@ -3,12 +3,12 @@ name: workspace-creator
 description: Use this skill when the user asks to create a new SAP workspace, onboard an SAP system, or generate workspace configuration files (sap-parameters.yaml, hosts.yaml) for STAF testing.
 metadata:
   examples:
-    - "Create a new workspace for SAP system S4H"
-    - "Onboard my HANA scale-up cluster with SID HDB"
-    - "Generate hosts.yaml for a two-node HANA cluster"
-    - "Set up a workspace for SCS HA testing"
-    - "What information do I need to create a workspace?"
-compatibility: "STAF installed. Knowledge of target SAP system SID, hosts, and instance numbers."
+    - Create a new workspace for SAP system S4H
+    - Onboard my HANA scale-up cluster with SID HDB
+    - Generate hosts.yaml for a two-node HANA cluster
+    - Set up a workspace for SCS HA testing
+    - What information do I need to create a workspace?
+compatibility: STAF installed. Knowledge of target SAP system SID, hosts, and instance numbers.
 allowed-tools: shell
 tools:
   - stafmcp_list_workspaces
