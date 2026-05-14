@@ -13,11 +13,7 @@
 
 name: sap-ha-test-runner
 
-handoff_description: >-
-  SAP HA functional test executor. Delegates here ONLY for destructive HA
-  tests — controlled failover, node crash, process kill, network isolation,
-  and fencing tests. Requires human approval. Collects baseline evidence
-  before and after each test.
+handoff_description: "SAP HA functional test executor. Delegates here ONLY for destructive HA tests — controlled failover, node crash, process kill, network isolation, and fencing tests. Requires human approval. Collects baseline evidence before and after each test."
 
 enable_skills: true
 

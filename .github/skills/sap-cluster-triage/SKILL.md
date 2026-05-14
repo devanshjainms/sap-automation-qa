@@ -1,16 +1,13 @@
 ---
 name: sap-cluster-triage
-description: >
-  Triage SAP HANA and SCS/ERS Pacemaker clusters on Azure. Collects SSH evidence,
-  queries the SAP knowledge base, and provides context for root cause analysis of
-  cluster failures, fencing issues, and replication breakdowns.
+description: "Triage SAP HANA and SCS/ERS Pacemaker clusters on Azure. Collects SSH evidence, queries the SAP knowledge base, and provides context for root cause analysis of cluster failures, fencing issues, and replication breakdowns."
 metadata:
-  examples: >
-    Triage the HANA cluster in workspace DEV01 |
-    Why did fencing fail on node hana-vm1? |
-    Check pacemaker cluster status on my SCS system |
-    What caused the split-brain event in my HANA cluster? |
-    Collect evidence from the failed cluster node
+  examples:
+    - "Triage the HANA cluster in workspace DEV01"
+    - "Why did fencing fail on node hana-vm1?"
+    - "Check pacemaker cluster status on my SCS system"
+    - "What caused the split-brain event in my HANA cluster?"
+    - "Collect evidence from the failed cluster node"
 compatibility: "Requires STAF MCP server connection. Target SAP systems must be reachable via SSH."
 allowed-tools: shell
 tools:

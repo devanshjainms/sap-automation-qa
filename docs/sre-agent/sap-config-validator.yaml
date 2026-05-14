@@ -4,10 +4,7 @@
 
 name: sap-config-validator
 
-handoff_description: >-
-  SAP configuration validation specialist. Delegates here to run read-only
-  HA configuration checks — validates cluster properties, load balancer setup,
-  and SAPControl settings. Does NOT run destructive functional tests.
+handoff_description: "SAP configuration validation specialist. Delegates here to run read-only HA configuration checks — validates cluster properties, load balancer setup, and SAPControl settings. Does NOT run destructive functional tests."
 
 enable_skills: true
 
@@ -23,6 +20,10 @@ mcp_tools:
   - stafmcp/list_workspaces
   - stafmcp/get_workspace
   - stafmcp/query_knowledge
+
+tools:
+  - RunAzCliReadCommands
+  - GetAzCliHelp
 
 system_prompt: |
   You are an SAP configuration validation specialist in Azure SRE Agent.

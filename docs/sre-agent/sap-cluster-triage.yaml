@@ -4,11 +4,7 @@
 
 name: sap-cluster-triage
 
-handoff_description: >-
-  SAP cluster investigation specialist. Delegates here for read-only
-  investigation of SAP HANA and SCS Pacemaker cluster health — evidence
-  collection, log search, knowledge queries, and root cause analysis.
-  Does NOT run tests or modify cluster state.
+handoff_description: "SAP cluster investigation specialist. Delegates here for read-only investigation of SAP HANA and SCS Pacemaker cluster health — evidence collection, log search, knowledge queries, and root cause analysis. Does NOT run tests or modify cluster state."
 
 enable_skills: true
 
