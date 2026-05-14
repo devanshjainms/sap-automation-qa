@@ -33,6 +33,7 @@
         paths:                          "{{ _ws_dir }}"
         patterns:                       "*.html"
         age:                            "-1d"
+        recurse:                        true
       register:                         _report_files
       failed_when:                      false
 

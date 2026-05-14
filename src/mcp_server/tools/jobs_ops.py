@@ -31,8 +31,12 @@ logger = logging.getLogger(__name__)
     name="get_job_status",
     title="Get Job Status",
     description=(
-        "Poll a running STAF job's status. Returns current status, timing, "
-        "and workspace info. Use after run_staf_test to check completion."
+        "Poll a STAF job's status. Returns current status (pending, running, "
+        "completed, failed, cancelled), timing, and workspace info. "
+        "After run_staf_test, poll this until is_terminal=true. "
+        "HA tests typically take 8-15 minutes — do not poll more than once "
+        "per 30 seconds. Once completed, call get_job_log to read the "
+        "detailed per-check findings and report them to the user."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=True,
@@ -69,8 +73,10 @@ async def get_job_status(
     name="get_job_results",
     title="Get Job Results",
     description=(
-        "Retrieve results for a completed STAF job. Returns exit code, "
-        "result data, and event log. Only available after terminal state."
+        "Retrieve the summary result for a completed STAF job. Returns pass/fail "
+        "counts, exit code, and event timeline. Use this to check whether the test "
+        "passed or failed. For the detailed per-check findings (which specific HA "
+        "properties were validated and their values), call get_job_log instead."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=True,
@@ -231,7 +237,12 @@ async def get_job_events(
     name="get_job_log",
     title="Get Job Log",
     description=(
-        "Retrieve the Ansible process log for a STAF job. "
+        "Retrieve the detailed structured test log for a STAF job. "
+        "The log contains JSON-lines with per-check results: each line has "
+        "test_case_name, status (PASSED/FAILED/WARNING), parameter name, "
+        "actual value, expected value, and severity. Use this to report "
+        "the specific HA configuration findings to the user — not just "
+        "pass/fail but WHAT was checked and WHAT the values were. "
         "Set tail > 0 to return only the last N lines."
     ),
     annotations=ToolAnnotations(
