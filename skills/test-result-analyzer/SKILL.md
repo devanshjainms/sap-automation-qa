@@ -11,11 +11,11 @@ metadata:
 compatibility: "STAF installed. Access to test output files and logs."
 allowed-tools: shell
 tools:
-  - get_job_status
-  - get_job_results
-  - get_job_log
-  - get_job_events
-  - list_jobs
+  - stafmcp_get_job_status
+  - stafmcp_get_job_results
+  - stafmcp_get_job_log
+  - stafmcp_get_job_events
+  - stafmcp_list_jobs
 ---
 
 # Test Result Analyzer

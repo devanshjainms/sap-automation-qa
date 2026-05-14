@@ -11,8 +11,8 @@ metadata:
 compatibility: "STAF installed with SSH access to validate host connectivity."
 allowed-tools: shell
 tools:
-  - list_workspaces
-  - get_workspace
+  - stafmcp_list_workspaces
+  - stafmcp_get_workspace
 ---
 
 # Workspace Validator

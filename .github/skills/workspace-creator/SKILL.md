@@ -11,8 +11,8 @@ metadata:
 compatibility: "STAF installed. Knowledge of target SAP system SID, hosts, and instance numbers."
 allowed-tools: shell
 tools:
-  - list_workspaces
-  - get_workspace
+  - stafmcp_list_workspaces
+  - stafmcp_get_workspace
 ---
 
 # Workspace Creator

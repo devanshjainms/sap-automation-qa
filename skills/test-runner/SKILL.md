@@ -11,13 +11,13 @@ metadata:
 compatibility: "STAF installed with ansible-core 2.17+. SSH access to SAP hosts."
 allowed-tools: shell
 tools:
-  - run_staf_test
-  - get_job_status
-  - get_job_results
-  - get_job_log
-  - get_job_events
-  - cancel_job
-  - list_workspaces
+  - stafmcp_run_staf_test
+  - stafmcp_get_job_status
+  - stafmcp_get_job_results
+  - stafmcp_get_job_log
+  - stafmcp_get_job_events
+  - stafmcp_cancel_job
+  - stafmcp_list_workspaces
 ---
 
 # Test Runner

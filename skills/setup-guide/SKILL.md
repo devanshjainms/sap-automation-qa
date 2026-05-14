@@ -11,7 +11,7 @@ metadata:
 compatibility: "Linux management server with Python 3.10+, SSH access to SAP hosts."
 allowed-tools: shell
 tools:
-  - list_workspaces
+  - stafmcp_list_workspaces
 ---
 
 # SAP Testing Automation Framework (STAF) Setup Guide

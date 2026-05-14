@@ -11,15 +11,15 @@ metadata:
 compatibility: "Requires STAF MCP server connection. Target SAP systems must be reachable via SSH."
 allowed-tools: shell
 tools:
-  - collect_evidence
-  - get_analysis_context
-  - get_evidence_output
-  - run_evidence_collector
-  - list_evidence_catalog
-  - search_logs
-  - query_knowledge
-  - list_workspaces
-  - get_workspace
+  - stafmcp_collect_evidence
+  - stafmcp_get_analysis_context
+  - stafmcp_get_evidence_output
+  - stafmcp_run_evidence_collector
+  - stafmcp_list_evidence_catalog
+  - stafmcp_search_logs
+  - stafmcp_query_knowledge
+  - stafmcp_list_workspaces
+  - stafmcp_get_workspace
   - RunAzCliReadCommands
   - GetAzCliHelp
 ---
