@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "staf-mcp": {
+      "url": "https://<YOUR_CONTAINER_APP_URL>/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer <YOUR_API_KEY>"
+      }
+    }
+  }
+}
