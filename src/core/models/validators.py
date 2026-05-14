@@ -3,10 +3,10 @@
 
 """Validator type definitions for rule specifications."""
 
-from enum import Enum
+from enum import StrEnum
 
 
-class ValidatorType(str, Enum):
+class ValidatorType(StrEnum):
     """Strategy for validating an evidence value against a rule."""
 
     EXACT_MATCH = "exact_match"

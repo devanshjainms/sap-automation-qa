@@ -65,7 +65,7 @@ explicitly requests a specific test.
 | `fs-freeze` | Freeze primary filesystem (ANF) | 🔴 Destructive |
 | `sbd-fencing` | Kill SBD inquisitor to trigger fencing | 🔴 Destructive |
 
-### SCS/ERS HA (test_group: SCSHighAvailability)
+### SCS/ERS HA (test_group: CentralServicesHighAvailability)
 
 | test_id | What it does | Risk |
 |---------|-------------|------|

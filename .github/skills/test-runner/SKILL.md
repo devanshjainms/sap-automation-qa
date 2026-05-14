@@ -148,6 +148,39 @@ When `TEST_TYPE=ConfigurationChecks` in vars.yaml, use `--extra-vars`:
 | `WebDispatcherInstances` | Web Dispatcher checks |
 | `ObserverInstances` | Observer checks |
 
+## MCP Tool Usage (SRE Agent)
+
+When using the `stafmcp_run_staf_test` MCP tool, provide these parameters:
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `workspace_id` | Yes | Workspace ID from `stafmcp_list_workspaces` |
+| `test_group` | Yes | One of the API test group names below |
+| `test_ids` | Yes | List of test case names to run |
+
+### test_group values (use these exactly)
+
+| test_group | When to use |
+|------------|-------------|
+| `DatabaseHighAvailability` | HANA HA tests including ha-config, failover, crash tests |
+| `CentralServicesHighAvailability` | SCS/ERS HA tests including ha-config, ASCS migration |
+| `ConfigurationChecks` | OS-level configuration checks only |
+
+### Common examples
+
+```
+# HANA HA config validation
+stafmcp_run_staf_test(workspace_id="<WORKSPACE_ID>", test_group="DatabaseHighAvailability", test_ids=["ha-config"])
+
+# SCS HA config validation
+stafmcp_run_staf_test(workspace_id="<WORKSPACE_ID>", test_group="CentralServicesHighAvailability", test_ids=["ha-config"])
+
+# HANA primary crash test
+stafmcp_run_staf_test(workspace_id="<WORKSPACE_ID>", test_group="DatabaseHighAvailability", test_ids=["primary-node-crash"])
+```
+
+See [test-catalog.md](references/test-catalog.md) for the full list of test_ids per test_group.
+
 ## API Mode
 
 Requires the FastAPI server running (Docker or local uvicorn).

@@ -7,7 +7,7 @@ Typed event definitions for structured logging.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,7 +18,7 @@ from src.core.observability.context import (
 )
 
 
-class LogStream(str, Enum):
+class LogStream(StrEnum):
     """
     Log stream identifiers (indexed labels in Loki).
     """
@@ -27,7 +27,7 @@ class LogStream(str, Enum):
     EXECUTION = "execution_logs"
 
 
-class LogLevel(str, Enum):
+class LogLevel(StrEnum):
     """Standard log levels."""
 
     DEBUG = "DEBUG"

@@ -4,13 +4,13 @@
 """Job execution models."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Optional, List
 from uuid import UUID, uuid4
 from pydantic import BaseModel, Field, ConfigDict
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     """Status of an execution job."""
 
     PENDING = "pending"
@@ -20,7 +20,7 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class JobEventType(str, Enum):
+class JobEventType(StrEnum):
     """Type of job event."""
 
     CREATED = "created"

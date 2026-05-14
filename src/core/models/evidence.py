@@ -5,11 +5,11 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Optional
 
 
-class EvidenceType(str, Enum):
+class EvidenceType(StrEnum):
     """Type of evidence artifact collected during triage."""
 
     COMMAND_OUTPUT = "command_output"
@@ -20,7 +20,7 @@ class EvidenceType(str, Enum):
     SAP_PROCESS_LIST = "sap_process_list"
 
 
-class CollectorType(str, Enum):
+class CollectorType(StrEnum):
     """Source that produced the evidence artifact."""
 
     SSH = "ssh"
@@ -30,7 +30,7 @@ class CollectorType(str, Enum):
     IMDS = "imds"
 
 
-class CollectionStatus(str, Enum):
+class CollectionStatus(StrEnum):
     """Outcome of an individual evidence collection attempt.
     Every artifact carries its collection status so the analyzer
     knows which evidence is trustworthy vs degraded.

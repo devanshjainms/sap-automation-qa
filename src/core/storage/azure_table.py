@@ -50,7 +50,7 @@ class AzureTableJobStore:
 
     def _to_entity(self, job: Job) -> dict[str, Any]:
         """Serialize a Job to a table entity."""
-        status = job.status.value if hasattr(job.status, "value") else str(job.status)
+        status = str(job.status)
         return {
             "PartitionKey": _PARTITION_KEY,
             "RowKey": str(job.id),

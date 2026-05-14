@@ -30,12 +30,12 @@ request for tests not in this list:
 | test_id | test_group | What it validates |
 |---------|-----------|-------------------|
 | `ha-config` | DatabaseHighAvailability | HANA CRM properties, resources, constraints, fencing |
-| `ha-config` | SCSHighAvailability | SCS CRM properties, resources, constraints |
+| `ha-config` | CentralServicesHighAvailability | SCS CRM properties, resources, constraints |
 | `ha-config-offline` | DatabaseHighAvailability | Same as ha-config but from saved CIB files |
-| `ha-config-offline` | SCSHighAvailability | Same as ha-config but from saved CIB files |
+| `ha-config-offline` | CentralServicesHighAvailability | Same as ha-config but from saved CIB files |
 | `azure-lb` | DatabaseHighAvailability | Azure Load Balancer configuration for HANA |
-| `azure-lb` | SCSHighAvailability | Azure Load Balancer configuration for SCS |
-| `sapcontrol-config` | SCSHighAvailability | SAPControl failover and HA settings |
+| `azure-lb` | CentralServicesHighAvailability | Azure Load Balancer configuration for SCS |
+| `sapcontrol-config` | CentralServicesHighAvailability | SAPControl failover and HA settings |
 
 ## What you must NOT do
 
@@ -50,7 +50,7 @@ request for tests not in this list:
 ## Procedure
 
 1. **Identify workspace** — use `list_workspaces` and `get_workspace`
-2. **Determine component** — DB (DatabaseHighAvailability) or SCS (SCSHighAvailability)
+2. **Determine component** — DB (DatabaseHighAvailability) or SCS (CentralServicesHighAvailability)
 3. **Run validation** — call `run_staf_test` with the appropriate test_group and test_ids
 4. **Monitor** — poll `get_job_status` until completed
 5. **Report** — use `get_job_results` and `get_job_log` to read findings

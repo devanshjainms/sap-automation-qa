@@ -80,11 +80,11 @@ class TestRunHaTestSuite:
 
         msgs = run_ha_test_suite(
             workspace_id="WS_B",
-            test_group="SCSHighAvailability",
+            test_group="CentralServicesHighAvailability",
         )
         text = msgs[0].content.text
         assert "WS_B" in text
-        assert "SCSHighAvailability" in text
+        assert "CentralServicesHighAvailability" in text
 
     def test_default_test_group(self):
         from src.mcp_server.prompts import run_ha_test_suite

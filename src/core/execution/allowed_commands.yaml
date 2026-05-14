@@ -58,8 +58,8 @@ commands:
     description: "Proc filesystem reads"
     max_timeout_seconds: 10
 
-  - pattern: "^cat\\s+/etc/(os-release|hostname|fstab|hosts|resolv\\.conf|corosync/corosync\\.conf)"
-    description: "OS and cluster configuration reads"
+  - pattern: "^cat\\s+/etc/(os-release|hostname|fstab|hosts|resolv\\.conf|corosync/corosync\\.conf|sysconfig/sbd)"
+    description: "OS, cluster, and SBD configuration reads"
     max_timeout_seconds: 10
 
   - pattern: "^hostname(\\s|$)"

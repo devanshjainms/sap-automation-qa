@@ -4,7 +4,7 @@
 """Triage session models with state machine transitions."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Optional
 from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,7 +12,7 @@ from src.core.models.evidence import EvidenceArtifact
 from src.core.models.system import SystemProperties
 
 
-class TriageStatus(str, Enum):
+class TriageStatus(StrEnum):
     """Status of a triage session."""
 
     PENDING = "pending"
@@ -23,7 +23,7 @@ class TriageStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class TriageEventType(str, Enum):
+class TriageEventType(StrEnum):
     """Type of triage session event."""
 
     CREATED = "created"
