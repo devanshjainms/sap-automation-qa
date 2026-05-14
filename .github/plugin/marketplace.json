@@ -14,7 +14,7 @@
       "version": "1.1.0",
       "author": { "name": "Microsoft" },
       "license": "MIT",
-      "source": "./",
+      "source": "./.github/plugin",
       "keywords": ["sap", "hana", "pacemaker", "triage", "cluster", "testing", "azure"]
     }
   ]
