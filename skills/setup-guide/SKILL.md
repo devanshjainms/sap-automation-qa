@@ -1,6 +1,6 @@
 ---
 name: setup-guide
-description: "Guide for setting up the SAP Testing Automation Framework environment. Use when asked about installation, setup, Docker deployment, or Copilot integration."
+description: Guide for setting up the SAP Testing Automation Framework environment. Use when asked about installation, setup, Docker deployment, or Copilot integration.
 metadata:
   examples:
     - "How do I set up STAF on my management server?"

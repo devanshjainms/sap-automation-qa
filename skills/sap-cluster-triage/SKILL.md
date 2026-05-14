@@ -1,6 +1,6 @@
 ---
 name: sap-cluster-triage
-description: "Triage SAP HANA and SCS/ERS Pacemaker clusters on Azure. Collects SSH evidence, queries the SAP knowledge base, and provides context for root cause analysis of cluster failures, fencing issues, and replication breakdowns."
+description: Triage SAP HANA and SCS/ERS Pacemaker clusters on Azure. Collects SSH evidence, queries the SAP knowledge base, and provides context for root cause analysis of cluster failures, fencing issues, and replication breakdowns.
 metadata:
   examples:
     - "Triage the HANA cluster in workspace DEV01"

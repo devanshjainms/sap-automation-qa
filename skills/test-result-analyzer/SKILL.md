@@ -1,6 +1,6 @@
 ---
 name: test-result-analyzer
-description: "Analyze STAF test results and identify root causes. Use when asked about test failures, what went wrong, or to interpret test output."
+description: Analyze STAF test results and identify root causes. Use when asked about test failures, what went wrong, or to interpret test output.
 metadata:
   examples:
     - "Why did the HA config check fail on workspace DEV01?"

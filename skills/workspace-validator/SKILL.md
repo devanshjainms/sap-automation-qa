@@ -1,6 +1,6 @@
 ---
 name: workspace-validator
-description: "Use this skill when the user asks to validate a workspace, check SAP configuration, or troubleshoot workspace setup issues before running STAF tests."
+description: Use this skill when the user asks to validate a workspace, check SAP configuration, or troubleshoot workspace setup issues before running STAF tests.
 metadata:
   examples:
     - "Validate workspace DEV01 before running tests"

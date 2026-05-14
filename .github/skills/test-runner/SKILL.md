@@ -1,6 +1,6 @@
 ---
 name: test-runner
-description: "Execute STAF tests using sap_automation_qa.sh. Supports direct Ansible execution and API mode. Use when asked to run tests, execute configuration checks, or start HA tests on SAP systems."
+description: Execute STAF tests using sap_automation_qa.sh. Supports direct Ansible execution and API mode. Use when asked to run tests, execute configuration checks, or start HA tests on SAP systems.
 metadata:
   examples:
     - "Run HA configuration check on workspace DEV01"

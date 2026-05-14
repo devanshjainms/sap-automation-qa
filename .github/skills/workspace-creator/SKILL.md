@@ -1,6 +1,6 @@
 ---
 name: workspace-creator
-description: "Use this skill when the user asks to create a new SAP workspace, onboard an SAP system, or generate workspace configuration files (sap-parameters.yaml, hosts.yaml) for STAF testing."
+description: Use this skill when the user asks to create a new SAP workspace, onboard an SAP system, or generate workspace configuration files (sap-parameters.yaml, hosts.yaml) for STAF testing.
 metadata:
   examples:
     - "Create a new workspace for SAP system S4H"
