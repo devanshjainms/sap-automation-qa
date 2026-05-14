@@ -11,17 +11,33 @@
   name:                                "Setup deployer for HA Testing Framework"
   vars_files:                          "./vars/input-api.yaml"
   tasks:
-    - name:                            "Install python azure pacakges required"
-      ansible.builtin.pip:
-        name:
-          - azure-identity
-          - azure-kusto-data
-          - azure-kusto-ingest
-          - azure-mgmt-compute
-          - azure-mgmt-network
-          - azure-storage-blob
-          - azure-storage-queue
-          - pandas
+    - name:                            "Install python azure packages"
+      block:
+        - name:                        "Install azure packages (with become)"
+          become:                      true
+          ansible.builtin.pip:
+            name:
+            - azure-identity
+            - azure-kusto-data
+            - azure-kusto-ingest
+            - azure-mgmt-compute
+            - azure-mgmt-network
+            - azure-storage-blob
+            - azure-storage-queue
+            - pandas
+      rescue:
+        - name:                        "Install azure packages (without become)"
+          ansible.builtin.pip:
+            name:
+            - azure-identity
+            - azure-kusto-data
+            - azure-kusto-ingest
+            - azure-mgmt-compute
+            - azure-mgmt-network
+            - azure-storage-blob
+            - azure-storage-queue
+            - pandas
+
 
     - name:                            "Authenticate to Azure using Managed Identity"
       block:
@@ -81,6 +97,10 @@
     - name:                            "Render HTML report for the test group logs"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
       when:                            test_group_name is defined
+    - name:                            "Upload artifacts to blob storage"
+      ansible.builtin.include_tasks:   "./roles/misc/tasks/upload-artifacts.yml"
+      when:                            test_group_name is defined
+
 
     - name:                            "Debug the group_invocation_id"
       ansible.builtin.debug:

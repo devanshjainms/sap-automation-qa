@@ -146,12 +146,14 @@ class TestRunStafTest:
         result = await run_staf_test(
             workspace_id="WS_A",
             test_group="ConfigurationChecks",
+            test_ids=["ha-config"],
             ctx=ctx,
         )
 
         assert result["job_id"] == "job-123"
         assert result["workspace_id"] == "WS_A"
         assert result["test_group"] == "ConfigurationChecks"
+        assert result["test_ids"] == ["ha-config"]
         assert result["status"] == "pending"
 
     @pytest.mark.asyncio
@@ -185,6 +187,7 @@ class TestRunStafTest:
             await run_staf_test(
                 workspace_id="WS_A",
                 test_group="NonExistentGroup",
+                test_ids=["ha-config"],
                 ctx=ctx,
             )
 
@@ -203,6 +206,21 @@ class TestRunStafTest:
             await run_staf_test(
                 workspace_id="WS_A",
                 test_group="ConfigurationChecks",
+                test_ids=["ha-config"],
+                ctx=ctx,
+            )
+
+    @pytest.mark.asyncio
+    async def test_empty_test_ids_raises(
+        self, mocker: MockerFixture, sap_context: SapContext, ctx
+    ):
+        from src.mcp_server.tools.staf import run_staf_test
+
+        with pytest.raises(ToolError, match="test_ids is required"):
+            await run_staf_test(
+                workspace_id="WS_A",
+                test_group="ConfigurationChecks",
+                test_ids=[],
                 ctx=ctx,
             )
 

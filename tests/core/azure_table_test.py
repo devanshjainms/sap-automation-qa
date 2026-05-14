@@ -240,3 +240,56 @@ class TestAzureTableScheduleStore:
 
     def test_close_is_noop(self, schedule_store) -> None:
         schedule_store.close()
+
+    def test_status_serializes_as_value(self, job_store) -> None:
+        """JobStatus enum must serialize as 'running', not 'JobStatus.RUNNING'."""
+        job = Job(workspace_id="WS-A", test_group="DB")
+        job.start()
+        entity = job_store._to_entity(job)
+        assert entity["status"] == "running", f"Expected 'running', got '{entity['status']}'"
+
+    def test_all_statuses_roundtrip(self, job_store) -> None:
+        """Every JobStatus value survives entity serialization and deserialization."""
+        for status in JobStatus:
+            job = Job(workspace_id="WS-A", test_group="DB")
+            job.status = status
+            entity = job_store._to_entity(job)
+            assert entity["status"] == status.value, (
+                f"Status {status} serialized as '{entity['status']}', " f"expected '{status.value}'"
+            )
+            restored = job_store._to_job(entity)
+            assert restored.status == status.value
+
+    def test_entity_roundtrip_preserves_field(self, job_store) -> None:
+        """Full entity roundtrip preserves all job fields."""
+        job = Job(
+            workspace_id="WS-A",
+            test_group="DatabaseHighAvailability",
+            test_ids=["ha-config", "azure-lb"],
+            metadata={"foo": "bar"},
+        )
+        entity = job_store._to_entity(job)
+        restored = job_store._to_job(entity)
+        assert str(restored.id) == str(job.id)
+        assert restored.workspace_id == "WS-A"
+        assert restored.test_group == "DatabaseHighAvailability"
+        assert restored.test_ids == ["ha-config", "azure-lb"]
+        assert restored.metadata == {"foo": "bar"}
+
+    def test_entity_roundtrip_preserves_fields(self, schedule_store) -> None:
+        """Full entity roundtrip preserves all schedule fields."""
+        schedule = Schedule(
+            name="nightly",
+            cron_expression="0 2 * * *",
+            workspace_ids=["WS-A", "WS-B"],
+            test_group="ConfigurationChecks",
+            enabled=True,
+        )
+        entity = schedule_store._to_entity(schedule)
+        restored = schedule_store._to_schedule(entity)
+        assert restored.id == schedule.id
+        assert restored.name == "nightly"
+        assert restored.cron_expression == "0 2 * * *"
+        assert restored.workspace_ids == ["WS-A", "WS-B"]
+        assert restored.test_group == "ConfigurationChecks"
+        assert restored.enabled is True

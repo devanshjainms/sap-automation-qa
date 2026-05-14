@@ -36,8 +36,15 @@ from src.mcp_server.validation import InputValidator
 from src.core.execution.workspace_lock import WorkspaceLockManager
 from src.core.execution.ssh_collector import SshCollectorStrategy
 from src.core.models.evidence import CollectorType
+from src.core.observability import initialize_logging, get_logger
 
-logger = logging.getLogger(__name__)
+_LOG_FORMAT = os.environ.get("LOG_FORMAT", "json")
+_LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+initialize_logging(
+    level=getattr(logging, _LOG_LEVEL.upper(), logging.INFO),
+    log_format=_LOG_FORMAT,
+)
+logger = get_logger(__name__)
 
 
 MCP_PORT = int(os.environ.get("MCP_PORT", "8001"))
@@ -89,9 +96,69 @@ def get_sap_context() -> SapContext | None:
     return _shared_context
 
 
+def _check_startup_dependencies() -> None:
+    """Test Azure connectivity at startup and log clear messages."""
+    checks = []
+
+    blob_url = os.environ.get("BLOB_ACCOUNT_URL", "").strip()
+    if blob_url:
+        try:
+            from azure.storage.blob import BlobServiceClient
+            from azure.identity import DefaultAzureCredential
+
+            client = BlobServiceClient(blob_url, credential=DefaultAzureCredential())
+            client.get_account_information()
+            checks.append(("Azure Blob Storage", "OK"))
+        except Exception as exc:
+            checks.append(("Azure Blob Storage", f"FAILED: {exc}"))
+            logger.error(
+                "Azure Blob Storage connectivity failed: %s. "
+                "Check managed identity has 'Storage Blob Data Contributor' role "
+                "on %s",
+                exc,
+                blob_url,
+            )
+
+    table_url = os.environ.get("AZURE_TABLE_ENDPOINT", "").strip()
+    if table_url:
+        try:
+            from azure.data.tables import TableServiceClient
+            from azure.identity import DefaultAzureCredential
+
+            client = TableServiceClient(
+                endpoint=table_url,
+                credential=DefaultAzureCredential(),
+            )
+            list(client.list_tables())
+            checks.append(("Azure Table Storage", "OK"))
+        except Exception as exc:
+            checks.append(("Azure Table Storage", f"FAILED: {exc}"))
+            logger.error(
+                "Azure Table Storage connectivity failed: %s. "
+                "Check managed identity has 'Storage Table Data Contributor' role "
+                "on %s",
+                exc,
+                table_url,
+            )
+
+    if not WORKSPACES_BASE.exists() and not blob_url:
+        checks.append(("Workspaces", f"FAILED: {WORKSPACES_BASE} not found"))
+        logger.error(
+            "Workspace directory %s not found and BLOB_ACCOUNT_URL not set. "
+            "Workspace tools will return empty results.",
+            WORKSPACES_BASE,
+        )
+    else:
+        checks.append(("Workspaces", "OK"))
+
+    for name, status in checks:
+        logger.info("Startup check: %-25s %s", name, status)
+
+
 def _init_shared_context() -> SapContext:
     """Build the shared SapContext once (called at import time)."""
     logger.info("MCP server starting — initializing services...")
+    _check_startup_dependencies()
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     artifact_dir = DATA_DIR / "artifacts"

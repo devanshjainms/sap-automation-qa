@@ -1,0 +1,72 @@
+# Copyright (c) Microsoft Corporation.
+# Licensed under the MIT License.
+
+####################################################################################
+#       Upload job artifacts (logs, reports) to Azure Blob Storage                 #
+#       No-op when BLOB_ACCOUNT_URL is not set (local dev / CLI mode)              #
+####################################################################################
+
+- name:                                 "Upload job artifacts to Azure Blob Storage"
+  run_once:                             true
+  delegate_to:                          localhost
+  when:
+    - lookup('env', 'BLOB_ACCOUNT_URL') | length > 0
+    - lookup('env', 'BLOB_CONTAINER_NAME') | length > 0
+  block:
+    - name:                             "Set blob upload variables"
+      ansible.builtin.set_fact:
+        _blob_account_url:              "{{ lookup('env', 'BLOB_ACCOUNT_URL') }}"
+        _blob_container:                "{{ lookup('env', 'BLOB_CONTAINER_NAME') }}"
+        _ws_dir:                        "{{ _workspace_directory }}"
+        _workspace_id:                  "{{ workspace_id | default(sap_sid | default('unknown')) }}"
+
+    - name:                             "Find log files to upload"
+      ansible.builtin.find:
+        paths:                          "{{ _ws_dir }}/logs"
+        patterns:                       "*.log"
+        age:                            "-1d"
+      register:                         _log_files
+      failed_when:                      false
+
+    - name:                             "Find HTML report files to upload"
+      ansible.builtin.find:
+        paths:                          "{{ _ws_dir }}"
+        patterns:                       "*.html"
+        age:                            "-1d"
+      register:                         _report_files
+      failed_when:                      false
+
+    - name:                             "Upload log files to blob storage"
+      ansible.builtin.command: >-
+        az storage blob upload
+          --account-name {{ _blob_account_url | regex_replace('https://([^.]+)\..*', '\1') }}
+          --container-name {{ _blob_container }}
+          --name {{ _workspace_id }}/logs/{{ test_group_invocation_id }}/{{ item.path | basename }}
+          --file {{ item.path }}
+          --auth-mode login
+          --overwrite true
+      loop:                             "{{ _log_files.files | default([]) }}"
+      loop_control:
+        label:                          "{{ item.path | basename }}"
+      changed_when:                     true
+      failed_when:                      false
+
+    - name:                             "Upload HTML reports to blob storage"
+      ansible.builtin.command: >-
+        az storage blob upload
+          --account-name {{ _blob_account_url | regex_replace('https://([^.]+)\..*', '\1') }}
+          --container-name {{ _blob_container }}
+          --name {{ _workspace_id }}/reports/{{ test_group_invocation_id }}/{{ item.path | basename }}
+          --file {{ item.path }}
+          --auth-mode login
+          --overwrite true
+      loop:                             "{{ _report_files.files | default([]) }}"
+      loop_control:
+        label:                          "{{ item.path | basename }}"
+      changed_when:                     true
+      failed_when:                      false
+
+  rescue:
+    - name:                             "Log upload failure (non-fatal)"
+      ansible.builtin.debug:
+        msg:                            "Artifact upload to blob storage failed. Test results are available locally only."

@@ -50,7 +50,7 @@ class AzureTableJobStore:
 
     def _to_entity(self, job: Job) -> dict[str, Any]:
         """Serialize a Job to a table entity."""
-        status = job.status if isinstance(job.status, str) else job.status.value
+        status = job.status.value if hasattr(job.status, "value") else str(job.status)
         return {
             "PartitionKey": _PARTITION_KEY,
             "RowKey": str(job.id),
@@ -106,7 +106,8 @@ class AzureTableJobStore:
         try:
             entity = self._client.get_entity(_PARTITION_KEY, str(job_id))
             return self._to_job(entity)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to get job %s: %s", job_id, exc)
             return None
 
     def update(self, job: Job) -> None:

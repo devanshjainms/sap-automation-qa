@@ -6,16 +6,16 @@ In-process embedding provider using sentence-transformers.
 """
 
 from __future__ import annotations
-import os
-import onnxruntime
 import logging
 import numpy as np
-from typing import List, Protocol, runtime_checkable
-from sentence_transformers import SentenceTransformer
+from typing import TYPE_CHECKING, List, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = os.getenv("EMBEDDING_MODEL", "microsoft/harrier-oss-v1-270m")
+_DEFAULT_MODEL = "microsoft/harrier-oss-v1-270m"
 _QUERY_PROMPT_NAME = "web_search_query"
 
 
@@ -60,6 +60,7 @@ class LocalEmbeddingProvider:
         """Load the model on first use."""
         if self._model is not None:
             return
+        from sentence_transformers import SentenceTransformer
 
         logger.info("Loading embedding model: %s", self._model_name)
         self._model = SentenceTransformer(

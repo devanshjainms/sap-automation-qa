@@ -29,11 +29,20 @@ def create_job_store(
     """
     endpoint = os.environ.get("AZURE_TABLE_ENDPOINT", "").strip()
     if endpoint:
-        from src.core.storage.azure_table import AzureTableJobStore
+        try:
+            from src.core.storage.azure_table import AzureTableJobStore
 
-        table_name = os.environ.get("AZURE_TABLE_JOBS", "jobs")
-        logger.info("Using Azure Table Storage for jobs: %s", endpoint)
-        return AzureTableJobStore(endpoint=endpoint, table_name=table_name)
+            table_name = os.environ.get("AZURE_TABLE_JOBS", "jobs")
+            store = AzureTableJobStore(endpoint=endpoint, table_name=table_name)
+            logger.info("Using Azure Table Storage for jobs: %s", endpoint)
+            return store
+        except Exception as exc:
+            logger.error(
+                "Azure Table Storage for jobs failed: %s. "
+                "Check managed identity has 'Storage Table Data Contributor' role. "
+                "Falling back to SQLite.",
+                exc,
+            )
 
     from src.core.storage.staf_store import StafStore
     from src.core.storage.job_store import JobStore
@@ -41,6 +50,7 @@ def create_job_store(
     db = StafStore(data_dir / db_name)
     store = JobStore(db=db)
     db.sync()
+    logger.info("Using SQLite for jobs: %s", data_dir / db_name)
     return store
 
 
@@ -58,11 +68,20 @@ def create_schedule_store(
     """
     endpoint = os.environ.get("AZURE_TABLE_ENDPOINT", "").strip()
     if endpoint:
-        from src.core.storage.azure_table import AzureTableScheduleStore
+        try:
+            from src.core.storage.azure_table import AzureTableScheduleStore
 
-        table_name = os.environ.get("AZURE_TABLE_SCHEDULES", "schedules")
-        logger.info("Using Azure Table Storage for schedules: %s", endpoint)
-        return AzureTableScheduleStore(endpoint=endpoint, table_name=table_name)
+            table_name = os.environ.get("AZURE_TABLE_SCHEDULES", "schedules")
+            store = AzureTableScheduleStore(endpoint=endpoint, table_name=table_name)
+            logger.info("Using Azure Table Storage for schedules: %s", endpoint)
+            return store
+        except Exception as exc:
+            logger.error(
+                "Azure Table Storage for schedules failed: %s. "
+                "Check managed identity has 'Storage Table Data Contributor' role. "
+                "Falling back to SQLite.",
+                exc,
+            )
 
     from src.core.storage.staf_store import StafStore
     from src.core.storage.schedule_store import ScheduleStore
@@ -71,4 +90,5 @@ def create_schedule_store(
         staf_db = StafStore(data_dir / db_name)
     store = ScheduleStore(db=staf_db)
     staf_db.sync()
+    logger.info("Using SQLite for schedules: %s", data_dir / db_name)
     return store

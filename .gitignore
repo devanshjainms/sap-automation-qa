@@ -424,7 +424,7 @@ deploy/.env
 .squad-workstream
 
 .copilot/*
-.github/agents/*
+.github/agents/squad*
 .github/workflows/squad*
 .github/workflows/sync*
 

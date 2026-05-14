@@ -16,8 +16,6 @@ RUN python3 -m venv /opt/venv && . /opt/venv/bin/activate \
     && pip install --upgrade pip
 
 RUN . /opt/venv/bin/activate \
-    && pip install --no-cache-dir \
-       torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.in
 
 # ---------------------------------------------------------------------------

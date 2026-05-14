@@ -67,6 +67,12 @@ TEST_GROUP_PLAYBOOKS: dict[str, str] = {
     "AzureBackupDatabase": "playbook_00_backup_db_functional_tests.yml",
 }
 
+_FILTER_GROUP_MAP: dict[str, str] = {
+    "DatabaseHighAvailability": "HA_DB_HANA",
+    "CentralServicesHighAvailability": "HA_SCS",
+    "AzureBackupDatabase": "BACKUP_DB_HANA",
+}
+
 
 def _tail_file(
     path: Path,
@@ -241,14 +247,17 @@ class AnsibleExecutor:
             input_api = self.playbook_dir / "vars" / "input-api.yaml"
             if input_api.exists():
                 try:
+                    filter_group = _FILTER_GROUP_MAP.get(test_group)
                     filtered = json.loads(
                         TestFilter(str(input_api)).get_ansible_vars(
+                            test_group=filter_group,
                             test_cases=[test_id],
                         )
                     )
                     all_vars.update(filtered)
                     logger.info(
-                        "Applied test filter: only '%s' enabled",
+                        "Applied test filter: group=%s, test=%s",
+                        filter_group,
                         test_id,
                     )
                 except (Exception, SystemExit):
@@ -345,7 +354,7 @@ class AnsibleExecutor:
                 with self._lock:
                     self._processes[job_id] = proc
             try:
-                proc.wait(timeout=3600)
+                proc.wait()
             finally:
                 if job_id:
                     with self._lock:
@@ -397,9 +406,7 @@ class AnsibleExecutor:
             with self._lock:
                 self._processes[job_id] = proc
         try:
-            stdout, stderr = proc.communicate(
-                timeout=3600,
-            )
+            stdout, stderr = proc.communicate()
         finally:
             if job_id:
                 with self._lock:
