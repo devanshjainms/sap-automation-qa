@@ -15,14 +15,14 @@ allowed_skills:
   - test-runner
 
 mcp_tools:
-  - staf-mcp/run_staf_test
-  - staf-mcp/get_job_status
-  - staf-mcp/get_job_results
-  - staf-mcp/get_job_log
-  - staf-mcp/get_job_events
-  - staf-mcp/list_workspaces
-  - staf-mcp/get_workspace
-  - staf-mcp/query_knowledge
+  - stafmcp/run_staf_test
+  - stafmcp/get_job_status
+  - stafmcp/get_job_results
+  - stafmcp/get_job_log
+  - stafmcp/get_job_events
+  - stafmcp/list_workspaces
+  - stafmcp/get_workspace
+  - stafmcp/query_knowledge
 
 system_prompt: |
   You are an SAP configuration validation specialist in Azure SRE Agent.

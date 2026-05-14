@@ -20,15 +20,15 @@ tools:
   - GetAzCliHelp
 
 mcp_tools:
-  - staf-mcp/list_workspaces
-  - staf-mcp/get_workspace
-  - staf-mcp/collect_evidence
-  - staf-mcp/get_evidence_output
-  - staf-mcp/run_evidence_collector
-  - staf-mcp/list_evidence_catalog
-  - staf-mcp/search_logs
-  - staf-mcp/query_knowledge
-  - staf-mcp/get_analysis_context
+  - stafmcp/list_workspaces
+  - stafmcp/get_workspace
+  - stafmcp/collect_evidence
+  - stafmcp/get_evidence_output
+  - stafmcp/run_evidence_collector
+  - stafmcp/list_evidence_catalog
+  - stafmcp/search_logs
+  - stafmcp/query_knowledge
+  - stafmcp/get_analysis_context
 
 system_prompt: |
   You are an SAP cluster triage specialist in Azure SRE Agent. Your job is to

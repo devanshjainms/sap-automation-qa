@@ -25,16 +25,16 @@ allowed_skills:
   - test-runner
 
 mcp_tools:
-  - staf-mcp/run_staf_test
-  - staf-mcp/get_job_status
-  - staf-mcp/get_job_results
-  - staf-mcp/get_job_log
-  - staf-mcp/get_job_events
-  - staf-mcp/cancel_job
-  - staf-mcp/list_workspaces
-  - staf-mcp/get_workspace
-  - staf-mcp/collect_evidence
-  - staf-mcp/get_evidence_output
+  - stafmcp/run_staf_test
+  - stafmcp/get_job_status
+  - stafmcp/get_job_results
+  - stafmcp/get_job_log
+  - stafmcp/get_job_events
+  - stafmcp/cancel_job
+  - stafmcp/list_workspaces
+  - stafmcp/get_workspace
+  - stafmcp/collect_evidence
+  - stafmcp/get_evidence_output
 
 system_prompt: |
   You are an SAP HA functional test executor in Azure SRE Agent.

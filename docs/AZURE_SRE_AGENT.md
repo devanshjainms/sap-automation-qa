@@ -118,7 +118,7 @@ must have `Get` permission on Key Vault secrets.
 
    | Setting | Value |
    |---------|-------|
-   | **Name** | `staf-mcp` |
+   | **Name** | `stafmcp` |
    | **Region** | Same region as your SAP infrastructure |
    | **Container Apps Environment** | Create new or select existing |
    | **Ingress** | Enabled — accepting traffic from anywhere |
@@ -146,7 +146,7 @@ Deploy the STAF MCP server from the repository root:
 
 ```bash
 az containerapp up \
-  --name staf-mcp \
+  --name stafmcp \
   --source . \
   --ingress external \
   --target-port 8001 \
@@ -172,7 +172,7 @@ Generate a bearer token: `python3 -c "import secrets; print(secrets.token_urlsaf
 
    | Field | Value |
    |-------|-------|
-   | **Name** | `staf-mcp` |
+   | **Name** | `stafmcp` |
    | **Connection type** | Streamable-HTTP |
    | **URL** | `https://<your-container-app>.azurecontainerapps.io/mcp` |
    | **Authentication** | Bearer token |
@@ -201,7 +201,7 @@ investigation and testing. Upload to **Builder → Skills**:
 Import [`docs/sre-agent/sap-expert-agent.yaml`](sre-agent/sap-expert-agent.yaml)
 in **Builder → Agent Canvas → Create Custom Agent** (YAML editor). This creates
 an SAP domain expert with structured investigation and HA testing workflows.
-The agent references MCP tools via `staf-mcp/*` — update the connection-id
+The agent references MCP tools via `stafmcp/*` — update the connection-id
 if your connector has a different name.
 
 ---
