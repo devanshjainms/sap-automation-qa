@@ -138,10 +138,10 @@
     - name:                            "Render HTML report for the test group logs"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
       when:                            test_group_name is defined
+
     - name:                            "Upload artifacts to blob storage"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/upload-artifacts.yml"
       when:                            test_group_name is defined
-
 
     - name:                            "Display test execution summary"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/display-test-summary.yml"
