@@ -7,7 +7,7 @@
   },
   "license": "MIT",
   "keywords": ["sap", "hana", "pacemaker", "triage", "cluster", "testing", "azure"],
-  "agents": "../../.github/agents/",
+  "agents": "agents/",
   "skills": "skills/",
   "mcpServers": "../../.mcp.json"
 }
