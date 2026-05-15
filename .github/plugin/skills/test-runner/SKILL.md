@@ -181,6 +181,24 @@ stafmcp_run_staf_test(workspace_id="<WORKSPACE_ID>", test_group="DatabaseHighAva
 
 See [test-catalog.md](references/test-catalog.md) for the full list of test_ids per test_group.
 
+### Workflow after running a test
+
+1. Call `stafmcp_run_staf_test` — returns a `job_id`
+2. Poll `stafmcp_get_job_status` every 30 seconds until `is_terminal=true`
+3. Call `stafmcp_get_job_log` to retrieve the detailed structured test log
+
+### Reporting results to the user
+
+The `stafmcp_get_job_log` response contains JSON-lines with per-check results.
+Each line has: `test_case_name`, `status` (PASSED/FAILED/WARNING), parameter name,
+`actual` value, `expected` value, and `severity`.
+
+**You MUST parse these and present a structured summary:**
+- List each checked property with its actual value and status
+- Group by category (cluster properties, fencing, resources, constraints)
+- Highlight any FAILED or WARNING items with expected vs actual values
+- Do NOT just say "passed" or "failed" — show WHAT was validated and WHAT the values are
+
 ## API Mode
 
 Requires the FastAPI server running (Docker or local uvicorn).

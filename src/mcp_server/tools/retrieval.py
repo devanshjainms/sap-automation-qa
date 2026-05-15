@@ -10,7 +10,7 @@ from mcp.server.fastmcp import Context
 from mcp.server.session import ServerSession
 from mcp.types import ToolAnnotations
 from src.mcp_server.server import SapContext, mcp
-from src.mcp_server.tools._helpers import get_sap_context, ICON_BOOK
+from src.mcp_server.tools._helpers import get_sap_context
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_BOOK],
     structured_output=False,
 )
 async def query_knowledge(

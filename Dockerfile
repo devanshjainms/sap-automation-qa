@@ -7,7 +7,7 @@
 FROM mcr.microsoft.com/azurelinux/base/python:3.12 AS builder
 WORKDIR /build
 
-RUN tdnf install -y gcc libffi-devel && tdnf clean all
+RUN tdnf install -y --nogpgcheck libffi-devel && tdnf clean all
 
 # Copy requirements — layer is cached until requirements change
 COPY requirements.in .
@@ -56,8 +56,13 @@ ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV HOME=/app
 ENV HF_HOME=/app/.cache/huggingface
+ENV HF_HUB_OFFLINE=1
+ENV EMBEDDING_MODEL_PATH=/app/models/e5-base-v2
 
-# Layer 5 — source code (changes most frequently — keep last)
+# Layer 5 — embedding model (cached until model files change)
+COPY --chown=appuser:appgroup models/e5-base-v2 /app/models/e5-base-v2
+
+# Layer 6 — source code (changes most frequently — keep last)
 COPY --chown=appuser:appgroup src/ ./src/
 COPY --chown=appuser:appgroup scripts/ ./scripts/
 COPY --chown=appuser:appgroup VERSION ./VERSION

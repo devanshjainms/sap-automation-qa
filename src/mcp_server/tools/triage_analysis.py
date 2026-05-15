@@ -15,8 +15,6 @@ from src.mcp_server.tools._helpers import (
     tool_progress,
     tool_info,
     rebuild_artifacts,
-    ICON_CHART,
-    ICON_FILE,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,7 +37,6 @@ _MAX_OUTPUT_CHARS = 4000
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_CHART],
     structured_output=False,
 )
 async def get_analysis_context(

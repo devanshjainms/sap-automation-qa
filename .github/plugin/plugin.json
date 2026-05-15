@@ -1,0 +1,12 @@
+{
+  "name": "sap-automation-qa",
+  "description": "SAP HA testing, cluster triage, configuration validation, and workspace management for SAP HANA, SCS, and Pacemaker clusters on Azure.",
+  "version": "1.1.0",
+  "author": {
+    "name": "Microsoft"
+  },
+  "license": "MIT",
+  "keywords": ["sap", "hana", "pacemaker", "triage", "cluster", "testing", "azure"],
+  "skills": "skills/",
+  "mcpServers": "../../.mcp.json"
+}

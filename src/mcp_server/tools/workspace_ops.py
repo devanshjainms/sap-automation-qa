@@ -17,7 +17,6 @@ from src.core.services.workspace_discovery import load_workspaces_from_directory
 from src.mcp_server.server import SapContext, mcp
 from src.mcp_server.tools._helpers import (
     get_sap_context,
-    ICON_FOLDER,
     load_workspace_host_details,
     load_workspace_params,
 )
@@ -40,7 +39,6 @@ logger = logging.getLogger(__name__)
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_FOLDER],
     structured_output=False,
 )
 async def list_workspaces(
@@ -81,7 +79,6 @@ async def list_workspaces(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_FOLDER],
     structured_output=False,
 )
 async def get_workspace(

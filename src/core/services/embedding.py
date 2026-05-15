@@ -2,21 +2,22 @@
 # Licensed under the MIT License.
 
 """
-In-process embedding provider using sentence-transformers.
+In-process embedding provider using fastembed (ONNX Runtime).
 """
 
 from __future__ import annotations
 import logging
-import numpy as np
+import os
 from typing import TYPE_CHECKING, List, Protocol, runtime_checkable
-
-if TYPE_CHECKING:
-    from sentence_transformers import SentenceTransformer
+import numpy as np
+from fastembed import TextEmbedding
+from fastembed.common.model_description import ModelSource, PoolingType
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "microsoft/harrier-oss-v1-270m"
-_QUERY_PROMPT_NAME = "web_search_query"
+_DEFAULT_MODEL = "intfloat/e5-base-v2"
+_DEFAULT_ONNX_FILE = "onnx/model_O4.onnx"
+_DEFAULT_MODEL_PATH = os.environ.get("EMBEDDING_MODEL_PATH", "")
 
 
 @runtime_checkable
@@ -39,36 +40,58 @@ class EmbeddingProvider(Protocol):
 
 class LocalEmbeddingProvider:
     """
-    In-process embedding using sentence-transformers + Microsoft Harrier.
+    In-process embedding using fastembed + Microsoft E5 (ONNX).
 
     :param model_name: HuggingFace model name.
-    :param query_prompt_name: Prompt name for query encoding.
-        Set to empty string for models without prompt-based encoding.
+    :param onnx_file: Path to the ONNX model file within the HF repo.
     """
 
     def __init__(
         self,
         model_name: str = _DEFAULT_MODEL,
-        query_prompt_name: str = _QUERY_PROMPT_NAME,
+        onnx_file: str = _DEFAULT_ONNX_FILE,
     ) -> None:
         self._model_name = model_name
-        self._query_prompt_name = query_prompt_name
-        self._model: SentenceTransformer | None = None
+        self._onnx_file = onnx_file
+        self._model: TextEmbedding | None = None
         self._dimensions: int = 0
 
     def _ensure_loaded(self) -> None:
-        """Load the model on first use."""
+        """Load the model on first use.
+
+        When ``EMBEDDING_MODEL_PATH`` is set (Docker deployment), loads
+        directly from the local path — no HuggingFace download.
+        Otherwise downloads on first call (local dev).
+        """
         if self._model is not None:
             return
-        from sentence_transformers import SentenceTransformer
 
-        logger.info("Loading embedding model: %s", self._model_name)
-        self._model = SentenceTransformer(
-            self._model_name,
-            model_kwargs={"dtype": "auto"},
+        TextEmbedding.add_custom_model(
+            model=self._model_name,
+            pooling=PoolingType.MEAN,
+            normalization=True,
+            sources=ModelSource(hf=self._model_name),
+            dim=768,
+            model_file=self._onnx_file,
+            description="Microsoft Research E5 encoder via ONNX",
+            license="mit",
+            size_in_gb=0.218,
         )
-        dim = self._model.get_embedding_dimension()
-        self._dimensions = dim if dim is not None else 0
+
+        model_kwargs: dict = {"model_name": self._model_name}
+        if _DEFAULT_MODEL_PATH:
+            model_kwargs["specific_model_path"] = _DEFAULT_MODEL_PATH
+            logger.info(
+                "Loading embedding model: %s from %s",
+                self._model_name,
+                _DEFAULT_MODEL_PATH,
+            )
+        else:
+            logger.info("Loading embedding model: %s (downloading)", self._model_name)
+
+        self._model = TextEmbedding(**model_kwargs)
+        test_vec = list(self._model.embed(["test"]))[0]
+        self._dimensions = len(test_vec)
         logger.info(
             "Embedding model loaded: %s (%d dimensions)",
             self._model_name,
@@ -83,34 +106,29 @@ class LocalEmbeddingProvider:
 
     def embed(self, text: str) -> List[float]:
         """
-        Generate an embedding vector for a query text.
+        Generate an embedding for a query text.
 
-        :param text: Input query text to embed.
+        :param text: Input query text.
         :returns: Float vector of length ``dimensions``.
         """
         self._ensure_loaded()
         assert self._model is not None
-        if self._query_prompt_name:
-            vector = self._model.encode(
-                text,
-                normalize_embeddings=True,
-                prompt_name=self._query_prompt_name,
-            )
-        else:
-            vector = self._model.encode(text, normalize_embeddings=True)
-        return vector.tolist()
+        prefixed = f"query: {text}"
+        vectors = list(self._model.embed([prefixed]))
+        return vectors[0].tolist()
 
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embedding vectors for multiple document texts.
+        Generate embeddings for document/passage texts.
 
-        :param texts: Input document texts to embed.
-        :returns: List of float vectors, one per input text.
+        :param texts: Input document texts.
+        :returns: List of float vectors.
         """
         self._ensure_loaded()
         assert self._model is not None
-        vectors = self._model.encode(texts, normalize_embeddings=True)
-        return vectors.tolist()
+        prefixed = [f"passage: {t}" for t in texts]
+        vectors = list(self._model.embed(prefixed))
+        return [v.tolist() for v in vectors]
 
 
 def cosine_similarity_matrix(

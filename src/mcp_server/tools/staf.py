@@ -13,7 +13,7 @@ from mcp.types import ToolAnnotations
 from src.core.models.job import Job
 from src.core.execution.executor import TEST_GROUP_PLAYBOOKS
 from src.mcp_server.server import SapContext, mcp
-from src.mcp_server.tools._helpers import get_sap_context, tool_info, ICON_PLAY
+from src.mcp_server.tools._helpers import get_sap_context, tool_info
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,6 @@ logger = logging.getLogger(__name__)
         idempotentHint=False,
         openWorldHint=True,
     ),
-    icons=[ICON_PLAY],
     structured_output=False,
 )
 async def run_staf_test(

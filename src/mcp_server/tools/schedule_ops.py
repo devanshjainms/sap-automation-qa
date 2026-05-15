@@ -20,12 +20,6 @@ from src.core.services.scheduler import SchedulerService
 from src.mcp_server.server import SapContext, mcp
 from src.mcp_server.tools._helpers import (
     get_sap_context,
-    ICON_CALENDAR,
-    ICON_CLIPBOARD,
-    ICON_EDIT,
-    ICON_LIST,
-    ICON_PLAY,
-    ICON_TRASH,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,7 +40,6 @@ logger = logging.getLogger(__name__)
         idempotentHint=False,
         openWorldHint=False,
     ),
-    icons=[ICON_CALENDAR],
     structured_output=False,
 )
 async def create_schedule(
@@ -102,7 +95,6 @@ async def create_schedule(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_LIST],
     structured_output=False,
 )
 async def list_schedules(
@@ -141,7 +133,6 @@ async def list_schedules(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_CALENDAR],
     structured_output=False,
 )
 async def get_schedule(
@@ -172,7 +163,6 @@ async def get_schedule(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_EDIT],
     structured_output=False,
 )
 async def update_schedule(
@@ -235,7 +225,6 @@ async def update_schedule(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_TRASH],
     structured_output=False,
 )
 async def delete_schedule(
@@ -265,7 +254,6 @@ async def delete_schedule(
         idempotentHint=False,
         openWorldHint=False,
     ),
-    icons=[ICON_PLAY],
     structured_output=False,
 )
 async def trigger_schedule(
@@ -306,7 +294,6 @@ async def trigger_schedule(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_CLIPBOARD],
     structured_output=False,
 )
 async def get_schedule_jobs(

@@ -20,8 +20,6 @@ from src.mcp_server.server import SapContext, mcp
 from src.mcp_server.tools._helpers import (
     get_sap_context,
     tool_info,
-    ICON_CHART,
-    ICON_FILE,
     load_workspace_host_details,
     load_workspace_params,
 )
@@ -46,7 +44,6 @@ logger = logging.getLogger(__name__)
         idempotentHint=True,
         openWorldHint=True,
     ),
-    icons=[ICON_FILE],
     structured_output=False,
 )
 async def search_logs(

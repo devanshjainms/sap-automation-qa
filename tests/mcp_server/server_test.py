@@ -182,10 +182,6 @@ class TestServerRegistration:
             assert ann.idempotentHint is not None, f"Tool {tool.name} missing idempotentHint"
             assert ann.openWorldHint is not None, f"Tool {tool.name} missing openWorldHint"
 
-    def test_tools_have_icons(self):
-        for tool in mcp._tool_manager.list_tools():
-            assert tool.icons, f"Tool {tool.name} has no icons"
-
     def test_tools_have_input_schemas(self):
         for tool in mcp._tool_manager.list_tools():
             schema = tool.parameters

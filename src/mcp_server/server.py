@@ -169,10 +169,10 @@ def _init_shared_context() -> SapContext:
 
     knowledge_base = KnowledgeBase(seed_dir=SEED_DIR)
 
-    embedding_model = os.environ.get("EMBEDDING_MODEL", "microsoft/harrier-oss-v1-270m")
+    embedding_model = os.environ.get("EMBEDDING_MODEL", "intfloat/e5-base-v2")
     try:
         embedding_provider = LocalEmbeddingProvider(model_name=embedding_model)
-        logger.info("Embedding provider: sentence-transformers (%s)", embedding_model)
+        logger.info("Embedding provider: fastembed (%s)", embedding_model)
     except Exception:
         logger.warning("Embedding provider init failed; using keyword fallback", exc_info=True)
         embedding_provider = None

@@ -427,4 +427,5 @@ deploy/.env
 .github/agents/squad*
 .github/workflows/squad*
 .github/workflows/sync*
-
+.copilot-tracking/*
+models/*

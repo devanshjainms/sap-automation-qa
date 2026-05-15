@@ -13,15 +13,7 @@ from mcp.server.session import ServerSession
 from mcp.types import ToolAnnotations
 from src.core.models.job import JobStatus
 from src.mcp_server.server import SapContext, mcp
-from src.mcp_server.tools._helpers import (
-    get_sap_context,
-    ICON_ACTIVITY,
-    ICON_CANCEL,
-    ICON_CLIPBOARD,
-    ICON_LIST,
-    ICON_LOG,
-    ICON_SEARCH,
-)
+from src.mcp_server.tools._helpers import get_sap_context
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +36,6 @@ logger = logging.getLogger(__name__)
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_SEARCH],
     structured_output=False,
 )
 async def get_job_status(
@@ -84,7 +75,6 @@ async def get_job_status(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_CLIPBOARD],
     structured_output=False,
 )
 async def get_job_results(
@@ -120,7 +110,6 @@ async def get_job_results(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_LIST],
     structured_output=False,
 )
 async def list_jobs(
@@ -182,7 +171,6 @@ async def list_jobs(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_CANCEL],
     structured_output=False,
 )
 async def cancel_job(
@@ -214,7 +202,6 @@ async def cancel_job(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_ACTIVITY],
     structured_output=False,
 )
 async def get_job_events(
@@ -251,7 +238,6 @@ async def get_job_events(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_LOG],
     structured_output=False,
 )
 async def get_job_log(

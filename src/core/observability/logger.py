@@ -11,6 +11,7 @@ import os
 import sys
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
+from rich.logging import RichHandler as _RH
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -266,6 +267,23 @@ class StructuredLogger:
         return self._logger.getEffectiveLevel()
 
 
+def _sweep_rich_handlers() -> None:
+    """
+    Remove RichHandler and stderr StreamHandler from all loggers.
+    """
+    _rich_type: type | None = _RH
+
+    for name in list(logging.Logger.manager.loggerDict.keys()):
+        lg = logging.getLogger(name)
+        for h in list(lg.handlers):
+            is_rich = _rich_type is not None and isinstance(h, _rich_type)
+            is_stderr = (
+                isinstance(h, logging.StreamHandler) and getattr(h, "stream", None) is sys.stderr
+            )
+            if is_rich or is_stderr:
+                lg.removeHandler(h)
+
+
 class LoggerFactory:
     """
     Factory for creating and configuring loggers.
@@ -307,35 +325,43 @@ class LoggerFactory:
         cls._level = level
         cls._service_name = service_name
         cls._telemetry_config = telemetry_config
-        cls._configure_logger(
-            "src.core",
-            level,
-            log_format,
-            service_name,
-            telemetry_config,
-        )
-        cls._configure_logger(
-            "src.api",
-            level,
-            log_format,
-            service_name,
-            telemetry_config,
-        )
-        cls._configure_logger(
-            "src.agents",
-            level,
-            log_format,
-            service_name,
-            telemetry_config,
-        )
+
+        root = logging.getLogger()
+        root.handlers.clear()
+        root.setLevel(level)
+        root_handler = logging.StreamHandler(sys.stdout)
+        root_handler.setLevel(level)
+        if log_format == "json":
+            root_handler.setFormatter(JSONFormatter(service_name=service_name))
+        else:
+            root_handler.setFormatter(ConsoleFormatter(service_name=service_name))
+        root.addHandler(root_handler)
+
+        for namespace in ("src.core", "src.api", "src.agents", "src.mcp_server"):
+            ns_logger = logging.getLogger(namespace)
+            ns_logger.setLevel(level)
+            ns_logger.handlers.clear()
+            ns_logger.propagate = True
 
         for noisy in (
             "httpx",
             "httpcore",
+            "azure.core.pipeline",
+            "azure.core.pipeline.transport",
+            "azure.core.pipeline.policies",
+            "azure.identity",
+            "azure.identity._credentials",
             "opentelemetry.trace",
             "opentelemetry.context",
+            "mcp.server",
+            "mcp.server.lowlevel",
+            "uvicorn.access",
         ):
-            logging.getLogger(noisy).setLevel(logging.ERROR)
+            logging.getLogger(noisy).setLevel(logging.WARNING)
+
+        logging.getLogger("uvicorn.error").setLevel(level)
+
+        _sweep_rich_handlers()
 
         cls._initialized = True
 

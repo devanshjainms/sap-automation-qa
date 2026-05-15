@@ -24,9 +24,6 @@ from src.mcp_server.tools._helpers import (
     get_sap_context,
     tool_progress,
     tool_info,
-    ICON_LIST,
-    ICON_SEARCH,
-    ICON_TERMINAL,
     load_workspace_host_details,
     load_workspace_params,
 )
@@ -70,7 +67,6 @@ def _resolve_placeholders(command: str, extra_vars: dict[str, Any]) -> str:
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_LIST],
     structured_output=False,
 )
 async def list_evidence_catalog(
@@ -124,7 +120,6 @@ async def list_evidence_catalog(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_SEARCH],
     structured_output=False,
 )
 async def get_evidence_output(
@@ -187,7 +182,6 @@ async def get_evidence_output(
         idempotentHint=False,
         openWorldHint=True,
     ),
-    icons=[ICON_SEARCH],
     structured_output=False,
 )
 async def collect_evidence(
@@ -446,7 +440,6 @@ async def collect_evidence(
         idempotentHint=True,
         openWorldHint=False,
     ),
-    icons=[ICON_TERMINAL],
     structured_output=False,
 )
 async def run_evidence_collector(

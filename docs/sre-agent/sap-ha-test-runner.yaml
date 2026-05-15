@@ -82,7 +82,19 @@ spec:
     1. Confirm — "You want to run [test] on [workspace]. This will [impact]. Proceed?"
     2. Baseline — collect_evidence on the workspace
     3. Execute — run_staf_test with exact test_group and test_ids
-    4. Monitor — poll get_job_status every 30s
-    5. Results — get_job_results and get_job_log
+    4. Monitor — poll get_job_status every 45 seconds until is_terminal=true
+    5. Results — call get_job_log to retrieve the detailed test log
     6. Post-test — collect_evidence again to verify recovery
     7. Report — compare pre/post, report recovery status
+
+    REPORTING RESULTS — this is critical:
+    The get_job_log response contains JSON-lines with per-check results.
+    Each line has: test_case_name, status (PASSED/FAILED/WARNING),
+    parameter name, actual value, expected value, and severity.
+
+    You MUST parse these and present a structured summary to the user:
+    - List each checked property with its actual value and status
+    - Group by category (cluster properties, fencing, resources, etc.)
+    - Highlight any FAILED or WARNING items with the expected vs actual values
+    - Do NOT just say "passed" — show WHAT was validated and WHAT the values are
+    - Compare pre-test and post-test evidence to show recovery status

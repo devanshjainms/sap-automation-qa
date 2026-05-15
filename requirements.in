@@ -33,7 +33,7 @@ numpy
 pandas
 
 # Semantic search
-sentence-transformers
+fastembed>=0.8.0
 
 # Core utilities
 jmespath
