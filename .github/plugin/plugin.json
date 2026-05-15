@@ -6,8 +6,20 @@
     "name": "Microsoft"
   },
   "license": "MIT",
-  "keywords": ["sap", "hana", "pacemaker", "triage", "cluster", "testing", "azure"],
-  "agents": ["agents/"],
-  "skills": ["skills/"],
+  "keywords": [
+    "sap",
+    "hana",
+    "pacemaker",
+    "triage",
+    "cluster",
+    "testing",
+    "azure"
+  ],
+  "agents": [
+    "agents/sap-automation-qa/"
+  ],
+  "skills": [
+    "skills/"
+  ],
   "mcpServers": "../../.mcp.json"
 }
