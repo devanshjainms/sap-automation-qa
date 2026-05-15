@@ -1,1 +1,1 @@
-../plugin/agents/sap-config-validator.md
+../plugin/agents/sap-automation-qa/sap-config-validator.md

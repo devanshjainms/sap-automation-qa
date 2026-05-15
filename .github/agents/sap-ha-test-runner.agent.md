@@ -1,1 +1,1 @@
-../plugin/agents/sap-ha-test-runner.md
+../plugin/agents/sap-automation-qa/sap-ha-test-runner.md

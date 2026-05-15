@@ -1,1 +1,1 @@
-../plugin/agents/sap-cluster-triage.md
+../plugin/agents/sap-automation-qa/sap-cluster-triage.md
