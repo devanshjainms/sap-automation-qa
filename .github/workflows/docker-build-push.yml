@@ -75,7 +75,6 @@ jobs:
         uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
         with:
           images: |
-            ${{ steps.acr-check.outputs.acr_configured == 'true' && format('{0}.azurecr.io/{1}', secrets.ACR_NAME, env.IMAGE_NAME) || '' }}
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
