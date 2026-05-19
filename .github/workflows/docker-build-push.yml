@@ -25,7 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
       packages: write
 
     steps:
@@ -34,33 +33,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
-
-      - name: Check ACR configuration
-        id: acr-check
-        run: |
-          if [[ -n "${{ secrets.AZURE_CLIENT_ID }}" && \
-                -n "${{ secrets.AZURE_TENANT_ID }}" && \
-                -n "${{ secrets.AZURE_SUBSCRIPTION_ID }}" && \
-                -n "${{ secrets.ACR_NAME }}" ]]; then
-            echo "acr_configured=true" >> $GITHUB_OUTPUT
-            echo "::notice::ACR credentials configured - will build and push"
-          else
-            echo "acr_configured=false" >> $GITHUB_OUTPUT
-            echo "::notice::ACR credentials not configured - will only validate build"
-          fi
-
-      - name: Azure Login (MSI/OIDC)
-        if: steps.acr-check.outputs.acr_configured == 'true' && github.event_name != 'pull_request'
-        uses: azure/login@eec3c95657c1536435858eda1f3ff5437fee8474 # v2.3.0
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Login to Azure Container Registry
-        if: steps.acr-check.outputs.acr_configured == 'true' && github.event_name != 'pull_request'
-        run: |
-          az acr login --name ${{ secrets.ACR_NAME }}
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
