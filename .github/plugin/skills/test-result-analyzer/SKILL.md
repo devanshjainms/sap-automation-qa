@@ -41,8 +41,9 @@ root causes by classifying failures against known patterns.
 
 | File | Path | Format |
 |------|------|--------|
-| Test results | `WORKSPACES/SYSTEM/{name}/logs/{invocation_id}.log` | JSON lines |
-| Execution log | `WORKSPACES/SYSTEM/{name}/logs/execution_{timestamp}.log` | Plain text (Ansible) |
+| Ansible execution log | `WORKSPACES/SYSTEM/{name}/logs/{job_id}.log` | Plain text (Ansible stdout) |
+| ANSIBLE_LOG_PATH output | `WORKSPACES/SYSTEM/{name}/logs/{job_id}.ansible.log` | Plain text |
+| Telemetry results | `WORKSPACES/SYSTEM/{name}/logs/{TestGroupInvocationId}.log` | Newline-delimited JSON (one JSON object per test case) |
 | HTML report | `WORKSPACES/SYSTEM/{name}/quality_assurance/{group}_{invocation}.html` | HTML |
 
 ### API Mode
@@ -234,9 +235,9 @@ Compare current results against previous runs to detect regressions or intermitt
 # List recent invocations
 ls -lt WORKSPACES/SYSTEM/{name}/logs/*.log | head -10
 
-# Diff two JSON-lines logs (compare test statuses)
-diff <(grep -o '"test_case_name": "[^"]*", "status": "[^"]*"' {old_invocation}.log | sort) \
-     <(grep -o '"test_case_name": "[^"]*", "status": "[^"]*"' {new_invocation}.log | sort)
+# Diff two execution logs (compare Ansible task outcomes)
+diff <(grep -E "^(ok|changed|failed|TASK)" {old_invocation}.log | sort) \
+     <(grep -E "^(ok|changed|failed|TASK)" {new_invocation}.log | sort)
 ```
 
 ### Regression Detection Patterns

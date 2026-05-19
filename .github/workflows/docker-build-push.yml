@@ -26,6 +26,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -61,11 +62,21 @@ jobs:
         run: |
           az acr login --name ${{ secrets.ACR_NAME }}
 
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
         with:
-          images: ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}
+          images: |
+            ${{ steps.acr-check.outputs.acr_configured == 'true' && format('{0}.azurecr.io/{1}', secrets.ACR_NAME, env.IMAGE_NAME) || '' }}
+            ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -73,7 +84,7 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build Docker image (validation only)
-        if: steps.acr-check.outputs.acr_configured == 'false' || github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request'
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: .
@@ -85,27 +96,27 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Validate Docker image
-        if: steps.acr-check.outputs.acr_configured == 'false' || github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request'
         run: |
           echo "Validating Docker image..."
           docker images ${{ env.IMAGE_NAME }}:validation
           docker run --rm ${{ env.IMAGE_NAME }}:validation python3 --version
           echo "Docker image validation successful"
 
-      - name: Build and push Docker image to ACR
-        if: steps.acr-check.outputs.acr_configured == 'true' && github.event_name != 'pull_request'
+      - name: Build and push Docker image
+        if: github.event_name != 'pull_request'
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
         with:
           context: .
           file: ./Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Image digest
-        if: steps.acr-check.outputs.acr_configured == 'true' && github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request'
         run: |
-          echo "Image pushed to ACR with tags:"
+          echo "Image pushed with tags:"
           echo "${{ steps.meta.outputs.tags }}"

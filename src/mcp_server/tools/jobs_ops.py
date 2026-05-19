@@ -4,6 +4,7 @@
 """Job ops — STAF job status, results, listing, cancellation, events, logs."""
 
 from __future__ import annotations
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -23,12 +24,14 @@ logger = logging.getLogger(__name__)
     name="get_job_status",
     title="Get Job Status",
     description=(
-        "Poll a STAF job's status. Returns current status (pending, running, "
-        "completed, failed, cancelled), timing, and workspace info. "
-        "After run_staf_test, poll this until is_terminal=true. "
-        "HA tests typically take 8-15 minutes — do not poll more than once "
-        "per 30 seconds. Once completed, call get_job_log to read the "
-        "detailed per-check findings and report them to the user."
+        "Poll a STAF job's current status. Returns the job's status "
+        "(pending, running, completed, failed, cancelled), timing "
+        "(created_at, started_at, completed_at), workspace_id, "
+        "test_group, and is_terminal flag. "
+        "After calling run_staf_test, poll this until is_terminal=true. "
+        "HA tests typically take 8-15 minutes — do not poll more than "
+        "once per 30 seconds. Once is_terminal=true, call "
+        "get_job_results for the test pass/fail summary."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=True,
@@ -64,10 +67,16 @@ async def get_job_status(
     name="get_job_results",
     title="Get Job Results",
     description=(
-        "Retrieve the summary result for a completed STAF job. Returns pass/fail "
-        "counts, exit code, and event timeline. Use this to check whether the test "
-        "passed or failed. For the detailed per-check findings (which specific HA "
-        "properties were validated and their values), call get_job_log instead."
+        "Retrieve structured test results for a STAF job. For completed "
+        "jobs, returns the telemetry results written by the framework: "
+        "each test case entry contains TestCaseName, TestCaseStatus "
+        "(PASSED/FAILED/SKIPPED), TestCaseMessage, TestCaseDetails, "
+        "TestCaseHostname, DurationSeconds, and other execution metadata. "
+        "Also returns the executor summary (tests_run, tests_passed, "
+        "tests_failed) and the events timeline. "
+        "For pending/running jobs, test_results may be empty. "
+        "Use this tool — not get_job_log — to determine whether "
+        "tests passed or failed and to report outcomes to the user."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=True,
@@ -81,10 +90,26 @@ async def get_job_results(
     job_id: str,
     ctx: Context[ServerSession, SapContext] | None = None,
 ) -> dict[str, Any]:
-    """Retrieve results and event log for a completed STAF job."""
+    """Retrieve structured test results for a completed STAF job."""
     sap = get_sap_context(ctx)
 
     job = sap.validator.job_id(job_id)
+
+    test_results: list[dict[str, Any]] = []
+    results_file = sap.workspaces_base / job.workspace_id / "logs" / f"{job.id}.log"
+    if job.is_terminal and results_file.exists():
+        try:
+            content = results_file.read_text(encoding="utf-8")
+            for line in content.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    test_results.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        except OSError as exc:
+            logger.warning("Failed to read telemetry results file %s: %s", results_file, exc)
 
     return {
         "job_id": str(job.id),
@@ -92,6 +117,7 @@ async def get_job_results(
         "is_terminal": job.is_terminal,
         "exit_code": (job.result or {}).get("exit_code"),
         "result": job.result,
+        "test_results": test_results,
         "events": [e.model_dump(mode="json") for e in job.events],
     }
 
@@ -224,12 +250,13 @@ async def get_job_events(
     name="get_job_log",
     title="Get Job Log",
     description=(
-        "Retrieve the detailed structured test log for a STAF job. "
-        "The log contains JSON-lines with per-check results: each line has "
-        "test_case_name, status (PASSED/FAILED/WARNING), parameter name, "
-        "actual value, expected value, and severity. Use this to report "
-        "the specific HA configuration findings to the user — not just "
-        "pass/fail but WHAT was checked and WHAT the values were. "
+        "Retrieve the raw Ansible execution log for a STAF job. "
+        "Returns the unstructured stdout/stderr captured from the "
+        "ansible-playbook subprocess. This is the full console "
+        "output including task names, ok/changed/failed statuses, "
+        "debug messages, and any error tracebacks. "
+        "Use this for debugging execution issues — NOT for "
+        "determining test pass/fail (use get_job_results instead). "
         "Set tail > 0 to return only the last N lines."
     ),
     annotations=ToolAnnotations(

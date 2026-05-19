@@ -61,7 +61,7 @@
 
     - name:                             "Generate test group ID and timestamp"
       ansible.builtin.set_fact:
-        test_group_invocation_id:       "{{ lookup('pipe', 'uuidgen') }}"
+        test_group_invocation_id:       "{{ job_id | default(lookup('pipe', 'uuidgen')) }}"
         test_group_start_time:          "{{ now(utc=true,fmt='%Y-%m-%d %H:%M:%S') }}"
         configuration_test_type:        "{{ configuration_test_type | default('all') }}"
 

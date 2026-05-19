@@ -120,8 +120,9 @@ The framework writes logs automatically during every execution:
 
 | Log Type | Path |
 |----------|------|
-| Structured results (JSON lines) | `WORKSPACES/SYSTEM/{name}/logs/{invocation_id}.log` |
-| Raw Ansible output | `WORKSPACES/SYSTEM/{name}/logs/execution_{timestamp}.log` |
+| Ansible execution log | `WORKSPACES/SYSTEM/{name}/logs/{job_id}.log` |
+| ANSIBLE_LOG_PATH output | `WORKSPACES/SYSTEM/{name}/logs/{job_id}.ansible.log` |
+| Telemetry results (JSON) | `WORKSPACES/SYSTEM/{name}/logs/{TestGroupInvocationId}.log` |
 
 ### API Mode Logs
 
@@ -185,19 +186,21 @@ See [test-catalog.md](references/test-catalog.md) for the full list of test_ids 
 
 1. Call `stafmcp_run_staf_test` — returns a `job_id`
 2. Poll `stafmcp_get_job_status` every 30 seconds until `is_terminal=true`
-3. Call `stafmcp_get_job_log` to retrieve the detailed structured test log
+3. Call `stafmcp_get_job_results` to retrieve the test pass/fail summary
 
 ### Reporting results to the user
 
-The `stafmcp_get_job_log` response contains JSON-lines with per-check results.
-Each line has: `test_case_name`, `status` (PASSED/FAILED/WARNING), parameter name,
-`actual` value, `expected` value, and `severity`.
+The `stafmcp_get_job_results` response contains a nested `result` object with:
+a per-test results array (each with `test_id` and `status`), `tests_run`,
+`tests_passed`, and `tests_failed` counts.
 
-**You MUST parse these and present a structured summary:**
-- List each checked property with its actual value and status
-- Group by category (cluster properties, fencing, resources, constraints)
-- Highlight any FAILED or WARNING items with expected vs actual values
-- Do NOT just say "passed" or "failed" — show WHAT was validated and WHAT the values are
+Use `stafmcp_get_job_log` only for debugging — it returns the raw Ansible
+execution output (unstructured console output).
+
+**You MUST present a structured summary:**
+- List each test_id with its status (success/failed)
+- Highlight any FAILED items with error details
+- Do NOT just say "passed" or "failed" — show WHAT was validated and the outcome
 
 ## API Mode
 
@@ -279,8 +282,9 @@ Full test case reference: [references/test-catalog.md](references/test-catalog.m
 
 | Output | Path |
 |--------|------|
-| Test results (JSON lines) | `WORKSPACES/SYSTEM/{name}/logs/{invocation_id}.log` |
-| Ansible execution log | `WORKSPACES/SYSTEM/{name}/logs/execution_{timestamp}.log` |
+| Ansible execution log | `WORKSPACES/SYSTEM/{name}/logs/{job_id}.log` |
+| ANSIBLE_LOG_PATH output | `WORKSPACES/SYSTEM/{name}/logs/{job_id}.ansible.log` |
+| Telemetry results (NDJSON) | `WORKSPACES/SYSTEM/{name}/logs/{TestGroupInvocationId}.log` |
 | HTML report | `WORKSPACES/SYSTEM/{name}/quality_assurance/{group}_{invocation}.html` |
 
 ## Error Handling

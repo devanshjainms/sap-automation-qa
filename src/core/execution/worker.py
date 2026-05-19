@@ -257,7 +257,7 @@ class JobWorker:
                     test_ids = [""]
                 log_dir = self.workspaces_base / job.workspace_id / "logs"
                 log_dir.mkdir(parents=True, exist_ok=True)
-                log_path = log_dir / f"{job.id}.log"
+                log_path = log_dir / f"{job.id}.stdout.log"
                 log_path.write_text("", encoding="utf-8")
                 job.log_file = str(log_path)
                 self.job_store.update(job)

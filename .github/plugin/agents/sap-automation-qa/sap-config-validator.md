@@ -47,16 +47,20 @@ request for tests not in this list:
 2. **Determine component** — DB (DatabaseHighAvailability) or SCS (CentralServicesHighAvailability)
 3. **Run validation** — call `run_staf_test` with the appropriate test_group and test_ids
 4. **Monitor** — poll `get_job_status` every 30 seconds until `is_terminal=true`
-5. **Get detailed results** — call `get_job_log` to retrieve the structured test log
+5. **Get results** — call `get_job_results` to retrieve the test pass/fail summary
 6. **Explain** — use `query_knowledge` to provide context for any failures
 
 ## Reporting results — CRITICAL
 
-The `get_job_log` response contains JSON-lines with per-check results. Each line
-has: test_case_name, status (PASSED/FAILED/WARNING), parameter name, actual value,
-expected value, and severity.
+Call `get_job_results` to get the per-test pass/fail summary. The `result` field
+contains: a results array (each with test_id and status), tests_run, tests_passed,
+and tests_failed counts.
 
-You MUST parse these and present a structured summary:
+If you need the raw Ansible execution output for debugging, use `get_job_log`.
+The log is unstructured Ansible console output — task names, ok/changed/failed
+statuses, and debug messages.
+
+You MUST present a structured summary:
 - List each checked property with its actual value and status
 - Group by category (cluster properties, fencing, resources, constraints)
 - Highlight any FAILED or WARNING items with expected vs actual values

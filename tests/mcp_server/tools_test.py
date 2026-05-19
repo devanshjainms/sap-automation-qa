@@ -211,9 +211,7 @@ class TestRunStafTest:
             )
 
     @pytest.mark.asyncio
-    async def test_empty_test_ids_raises(
-        self, mocker: MockerFixture, sap_context: SapContext, ctx
-    ):
+    async def test_empty_test_ids_raises(self, mocker: MockerFixture, sap_context: SapContext, ctx):
         from src.mcp_server.tools.staf import run_staf_test
 
         with pytest.raises(ToolError, match="test_ids is required"):

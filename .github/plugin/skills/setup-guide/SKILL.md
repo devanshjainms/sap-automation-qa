@@ -262,8 +262,10 @@ WORKSPACES/
         ├── hosts.yaml                 # Ansible inventory (or {SID}_hosts.yaml)
         ├── ssh_key.ppk / password     # Credential file (if not using Key Vault)
         ├── logs/                      # Auto-created by framework
-        │   ├── {invocation_id}.log    # JSON lines - test case results
-        │   └── execution_{timestamp}.log  # Raw Ansible output
+        │   ├── {job_id}.log           # API mode: Ansible stdout (raw console output)
+        │   ├── {job_id}.ansible.log   # API mode: ANSIBLE_LOG_PATH output
+        │   ├── {TestGroupInvocationId}.log  # Telemetry results (one JSON per test case line)
+        │   └── execution_{timestamp}.log  # Direct mode: ANSIBLE_LOG_PATH output
         └── quality_assurance/         # Auto-created by render_html_report
             └── {test_group}_{invocation_id}.html
 ```
@@ -276,8 +278,9 @@ WORKSPACES/
 |-----|----------|--------|
 | API server logs | stdout/stderr (console) | Structured JSON (production) or color-coded (dev) |
 | Persistent API logs | `logs/api.log` | Rotating file (10 MB, 5 backups) |
-| Job execution logs | `WORKSPACES/SYSTEM/{name}/logs/execution_{timestamp}.log` | Plain text (Ansible output) |
-| Test result logs | `WORKSPACES/SYSTEM/{name}/logs/{invocation_id}.log` | JSON lines (one entry per test case) |
+| Ansible stdout | `WORKSPACES/SYSTEM/{name}/logs/{job_id}.log` | Plain text (Ansible console output) |
+| Ansible log | `WORKSPACES/SYSTEM/{name}/logs/{job_id}.ansible.log` | Plain text (ANSIBLE_LOG_PATH) |
+| Telemetry results | `WORKSPACES/SYSTEM/{name}/logs/{TestGroupInvocationId}.log` | Newline-delimited JSON (one JSON per test case) |
 | HTML reports | `WORKSPACES/SYSTEM/{name}/quality_assurance/{group}_{invocation}.html` | HTML |
 
 ### Direct Execution Mode
@@ -285,8 +288,7 @@ WORKSPACES/
 | Log | Location | Format |
 |-----|----------|--------|
 | Ansible output | stdout (console) | Plain text |
-| Test result logs | `WORKSPACES/SYSTEM/{name}/logs/{invocation_id}.log` | JSON lines |
-| Execution log | `WORKSPACES/SYSTEM/{name}/logs/execution_{timestamp}.log` | Plain text |
+| Execution log | `WORKSPACES/SYSTEM/{name}/logs/execution_{timestamp}.log` | Plain text (ANSIBLE_LOG_PATH) |
 | HTML reports | `WORKSPACES/SYSTEM/{name}/quality_assurance/{group}_{invocation}.html` | HTML |
 
 ### Docker Deployment

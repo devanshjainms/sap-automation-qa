@@ -23,7 +23,7 @@
   run_once:                             true
   when:
                                         - cluster_status is defined
-                                        - len(cluster_status.primary_node) > 0
+                                        - cluster_status.primary_node | default('') | length > 0
                                         - cluster_status.primary_node == ansible_hostname
   block:
     - name:                             "Cluster report from the HA cluster"
