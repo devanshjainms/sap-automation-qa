@@ -1,3 +1,18 @@
+---
+name: dev-workflow
+description: >
+  Consolidated reference for the development workflow agent pipeline.
+  Contains workflow overview, artifact schemas, templates, conventions,
+  and CI commands for all dev-* agents.
+metadata:
+  examples:
+    - Start the dev workflow for issue #42
+    - Create a spec for this GitHub issue
+    - Review the implementation plan
+    - Run validation checks before PR
+    - Assess documentation impact
+---
+
 # Dev Workflow Skill — Consolidated Reference
 
 > Single source of truth for all `dev-*` workflow agents.
