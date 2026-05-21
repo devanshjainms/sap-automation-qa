@@ -200,38 +200,254 @@ Follow these established patterns when contributing:
 
 ## Coding Standards
 
-### Python
+> **FIRST ACTION RULE — applies before writing any code:**
+>
+> Before implementing anything, search the codebase for existing code that
+> does what you need. Follow this decision tree:
+>
+> 1. **Does a function/class/method already do this?** → Use it directly.
+> 2. **Does something similar exist but isn't reusable?** → Refactor it
+>    into a reusable form (extract to base class, utility, or shared module),
+>    then use the refactored version.
+> 3. **Nothing exists?** → Create it in the most reusable location
+>    (base class > utility module > inline), not buried in a specific module.
+>
+> This is not optional. Every PR review will check: "Did you search for
+> existing code before writing new code? If similar code exists elsewhere,
+> why wasn't it reused or extracted?"
 
-- **Formatter**: `black` with `line_length = 100`.
-- **Linter**: `pylint` with minimum score 9.0; sphinx docstring convention.
-- **Typing**: Strict type hints on all public signatures. Use `Protocol` for interfaces.
-- **Docstrings**: Required on every public class, method, and function (params, returns, raises).
-- **Max constraints**: `max-args=5`, `max-line-length=100`, `max-module-lines=1000`, `max-nested-blocks=3`.
-- **Async**: Use `asyncio_mode = "auto"` in pytest; prefer native `async`/`await` over threads.
-- **Imports**: Ansible modules use dual-import fallback (`from ansible.module_utils...` with `from src.module_utils...` in except).
+### Python — Hard Rules
 
-### Ansible
+These are not suggestions. Violating any of these will fail CI or code review.
 
-- **Lint**: `ansible-lint` enforced in CI.
-- **Task naming**: Every task MUST have a descriptive `name:` field.
-- **Shell tasks**: Always use `set -o pipefail`, `executable: /bin/bash`, and `changed_when: false` for read-only commands.
-- **Become**: Explicit `become: true` / `become_user: root` where required.
-- **Error handling**: Use `block/rescue/always` patterns; set `failed_when` explicitly.
-- **OS dispatching**: Use Jinja2 filters on `commands` list with `ansible_os_family | upper`.
+#### 1. Formatting — black, line-length 100
 
-### Testing
+Every Python file MUST pass `black --check` with `line_length = 100`.
+Before saving any file, mentally verify lines do not exceed 100 characters.
+If a function call or definition is too long, break it:
 
-- **Coverage**: 85% minimum enforced (`--cov-fail-under=85`).
-- **API tests**: Use `httpx.AsyncClient` with FastAPI test client pattern.
-- **Core tests**: Use `tmp_path`, mock `subprocess.Popen`, test state machines.
-- **Module tests**: Mock `AnsibleModule`; test command execution, XML parsing, edge cases.
-- **Role tests**: Extend `RolesTestingBase`; use `ansible_runner` with file-based mock data.
-- **Fixtures**: Shared via `conftest.py`; avoid test-to-test coupling.
+```python
+# WRONG — exceeds 100 chars
+result = self.execute_command_subprocess(command, timeout=30, check_return_code=True, capture_output=True)
 
-### Shell Scripts
+# RIGHT — break at logical points
+result = self.execute_command_subprocess(
+    command,
+    timeout=30,
+    check_return_code=True,
+    capture_output=True,
+)
+```
 
-- **Style**: Consistent function naming (`_prefixed` for internal), colored logging helpers.
-- **Safety**: Check tool availability (`command -v`), validate inputs, provide clear error messages.
+#### 2. Type annotations — every signature, no exceptions
+
+Every function parameter and return type MUST have a type annotation.
+This includes private methods, test functions, and callbacks.
+
+```python
+# WRONG
+def collect_lvm_volumes(self):
+    ...
+
+def process_result(data, callback):
+    ...
+
+# RIGHT
+def collect_lvm_volumes(self) -> list[dict[str, str]]:
+    ...
+
+def process_result(
+    data: dict[str, Any],
+    callback: Callable[[str], None],
+) -> ProcessResult:
+    ...
+```
+
+**`Any` usage**: Only permitted when the type is genuinely unknown (e.g., Ansible
+module params). Add a comment explaining why:
+
+```python
+def collect(self, check: str, context: dict[str, Any]) -> Any:
+    # Returns Any because collector subclasses return different types
+    ...
+```
+
+#### 3. Imports — top of file, never inline
+
+All imports at the top of the file. No imports inside functions or methods.
+
+The ONLY exception is the Ansible dual-import fallback pattern:
+
+```python
+# This is the ONLY acceptable non-top-level import pattern
+try:
+    from ansible.module_utils.sap_automation_qa import SapAutomationQA
+except ImportError:
+    from src.module_utils.sap_automation_qa import SapAutomationQA
+```
+
+Anything else inline is a violation:
+```python
+# WRONG — never do this
+def my_function() -> None:
+    import json  # ❌ inline import
+    from pathlib import Path  # ❌ inline import
+```
+
+#### 4. Docstrings — sphinx-style on all public interfaces
+
+Every public class, method, and function MUST have a sphinx-style docstring.
+Include `:param:`, `:returns:`, and `:raises:` fields.
+
+```python
+def execute_command(
+    self,
+    cmd: str,
+    timeout: int = 30,
+) -> CommandResult:
+    """Execute a shell command with timeout.
+
+    :param cmd: The shell command to execute.
+    :param timeout: Maximum seconds to wait. Defaults to 30.
+    :returns: A CommandResult with stdout, stderr, and return code.
+    :raises TimeoutError: If the command exceeds the timeout.
+    :raises CommandExecutionError: If the command fails to start.
+    """
+```
+
+Private methods (`_prefixed`) should have a brief docstring but do not
+require `:param:` / `:returns:` fields.
+
+#### 5. Function arguments — max 5
+
+No function may accept more than 5 parameters (excluding `self`/`cls`).
+If you need more, group related parameters into a dataclass or TypedDict:
+
+```python
+# WRONG — 8 args
+def _parse_filesystem_data(
+    self, mount_point, fs_type, device, size, used, avail, options, source,
+) -> FilesystemData:
+    ...
+
+# RIGHT — group into a typed container
+@dataclass(frozen=True)
+class RawFilesystemEntry:
+    mount_point: str
+    fs_type: str
+    device: str
+    size: str
+    used: str
+    avail: str
+    options: str
+    source: str
+
+def _parse_filesystem_data(self, entry: RawFilesystemEntry) -> FilesystemData:
+    ...
+```
+
+#### 6. Module size — max 1000 lines
+
+No Python module may exceed 1000 lines. If it does, split it by
+responsibility. Use the single-responsibility principle.
+
+#### 7. Nesting — max 3 levels
+
+No code block may be nested more than 3 levels deep. If you find yourself
+at 4+ levels, extract a helper method.
+
+```python
+# WRONG — 4 levels deep
+for node in nodes:
+    if node.active:
+        for resource in node.resources:
+            if resource.status == "started":
+                process(resource)  # ❌ level 4
+
+# RIGHT — extract
+def _get_active_resources(self, nodes: list[Node]) -> list[Resource]:
+    return [
+        resource
+        for node in nodes if node.active
+        for resource in node.resources if resource.status == "started"
+    ]
+```
+
+#### 8. No print() — use StructuredLogger
+
+Never use `print()` or raw `logging` in production code. Use `StructuredLogger`.
+The only exception is CLI entry points (`filter_tests.py main()`).
+
+```python
+# WRONG
+print(f"Processing node {node_name}")
+logging.info("Job completed")
+
+# RIGHT
+self.logger.info("Processing node", node_name=node_name)
+logger.info(ServiceEvent.JOB_COMPLETED, job_id=job.id)
+```
+
+#### 9. Error handling — explicit, typed exceptions
+
+Never catch bare `Exception` without re-raising or wrapping. Use the
+project's exception hierarchy:
+
+```python
+# WRONG
+try:
+    result = execute()
+except Exception:
+    pass  # ❌ swallowed
+
+# RIGHT
+try:
+    result = execute()
+except CommandExecutionError as exc:
+    logger.error("Command failed", error=str(exc))
+    raise
+except TimeoutError as exc:
+    raise ExecutionError(f"Timed out: {exc}") from exc
+```
+
+#### 10. Constants — no magic strings or numbers
+
+Use enums from `enums.py` or module-level constants. Never embed raw strings
+for states, statuses, or configuration keys:
+
+```python
+# WRONG
+if status == "started":
+    ...
+
+# RIGHT
+if status == TestStatus.PASSED:
+    ...
+```
+
+### Ansible — Hard Rules
+
+1. Every task MUST have a descriptive `name:` field.
+2. Shell tasks MUST use `set -o pipefail`, `executable: /bin/bash`, `changed_when: false` (read-only).
+3. Use `become: true` / `become_user: root` explicitly where required.
+4. Use `block/rescue/always` for error handling. Set `failed_when` explicitly.
+5. OS dispatching: Use Jinja2 filters on `commands` list with `ansible_os_family | upper`.
+6. `ansible-lint` must pass with zero errors.
+
+### Testing — Hard Rules
+
+1. Coverage: 85% minimum enforced (`--cov-fail-under=85`). No exceptions.
+2. API tests: `httpx.AsyncClient` with FastAPI test client, `pytest-asyncio` auto mode.
+3. Mock external deps: Azure, SSH, subprocess, network. Never call real services.
+4. Test failure paths: Every function with error handling needs a test that triggers it.
+5. Fixtures: Shared via `conftest.py`. No test-to-test coupling.
+6. Assertions: Every test must assert something. No assertion-free tests.
+
+### Shell Scripts — Hard Rules
+
+1. Internal functions: `_prefixed`. Public functions: unprefixed.
+2. Check tool availability: `command -v {tool}` before using it.
+3. Validate inputs before acting. Provide clear error messages on failure.
 
 ---
 
@@ -279,17 +495,226 @@ All code must meet these non-negotiable standards:
 
 ---
 
-## Object-Oriented Design Principles
+## Object-Oriented Design — Hard Rules
 
-Apply these consistently in all contributions:
+Code reuse through abstraction is mandatory. Every new feature must evaluate
+whether it can extend an existing class, implement an existing Protocol, or
+extract shared logic into a base class. **Duplication is a defect.**
 
-- Favor well-named classes with **Single Responsibility**; keep modules under 1000 lines.
-- Use **dependency inversion**: define interfaces via `Protocol` or ABC; inject collaborators.
-- Encapsulate external systems (Azure, OS, Ansible runner) behind **ports/adapters**.
-- Model states and workflows as **explicit types** (`JobStatus` enum, `Job` state machine).
-- Avoid "stringly typed" protocols -- use enums (`TestStatus`, `HanaTopology`, `AuthType`).
-- Provide seams for testing via interfaces and small, mockable collaborators.
-- Prefer **composition over inheritance**; use ABCs only for true "is-a" hierarchies.
+### Rule 1: Search → Reuse → Extract → Create (in that order)
+
+This is the most important rule. Before writing ANY new class or function:
+
+**Step 1 — Search**: Look for existing code that does what you need.
+Use `search/codebase`, `search/usages`, `grep` to find related functions,
+classes, and patterns.
+
+**Step 2 — Reuse**: If you find existing code that does what you need, use it.
+Import it, call it, extend it.
+
+**Step 3 — Extract**: If you find similar code that ISN'T reusable (e.g., it's
+buried inside another function, or it mixes concerns), refactor it:
+- Extract the shared logic into a base class method, utility function, or
+  shared module
+- Update the original code to use the extracted version
+- Then use the extracted version in your new code too
+
+**Step 4 — Create**: Only if nothing exists. Place it in the most reusable
+location — base class > utility module > inline.
+
+This codebase has established hierarchies — search these first:
+
+| Need | Existing Abstraction | Location |
+|------|---------------------|----------|
+| Custom Ansible module | `SapAutomationQA` ABC | `module_utils/sap_automation_qa.py` |
+| Cluster status check | `BaseClusterStatusChecker` | `module_utils/get_cluster_status.py` |
+| Pacemaker CIB validation | `BaseHAClusterValidator` | `module_utils/get_pcmk_properties.py` |
+| Data collection | `Collector` ABC | `module_utils/collector.py` |
+| Filesystem data gathering | `FileSystemCollector` | `module_utils/filesystem_collector.py` |
+| Async job execution | `ExecutorProtocol` | `core/execution/executor.py` |
+| Workspace storage backend | `WorkspaceBackend` Protocol | `core/services/workspace_backend.py` |
+| Structured logging | `LogFormatter` ABC | `core/observability/logger.py` |
+| Remote log shipping | `_BaseRemoteLogHandler` | `core/observability/telemetry_handlers.py` |
+| Context propagation | `IContextProvider` Protocol | `core/observability/context.py` |
+| Evidence collection | `CollectorStrategy` Protocol | `core/execution/evidence_collector.py` |
+
+```python
+# WRONG — new module that does cluster checks from scratch
+class MyNewClusterCheck:
+    def __init__(self, module):
+        self.module = module
+    def run(self):
+        # reimplements command execution, result parsing, etc.
+        ...
+
+# RIGHT — extend the existing ABC
+class MyNewClusterCheck(BaseClusterStatusChecker):
+    """Check for new cluster scenario.
+
+    Extends BaseClusterStatusChecker to reuse command execution,
+    OS-family dispatching, and result formatting.
+    """
+
+    def _parse_cluster_output(self, output: str) -> dict[str, str]:
+        # Only implement the part that's different
+        ...
+```
+
+### Rule 2: ABC for "is-a" hierarchies with shared behavior
+
+Use ABCs when subclasses share implementation (template method pattern).
+The ABC defines the skeleton; subclasses override specific steps.
+
+This codebase uses this pattern extensively — follow it:
+
+```python
+class BaseClusterStatusChecker(SapAutomationQA):
+    """Template method: run() calls abstract hooks in sequence."""
+
+    def run(self) -> dict[str, str]:
+        """Execute cluster check — DO NOT OVERRIDE."""
+        raw = self._collect_data()       # concrete
+        parsed = self._parse_output(raw)  # abstract — subclass implements
+        return self._format_result(parsed) # concrete
+
+    @abstractmethod
+    def _parse_output(self, raw: str) -> dict[str, Any]:
+        """Parse raw cluster output. Subclass MUST implement."""
+        ...
+```
+
+**When to use ABC**: You have 2+ classes that share >50% of their logic
+and differ in specific steps. Extract the shared logic into an ABC.
+
+### Rule 3: Protocol for structural typing (duck typing with safety)
+
+Use `Protocol` when you need an interface for dependency injection or
+testing, but the implementations don't share logic.
+
+```python
+class ExecutorProtocol(Protocol):
+    """Any object that can execute Ansible jobs."""
+
+    def execute(self, playbook: str, extra_vars: dict[str, str]) -> int:
+        ...
+
+    def cancel(self, job_id: str) -> None:
+        ...
+```
+
+**When to use Protocol vs ABC**:
+- Protocol: consumer needs an interface, implementations are independent
+- ABC: implementations share behavior that should be written once
+
+### Rule 4: Encapsulate external systems behind adapters
+
+Never call Azure SDKs, subprocess, SSH, or HTTP directly from business logic.
+Wrap them in adapter classes that can be mocked:
+
+```python
+# WRONG — Azure SDK call in business logic
+class JobWorker:
+    async def submit_job(self, request):
+        credential = DefaultAzureCredential()  # ❌ direct SDK call
+        client = SecretClient(vault_url, credential)
+        key = client.get_secret("ssh-key")
+        ...
+
+# RIGHT — inject an adapter
+class JobWorker:
+    def __init__(self, credential_provider: SshCredentialProvider) -> None:
+        self._credentials = credential_provider
+
+    async def submit_job(self, request: JobRequest) -> Job:
+        key = await self._credentials.get_ssh_key(request.workspace_id)
+        ...
+```
+
+### Rule 5: Extract shared logic — DRY enforcement
+
+When you find yourself writing similar code in 2+ places, extract it
+immediately. Common extraction targets in this codebase:
+
+| Duplication Signal | Extraction Pattern |
+|-------------------|-------------------|
+| Same command execution + error handling | Add to `SapAutomationQA.execute_command_subprocess()` |
+| Same XML/JSON parsing logic | Create a parser method in the base class |
+| Same OS-family conditional | Use the `commands.py` dispatch pattern |
+| Same validation logic (string/numeric/list) | Add to the validation strategy in `configuration_check_module.py` |
+| Same test setup (mock module, mock commands) | Add fixture to `conftest.py` |
+
+```python
+# WRONG — duplicated validation in two modules
+# Module A:
+def validate_value(self, expected, actual):
+    if expected == actual:
+        return {"status": "PASSED"}
+    return {"status": "FAILED", "message": f"Expected {expected}, got {actual}"}
+
+# Module B:
+def check_value(self, exp, act):
+    if exp == act:
+        return {"result": "PASSED"}
+    return {"result": "FAILED", "detail": f"Want {exp}, have {act}"}
+
+# RIGHT — extract to base class
+class SapAutomationQA(ABC):
+    def _validate_expected_value(
+        self,
+        expected: str,
+        actual: str,
+        context: str,
+    ) -> ValidationResult:
+        """Compare expected vs actual and return a standardized result."""
+        ...
+```
+
+### Rule 6: Composition for cross-cutting concerns
+
+When behavior needs to be shared across unrelated classes (not "is-a"),
+use composition — inject collaborators rather than inheriting.
+
+```python
+# WRONG — multiple inheritance for logging + validation
+class MyModule(SapAutomationQA, LoggingMixin, ValidationMixin):
+    ...
+
+# RIGHT — compose collaborators
+class MyModule(SapAutomationQA):
+    def __init__(self, module: AnsibleModule) -> None:
+        super().__init__(module)
+        self._validator = PropertyValidator()  # composed
+```
+
+### Rule 7: State machines for workflow objects
+
+Model any object with lifecycle states as an explicit state machine with
+typed transitions. Never use string comparisons for state checks.
+
+```python
+class Job:
+    """Explicit state machine — see core/models/job.py."""
+
+    def start(self) -> None:
+        if self.status != JobStatus.PENDING:
+            raise InvalidStateTransition(self.status, JobStatus.RUNNING)
+        self.status = JobStatus.RUNNING
+
+    @property
+    def is_terminal(self) -> bool:
+        return self.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED)
+```
+
+### Decision Checklist — Before Writing Any New Class
+
+Ask these questions in order:
+
+1. **Does an existing class already do this?** → Extend it.
+2. **Does it share >50% logic with an existing class?** → Extract an ABC, inherit.
+3. **Does it need to satisfy an interface for DI/testing?** → Implement a Protocol.
+4. **Does it wrap an external system?** → Write an adapter, inject it.
+5. **Is similar logic duplicated elsewhere?** → Extract to a shared base or utility.
+6. **None of the above?** → Create a new class with single responsibility.
 
 ---
 
@@ -387,6 +812,89 @@ cd deploy && docker compose up -d
 
 ---
 
+## Pre-Completion Checklist
+
+> **MANDATORY** — Before declaring any code task complete, verify ALL of the following.
+> No exceptions. Run the commands, check the output, fix failures.
+
+### Python Code Quality
+
+1. **Format**: `black --check src/ tests/` — zero reformatting needed.
+   If files need reformatting, run `black src/ tests/` first, then verify.
+   > Ref: [black documentation](https://black.readthedocs.io/en/stable/)
+
+2. **Lint**: `pylint src/{changed_modules} --fail-under=9` — score 9.0 or higher.
+   Fix all errors and warnings before declaring done.
+   > Ref: [pylint documentation](https://pylint.readthedocs.io/en/stable/)
+
+3. **Type annotations**: Every function parameter and return type MUST have a type
+   annotation. No `Any` without explicit justification in a comment. Use `Protocol`
+   for structural typing, not `ABC` unless there is a true "is-a" hierarchy.
+   > Ref: [PEP 484](https://peps.python.org/pep-0484/), [typing module](https://docs.python.org/3/library/typing.html)
+
+4. **Docstrings**: Every public class, method, and function MUST have a sphinx-style
+   docstring with `:param:`, `:returns:`, and `:raises:` fields. Example:
+
+   ```python
+   def execute_command(self, cmd: str, timeout: int = 30) -> CommandResult:
+       """Execute a shell command with timeout.
+
+       :param cmd: The shell command to execute.
+       :param timeout: Maximum seconds to wait. Defaults to 30.
+       :returns: A CommandResult with stdout, stderr, and return code.
+       :raises TimeoutError: If the command exceeds the timeout.
+       :raises CommandExecutionError: If the command fails to start.
+       """
+   ```
+
+5. **Imports**: All imports at the top of the file. No inline or lazy imports inside
+   functions or methods. Ansible modules use the dual-import fallback pattern only:
+   ```python
+   try:
+       from ansible.module_utils.sap_automation_qa import SapAutomationQA
+   except ImportError:
+       from src.module_utils.sap_automation_qa import SapAutomationQA
+   ```
+
+6. **Tests**: `pytest tests/ --cov=src --cov-fail-under=85 -v` — all tests pass,
+   coverage at or above 85%. After writing or modifying tests, run them and verify.
+
+7. **Ansible lint**: `ansible-lint src/` — passes with zero errors when any YAML
+   files under `src/roles/` or `src/playbook_*.yml` are changed.
+
+8. **Type checking**: Zero Pylance/pyright errors in changed files.
+
+### Evidence-Based Development
+
+9. **Documentation references**: Every non-trivial technical decision, tool usage,
+   or behavioral claim MUST cite an official public documentation source.
+   Acceptable sources: GitHub Docs, Microsoft Learn, Python Docs, Ansible Docs,
+   SAP Help Portal, SUSE/Red Hat documentation. Include URLs in code comments
+   for non-obvious patterns.
+
+### Verification Order
+
+Run checks in this order — stop and fix at the first failure:
+
+```bash
+# 1. Format
+black --check src/ tests/
+
+# 2. Lint
+pylint src/ --fail-under=9
+
+# 3. Tests + coverage
+pytest tests/ --cov=src --cov-fail-under=85 -v
+
+# 4. Ansible lint (if applicable)
+ansible-lint src/
+
+# 5. Type check (if pyright/pylance available)
+pyright src/
+```
+
+---
+
 ## Copilot CLI Skills
 
 This repo includes skills in `.github/skills/` that provide guided workflows.
@@ -398,5 +906,3 @@ with the `/` prefix (e.g., `/test-runner`).
 | `/setup-guide` | Setup, installation, Docker deployment, `vars.yaml` configuration |
 | `/workspace-validator` | Validate workspace config, troubleshoot workspace issues |
 | `/workspace-creator` | Create new workspace, onboard SAP system |
-| `/test-runner` | Run tests, execute configuration checks, start HA tests |
-| `/test-result-analyzer` | Analyze test failures, interpret results, find root causes |
