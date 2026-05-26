@@ -47,14 +47,20 @@ correctness, security, and maintainability.
 
 ---
 
-## Prerequisites Check
+## Prerequisites Check (Pre-Flight)
+
 
 Verify before starting:
 
-1. `04-validation-report.md` exists with verdict `PASS`
+1. `04-validation-report.md` exists with verdict `PASS` (search for `## Overall: PASS`)
 2. All planned code and test files exist on the branch
+3. `01-spec.md` and `02-implementation-plan.md` exist **and are non-empty**
 
-If validation has not passed, STOP and report to the conductor.
+If validation has not passed or artifacts are missing, STOP immediately and
+report to the conductor:
+```
+❌ PRE-FLIGHT FAILED: {which check failed and why}
+```
 
 ---
 
@@ -209,6 +215,15 @@ Single file: `.copilot-tracking/{work-item-id}/05-code-review.md`
 ```
 
 ## Handoff
+
+After saving the review, **verify your own output** (post-flight self-check):
+
+1. Re-read `05-code-review.md` — confirm it contains `## Verdict:` (APPROVED or CHANGES_REQUESTED)
+2. Verify `## Reuse Check` table is populated
+3. Verify `## Checklist` items are all marked
+4. If CHANGES_REQUESTED: verify each finding has Severity, Location, and Rationale
+
+Then report:
 
 ```text
 ✅ CODE REVIEW APPROVED

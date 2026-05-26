@@ -106,6 +106,9 @@ All workflow artifacts live in `.copilot-tracking/{work-item-id}/`.
 
 ### state.json Schema
 
+> **Design rationale**: JSON state (not Markdown) is mandatory because agents
+> are less likely to corrupt structured JSON than freeform text.
+
 ```json
 {
   "work_item_id": "gh-42",
@@ -116,7 +119,7 @@ All workflow artifacts live in `.copilot-tracking/{work-item-id}/`.
     "spec": { "status": "done", "completed_at": "2026-05-21T16:05:00Z" },
     "planning": { "status": "done", "completed_at": "2026-05-21T16:10:00Z" },
     "gate": { "status": "done", "verdict": "APPROVED", "completed_at": "2026-05-21T16:12:00Z" },
-    "implementing": { "status": "in_progress", "retry_count": 0 },
+    "implementing": { "status": "in_progress", "started_at": "2026-05-21T16:13:00Z", "retry_count": 0 },
     "testing": { "status": "pending" },
     "validating": { "status": "pending" },
     "reviewing": { "status": "pending" },
@@ -125,13 +128,53 @@ All workflow artifacts live in `.copilot-tracking/{work-item-id}/`.
   },
   "tracking_issue": 42,
   "pr_number": null,
-  "docs_pr_number": null
+  "docs_pr_number": null,
+  "total_retries": 0,
+  "progress_log": [
+    { "timestamp": "2026-05-21T16:00:00Z", "stage": "intake", "event": "completed", "summary": "Normalized from GitHub issue #42" },
+    { "timestamp": "2026-05-21T16:05:00Z", "stage": "spec", "event": "completed", "summary": "10 acceptance criteria, 8 affected files" },
+    { "timestamp": "2026-05-21T16:13:00Z", "stage": "implementing", "event": "started", "summary": "Implementing 12 changes from approved plan" }
+  ]
 }
 ```
+
+#### state.json Field Reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `work_item_id` | string | yes | Canonical work item identifier |
+| `branch` | string | yes | Feature branch name (null until created) |
+| `current_stage` | string | yes | **Must be updated after every stage transition** |
+| `stages.{name}.status` | string | yes | `pending`, `in_progress`, `done`, `failed`, `skipped` |
+| `stages.{name}.started_at` | string | no | ISO 8601 timestamp when stage began |
+| `stages.{name}.completed_at` | string | no | ISO 8601 timestamp when stage finished |
+| `stages.{name}.verdict` | string | no | For gate/review stages: `APPROVED`, `REJECTED`, `CHANGES_REQUESTED` |
+| `stages.{name}.retry_count` | number | no | Number of retry attempts for this stage |
+| `stages.{name}.error_context` | string | no | Brief description of why the stage failed (for retry handoff) |
+| `tracking_issue` | number | no | GitHub issue number for tracking |
+| `pr_number` | number | no | PR number once created |
+| `docs_pr_number` | number | no | Docs PR number if applicable |
+| `total_retries` | number | yes | Sum of all retries across the pipeline (circuit breaker input) |
+| `progress_log` | array | yes | Append-only log of stage transitions with summaries |
+
+#### Stage Status Transitions
+
+```
+pending → in_progress → done
+                      → failed (may retry → in_progress)
+pending → skipped (if stage is not applicable)
+```
+
+**Rule**: `current_stage` MUST always reflect the stage that is `in_progress` or
+the last stage that completed. Never leave it stale.
 
 ---
 
 ## Canonical Work Item Format (00-intake.json)
+
+> **Design rationale**: Acceptance criteria use the "feature list" pattern —
+> structured JSON with a `passes` field that the validator updates, enabling
+> machine-readable pass/fail tracking across retry cycles.
 
 ```json
 {
@@ -140,15 +183,37 @@ All workflow artifacts live in `.copilot-tracking/{work-item-id}/`.
   "tracking_issue": 42,
   "title": "...",
   "description": "...",
-  "acceptance_criteria": ["...", "..."],
+  "acceptance_criteria": [
+    { "id": "AC-1", "description": "All task labels follow consistent naming convention", "passes": null },
+    { "id": "AC-2", "description": "Dynamic labeling replaces hardcoded values", "passes": null },
+    { "id": "AC-3", "description": "All CI checks pass (black, pylint ≥9.0, pytest ≥85%)", "passes": null }
+  ],
   "labels": ["...", "..."],
   "linked_items": ["...", "..."]
 }
 ```
 
+### Acceptance Criteria Field Reference
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Stable identifier (AC-1, AC-2, ...) — never renumbered |
+| `description` | string | Human-readable criterion |
+| `passes` | boolean or null | `null` = not yet evaluated, `true` = met, `false` = not met |
+
+The `passes` field is updated by **dev-07-validator** during each validation cycle.
+Other agents MUST NOT modify it. The conductor reads `passes` values to determine
+if the pipeline can advance past validation.
+
+**It is unacceptable to remove, rename, or edit acceptance criteria descriptions
+after intake.** Only the `passes` field may be changed, and only by dev-07-validator.
+This prevents requirements from being silently dropped during retry cycles.
+
 ---
 
 ## Branch Naming Convention
+
+**Base branch**: Always branch from `dev` (never from `main`).
 
 Format: `dev/{issue-number}-{kebab-case-title}`
 

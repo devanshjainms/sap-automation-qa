@@ -44,15 +44,19 @@ cross-repo PRs when needed.
 
 ---
 
-## Prerequisites Check
+## Prerequisites Check (Pre-Flight)
+
 
 Verify before starting:
 
-1. `06-pr-summary.md` exists (PR has been created)
-2. The source PR is ready for review
+1. `06-pr-summary.md` exists **and is non-empty** (PR has been created)
+2. The source PR is ready for review (verify via `gh pr view`)
 3. `01-spec.md` exists (for scope understanding)
 
-If prerequisites are missing, STOP and report to the conductor.
+If prerequisites are missing, STOP immediately and report to the conductor:
+```
+❌ PRE-FLIGHT FAILED: {which check failed and why}
+```
 
 ---
 
@@ -76,7 +80,7 @@ If prerequisites are missing, STOP and report to the conductor.
 - ❌ Create docs PRs for internal refactors, test changes, or CI changes
 - ❌ Create PRs against the upstream repo directly — use the fork
 - ❌ Modify docs for features not yet merged in the source repo
-- ❌ Skip the assessment — always produce `06-docs-assessment.md`
+- ❌ Skip the assessment — always produce `07-docs-assessment.md`
 
 ---
 
@@ -103,7 +107,7 @@ If prerequisites are missing, STOP and report to the conductor.
 1. **Read the PR diff** — Identify all changed files
 2. **Categorize changes** — Map each change to the impact criteria table
 3. **Read the spec** — Check if the spec mentions any user-facing changes
-4. **Produce assessment** — Save to `.copilot-tracking/{work-item-id}/06-docs-assessment.md`
+4. **Produce assessment** — Save to `.copilot-tracking/{work-item-id}/07-docs-assessment.md`
 
 ### Phase 2: Docs PR (if needed)
 
@@ -140,7 +144,7 @@ If the assessment identifies documentation impact:
 
 ## Idempotency
 
-- If `06-docs-assessment.md` exists and says "no docs needed" → skip
+- If `07-docs-assessment.md` exists and says "no docs needed" → skip
 - If docs PR already exists for this work item → update it
 - If assessment exists but docs PR is missing → create the PR
 
@@ -153,9 +157,17 @@ If the assessment identifies documentation impact:
 
 ## Handoff
 
+After completing the assessment, **verify your own output** (post-flight self-check):
+
+1. Re-read `07-docs-assessment.md` — confirm it contains `## Impact:` (DOCS_NEEDED or NO_DOCS_NEEDED)
+2. If DOCS_NEEDED: verify the docs PR exists via `gh pr list` in the fork
+3. Verify the assessment lists all user-visible changes analyzed
+
+Then report:
+
 ```text
 📚 DOCUMENTATION ASSESSMENT COMPLETE
-File: .copilot-tracking/{work-item-id}/06-docs-assessment.md
+File: .copilot-tracking/{work-item-id}/07-docs-assessment.md
 Impact: {DOCS_NEEDED | NO_DOCS_NEEDED}
 Docs PR: #{docs_pr_number} (if applicable) or "N/A"
 ```

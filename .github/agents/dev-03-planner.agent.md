@@ -42,15 +42,19 @@ Produces a file-level implementation plan that answers **How**.
 
 ---
 
-## Prerequisites Check
+## Prerequisites Check (Pre-Flight)
+
 
 Verify before starting:
 
-1. `.copilot-tracking/{work-item-id}/01-spec.md` exists and is complete
-2. All acceptance criteria are present in the spec
-3. Affected areas are identified
+1. `.copilot-tracking/{work-item-id}/01-spec.md` exists **and is non-empty** (>100 bytes)
+2. It contains `## Acceptance Criteria` with ≥1 criterion
+3. It contains `## Affected Areas` with ≥1 file path
 
-If the spec is missing or incomplete, STOP and report to the conductor.
+If any check fails, STOP immediately and report to the conductor:
+```
+❌ PRE-FLIGHT FAILED: {which check failed and why}
+```
 
 ---
 
@@ -137,6 +141,15 @@ Single file: `.copilot-tracking/{work-item-id}/02-implementation-plan.md`
 Use the template from the skill file. Include a References section with all cited URLs.
 
 ## Handoff
+
+After saving the plan, **verify your own output** (post-flight self-check):
+
+1. Re-read `02-implementation-plan.md` — confirm it contains all required sections
+2. Verify `## Change Set` table has ≥1 row
+3. Verify `## Test Plan` table has ≥1 row
+4. Verify every acceptance criterion from the spec maps to at least one change
+
+Then report:
 
 ```text
 🗺️ IMPLEMENTATION PLAN COMPLETE

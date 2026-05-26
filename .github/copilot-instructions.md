@@ -837,7 +837,8 @@ cd deploy && docker compose up -d
 
    ```python
    def execute_command(self, cmd: str, timeout: int = 30) -> CommandResult:
-       """Execute a shell command with timeout.
+       """
+       Execute a shell command with timeout.
 
        :param cmd: The shell command to execute.
        :param timeout: Maximum seconds to wait. Defaults to 30.
@@ -906,3 +907,6 @@ with the `/` prefix (e.g., `/test-runner`).
 | `/setup-guide` | Setup, installation, Docker deployment, `vars.yaml` configuration |
 | `/workspace-validator` | Validate workspace config, troubleshoot workspace issues |
 | `/workspace-creator` | Create new workspace, onboard SAP system |
+| `/test-runner` | Run tests, execute HA tests, trigger configuration checks |
+| `/test-result-analyzer` | Analyze test failures, interpret test output, read test logs |
+| `/dev-workflow` | Start dev workflow for an issue, create spec, review plan, validate |

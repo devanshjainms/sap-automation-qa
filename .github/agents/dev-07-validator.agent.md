@@ -17,6 +17,7 @@ tools:
     read/readFile,
     edit/createFile,
     edit/editFiles,
+    execute,
   ]
 ---
 
@@ -41,15 +42,20 @@ The **hard gate** before PR creation. All checks must pass.
 
 ---
 
-## Prerequisites Check
+## Prerequisites Check (Pre-Flight)
+
 
 Verify before starting:
 
 1. Implementation is complete (source files on branch)
-2. Tests are complete (test files on branch)
-3. `01-spec.md` exists (needed for acceptance criteria mapping)
+2. Tests are complete (test files on branch — search for `tests/` files with `def test_`)
+3. `01-spec.md` exists **and is non-empty** (needed for acceptance criteria mapping)
+4. `00-intake.json` exists with structured `acceptance_criteria` array
 
-If prerequisites are missing, STOP and report to the conductor.
+If prerequisites are missing, STOP immediately and report to the conductor:
+```
+❌ PRE-FLIGHT FAILED: {which check failed and why}
+```
 
 ---
 
@@ -120,8 +126,34 @@ ansible-lint src/
 
 ### Step 5: Acceptance Criteria Mapping
 
-Read acceptance criteria from `01-spec.md`. For each criterion, determine if it
-is met based on the implementation and test results.
+For EACH acceptance criterion from `01-spec.md`, individually verify whether it
+is met. Do NOT blanket-pass all criteria just because CI checks passed — a CI
+pass proves format/lint/test compliance, but individual criteria may require
+checking specific behavior in the code or test output.
+
+For each criterion:
+1. Read the criterion description
+2. Find the specific evidence (test output, code change, lint result) that proves it
+3. If no evidence exists → mark as `false` even if CI passed
+4. Record the evidence in the Acceptance Criteria Mapping table
+
+### Step 6: Update Acceptance Criteria in 00-intake.json
+
+> **Feature list pattern**: After mapping each criterion, update the `passes` field
+> in `00-intake.json` to `true` or `false`. This enables machine-readable tracking.
+
+Read `00-intake.json`, update each `acceptance_criteria[].passes` field based on
+the validation results, then write the file back. Example:
+
+```json
+{
+  "acceptance_criteria": [
+    { "id": "AC-1", "description": "All labels consistent", "passes": true },
+    { "id": "AC-2", "description": "CI checks pass", "passes": false },
+    { "id": "AC-3", "description": "Coverage ≥85%", "passes": true }
+  ]
+}
+```
 
 ---
 
@@ -132,6 +164,15 @@ Single file: `.copilot-tracking/{work-item-id}/04-validation-report.md`
 Use the validation report template from the skill file.
 
 ## Handoff
+
+After saving the report, **verify your own output** (post-flight self-check):
+
+1. Re-read `04-validation-report.md` — confirm it contains `## Overall:` (PASS or FAIL)
+2. Verify the `## Results` table has entries for all CI checks run
+3. Verify `## Acceptance Criteria Mapping` table has entries for all criteria
+4. Verify `00-intake.json` acceptance criteria `passes` fields are updated
+
+Then report:
 
 ```text
 ✅ VALIDATION PASSED
@@ -147,4 +188,5 @@ or
 File: .copilot-tracking/{work-item-id}/04-validation-report.md
 Failures:
 - {check}: {summary}
+Acceptance criteria not met: {list of AC-ids with passes=false}
 ```

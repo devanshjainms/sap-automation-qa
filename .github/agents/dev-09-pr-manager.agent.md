@@ -8,11 +8,7 @@ model: "Claude Opus 4.6"
 argument-hint: >
   Provide the work-item-id (e.g., gh-42) to create or manage the PR for
 user-invokable: true
-agents:
-  [
-    "dev-05-implementer",
-    "dev-07-validator",
-  ]
+agents: []
 tools:
   [
     search,
@@ -23,8 +19,6 @@ tools:
     edit/createFile,
     edit/editFiles,
     read/readFile,
-    agent/runSubagent,
-    agent,
     web,
     web/fetch,
     web/githubRepo,
@@ -52,15 +46,20 @@ Manages the full PR lifecycle: draft → Copilot review → fix → re-validate 
 
 ---
 
-## Prerequisites Check
+## Prerequisites Check (Pre-Flight)
+
 
 Verify before starting:
 
-1. `05-code-review.md` exists with verdict `APPROVED`
+1. `05-code-review.md` exists with verdict `APPROVED` (search for `## Verdict: APPROVED`)
 2. All code changes are committed on the feature branch
-3. All tracking artifacts exist (`00-intake.json` through `05-code-review.md`)
+3. All tracking artifacts exist (`00-intake.json` through `05-code-review.md`) **and are non-empty**
 
-If validation has not passed, STOP and report to the conductor.
+If validation has not passed or artifacts are missing, STOP immediately and
+report to the conductor:
+```
+❌ PRE-FLIGHT FAILED: {which check failed and why}
+```
 
 ---
 
@@ -75,8 +74,8 @@ If validation has not passed, STOP and report to the conductor.
   - Testing → from `04-validation-report.md` results
 - ✅ Link to the tracking issue with `Closes #{tracking_issue}`
 - ✅ Wait for Copilot review (automated) after PR creation
-- ✅ Delegate comment fixes to dev-05-implementer via `runSubagent`
-- ✅ Re-validate via dev-07-validator after fixes
+- ✅ Report comment fixes needed back to the conductor for delegation
+- ✅ Report re-validation needed back to the conductor after fixes
 - ✅ Mark PR ready-for-review when all reviews are addressed
 - ✅ Save PR summary to tracking artifacts
 
@@ -85,7 +84,7 @@ If validation has not passed, STOP and report to the conductor.
 - ❌ Create PR as ready-for-review immediately — always draft first
 - ❌ Merge the PR — final merge is always a human action
 - ❌ Dismiss reviews — address every comment
-- ❌ Fix code directly — delegate to dev-05-implementer
+- ❌ Fix code directly — report to conductor for delegation to dev-05-implementer
 - ❌ Skip re-validation after fixes
 
 ---
@@ -146,11 +145,20 @@ gh pr ready {pr-number}
 
 ## Handoff
 
+After creating/updating the PR, **verify your own output** (post-flight self-check):
+
+1. Verify the PR exists and is in the expected state (draft or ready-for-review)
+2. Verify the PR description is populated (not empty)
+3. Verify the PR links back to the tracking issue (`Closes #N` present)
+4. Verify `06-pr-summary.md` exists with the PR URL
+
+Then report:
+
 ```text
 🚀 PR READY FOR REVIEW
 PR: #{pr_number} — {title}
 URL: {pr_url}
 Linked issue: #{tracking_issue}
 Reviews addressed: {count}
-File: .copilot-tracking/{work-item-id}/05-pr-summary.md
+File: .copilot-tracking/{work-item-id}/06-pr-summary.md
 ```

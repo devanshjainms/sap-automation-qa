@@ -48,14 +48,20 @@ proving it fails correctly.
 
 ---
 
-## Prerequisites Check
+## Prerequisites Check (Pre-Flight)
+
 
 Verify before starting:
 
-1. Implementation is complete (source files exist on the branch)
-2. `02-implementation-plan.md` contains a test plan section
+1. Implementation is complete (source files from the change set exist on the branch)
+2. `02-implementation-plan.md` exists and contains a `## Test Plan` section with ≥1 row
+3. At least one source file was created or modified since the plan was approved
 
-If implementation is incomplete, STOP and report to the conductor.
+If implementation is incomplete or the test plan is missing, STOP immediately
+and report to the conductor:
+```
+❌ PRE-FLIGHT FAILED: {which check failed and why}
+```
 
 ---
 
@@ -164,10 +170,30 @@ Test files in `tests/` directory on the feature branch.
 
 ## Handoff
 
+After completing tests, **verify your own output** (post-flight self-check):
+
+1. Verify all test files from the test plan exist
+2. Verify each test file has ≥1 test function (search for `def test_`)
+3. Verify no test function is missing an assertion
+4. Verify no inline imports in test files
+
+**Commit your progress** before reporting — this creates a recovery checkpoint:
+
+```bash
+git add -A
+git commit -m "test(<scope>): add tests for <feature>"
+```
+
+This ensures the validator starts from a committed baseline, and the conductor
+can revert to this point if validation fails repeatedly.
+
+Then report:
+
 ```text
 🧪 TESTS COMPLETE
 Test files created: {count}
 Test files modified: {count}
 Test cases: {count} ({happy_path} happy, {failure} failure, {edge} edge cases)
 Fixtures added to conftest.py: {count}
+Commit: {short sha}
 ```

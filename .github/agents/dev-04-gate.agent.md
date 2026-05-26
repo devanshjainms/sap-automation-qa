@@ -39,14 +39,19 @@ Reviews the implementation plan and issues a verdict: **APPROVED** or **REJECTED
 
 ---
 
-## Prerequisites Check
+## Prerequisites Check (Pre-Flight)
+
 
 Verify before starting:
 
-1. `.copilot-tracking/{work-item-id}/01-spec.md` exists
-2. `.copilot-tracking/{work-item-id}/02-implementation-plan.md` exists
+1. `.copilot-tracking/{work-item-id}/01-spec.md` exists **and is non-empty** (>100 bytes)
+2. `.copilot-tracking/{work-item-id}/02-implementation-plan.md` exists **and is non-empty** (>200 bytes)
+3. The plan contains `## Change Set` with ≥1 row
 
-If either is missing, STOP and report to the conductor.
+If any check fails, STOP immediately and report to the conductor:
+```
+❌ PRE-FLIGHT FAILED: {which check failed and why}
+```
 
 ---
 
@@ -123,10 +128,18 @@ Use the review template from the skill file.
 
 ## Handoff
 
+After saving the review, **verify your own output** (post-flight self-check):
+
+1. Re-read `03-plan-review.md` — confirm it contains `## Verdict:` (APPROVED or REJECTED)
+2. Verify all 11 checklist items are marked (checked or unchecked)
+3. If REJECTED: verify `## Rejection Reasons` section has ≥1 specific reason
+
+Then report:
+
 ```text
 ✅ PLAN APPROVED
 File: .copilot-tracking/{work-item-id}/03-plan-review.md
-All 10 checklist items passed.
+All 11 checklist items passed.
 ```
 
 or

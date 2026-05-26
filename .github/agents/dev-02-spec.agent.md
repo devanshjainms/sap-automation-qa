@@ -42,14 +42,19 @@ Produces a specification document that answers **Why** and **What** — not How.
 
 ---
 
-## Prerequisites Check
+## Prerequisites Check (Pre-Flight)
+
 
 Your **first action** after reading the skill MUST be to verify:
 
-1. `.copilot-tracking/{work-item-id}/00-intake.json` exists
-2. It contains `title`, `description`, and `acceptance_criteria`
+1. `.copilot-tracking/{work-item-id}/00-intake.json` exists **and is non-empty** (>50 bytes)
+2. It contains `title`, `description`, and `acceptance_criteria` (array with ≥1 item)
+3. Each acceptance criterion has `id`, `description`, and `passes` fields
 
-If missing, STOP and report to the conductor.
+If any check fails, STOP immediately and report to the conductor:
+```
+❌ PRE-FLIGHT FAILED: {which check failed and why}
+```
 
 ---
 
@@ -115,7 +120,14 @@ Use the template from the skill file. Every section must be populated — no emp
 
 ## Handoff
 
-After saving the spec, report:
+After saving the spec, **verify your own output** (post-flight self-check):
+
+1. Re-read `01-spec.md` — confirm it contains all required sections
+2. Verify `## Acceptance Criteria` section has ≥1 item
+3. Verify `## Affected Areas` section has ≥1 file listed
+4. Verify no empty sections remain
+
+Then report:
 
 ```text
 📝 SPECIFICATION COMPLETE

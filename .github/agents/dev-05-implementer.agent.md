@@ -44,14 +44,20 @@ Writes production code by executing the approved implementation plan.
 
 ---
 
-## Prerequisites Check
+## Prerequisites Check (Pre-Flight)
+
 
 Verify before starting:
 
-1. `03-plan-review.md` exists with verdict `APPROVED`
-2. The feature branch exists (or create it from the branch naming convention)
+1. `03-plan-review.md` exists with verdict `APPROVED` (search for `## Verdict: APPROVED`)
+2. `02-implementation-plan.md` exists **and is non-empty** (>200 bytes)
+3. The plan contains `## Change Set` with ≥1 file listed
+4. The feature branch exists and is based on `dev` (not `main`)
 
-If the plan is not approved, STOP and report to the conductor.
+If the plan is not approved or is missing, STOP immediately and report to the conductor:
+```
+❌ PRE-FLIGHT FAILED: {which check failed and why}
+```
 
 ---
 
@@ -84,6 +90,15 @@ If the plan is not approved, STOP and report to the conductor.
 ---
 
 ## Workflow
+
+0. **Verify baseline** — Before making any changes, run a quick smoke test to
+   confirm the codebase is in a clean state:
+   ```bash
+   black --check src/ tests/ 2>&1 | tail -5
+   pytest tests/ -x -q --tb=no 2>&1 | tail -5
+   ```
+   If the baseline is broken, note the failures and report to the conductor
+   BEFORE implementing — do not start work on top of a broken baseline.
 
 1. **Read the plan** — Parse the ordered change set from `02-implementation-plan.md`
 2. **For each change (in order)**:
@@ -142,10 +157,31 @@ issue summarizing what was done and what remains.
 
 ## Handoff
 
+After completing implementation, **verify your own output** (post-flight self-check):
+
+1. Verify all files from the change set exist (created or modified)
+2. Check for any `read/problems` diagnostics — fix type errors before handing off
+3. Verify no inline imports in any created/modified file
+4. Verify all public functions have type annotations and docstrings
+
+**Commit your progress** before reporting — this creates a recovery checkpoint:
+
+```bash
+git add -A
+git commit -m "<type>(<scope>): <description of implementation>"
+```
+
+Use the commit convention from the skill file. This ensures the next agent
+(test author) starts from a committed baseline, and the conductor can revert
+to this point if later stages fail.
+
+Then report:
+
 ```text
 🔧 IMPLEMENTATION COMPLETE
 Files created: {count}
 Files modified: {count}
 Files deleted: {count}
+Commit: {short sha}
 All changes follow the approved plan.
 ```
