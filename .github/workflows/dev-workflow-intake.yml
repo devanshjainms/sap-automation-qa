@@ -12,15 +12,15 @@ jobs:
     if: github.event.label.name == 'workflow:intake'
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Copilot coding agent
+      - name: Assign Copilot coding agent
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const issue = context.payload.issue;
 
-            await github.rest.issues.createComment({
+            await github.rest.issues.addAssignees({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.number,
-              body: `@copilot Implement this issue following the dev-01-conductor agent workflow.`,
+              assignees: ['copilot'],
             });
