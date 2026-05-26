@@ -4,23 +4,12 @@ on:
   issues:
     types: [labeled]
 
-permissions:
-  issues: write
-
 jobs:
   intake:
     if: github.event.label.name == 'workflow:intake'
     runs-on: ubuntu-latest
     steps:
       - name: Assign Copilot coding agent
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        with:
-          script: |
-            const issue = context.payload.issue;
-
-            await github.rest.issues.addAssignees({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue.number,
-              assignees: ['copilot'],
-            });
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
+        run: gh issue edit ${{ github.event.issue.number }} --add-assignee copilot --repo ${{ github.repository }}
