@@ -5,23 +5,7 @@ description: >
   Reviews code quality, design patterns, reuse of existing abstractions,
   security, performance, and adherence to project conventions. Produces an
   APPROVED or CHANGES_REQUESTED verdict with specific findings.
-model: "Claude Opus 4.6"
-argument-hint: >
-  Provide the work-item-id (e.g., gh-42) to review the implementation for
-user-invokable: true
-agents: []
-tools:
-  [
-    search,
-    search/codebase,
-    search/textSearch,
-    search/fileSearch,
-    search/listDirectory,
-    search/usages,
-    read/readFile,
-    edit/createFile,
-    edit/editFiles,
-  ]
+tools: ["read", "edit", "search"]
 ---
 
 # Code Reviewer Agent

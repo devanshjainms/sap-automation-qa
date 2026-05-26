@@ -4,25 +4,7 @@ description: >
   Analyzes a work item and the codebase to produce a specification document
   covering motivation (Why), scope (What), affected areas, acceptance criteria,
   dependencies, and risks. Does not write implementation details or code.
-model: "Claude Opus 4.6"
-argument-hint: >
-  Provide the work-item-id (e.g., gh-42) to generate a specification for
-user-invokable: true
-agents: []
-tools:
-  [
-    search,
-    search/codebase,
-    search/textSearch,
-    search/fileSearch,
-    search/listDirectory,
-    search/usages,
-    edit/createFile,
-    edit/editFiles,
-    read/readFile,
-    web,
-    web/fetch,
-  ]
+tools: ["read", "edit", "search"]
 ---
 
 # Specification Writer Agent

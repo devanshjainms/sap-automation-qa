@@ -4,24 +4,7 @@ description: >
   Writes and updates tests for the implementation, following pytest patterns
   from the existing test suite. Ensures 85% coverage target, tests failure
   paths, and uses conftest.py fixtures. Does not modify source code.
-model: "Claude Opus 4.6"
-argument-hint: >
-  Provide the work-item-id (e.g., gh-42) to write tests for the implementation
-user-invokable: true
-agents: []
-tools:
-  [
-    search,
-    search/codebase,
-    search/textSearch,
-    search/fileSearch,
-    search/listDirectory,
-    search/usages,
-    edit/createFile,
-    edit/editFiles,
-    read/readFile,
-    read/problems,
-  ]
+tools: ["read", "edit", "search"]
 ---
 
 # Test Author Agent

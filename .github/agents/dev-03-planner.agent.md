@@ -4,25 +4,7 @@ description: >
   Reads the specification document and analyzes the codebase to produce a
   file-level implementation plan with ordered changes, test plan, and risk
   mitigations. Every decision must cite official documentation.
-model: "Claude Opus 4.6"
-argument-hint: >
-  Provide the work-item-id (e.g., gh-42) to generate an implementation plan for
-user-invokable: true
-agents: []
-tools:
-  [
-    search,
-    search/codebase,
-    search/textSearch,
-    search/fileSearch,
-    search/listDirectory,
-    search/usages,
-    edit/createFile,
-    edit/editFiles,
-    read/readFile,
-    web,
-    web/fetch,
-  ]
+tools: ["read", "edit", "search"]
 ---
 
 # Implementation Planner Agent

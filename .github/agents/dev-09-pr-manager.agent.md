@@ -4,25 +4,7 @@ description: >
   Creates a draft PR, populates it from workflow artifacts, handles Copilot
   review comments by delegating fixes to the implementer, re-validates, and
   marks the PR ready for user review. Manages the full PR lifecycle.
-model: "Claude Opus 4.6"
-argument-hint: >
-  Provide the work-item-id (e.g., gh-42) to create or manage the PR for
-user-invokable: true
-agents: []
-tools:
-  [
-    search,
-    search/codebase,
-    search/textSearch,
-    search/fileSearch,
-    search/listDirectory,
-    edit/createFile,
-    edit/editFiles,
-    read/readFile,
-    web,
-    web/fetch,
-    web/githubRepo,
-  ]
+tools: ["read", "edit", "search", "execute", "agent"]
 ---
 
 # PR Manager Agent

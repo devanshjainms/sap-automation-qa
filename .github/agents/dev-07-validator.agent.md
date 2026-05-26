@@ -4,21 +4,7 @@ description: >
   Runs the full CI validation suite (black, pylint, pytest, ansible-lint) and
   maps results to acceptance criteria. Produces a validation report with PASS
   or FAIL verdict. Does not fix code — reports failures for the implementer.
-model: "Claude Sonnet 4.6"
-argument-hint: >
-  Provide the work-item-id (e.g., gh-42) to validate the implementation
-user-invokable: true
-agents: []
-tools:
-  [
-    search,
-    search/fileSearch,
-    search/listDirectory,
-    read/readFile,
-    edit/createFile,
-    edit/editFiles,
-    execute,
-  ]
+tools: ["read", "edit", "search", "execute"]
 ---
 
 # Validator Agent

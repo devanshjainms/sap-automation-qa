@@ -4,25 +4,7 @@ description: >
   Executes an approved implementation plan by writing and modifying source code
   files on the feature branch. Follows the plan exactly, applies black formatting,
   adds type hints and docstrings, and adheres to project conventions.
-model: "Claude Opus 4.6"
-argument-hint: >
-  Provide the work-item-id (e.g., gh-42) to implement the approved plan for
-user-invokable: true
-agents: []
-tools:
-  [
-    search,
-    search/codebase,
-    search/textSearch,
-    search/fileSearch,
-    search/listDirectory,
-    search/usages,
-    edit/createFile,
-    edit/editFiles,
-    edit/createDirectory,
-    read/readFile,
-    read/problems,
-  ]
+tools: ["read", "edit", "search", "execute"]
 ---
 
 # Implementer Agent

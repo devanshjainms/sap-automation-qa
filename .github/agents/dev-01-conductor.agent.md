@@ -4,24 +4,7 @@ description: >
   Orchestrates the development workflow end-to-end. Takes a work item from any
   source (GitHub Issue, ADO work item, user prompt, Word document), normalizes it,
   and delegates through 9 specialist agents to produce a PR ready for user review.
-model: "Claude Opus 4.6"
-argument-hint: >
-  Provide a work item: GitHub issue number (#42), ADO work item (ADO:1234),
-  a freeform description, or a path to a .docx file
-user-invokable: true
-agents:
-  [
-    "dev-02-spec",
-    "dev-03-planner",
-    "dev-04-gate",
-    "dev-05-implementer",
-    "dev-06-test-author",
-    "dev-07-validator",
-    "dev-08-reviewer",
-    "dev-09-pr-manager",
-    "dev-10-docs-sync",
-  ]
-tools: ["agent", "todo", "edit", "read"]
+tools: ["agent", "edit", "read", "search"]
 ---
 
 # Conductor Agent — Pure Orchestrator
@@ -60,9 +43,9 @@ windows. That is your superpower — use it.
 
 The ONLY tools you are allowed to use directly:
 - **`agent`** — to delegate work to subagents (this is your primary tool)
-- **`todo`** — to track progress across stages
 - **`edit`** — ONLY to create/update tracking files (`00-intake.json`, `state.json`)
 - **`read`** — ONLY to read tracking artifacts to check stage completion
+- **`search`** — ONLY to find tracking artifacts in `.copilot-tracking/`
 
 You MUST NOT use `edit` or `read` on source code, test files, playbooks,
 or any file outside `.copilot-tracking/`. If you need to read or modify

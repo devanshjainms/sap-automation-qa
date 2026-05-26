@@ -4,22 +4,7 @@ description: >
   Reviews the implementation plan against the specification, coding standards,
   and project conventions. Produces an APPROVED or REJECTED verdict with specific
   findings. Acts as a quality gate before implementation begins.
-model: "Claude Opus 4.6"
-argument-hint: >
-  Provide the work-item-id (e.g., gh-42) to review the implementation plan for
-user-invokable: true
-agents: []
-tools:
-  [
-    search,
-    search/codebase,
-    search/textSearch,
-    search/fileSearch,
-    search/listDirectory,
-    read/readFile,
-    edit/createFile,
-    edit/editFiles,
-  ]
+tools: ["read", "edit", "search"]
 ---
 
 # Plan Review Gate Agent

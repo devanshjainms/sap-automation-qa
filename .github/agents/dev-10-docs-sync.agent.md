@@ -4,24 +4,7 @@ description: >
   Analyzes code changes for public documentation impact and creates a PR in
   the azure-docs-pr fork (devanshjainms/azure-docs-pr) when documentation
   updates are needed. Produces a documentation impact assessment.
-model: "Claude Sonnet 4.6"
-argument-hint: >
-  Provide the work-item-id (e.g., gh-42) to assess documentation impact
-user-invokable: true
-agents: []
-tools:
-  [
-    search,
-    search/codebase,
-    search/textSearch,
-    search/fileSearch,
-    search/listDirectory,
-    edit/createFile,
-    edit/editFiles,
-    read/readFile,
-    web,
-    web/fetch,
-  ]
+tools: ["read", "edit", "search", "execute"]
 ---
 
 # Documentation Sync Agent
