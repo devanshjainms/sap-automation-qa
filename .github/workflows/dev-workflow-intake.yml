@@ -12,42 +12,15 @@ jobs:
     if: github.event.label.name == 'workflow:intake'
     runs-on: ubuntu-latest
     steps:
-      - name: Assign issue to Copilot coding agent
+      - name: Trigger Copilot coding agent
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
-          github-token: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
           script: |
             const issue = context.payload.issue;
-
-            // Assign to Copilot coding agent — triggers autonomous workflow
-            await github.rest.issues.addAssignees({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue.number,
-              assignees: ['copilot'],
-            });
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.number,
-              body: [
-                `## 🚀 Dev Workflow Activated`,
-                ``,
-                `This issue has been assigned to **Copilot coding agent**.`,
-                ``,
-                `The agent will:`,
-                `1. Normalize this issue into a canonical work item`,
-                `2. Generate a specification (Why + What)`,
-                `3. Create an implementation plan (How)`,
-                `4. Review the plan (approval gate)`,
-                `5. Implement the changes`,
-                `6. Write tests`,
-                `7. Validate (black, pylint, pytest, ansible-lint)`,
-                `8. Create a draft PR`,
-                `9. Assess documentation impact`,
-                ``,
-                `Progress will be tracked in \`.copilot-tracking/gh-${issue.number}/\``,
-                `and updated via comments on this issue.`,
-              ].join('\n'),
+              body: `@copilot Implement this issue following the dev-01-conductor agent workflow.`,
             });
