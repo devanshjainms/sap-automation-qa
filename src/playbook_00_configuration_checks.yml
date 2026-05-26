@@ -133,6 +133,7 @@
           }
       loop_control:
         loop_var:                       check_type
+        label:                          "{{ check_type.name | default(check_type.file_name | default(check_type | to_json)) }}"
 
     - name:                             "Run role-specific checks for HANA DB hosts"
       ansible.builtin.include_tasks:

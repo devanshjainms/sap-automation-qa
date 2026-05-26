@@ -419,22 +419,17 @@ class TestTestFilter:
         finally:
             os.unlink(temp_yaml_file)
 
-    def test_filter_tests_nonexistent_group(self, temp_yaml_file, sample_config):
+    def test_filter_tests_nonexistent_group(self, temp_yaml_file):
         """
         Test filter_tests with a non-existent test group.
 
         :param temp_yaml_file: Path to temporary YAML file
         :type temp_yaml_file: str
-        :param sample_config: Sample configuration data
-        :type sample_config: dict
         """
         try:
             filter_obj = TestFilter(temp_yaml_file)
-            result = filter_obj.filter_tests(test_group="NONEXISTENT_GROUP")
-            result_dict = json.loads(result)
-            for group in result_dict["test_groups"]:
-                for test_case in group["test_cases"]:
-                    assert test_case["enabled"] is False
+            with pytest.raises(ValueError, match="Unknown test group: NONEXISTENT_GROUP"):
+                filter_obj.filter_tests(test_group="NONEXISTENT_GROUP")
         finally:
             os.unlink(temp_yaml_file)
 
@@ -464,9 +459,33 @@ class TestTestFilter:
         """
         try:
             filter_obj = TestFilter(temp_yaml_file)
-            original_config = filter_obj.config.copy()
+            original_config = json.loads(json.dumps(filter_obj.config))
             filter_obj.filter_tests(test_group="HA_DB_HANA")
             assert filter_obj.config == original_config
+        finally:
+            os.unlink(temp_yaml_file)
+
+    def test_main_function_nonexistent_group(self, monkeypatch, temp_yaml_file, capsys):
+        """
+        Test main function with non-existent test group.
+
+        :param monkeypatch: Pytest monkeypatch fixture
+        :type monkeypatch: pytest.MonkeyPatch
+        :param temp_yaml_file: Path to temporary YAML file
+        :type temp_yaml_file: str
+        :param capsys: Pytest fixture to capture stdout/stderr
+        :type capsys: pytest.CaptureFixture
+        """
+        try:
+            with monkeypatch.context() as m:
+                m.setattr("sys.argv", ["filter_tests.py", temp_yaml_file, "NONEXISTENT_GROUP"])
+                from src.module_utils.filter_tests import main
+
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+                assert exc_info.value.code == 1
+                captured = capsys.readouterr()
+                assert "Error: Unknown test group: NONEXISTENT_GROUP" in captured.err
         finally:
             os.unlink(temp_yaml_file)
 

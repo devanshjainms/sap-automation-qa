@@ -72,6 +72,8 @@
     - name:                            "Run test cases by including them as roles"
       ansible.builtin.include_tasks:   "./roles/{{ test_group_name | lower }}/tasks/{{ item.task_name }}.yml"
       loop:                            "{{ test_cases | list }}"
+      loop_control:
+        label:                         "{{ item.name | default(item.task_name | default(item | to_json)) }}"
       vars:
         group_invocation_id:           "{{ test_group_invocation_id }}"
         group_start_time:              "{{ test_group_start_time }}"

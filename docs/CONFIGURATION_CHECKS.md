@@ -99,6 +99,20 @@ To execute the script, run following command:
 ./scripts/sap_automation_qa.sh --extra-vars='{"configuration_test_type":"ApplicationInstances"}'
 ```
 
+> [!TIP]
+> For configuration checks (`TEST_TYPE: ConfigurationChecks`), `SAP_FUNCTIONAL_TEST_TYPE` is not required.
+> It is only required for `TEST_TYPE: SAPFunctionalTests`.
+
+### Via SAP QA Service API
+
+```bash
+# Create a configuration checks job
+./scripts/sap_automation_qa.sh job create --workspace DEV-WEEU-SAP01-X00 --test-group ConfigurationChecks
+
+# List jobs for a workspace (filter and monitor execution)
+./scripts/sap_automation_qa.sh job list --workspace DEV-WEEU-SAP01-X00
+```
+
 ## Viewing Test Results
 
 After the test execution completes, a detailed HTML report is generated. The report provide the summary of each test cases that got executed for each VM.

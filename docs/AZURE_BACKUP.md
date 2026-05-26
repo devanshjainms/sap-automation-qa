@@ -4,6 +4,14 @@ The SAP Testing Automation Framework includes an Azure Backup testing component 
 
 > **Important:** This is a **testing and validation tool only**. It is designed to verify that Azure Backup is correctly configured and that restore operations function as expected. It should **not** be used as a substitute for actual SAP HANA database restore procedures in any scenario.
 
+## Preview Status and Flow
+
+Azure Backup testing in STAF is currently in **public preview**.
+
+- Coverage and guardrails continue to evolve.
+- Validate in non-production before adopting in production readiness gates.
+- Use explicit test-case selection (`--test_cases`) when introducing backup tests into existing pipelines.
+
 ## Supported Scenarios
 
 The framework supports both **HA (two-node cluster)** and **Non-HA (single-node)** HANA deployments. Five test cases cover the end-to-end backup-restore lifecycle:
@@ -129,6 +137,14 @@ Run the tests using the `sap_automation_qa.sh` script:
 # Run with verbose output
 ./scripts/sap_automation_qa.sh --test_groups=BACKUP_DB_HANA -vv
 ```
+
+### Preview Execution Flow
+
+Use this flow to safely introduce backup tests:
+
+1. Run `backup-setup-verification` first to confirm vault and restore points.
+2. Run one restore path (`restore-to-db` or `restore-to-filesystem`) and validate reports.
+3. Enable `restore-cross-vm` only after setting `backup_target_vm_name`.
 
 ### Via SAP QA Service API
 

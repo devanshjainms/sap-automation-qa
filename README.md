@@ -55,6 +55,11 @@ The framework validates Azure Backup operations for SAP HANA databases, covering
 - **Restore Operations:** Tests restore-to-database (in-place and cross-VM) and restore-to-filesystem workflows via the Azure Backup Python SDK, monitoring restore jobs to completion.
 - **Database Recovery Validation:** Validates native HANA recovery using database commands (`RECOVER DATA`), and confirms the database is consistent and operational after each restore.
 
+> [!NOTE]
+>
+> Azure Backup testing is currently in **public preview**. Start with
+> `backup-setup-verification` before running restore workflows.
+
 ### Configuration Checks (Preview)
 
 The framework performs comprehensive configuration checks to ensure that the SAP system and its components are set up according to [SAP on Azure best practice](https://learn.microsoft.com/azure/sap/). This includes validating infrastructure settings, operating system parameter configurations, and network settings, in addition to the cluster configuration, to identify any deviations that could impact system performance or reliability.

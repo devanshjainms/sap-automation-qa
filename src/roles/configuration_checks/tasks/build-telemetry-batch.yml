@@ -14,6 +14,7 @@
   loop:                             "{{ combined_results | selectattr('status', 'ne', 'SKIPPED') | list }}"
   loop_control:
     loop_var:                       check_result
+    label:                          "{{ check_result.name | default(check_result.check.name | default(check_result.id | default(check_result | to_json))) }}"
   ansible.builtin.include_tasks:
     file:                           build-telemetry-entry.yml
 

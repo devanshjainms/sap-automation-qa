@@ -12,6 +12,7 @@ from the input-api.yaml configuration based on command line arguments.
 
 import sys
 import json
+import copy
 from typing import Dict, List, Optional, Any
 import yaml
 
@@ -46,6 +47,11 @@ class TestFilter:
             print(f"Error parsing YAML file {self.input_file}: {e}", file=sys.stderr)
             sys.exit(1)
 
+    def _validate_test_group(self, test_group: str) -> None:
+        """Validate that the requested test group exists in configuration."""
+        if not any(group["name"] == test_group for group in self.config.get("test_groups", [])):
+            raise ValueError(f"Unknown test group: {test_group}")
+
     def filter_tests(
         self, test_group: Optional[str] = None, test_cases: Optional[List[str]] = None
     ) -> str:
@@ -59,7 +65,10 @@ class TestFilter:
         :return: JSON string representation of the filtered test configuration
         :rtype: str
         """
-        filtered_config = self.config.copy()
+        filtered_config = copy.deepcopy(self.config)
+
+        if test_group:
+            self._validate_test_group(test_group)
 
         if test_group or test_cases:
             for group in filtered_config["test_groups"]:
@@ -158,9 +167,13 @@ def main():
     if test_cases_str:
         test_cases = [case.strip() for case in test_cases_str.split(",")]
 
-    filter_obj = TestFilter(input_file)
-    result = filter_obj.get_ansible_vars(test_group, test_cases)
-    print(result)
+    try:
+        filter_obj = TestFilter(input_file)
+        result = filter_obj.get_ansible_vars(test_group, test_cases)
+        print(result)
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

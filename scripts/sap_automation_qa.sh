@@ -110,7 +110,9 @@ VARS_FILE="${cmd_dir}/../vars.yaml"
 # :return: None. Exits with a non-zero status if validation fails.
 validate_params() {
     local missing_params=()
-    local params=("TEST_TYPE" "SYSTEM_CONFIG_NAME" "SAP_FUNCTIONAL_TEST_TYPE" "AUTHENTICATION_TYPE")
+    local base_params=("TEST_TYPE" "SYSTEM_CONFIG_NAME" "AUTHENTICATION_TYPE")
+    local functional_params=("SAP_FUNCTIONAL_TEST_TYPE")
+    local params=("${base_params[@]}")
 
     # Check if vars.yaml exists
     if [ ! -f "$VARS_FILE" ]; then
@@ -118,7 +120,35 @@ validate_params() {
         exit 1
     fi
 
+    for param in "${base_params[@]}"; do
+        if grep -q "^$param:" "$VARS_FILE"; then
+            value=$(grep "^$param:" "$VARS_FILE" | awk '{split($0,a,": "); print a[2]}' | xargs)
+        else
+            value=""
+        fi
+
+        if [[ -z "$value" ]]; then
+            missing_params+=("$param")
+        else
+            log "INFO" "$param: $value"
+            declare -g "$param=$value"
+        fi
+    done
+
+    if [[ -n "$TEST_TYPE" && "$TEST_TYPE" != "SAPFunctionalTests" && "$TEST_TYPE" != "ConfigurationChecks" ]]; then
+        log "ERROR" "Unknown TEST_TYPE: $TEST_TYPE. Expected 'SAPFunctionalTests' or 'ConfigurationChecks'."
+        exit 1
+    fi
+
+    if [[ "$TEST_TYPE" == "SAPFunctionalTests" ]]; then
+        params+=("${functional_params[@]}")
+    fi
+
     for param in "${params[@]}"; do
+        if [[ "$param" == "TEST_TYPE" || "$param" == "SYSTEM_CONFIG_NAME" || "$param" == "AUTHENTICATION_TYPE" ]]; then
+            continue
+        fi
+
         if grep -q "^$param:" "$VARS_FILE"; then
             value=$(grep "^$param:" "$VARS_FILE" | awk '{split($0,a,": "); print a[2]}' | xargs)
         else
@@ -182,6 +212,11 @@ get_playbook_name() {
     fi
 
     if [[ "$test_type" == "SAPFunctionalTests" ]]; then
+        if [[ -z "$sap_functional_test_type" ]]; then
+            log "ERROR" "SAP_FUNCTIONAL_TEST_TYPE is required when TEST_TYPE is SAPFunctionalTests."
+            exit 1
+        fi
+
         case "$sap_functional_test_type" in
             "DatabaseHighAvailability")
                 if [[ "$offline_mode" == "true" ]]; then

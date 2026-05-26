@@ -42,6 +42,7 @@
   loop:                             "{{ check_result.details.parameters | default([]) }}"
   loop_control:
     loop_var:                       param
+    label:                          "{{ param.name | default(param.id | default(param | to_json)) }}"
   ansible.builtin.set_fact:
     _telemetry_batch_all:           "{{ _telemetry_batch_all + [{
                                       'TestCaseInvocationId': (param.id | default(param.name | default(''))),
