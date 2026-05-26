@@ -12,4 +12,7 @@ jobs:
       - name: Assign Copilot coding agent
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
-        run: gh issue edit ${{ github.event.issue.number }} --add-assignee copilot --repo ${{ github.repository }}
+        run: |
+          gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/assignees \
+            --method POST \
+            -f 'assignees[]=copilot'
