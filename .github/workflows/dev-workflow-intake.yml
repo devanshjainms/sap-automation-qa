@@ -9,7 +9,7 @@ jobs:
     if: github.event.label.name == 'workflow:intake'
     runs-on: ubuntu-latest
     steps:
-      - name: Get Copilot agent and issue IDs
+      - name: Get Copilot agent, issue, and repo IDs
         id: ids
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
@@ -17,6 +17,11 @@ jobs:
           REPO_OWNER="${{ github.repository_owner }}"
           REPO_NAME="${{ github.event.repository.name }}"
           ISSUE_NUM="${{ github.event.issue.number }}"
+
+          REPO_ID=$(gh api graphql \
+            -H "GraphQL-Features: issues_copilot_assignment_api_support" \
+            -f query="query { repository(owner: \"${REPO_OWNER}\", name: \"${REPO_NAME}\") { id } }" \
+            --jq '.data.repository.id')
 
           ISSUE_ID=$(gh api graphql \
             -H "GraphQL-Features: issues_copilot_assignment_api_support" \
@@ -28,19 +33,25 @@ jobs:
             -f query="query { repository(owner: \"${REPO_OWNER}\", name: \"${REPO_NAME}\") { suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) { nodes { login ... on Bot { id } } } } }" \
             --jq '.data.repository.suggestedActors.nodes[] | select(.login == "copilot-swe-agent") | .id')
 
+          echo "repo_id=${REPO_ID}" >> "$GITHUB_OUTPUT"
           echo "issue_id=${ISSUE_ID}" >> "$GITHUB_OUTPUT"
           echo "bot_id=${BOT_ID}" >> "$GITHUB_OUTPUT"
 
-      - name: Assign Copilot coding agent
+      - name: Assign Copilot coding agent with conductor
         env:
           GH_TOKEN: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
         run: |
           gh api graphql \
-            -H "GraphQL-Features: issues_copilot_assignment_api_support" \
+            -H "GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection" \
             -f query='mutation {
               addAssigneesToAssignable(input: {
                 assignableId: "${{ steps.ids.outputs.issue_id }}",
-                assigneeIds: ["${{ steps.ids.outputs.bot_id }}"]
+                assigneeIds: ["${{ steps.ids.outputs.bot_id }}"],
+                agentAssignment: {
+                  targetRepositoryId: "${{ steps.ids.outputs.repo_id }}",
+                  baseRef: "main",
+                  customAgent: "dev-01-conductor"
+                }
               }) {
                 assignable {
                   ... on Issue { number assignees(first: 5) { nodes { login } } }
