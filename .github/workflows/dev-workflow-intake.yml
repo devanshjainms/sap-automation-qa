@@ -1,0 +1,50 @@
+name: Dev Workflow Intake
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+
+jobs:
+  intake:
+    if: github.event.label.name == 'workflow:intake'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post intake instructions
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: [
+                `## 🚀 Dev Workflow Activated`,
+                ``,
+                `This issue has been tagged for the development workflow pipeline.`,
+                ``,
+                `**To start the workflow**, invoke the conductor agent in Copilot CLI:`,
+                ``,
+                '```',
+                `@dev-01-conductor #${issue.number}`,
+                '```',
+                ``,
+                `The conductor will:`,
+                `1. Normalize this issue into a canonical work item`,
+                `2. Generate a specification (Why + What)`,
+                `3. Create an implementation plan (How)`,
+                `4. Review the plan (approval gate)`,
+                `5. Implement the changes`,
+                `6. Write tests`,
+                `7. Validate (black, pylint, pytest, ansible-lint)`,
+                `8. Create a draft PR`,
+                `9. Assess documentation impact`,
+                ``,
+                `Progress will be tracked in \`.copilot-tracking/gh-${issue.number}/\``,
+                `and updated via comments on this issue.`,
+              ].join('\n'),
+            });
