@@ -10,7 +10,7 @@ import tempfile
 import os
 import pytest
 import yaml
-from src.module_utils.filter_tests import TestFilter
+from src.module_utils.filter_tests import TestFilter, main
 
 
 class TestTestFilter:
@@ -479,7 +479,6 @@ class TestTestFilter:
         try:
             with monkeypatch.context() as m:
                 m.setattr("sys.argv", ["filter_tests.py", temp_yaml_file, "NONEXISTENT_GROUP"])
-                from src.module_utils.filter_tests import main
 
                 with pytest.raises(SystemExit) as exc_info:
                     main()
