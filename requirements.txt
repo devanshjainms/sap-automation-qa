@@ -114,7 +114,7 @@ dill==0.4.1
     # via pylint
 distro==1.9.0
     # via ansible-lint
-fastapi==0.136.0
+fastapi==0.136.1
     # via -r requirements.in
 filelock==3.28.0
     # via ansible-lint
@@ -126,7 +126,7 @@ httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via -r requirements.in
-idna==3.11
+idna==3.15
     # via
     #   anyio
     #   httpx
@@ -214,11 +214,11 @@ ptyprocess==0.7.0
     # via pexpect
 pycparser==3.0
     # via cffi
-pydantic==2.13.1
+pydantic==2.13.4
     # via
     #   -r requirements.in
     #   fastapi
-pydantic-core==2.46.1
+pydantic-core==2.46.4
     # via pydantic
 pygments==2.20.0
     # via
@@ -248,7 +248,7 @@ python-dateutil==2.9.0.post0
     # via
     #   azure-kusto-data
     #   pandas
-python-multipart==0.0.28
+python-multipart==0.0.29
     # via -r requirements.in
 pytokens==0.4.1
     # via black
@@ -324,7 +324,7 @@ typing-inspection==0.4.2
     #   pydantic
 tzlocal==5.3.1
     # via apscheduler
-urllib3==2.6.3
+urllib3==2.7.0
     # via requests
 uvicorn==0.44.0
     # via -r requirements.in
