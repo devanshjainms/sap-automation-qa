@@ -34,7 +34,7 @@ Verify before starting:
 1. `03-plan-review.md` exists with verdict `APPROVED` (search for `## Verdict: APPROVED`)
 2. `02-implementation-plan.md` exists **and is non-empty** (>200 bytes)
 3. The plan contains `## Change Set` with ≥1 file listed
-4. The feature branch exists and is based on `dev` (not `main`)
+4. The feature branch exists and is based on the upstream development branch (from `base_branch` in state.json)
 
 If the plan is not approved or is missing, STOP immediately and report to the conductor:
 ```

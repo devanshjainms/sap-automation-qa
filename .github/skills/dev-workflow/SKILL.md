@@ -113,6 +113,7 @@ All workflow artifacts live in `.copilot-tracking/{work-item-id}/`.
 {
   "work_item_id": "gh-42",
   "branch": "dev/42-add-hana-scaleout-support",
+  "base_branch": "development-may-2026",
   "current_stage": "implementing",
   "stages": {
     "intake": { "status": "done", "completed_at": "2026-05-21T16:00:00Z" },
@@ -144,6 +145,7 @@ All workflow artifacts live in `.copilot-tracking/{work-item-id}/`.
 |-------|------|----------|-------------|
 | `work_item_id` | string | yes | Canonical work item identifier |
 | `branch` | string | yes | Feature branch name (null until created) |
+| `base_branch` | string | yes | Upstream development branch this feature branches from (PR target) |
 | `current_stage` | string | yes | **Must be updated after every stage transition** |
 | `stages.{name}.status` | string | yes | `pending`, `in_progress`, `done`, `failed`, `skipped` |
 | `stages.{name}.started_at` | string | no | ISO 8601 timestamp when stage began |
@@ -213,13 +215,31 @@ This prevents requirements from being silently dropped during retry cycles.
 
 ## Branch Naming Convention
 
-**Base branch**: Always branch from `dev` (never from `main`).
+**Base branch**: Always branch from the upstream development branch (`development-*`).
+The conductor discovers it dynamically:
+```
+BASE_BRANCH=$(git ls-remote --heads upstream 'development-*' \
+  | awk '{print $2}' | sed 's|refs/heads/||' | sort -V | tail -1)
+```
+PRs always target this branch (e.g., `development-may-2026`).
 
 Format: `dev/{issue-number}-{kebab-case-title}`
 
 Examples:
 - `dev/42-add-hana-scaleout-support`
 - `dev/105-fix-telemetry-batch-timeout`
+
+## Worktree Convention
+
+Each issue gets its own **git worktree** for isolated, parallel work.
+
+| Environment | Worktree Base | Example Path |
+|-------------|--------------|--------------|
+| CLI (local) | `$HOME/SDAF/worktrees/` | `$HOME/SDAF/worktrees/42-add-hana-scaleout/` |
+| Cloud agent | N/A (branch-only fallback) | Current checkout directory |
+
+The conductor creates worktrees automatically. The slug matches the branch name
+without the `dev/` prefix. Multiple issues can run in parallel without conflicts.
 
 ---
 

@@ -4,7 +4,8 @@ description: >
   Orchestrates the development workflow end-to-end. Takes a work item from any
   source (GitHub Issue, ADO work item, user prompt, Word document), normalizes it,
   and delegates through 9 specialist agents to produce a PR ready for user review.
-tools: ["agent", "edit", "read", "search"]
+  Creates a separate git worktree per issue for parallel, isolated work.
+tools: ["agent", "edit", "read", "search", "execute"]
 ---
 
 # Conductor Agent — Pure Orchestrator
@@ -43,6 +44,7 @@ windows. That is your superpower — use it.
 
 The ONLY tools you are allowed to use directly:
 - **`agent`** — to delegate work to subagents (this is your primary tool)
+- **`execute`** — ONLY for git worktree commands and environment detection
 - **`edit`** — ONLY to create/update tracking files (`00-intake.json`, `state.json`)
 - **`read`** — ONLY to read tracking artifacts to check stage completion
 - **`search`** — ONLY to find tracking artifacts in `.copilot-tracking/`
@@ -305,6 +307,7 @@ CONSTRAINTS: Do not modify the plan. Return findings only.
 ```
 CONTEXT: The user requested: "{original_request}"
 Work item: {work-item-id}
+Working directory: {worktree_path or repo_root}
 
 YOUR TASK: Implement the approved plan.
 
@@ -316,6 +319,9 @@ STEPS:
    - Implement the change with type annotations and docstrings
    - Follow black formatting (line-length 100)
 4. Do NOT write tests (that is a separate agent's job)
+
+IMPORTANT: All work must happen in {worktree_path or repo_root}.
+Do NOT cd to any other directory or switch branches.
 
 ACCEPTANCE CRITERIA:
 - All planned changes implemented
@@ -386,12 +392,13 @@ CONSTRAINTS: Do NOT modify code. Return findings only.
 **Stage 9 — PR Creation:**
 ```
 CONTEXT: Work item: {work-item-id}
+Base branch (PR target): {base_branch from state.json}
 
 YOUR TASK: Create a draft PR and manage the review lifecycle.
 
 STEPS:
 1. Read all artifacts in .copilot-tracking/{work-item-id}/
-2. Create a draft PR with description populated from artifacts
+2. Create a draft PR targeting {base_branch} with description populated from artifacts
 3. Link to tracking issue with "Closes #{tracking_issue}"
 4. Handle Copilot review comments
 5. Mark ready for review when clean
@@ -507,6 +514,167 @@ After all stages:
 
 ---
 
+## Worktree Isolation — One Worktree Per Issue
+
+> **Reference**: [git worktree — Git Docs](https://git-scm.com/docs/git-worktree)
+> — "Manage multiple working trees attached to the same repository"
+
+### Why Worktrees
+
+Each issue gets its **own worktree** so multiple issues can be worked on in
+parallel without branch-switching conflicts. Every worktree has its own working
+directory, its own branch, and its own `.copilot-tracking/` artifacts. This
+prevents cross-contamination between issues and allows safe concurrent work.
+
+### Environment Detection
+
+The conductor operates in two environments with different capabilities:
+
+| Environment | Detection | Worktree Support | Strategy |
+|-------------|-----------|------------------|----------|
+| **CLI (local)** | `$HOME/SDAF/` exists | ✅ Full — worktrees persist | Create worktree per issue |
+| **Cloud agent** | GitHub-hosted runner, no `$HOME/SDAF/` | ❌ Ephemeral filesystem | Fall back to branches in the cloned repo |
+
+**Detection logic** (run at session start):
+```bash
+if [ -d "$HOME/SDAF/worktrees" ]; then
+  echo "CLI mode — worktrees enabled"
+  WORKTREE_BASE="$HOME/SDAF/worktrees"
+  REPO_ROOT="$HOME/SDAF/active/sap-automation-qa"
+else
+  echo "Cloud mode — worktrees disabled, using branch checkout"
+  WORKTREE_BASE=""
+  REPO_ROOT="$(git rev-parse --show-toplevel)"
+fi
+```
+
+### Resolve the Upstream Development Branch
+
+Before creating any worktree or branch, discover the current upstream
+development branch. The branch follows the naming pattern `development-*`
+(e.g., `development-may-2026`).
+
+```
+Step 0: Discover BASE_BRANCH
+  git fetch upstream 'refs/heads/development-*'
+  BASE_BRANCH=$(git ls-remote --heads upstream 'development-*' \
+    | awk '{print $2}' | sed 's|refs/heads/||' | sort -V | tail -1)
+
+  # Validate — if no development branch found, STOP and escalate
+  if [ -z "$BASE_BRANCH" ]; then
+    echo "❌ No upstream development-* branch found. Cannot proceed."
+    exit 1
+  fi
+
+  # Example: BASE_BRANCH="development-may-2026"
+```
+
+Store `BASE_BRANCH` in `state.json` as `"base_branch"` so every stage
+and subagent knows the PR target without re-discovering.
+
+### Worktree Lifecycle (CLI Mode)
+
+```
+Step 1: Detect or create base directory
+  WORKTREE_BASE="$HOME/SDAF/worktrees"
+  REPO_ROOT="$HOME/SDAF/active/sap-automation-qa"  (or wherever the main clone lives)
+  mkdir -p "$WORKTREE_BASE"
+
+Step 2: Derive the worktree slug from the issue
+  ISSUE_NUM=42
+  ISSUE_SLUG="add-hana-scaleout"   (kebab-case from issue title, first 4-5 words)
+  BRANCH_NAME="dev/${ISSUE_NUM}-${ISSUE_SLUG}"
+  WORKTREE_PATH="${WORKTREE_BASE}/${BRANCH_NAME##dev/}"
+  # e.g., $HOME/SDAF/worktrees/42-add-hana-scaleout/
+
+Step 3: Check if worktree already exists
+  git -C "$REPO_ROOT" worktree list --porcelain | grep -q "$WORKTREE_PATH"
+  If exists → this is a RESUME. cd into it and continue.
+
+Step 4: Create worktree + branch from upstream development branch
+  git -C "$REPO_ROOT" fetch upstream "$BASE_BRANCH"
+  git -C "$REPO_ROOT" worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" "upstream/$BASE_BRANCH"
+  cd "$WORKTREE_PATH"
+
+Step 5: All subsequent work happens in $WORKTREE_PATH
+  Every subagent prompt MUST include: "Working directory: $WORKTREE_PATH"
+  Every file path in artifacts is relative to this worktree.
+```
+
+### Branch-Only Fallback (Cloud Mode)
+
+When running as a cloud agent (no `$HOME/SDAF/`), skip worktree creation and
+just create the branch in the existing checkout:
+
+```
+git fetch upstream "$BASE_BRANCH"
+git checkout -b "$BRANCH_NAME" "upstream/$BASE_BRANCH"
+# All work happens in the current checkout directory
+```
+
+### Worktree State in state.json
+
+Track the worktree path in `state.json` so resume knows where to find things:
+
+```json
+{
+  "work_item_id": "gh-42",
+  "branch": "dev/42-add-hana-scaleout",
+  "base_branch": "development-may-2026",
+  "worktree_path": "$HOME/SDAF/worktrees/42-add-hana-scaleout",
+  "worktree_mode": "cli",
+  "current_stage": "implementing"
+}
+```
+
+If `worktree_mode` is `"cloud"`, the path is just the repo root and worktree
+management commands are skipped. The `base_branch` field tells every stage
+(especially PR creation) which upstream branch to target.
+
+### Cleanup
+
+Worktrees are NOT automatically cleaned up after PR merge. The user manages
+worktree cleanup manually:
+
+```bash
+# After PR is merged:
+git -C "$REPO_ROOT" worktree remove "$WORKTREE_PATH"
+git -C "$REPO_ROOT" branch -d "$BRANCH_NAME"
+```
+
+Listing active worktrees:
+```bash
+git -C "$REPO_ROOT" worktree list
+```
+
+### Parallel Issues
+
+Because each issue gets its own worktree, the conductor can safely handle
+multiple issues without branch conflicts:
+
+```
+$HOME/SDAF/worktrees/
+  42-add-hana-scaleout/       ← issue #42
+  105-fix-telemetry-timeout/  ← issue #105
+  110-add-scs-offline-test/   ← issue #110
+```
+
+Each worktree has its own branch, its own `.copilot-tracking/gh-{N}/` directory,
+and its own state.json. No cross-issue interference is possible.
+
+### DO / DON'T for Worktrees
+
+- ✅ DO create a worktree for every new issue before starting any work
+- ✅ DO include the `worktree_path` in every subagent prompt
+- ✅ DO verify the worktree exists on resume before continuing
+- ✅ DO fall back to branch-only mode gracefully in cloud environments
+- ❌ DON'T work in the main clone (`$HOME/SDAF/active/`) directly — always in a worktree
+- ❌ DON'T switch branches in the main clone to do issue work
+- ❌ DON'T auto-delete worktrees — let the user manage cleanup
+- ❌ DON'T create worktrees off branches other than the upstream development branch
+
+---
+
 ## Session Start Protocol (Get Bearings)
 
 **Run this EVERY time you start — whether fresh launch, resume, or crash recovery.**
@@ -514,35 +682,55 @@ After all stages:
 Before doing ANY stage work, orient yourself:
 
 ```
-Step 0a: Check for existing state
-  - Look for .copilot-tracking/*/state.json
-  - If found → this is a RESUME (skip to 0c)
-  - If not found → this is a FRESH START (proceed to 0b)
+Step 0a: Detect environment
+  - Check if $HOME/SDAF/worktrees exists
+    - YES → CLI mode (worktrees enabled)
+    - NO  → Cloud mode (branch-only fallback)
 
-Step 0b: Fresh start — base branch and duplicate check
-  - Ensure you are on the `dev` branch (not `main`):
-      git checkout dev && git pull origin dev
-    All feature branches MUST be created from `dev`.
-  - Check if a PR already exists for this work item:
-      gh pr list --search "<issue title or number>" --json number,title,headRefName,state
-    If a matching open PR exists → report to the user and ask whether to
-    continue that PR's branch or start fresh. Do NOT create a duplicate.
-  - Confirm the work item input from the user
+Step 0b: Check for existing state
+  - In CLI mode: look for .copilot-tracking/*/state.json in ALL worktrees
+      find $HOME/SDAF/worktrees -name state.json -path "*/.copilot-tracking/*" 2>/dev/null
+  - In cloud mode: look in the current checkout
+      find . -name state.json -path "*/.copilot-tracking/*" 2>/dev/null
+  - If state.json found for this work item → this is a RESUME (skip to 0d)
+  - If not found → this is a FRESH START (proceed to 0c)
+
+Step 0c: Fresh start — resolve base branch, worktree + branch setup
+  - First, discover the upstream development branch:
+      git fetch upstream 'refs/heads/development-*'
+      BASE_BRANCH=$(git ls-remote --heads upstream 'development-*' \
+        | awk '{print $2}' | sed 's|refs/heads/||' | sort -V | tail -1)
+      If empty → STOP and escalate: "No upstream development-* branch found"
+  - In CLI mode:
+      1. Derive BRANCH_NAME and WORKTREE_PATH from the issue
+      2. Check if a PR already exists:
+           gh pr list --search "#42" --json number,title,headRefName,state
+         If open PR exists → ask user whether to continue or start fresh
+      3. Create worktree:
+           git -C "$REPO_ROOT" fetch upstream "$BASE_BRANCH"
+           git -C "$REPO_ROOT" worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" "upstream/$BASE_BRANCH"
+      4. cd "$WORKTREE_PATH"
+  - In cloud mode:
+      1. Derive BRANCH_NAME from the issue
+      2. Check if a PR already exists (same as above)
+      3. git fetch upstream "$BASE_BRANCH"
+         git checkout -b "$BRANCH_NAME" "upstream/$BASE_BRANCH"
+  - Store BASE_BRANCH in state.json as "base_branch"
   - Proceed to Intake section below
 
-Step 0c: Resume — read state
+Step 0d: Resume — locate worktree and read state
+  - In CLI mode: cd to the worktree_path from state.json
+  - In cloud mode: checkout the branch from state.json
   - Read state.json → identify current_stage
   - Read progress_log → understand what completed and what failed
   - Check total_retries → know how much budget remains
 
-Step 0d: Resume — verify branch
-  - Check the feature branch exists (git branch --list)
-  - Verify the feature branch is based on `dev` (not `main`):
-      git merge-base --is-ancestor origin/dev HEAD
+Step 0e: Resume — verify working directory
+  - Confirm you are in the correct worktree/branch
   - Check for uncommitted changes (git status)
   - If dirty state → note it before proceeding
 
-Step 0e: Resume — continue from current_stage
+Step 0f: Resume — continue from current_stage
   - Do NOT restart completed stages
   - If current_stage is "in_progress" → re-run the post-flight check
     - If artifact exists → mark done, advance to next stage

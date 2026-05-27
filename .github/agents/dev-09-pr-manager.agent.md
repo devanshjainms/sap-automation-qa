@@ -80,7 +80,7 @@ gh pr create \
   --draft \
   --title "{conventional-commit-prefix}: {title}" \
   --body "{populated from artifacts}" \
-  --base main \
+  --base {base_branch from state.json} \
   --head {branch-name}
 ```
 
