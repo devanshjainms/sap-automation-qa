@@ -148,9 +148,13 @@ class TestBlockNetworkTest(RolesTestingBaseDB):
             if task and "Create a firewall" in task:
                 if event.get("event") == "runner_on_ok":
                     assert task_result.get("rc") == 0
-            elif task and "Pre Validation: Validate HANA DB" in task:
+            elif task and "Pre Validation:" in task and "Validate HANA DB" in task:
                 pre_status = task_result
-            elif task and "Test Execution: Validate HANA DB cluster status (post recovery)" in task:
+            elif (
+                task
+                and "Test Execution:" in task
+                and "Validate HANA DB cluster status (post recovery)" in task
+            ):
                 if task_result.get("primary_node") and task_result.get("secondary_node"):
                     post_status = task_result
             elif task and "Remove any location_constraints" in task:

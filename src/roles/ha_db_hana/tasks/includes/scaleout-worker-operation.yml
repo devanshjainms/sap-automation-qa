@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-- name:                                 "Test Execution: Scale-out worker operation"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Scale-Out Worker Operation"
   become:                               true
   when:
                                         - node_tier == "hana"
@@ -12,12 +12,12 @@
                                         - not (hana_test_requires_reboot | default(false)) or
                                           cluster_status_pre.stonith_action == "reboot"
   block:
-    - name:                             "Test Execution: Initialize worker operation"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Initialize worker operation"
       ansible.builtin.set_fact:
         test_execution_start:           "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
         test_execution_hostname:        "{{ hostvars[hana_test_target_worker_node].ansible_hostname }}"
 
-    - name:                             "Test Execution: Run worker operation"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Run worker operation"
       delegate_to:                      "{{ hana_test_target_worker_node }}"
       become:                           true
       become_user:                      "{{ hana_test_action_become_user | default(omit) }}"
@@ -35,13 +35,13 @@
                                         not (hana_test_action_ignore_errors | default(false))
                                         and action_result.rc != 0
 
-    - name:                             "Test Execution: Validate worker operation cluster status"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Validate worker operation cluster status"
       block:
-        - name:                         "Test Execution: Wait for the cluster to be in a stable state"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Wait for cluster to detect worker node failure"
           ansible.builtin.wait_for:
             timeout:                    "{{ default_timeout }}"
 
-        - name:                         "Test Execution: Validate HANA DB cluster status"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status"
           delegate_to: >-
                                         {{ (cluster_status_pre.secondary_site_nodes | first)
                                            if hana_test_target_site_label == 'primary'
@@ -73,7 +73,7 @@
                                         ) and
                                         (cluster_status_post.worker_node_scores_valid | default(false))
 
-        - name:                         "Test Execution: Determine test execution status"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Determine test execution status"
           ansible.builtin.set_fact:
             test_execution_status:      "{{ 'PASSED' if (
                                             (hana_test_target_site_label == 'primary' and
@@ -85,7 +85,7 @@
                                              cluster_status_post.secondary_node in cluster_status_pre.secondary_site_nodes)
                                           ) else 'FAILED' }}"
 
-        - name:                         "Test Execution: CleanUp any failed resource"
+        - name:                         "Test Execution: {{ item.name | default('') }} - CleanUp any failed resource"
           delegate_to: >-
                                         {{ (cluster_status_pre.secondary_site_nodes | first)
                                            if hana_test_target_site_label == 'primary'
@@ -95,11 +95,11 @@
           changed_when:                 cleanup_failed_resource_post.rc == 0
           ignore_errors:                true
 
-        - name:                         "Test Execution: Stop timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Stop timer"
           ansible.builtin.set_fact:
             test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
 
-        - name:                         "Set test case message and details"
+        - name:                         "Report: {{ item.name | default('') }} - Set test case message and details"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                         Target site: {{ hana_test_target_site_label }}
@@ -115,14 +115,14 @@
                                         "Post Validations: Validate HANA DB cluster status": "{{ cluster_status_post }}",
                                         }
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
 
   rescue:
-    - name:                             "Rescue operation"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
 
-- name:                                 "Pre Validations: Scale-out worker test skipped"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Scale-Out Worker Test Skipped"
   become:                               true
   when: >
                                         pre_validations_status == "FAILED" or
@@ -131,7 +131,7 @@
                                         ((hana_test_requires_reboot | default(false)) and
                                          cluster_status_pre.stonith_action != "reboot")
   block:
-    - name:                             "Set test case message and details"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
           Scale-out worker test prerequisites were not met.
@@ -146,5 +146,5 @@
                                           "Secondary worker nodes": "{{ secondary_worker_nodes | default([]) }}",
                                         }
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"

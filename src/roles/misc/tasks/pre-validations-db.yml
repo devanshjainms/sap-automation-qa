@@ -5,22 +5,22 @@
 # |            Pre Validation Tasks for HANA DB Tests                         |
 # /*---------------------------------------------------------------------------|
 
-- name:                             "Pre Validation: HANA DB Nodes"
+- name:                             "Pre Validation: {{ item.name | default('') }} - HANA DB Nodes"
   when:                             node_tier == "hana"
   block:
-    - name:                         "Pre Validation: Remove any location_constraints"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Remove Location Constraints"
       become:                       true
       location_constraints:
         action:                     "remove"
       register:                     location_constraints_results
 
-    - name:                         "Pre validation: Get SAPHanaSR provider"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Get SAPHanaSR Provider"
       ansible.builtin.include_tasks: "roles/misc/tasks/get-saphanasr-provider.yml"
 
-    - name:                         "Pre validation: Get HANA resource id for saphanasr_angi"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Get HANA Resource IDs for SAPHanaSR Angi"
       when:                         saphanasr_provider | default('SAPHanaSR') in ["SAPHanaSR-angi", "SAPHanaSR-ScaleOut"]
       block:
-        - name:                     "Pre validation: Get HANA clone resource id for saphanasr_angi"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Get HANA Clone Resource ID for SAPHanaSR Angi"
           become:                   true
           ansible.builtin.shell: >-
                                     set -o pipefail && {{ commands
@@ -34,7 +34,7 @@
           register:                 hana_clone_resource_id
           failed_when:              hana_clone_resource_id.rc != 0
 
-        - name:                     "Pre validation: Get HANA primitive resource id for saphanasr_angi"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Get HANA Primitive Resource ID for SAPHanaSR Angi"
           become:                   true
           ansible.builtin.shell: >-
                                     set -o pipefail && {{ commands
@@ -48,15 +48,15 @@
           register:                 hana_primitive_resource_id
           failed_when:              hana_primitive_resource_id.rc != 0
 
-        - name:                     "Pre validation: Set fact the hana_clone_resource_name"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Set HANA Resource Names"
           ansible.builtin.set_fact:
             hana_clone_resource_name: "{{ hana_clone_resource_id.stdout }}"
             hana_primitive_resource_name: "{{ hana_primitive_resource_id.stdout }}"
 
-    - name:                         "Pre validation: Get HANA Clone resource id"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Get HANA Clone Resource ID"
       when:                         saphanasr_provider | default('SAPHanaSR') == "SAPHanaSR"
       block:
-        - name:                     "Try master resource ID"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Try Master Resource ID"
           become:                   true
           ansible.builtin.shell: >-
                                     set -o pipefail && {{ commands
@@ -70,7 +70,7 @@
           register:                 hana_clone_resource_id
           failed_when:              hana_clone_resource_id.rc != 0
       rescue:
-        - name:                     "Try clone resource ID"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Try Clone Resource ID"
           become:                   true
           ansible.builtin.shell: >-
                                     set -o pipefail && {{ commands
@@ -85,7 +85,7 @@
           failed_when:              hana_clone_resource_id.rc != 0
           ignore_errors:            true
       always:
-        - name:                     "Test Execution: Set the resource name"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Set HANA Clone Resource Name"
           when:
                                     - hana_clone_resource_id.rc == 0
                                     - hana_clone_resource_id.stdout is defined
@@ -94,10 +94,10 @@
           ansible.builtin.set_fact:
             hana_clone_resource_name:     "{{ hana_clone_resource_id.stdout }}"
 
-    - name:                         "Pre validation: Get HANA Primitive resource id"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Get HANA Primitive Resource ID"
       when:                         saphanasr_provider | default('SAPHanaSR') == "SAPHanaSR"
       block:
-        - name:                     "Pre validation: Get HANA Primitive resource id"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Get HANA Primitive Resource ID"
           become:                   true
           ansible.builtin.shell: >-
                                     set -o pipefail && {{ commands
@@ -111,17 +111,17 @@
           register:                 hana_primitive_resource_id
           failed_when:              hana_primitive_resource_id.rc != 0
 
-        - name:                     "Pre validation: Set fact the hana_primitive_resource_name"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Set HANA Primitive Resource Name"
           ansible.builtin.set_fact:
             hana_primitive_resource_name: "{{ hana_primitive_resource_id.stdout }}"
 
-    - name:                         "Pre Validation: Determine HANA topology"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Determine HANA Topology"
       ansible.builtin.set_fact:
         hana_topology:              "{{ 'scale_out_hsr'
                                     if (database_scale_out | default(database_HANA_use_scaleout_scenario | default(false)) | bool)
                                     else 'scale_up' }}"
 
-    - name:                         "Pre Validation: Validate HANA DB cluster status on primary node"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Validate HANA DB Cluster Status"
       become:                       true
       get_cluster_status_db:
         db_instance_number:         "{{ db_instance_number }}"
@@ -137,7 +137,7 @@
       retries:                      "{{ pre_validation_retries | default(2) }}"
       delay:                        "{{ default_delay }}"
 
-    - name:                         "Pre Validation: Scale-out HSR cluster topology"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Validate Scale-Out HSR Cluster Topology"
       when:
                                     - hana_topology == 'scale_out_hsr'
                                     - cluster_status_pre is defined
@@ -145,7 +145,7 @@
                                     - cluster_status_pre.secondary_site_nodes | default([]) | length > 0
       ansible.builtin.include_tasks: "roles/misc/tasks/pre-validations-scaleout-hsr.yml"
 
-    - name:                         "Pre Validation: CleanUp any failed resource"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Clean Up Failed Resources"
       become:                       true
       ansible.builtin.command:      crm_resource --cleanup
       ignore_errors:                true
@@ -156,11 +156,11 @@
       changed_when:                 cleanup_failed_resource_pre.rc == 0
       failed_when:                  cleanup_failed_resource_pre.rc != 0
 
-    - name:                         "Pre Validation: Set default pre Validation status as false"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Set Default Pre-Validation Status"
       ansible.builtin.set_fact:
         pre_validations_status:     "FAILED"
 
-    - name:                         "Pre Validation: Set pre Validation status (scale-up)"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Set Pre-Validation Status Scale-Up"
       when:
                                     - hana_topology != 'scale_out_hsr'
                                     - cluster_status_pre is defined
@@ -170,7 +170,7 @@
       ansible.builtin.set_fact:
         pre_validations_status:     "PASSED"
 
-    - name:                         "Pre Validation: Set pre Validation status (scale-out HSR)"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Set Pre-Validation Status Scale-Out HSR"
       when:
                                     - hana_topology == 'scale_out_hsr'
                                     - cluster_status_pre is defined
@@ -184,10 +184,10 @@
         pre_validations_status:     "PASSED"
 
   rescue:
-    - name:                         "Pre Validation: Set pre Validation status to FAILED on error"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Set Pre-Validation Status Failed"
       ansible.builtin.set_fact:
         pre_validations_status:     "FAILED"
 
-    - name:                         "Pre Validation: Log failure details"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Log Failure Details"
       ansible.builtin.debug:
         msg:                        "Pre-validation failed. The test case will be skipped."

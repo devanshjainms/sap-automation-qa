@@ -6,7 +6,7 @@
 # |    Validates multi-node HANA topology: sites, workers, majority maker      |
 # /*---------------------------------------------------------------------------|
 
-- name:                             "Scale-out HSR: Set site and node facts"
+- name:                             "Pre Validation: {{ item.name | default('') }} - Set Scale-Out HSR Facts"
   ansible.builtin.set_fact:
     master_nameserver_node:         "{{ cluster_status_pre.primary_node }}"
     primary_master_node:            "{{ cluster_status_pre.primary_node }}"
@@ -21,7 +21,7 @@
     primary_site_name:              "{{ cluster_status_pre.primary_site_name }}"
     secondary_site_name:            "{{ cluster_status_pre.secondary_site_name }}"
 
-- name:                             "Scale-out HSR: Verify majority maker is identified and not running HANA"
+- name:                             "Pre Validation: {{ item.name | default('') }} - Verify Majority Maker"
   ansible.builtin.assert:
     that:
       - majority_maker_node | default('') | length > 0
@@ -34,7 +34,7 @@
       and not running HANA (verified by absence of site/clone
       attributes).
 
-- name:                             "Scale-out HSR: Verify primary site has worker nodes"
+- name:                             "Pre Validation: {{ item.name | default('') }} - Verify Primary Site Nodes"
   ansible.builtin.assert:
     that:
       - primary_site_nodes | length > 0
@@ -46,7 +46,7 @@
       {{ primary_site_nodes | length }} node(s):
       {{ primary_site_nodes | join(', ') }}
 
-- name:                             "Scale-out HSR: Verify secondary site has worker nodes"
+- name:                             "Pre Validation: {{ item.name | default('') }} - Verify Secondary Site Nodes"
   ansible.builtin.assert:
     that:
       - secondary_site_nodes | length > 0
@@ -58,7 +58,7 @@
       {{ secondary_site_nodes | length }} node(s):
       {{ secondary_site_nodes | join(', ') }}
 
-- name:                             "Scale-out HSR: Verify master nameserver is on primary site"
+- name:                             "Pre Validation: {{ item.name | default('') }} - Verify Master Nameserver"
   ansible.builtin.assert:
     that:
       - master_nameserver_node | default('') | length > 0
@@ -72,7 +72,7 @@
       Master nameserver '{{ master_nameserver_node }}' confirmed
       on primary site '{{ primary_site_name }}'.
 
-- name:                             "Scale-out HSR: Log cluster topology"
+- name:                             "Pre Validation: {{ item.name | default('') }} - Log Cluster Topology"
   ansible.builtin.debug:
     verbosity:                      2
     msg:

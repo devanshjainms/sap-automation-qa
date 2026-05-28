@@ -428,3 +428,4 @@ deploy/.env
 .github/workflows/squad*
 .github/workflows/sync*
 
+.copilot-tracking/*

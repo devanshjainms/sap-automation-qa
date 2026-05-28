@@ -11,7 +11,7 @@
   name:                                "Setup deployer for HA Testing Framework"
   vars_files:                          "./vars/input-api.yaml"
   tasks:
-    - name:                            "Install python azure pacakges required"
+    - name:                            "Init: Install Required Python Azure Packages"
       ansible.builtin.pip:
         name:
           - azure-identity
@@ -23,9 +23,9 @@
           - azure-storage-queue
           - pandas
 
-    - name:                            "Authenticate to Azure using Managed Identity"
+    - name:                            "Init: Authenticate to Azure Using Managed Identity"
       block:
-        - name:                        "Authenticate with --username (az cli >= 2.61)"
+        - name:                        "Init: Authenticate With Username (az cli >= 2.61)"
           ansible.builtin.command:
             cmd:                        >-
                                         az login --identity
@@ -35,7 +35,7 @@
                                         {% endif %}
           changed_when:                 false
       rescue:
-        - name:                        "Authenticate with --client-id (az cli < 2.61)"
+        - name:                        "Init: Authenticate With Client ID (az cli < 2.61)"
           ansible.builtin.command:
             cmd:                        >-
                                         az login --identity
@@ -45,13 +45,13 @@
                                         {% endif %}
           changed_when:                 false
 
-    - name:                            "Determine HANA topology from inventory"
+    - name:                            "Orchestration: Determine HANA Topology From Inventory"
       ansible.builtin.set_fact:
         hana_topology:                 "{{ 'scale_out_hsr' if (database_scale_out | default(database_HANA_use_scaleout_scenario | default(false)) | bool) else 'scale_up' }}"
       run_once:                        true
       when:                            SAP_FUNCTIONAL_TEST_TYPE == 'DatabaseHighAvailability'
 
-    - name:                            "Set the test group name based on the inputs"
+    - name:                            "Orchestration: Set Test Group Name"
       ansible.builtin.set_fact:
         test_group_name:               "{{ sap_functional_test_type_map
                                         | selectattr('name', 'equalto', SAP_FUNCTIONAL_TEST_TYPE)
@@ -59,7 +59,7 @@
                                         if SAP_FUNCTIONAL_TEST_TYPE == 'DatabaseHighAvailability' else '' }}"
       run_once:                        true
 
-    - name:                            Set the test group facts
+    - name:                            "Orchestration: Set Test Group Facts"
       ansible.builtin.set_fact:
         test_group_start_time:         "{{ now(utc=true,fmt='%Y-%m-%d %H:%M:%S') }}"
         test_group_invocation_id:      "{{ lookup('pipe', 'uuidgen') }}"
@@ -69,7 +69,7 @@
                                             | selectattr('task_name', 'contains', 'offline') | list }}"
       run_once:                        true
 
-    - name:                            "Run test cases by including them as roles"
+    - name:                            "Orchestration: Run Test Cases"
       ansible.builtin.include_tasks:   "./roles/{{ test_group_name | lower }}/tasks/{{ item.task_name }}.yml"
       loop:                            "{{ test_cases | list }}"
       vars:
@@ -78,11 +78,11 @@
         group_name:                    "{{ SAP_FUNCTIONAL_TEST_TYPE }}"
       when:                             test_group_name is defined
 
-    - name:                            "Render HTML report for the test group logs"
+    - name:                            "Report: Render HTML Report"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
       when:                            test_group_name is defined
 
-    - name:                            "Debug the group_invocation_id"
+    - name:                            "Report: Debug Group Invocation ID"
       ansible.builtin.debug:
         msg:                           "Group invocation ID: {{ test_group_invocation_id }}"
       when:                            test_group_invocation_id is defined

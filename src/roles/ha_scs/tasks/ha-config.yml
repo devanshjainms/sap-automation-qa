@@ -4,11 +4,11 @@
 # /*---------------------------------------------------------------------------
 # |                          HA Configuration Validation                       |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   tags:                                 [pre-validation]
 
-- name:                                 "Capture cluster configuration snapshot"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Capture cluster configuration snapshot"
   become:                               true
   ansible.builtin.shell: >-
                                         set -o pipefail && {{
@@ -23,7 +23,7 @@
   changed_when:                         false
   failed_when:                          false
 
-- name:                                 "Prepare cluster configuration payload"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Prepare cluster configuration payload"
   ansible.builtin.set_fact:
     ha_cluster_config_snapshot: |-
       Command: {{
@@ -39,11 +39,11 @@
         else (ha_cluster_config_dump_result.stderr | default('No output captured.'))
       }}
 
-- name:                                 "Pre Validations: Validate parameters for the SCS nodes"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Validate parameters for the SCS nodes"
   become:                               true
   become_user:                          root
   block:
-    - name:                             "Retrieve Virtual Machine name"
+    - name:                             "Pre Validation: {{ item.name | default('') }} - Retrieve Virtual Machine name"
       ansible.builtin.uri:
         url:                            http://169.254.169.254/metadata/instance?api-version=2021-02-01
         use_proxy:                      false
@@ -51,7 +51,7 @@
           Metadata:                     true
       register:                         azure_instance_metadata
 
-    - name:                             "HA Configuration check for the SCS nodes"
+    - name:                             "Pre Validation: {{ item.name | default('') }} - HA Configuration check for the SCS nodes"
       get_pcmk_properties_scs:
         sid:                            "{{ sap_sid | upper }}"
         ascs_instance_number:           "{{ scs_instance_number }}"
@@ -62,7 +62,7 @@
         nfs_provider:                   "{{ NFS_provider }}"
       register:                         test_result
 
-    - name:                             "Set the test case status to PASSED"
+    - name:                             "Pre Validation: {{ item.name | default('') }} - Set the test case status to PASSED"
       ansible.builtin.set_fact:
         test_case_status:               "{{ test_result.status }}"
         test_case_message:              "{{ test_result.message }}"
@@ -70,7 +70,7 @@
         test_case_hostname:             "{{ virtual_host }}"
         test_case_var_log_messages:     "{{ ha_cluster_config_snapshot | default('Cluster configuration snapshot unavailable') }}"
   rescue:
-    - name:                             "Test case failed"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.set_fact:
           test_case_status:             "FAILED"
           test_case_details:            "{{ test_result }}"
@@ -78,6 +78,6 @@
           test_case_hostname:           "{{ virtual_host }}"
           test_case_var_log_messages:   "{{ ha_cluster_config_snapshot | default('Cluster configuration snapshot unavailable') }}"
 
-- name:                                 "Post Telemetry Data"
+- name:                                 "Telemetry: {{ item.name | default('') }} - Send Telemetry Data"
   ansible.builtin.include_tasks:        "roles/misc/tasks/post-telemetry-data.yml"
   tags:                                 [telemetry]

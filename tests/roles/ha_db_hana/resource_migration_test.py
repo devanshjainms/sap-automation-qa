@@ -146,17 +146,17 @@ class TestDbResourceMigration(RolesTestingBaseDB):
             if task and "Move the resource to the targeted node" in task:
                 assert task_result.get("rc") == 0
                 assert "msl_SAPHana_HDB" in task_result.get("cmd", "")
-            elif task and "Test Execution: Validate HANA DB cluster status 1" in task:
+            elif task and "Validate HANA DB cluster status (post migration)" in task:
                 assert task_result.get("secondary_node") == ""
-            elif task and "Test Execution: Validate HANA DB cluster status 2" in task:
+            elif task and "Validate HANA DB cluster status (post cleanup)" in task:
                 assert task_result.get("secondary_node") != ""
                 assert task_result.get("primary_node") != ""
                 post_status = task_result
-            elif task and "Pre Validation: Validate HANA DB" in task:
+            elif task and "Pre Validation:" in task and "Validate HANA DB" in task:
                 pre_status = task_result
             elif task and "Remove any location_constraints" in task:
                 assert task_result.get("changed")
-            elif task and "Test Execution: Get HANA resource id" in task:
+            elif task and "Test Execution:" in task and "Get HANA resource id" in task:
                 assert task_result.get("rc") == 0
                 assert task_result.get("stdout")
 

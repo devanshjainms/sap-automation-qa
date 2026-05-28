@@ -5,7 +5,7 @@
 # |       Restore HANA DB Backup to FileSystem using Azure Backup             |
 # +--------------------------------------------------------------------------*/
 
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   run_once:                             true
   tags:                                 [pre-validation]
@@ -13,17 +13,17 @@
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
 # +--------------------------------------------------------------------------*/
-- name:                              "Pre Validations: Backup Restore to Filesystem"
+- name:                              "Pre Validation: {{ item.name | default('') }} - Backup Restore to Filesystem"
   when:                              node_tier == "hana"
   block:
-    - name:                          "Pre Validation: HA cluster status"
+    - name:                          "Pre Validation: {{ item.name | default('') }} - HA cluster status"
       when:                          database_high_availability | default(false) | bool
       block:
-        - name:                      "Pre Validation: Run standard DB pre-validations"
+        - name:                      "Pre Validation: {{ item.name | default('') }} - Run standard DB pre-validations"
           ansible.builtin.include_tasks: "roles/misc/tasks/pre-validations-db.yml"
           tags:                         [pre-validation]
 
-        - name:                     "Pre Validation: Set primary/secondary from cluster status"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Set primary/secondary from cluster status"
           ansible.builtin.set_fact:
             backup_primary_node:    "{{ cluster_status_pre.primary_node }}"
             backup_secondary_node:  "{{ cluster_status_pre.secondary_node }}"
@@ -31,21 +31,21 @@
             backup_secondary_site_name: "{{ cluster_status_pre.secondary_site_name | default('') }}"
           run_once:                 true
 
-        - name:                     "Pre Validation: Verify secondary node is resolved"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Verify secondary node is resolved"
           ansible.builtin.assert:
             that:
               - backup_secondary_node | default('') != ''
             fail_msg:               "Secondary node hostname is empty. cluster_status_pre.secondary_node was not resolved."
           run_once:                 true
 
-        - name:                     "Pre Validation: Resolve primary VM details for HSR"
+        - name:                     "Pre Validation: {{ item.name | default('') }} - Resolve primary VM details for HSR"
           ansible.builtin.set_fact:
             backup_restore_vm_name:        "{{ hostvars[backup_primary_node].azure_instance_metadata.json.compute.name }}"
             backup_restore_vm_rg:          "{{ hostvars[backup_primary_node].azure_instance_metadata.json.compute.resourceGroupName }}"
             backup_restore_subscription:   "{{ hostvars[backup_primary_node].azure_instance_metadata.json.compute.subscriptionId }}"
           run_once:                 true
 
-    - name:                         "Pre Validation: Set standalone node facts"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Set standalone node facts"
       ansible.builtin.set_fact:
         backup_primary_node:        "{{ ansible_hostname }}"
         backup_secondary_node:      ""
@@ -55,7 +55,7 @@
       run_once:                     true
       when:                         not (database_high_availability | default(false) | bool)
 
-    - name:                         "Pre Validation: Verify target filesystem path exists"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Verify target filesystem path exists"
       become:                       true
       ansible.builtin.file:
         path:                       "{{ backup_target_filesystem_path }}"
@@ -65,7 +65,7 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
 
-    - name:                          "Pre Validation: Discover protected items for source VM"
+    - name:                          "Pre Validation: {{ item.name | default('') }} - Discover protected items for source VM"
       delegate_to:                   localhost
       azure_backup_hana:
         operation:                   "discover_protected_items"
@@ -77,12 +77,12 @@
       run_once:                      true
       failed_when:                   pre_backup_discovery.protected_items | default([]) | length == 0
 
-    - name:                         "Pre Validation: Set source items from filtered discovery"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Set source items from filtered discovery"
       ansible.builtin.set_fact:
         backup_source_items:        "{{ pre_backup_discovery.protected_items }}"
       run_once:                     true
 
-    - name:                         "Pre Validation: Log source filter results"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Log source filter results"
       ansible.builtin.debug:
         msg: >-
           Found {{ backup_source_items | length }} protected item(s) for source VM
@@ -90,7 +90,7 @@
           Databases: {{ backup_source_items | map(attribute='name') | list }}
       run_once:                     true
 
-    - name:                         "Pre Validation: Separate SYSTEMDB and tenant databases"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Separate SYSTEMDB and tenant databases"
       ansible.builtin.set_fact:
         backup_systemdb_items:      "{{ backup_source_items
                                         | selectattr('name','match','(?i)^systemdb$')
@@ -100,7 +100,7 @@
                                         | list }}"
       run_once:                     true
 
-    - name:                         "Pre Validation: Apply restore scope parameters"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Apply restore scope parameters"
       ansible.builtin.set_fact:
         backup_systemdb_items:      "{{ backup_systemdb_items
                                         if (backup_restore_systemdb | default(true) | bool)
@@ -112,7 +112,7 @@
                                         else backup_tenant_items }}"
       run_once:                     true
 
-    - name:                         "Pre Validation: Log discovered databases"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Log discovered databases"
       ansible.builtin.debug:
         msg: >-
           Discovered {{ backup_source_items | length }} database(s) from source VM '{{ backup_restore_vm_name }}'.
@@ -123,7 +123,7 @@
           restore_tenants={{ backup_restore_tenants | default([]) }}
       run_once:                     true
 
-    - name:                         "Pre Validation: Set pre-validation status"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Set pre-validation status"
       ansible.builtin.set_fact:
         pre_validations_status:     "{{ 'PASSED' if (
                                         (backup_systemdb_items | length > 0 or backup_tenant_items | length > 0)
@@ -134,27 +134,27 @@
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                             "Test Execution: Restore backup to filesystem and recover"
+- name:                             "Test Execution: {{ item.name | default('') }} - Restore Backup to Filesystem and Recover"
   when:
                                     - node_tier == "hana"
                                     - pre_validations_status == "PASSED"
   become:                           true
   tags:                                 [test-execution]
   block:
-    - name:                         "Test Execution: Start timer"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Start timer"
       ansible.builtin.set_fact:
         test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
         test_execution_hostname:    "{{ ansible_hostname }}"
       run_once:                     true
 
-    - name:                         "Test Execution: Put cluster in maintenance mode"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Put cluster in maintenance mode"
       when:                         database_high_availability | default(false) | bool
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/cluster-maintenance-on.yml"
 
-    - name:                         "Test Execution: HSR - Teardown replication before restore"
+    - name:                         "Test Execution: {{ item.name | default('') }} - HSR - Teardown replication before restore"
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/hsr-teardown.yml"
 
-    - name:                         "Test Execution: Stop HANA DB before restore"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Stop HANA DB before restore"
       become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -168,7 +168,7 @@
       run_once:                     true
       changed_when:                 hana_stop_result.rc == 0
 
-    - name:                         "Test Execution: Clean target filesystem path"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Clean target filesystem path"
       ansible.builtin.file:
         path:                       "{{ backup_target_filesystem_path }}"
         state:                      "{{ item_state }}"
@@ -181,7 +181,7 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
 
-    - name:                         "Test Execution: Create per-DB subdirectory for SYSTEMDB"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Create per-DB subdirectory for SYSTEMDB"
       ansible.builtin.file:
         path:                       "{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}"
         state:                      directory
@@ -194,7 +194,7 @@
       run_once:                     true
       when:                         backup_systemdb_items | length > 0
 
-    - name:                         "Test Execution: Restore SYSTEMDB '{{ db_item.name | default('') }}' to filesystem"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Restore SYSTEMDB '{{ db_item.name | default('') }}' to filesystem"
       delegate_to:                  localhost
       azure_backup_hana:
         operation:                  "restore_to_filesystem"
@@ -220,7 +220,7 @@
         label:                      "{{ db_item.name }}"
       when:                         backup_systemdb_items | length > 0
 
-    - name:                         "Test Execution: Wait for SYSTEMDB filesystem restore - debug"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Wait for SYSTEMDB filesystem restore - debug"
       ansible.builtin.debug:
         msg: >-
           Waiting for SYSTEMDB filesystem restore jobs to complete.
@@ -230,7 +230,7 @@
                                     - systemdb_fs_restore_results is defined
                                     - systemdb_fs_restore_results.results | default([]) | length > 0
 
-    - name:                         "Test Execution: Wait for SYSTEMDB filesystem restore to complete"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Wait for SYSTEMDB filesystem restore to complete"
       delegate_to:                  localhost
       azure_backup_hana:
         operation:                  "check_restore_job"
@@ -252,7 +252,7 @@
         - db_restore.restore_job is defined
         - db_restore.restore_job.job_id | default('') | length > 0
 
-    - name:                         "Test Execution: Create per-DB subdirectory for tenants"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Create per-DB subdirectory for tenants"
       ansible.builtin.file:
         path:                       "{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}"
         state:                      directory
@@ -265,7 +265,7 @@
       run_once:                     true
       when:                         backup_tenant_items | length > 0
 
-    - name:                         "Test Execution: Restore tenant '{{ db_item.name | default('') }}' to filesystem"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Restore tenant '{{ db_item.name | default('') }}' to filesystem"
       delegate_to:                  localhost
       azure_backup_hana:
         operation:                  "restore_to_filesystem"
@@ -291,7 +291,7 @@
         label:                      "{{ db_item.name }}"
       when:                         backup_tenant_items | length > 0
 
-    - name:                         "Test Execution: Wait for tenant filesystem restore - debug"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Wait for tenant filesystem restore - debug"
       ansible.builtin.debug:
         msg: >-
           Waiting for tenant filesystem restore jobs to complete.
@@ -301,7 +301,7 @@
                                     - tenant_fs_restore_results is defined
                                     - tenant_fs_restore_results.results | default([]) | length > 0
 
-    - name:                         "Test Execution: Wait for tenant filesystem restore to complete"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Wait for tenant filesystem restore to complete"
       delegate_to:                  localhost
       azure_backup_hana:
         operation:                  "check_restore_job"
@@ -323,7 +323,7 @@
         - db_restore.restore_job is defined
         - db_restore.restore_job.job_id | default('') | length > 0
 
-    - name:                         "Test Execution: List restored backup files"
+    - name:                         "Test Execution: {{ item.name | default('') }} - List restored backup files"
       ansible.builtin.find:
         paths:                      "{{ backup_target_filesystem_path }}"
         recurse:                    true
@@ -332,7 +332,7 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
 
-    - name:                         "Test Execution: Validate backup files exist"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Validate backup files exist"
       ansible.builtin.assert:
         that:
           - restored_files.files | length > 0
@@ -340,7 +340,7 @@
         success_msg:                "Found {{ restored_files.files | length }} backup file(s)"
       run_once:                     true
 
-    - name:                         "Test Execution: Discover SYSTEMDB backup file prefix"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Discover SYSTEMDB backup file prefix"
       ansible.builtin.shell: |
                                     set -o pipefail
                                     ls -1 {{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}/Data/*_databackup_0_1 2>/dev/null \
@@ -352,7 +352,7 @@
       run_once:                     true
       changed_when:                 false
 
-    - name:                         "Test Execution: Discover tenant backup file prefixes"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Discover tenant backup file prefixes"
       ansible.builtin.shell: |
                                     set -o pipefail
                                     ls -1 {{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/*_databackup_0_1 2>/dev/null \
@@ -368,14 +368,14 @@
         loop_var:                   db_item
         label:                      "{{ db_item.name }}"
 
-    - name:                         "Test Execution: Log discovered backup prefixes"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Log discovered backup prefixes"
       ansible.builtin.debug:
         msg: >-
           SYSTEMDB prefix: '{{ systemdb_backup_prefix.stdout }}'.
           Tenant prefixes: {{ tenant_backup_prefixes.results | default([]) | map(attribute='stdout') | list }}
       run_once:                     true
 
-    - name:                         "Test Execution: Recover SYSTEMDB from backup files"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Recover SYSTEMDB from backup files"
       become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -390,7 +390,7 @@
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
 
-    - name:                         "Test Execution: Start HANA DB after recovery"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Start HANA DB after recovery"
       become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -404,13 +404,13 @@
       run_once:                     true
       changed_when:                 hana_start_result.rc == 0
 
-    - name:                         "Test Execution: Wait for SQL connectivity after recovery"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Wait for SQL connectivity after recovery"
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/wait-for-sql.yml"
       vars:
         wait_sql_delegate_to:       "{{ backup_primary_node }}"
       when:                         backup_tenant_items | length > 0
 
-    - name:                         "Test Execution: Recover tenant DB from backup files"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Recover tenant DB from backup files"
       become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -429,7 +429,7 @@
         index_var:                  idx
         label:                      "{{ db_item.name }}"
 
-    - name:                         "Test Execution: Start tenant DB after recovery"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Start tenant DB after recovery"
       become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -448,11 +448,11 @@
         loop_var:                   db_item
         label:                      "{{ db_item.name }}"
 
-    - name:                         "Test Execution: HSR - Re-establish replication"
+    - name:                         "Test Execution: {{ item.name | default('') }} - HSR - Re-establish replication"
       when:                         database_high_availability | default(false) | bool
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/hsr-reestablish.yml"
 
-    - name:                         "Test Execution: Compute restore results summary"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Compute restore results summary"
       ansible.builtin.set_fact:
         systemdb_all_ok:            "{{ (systemdb_fs_job_statuses.results | default([])
                                         | selectattr('restore_job','defined')
@@ -472,7 +472,7 @@
                                         else (backup_tenant_items | length == 0) }}"
       run_once:                     true
 
-    - name:                         "Test Execution: Determine test execution status (HSR)"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Determine test execution status (HSR)"
       when:                         database_high_availability | default(false) | bool
       ansible.builtin.set_fact:
         test_execution_status:      "{{ 'PASSED' if (
@@ -483,7 +483,7 @@
                                       ) else 'FAILED' }}"
       run_once:                     true
 
-    - name:                         "Test Execution: Determine test execution status (standalone)"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Determine test execution status (standalone)"
       when:                         not (database_high_availability | default(false) | bool)
       ansible.builtin.set_fact:
         test_execution_status:      "{{ 'PASSED' if (
@@ -493,12 +493,12 @@
                                       ) else 'FAILED' }}"
       run_once:                     true
 
-    - name:                         "Test Execution: Stop timer"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Stop timer"
       ansible.builtin.set_fact:
         test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
       run_once:                     true
 
-    - name:                         "Set test case message and details (standalone)"
+    - name:                         "Report: {{ item.name | default('') }} - Set test case message and details (standalone)"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
           Restore-to-filesystem for {{ backup_source_items | length }} DB(s):
@@ -517,7 +517,7 @@
       run_once:                     true
       when:                         not (database_high_availability | default(false) | bool)
 
-    - name:                         "Set test case message and details (HSR)"
+    - name:                         "Report: {{ item.name | default('') }} - Set test case message and details (HSR)"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
           Restore-to-filesystem (HSR) for {{ backup_source_items | length }} DB(s):
@@ -544,21 +544,21 @@
       run_once:                     true
       when:                         database_high_availability | default(false) | bool
 
-    - name:                         "Post Validations Tasks"
+    - name:                         "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/post-validations-backup.yml"
       tags:                             [post-validation]
       run_once:                     true
 
   rescue:
-    - name:                             "Rescue operation"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/rescue-backup.yml"
       tags:                             [cleanup]
       run_once:                         true
 
-- name:                                 "Pre Validations: Test Case Skipped"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Test Case Skipped"
   when:                                 pre_validations_status | default('FAILED') == "FAILED"
   block:
-    - name:                             "Set test case message and details"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
           Pre Validations for restore-to-filesystem failed.
@@ -569,7 +569,7 @@
           fs_path_check:                "{{ fs_path_check | default({}) }}"
       run_once:                         true
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/post-validations-backup.yml"
       tags:                             [post-validation]
       run_once:                         true

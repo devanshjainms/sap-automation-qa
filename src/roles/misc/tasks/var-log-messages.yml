@@ -5,9 +5,9 @@
 #                      Read the log file /var/log/messages for given time period               #
 ################################################################################################
 
-- name:                                 Read the log file /var/log/messages for given time period
+- name:                                 "Post Validation: {{ test_case_name | default('') }} - Collect Log Messages"
   block:
-    - name:                             Read the log file /var/log/messages for given time period
+    - name:                             "Post Validation: {{ test_case_name | default('') }} - Read /var/log/messages"
       become:                           true
       log_parser:
         start_time:                     "{{ test_execution_start | default(test_case_start_time_epoch) }}"

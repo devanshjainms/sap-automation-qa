@@ -33,7 +33,7 @@ Run tests directly via Ansible (no API server required).
 ### Syntax
 
 ```bash
-./scripts/sap_automation_qa.sh --test_groups=<GROUP> [--test_cases=[case1,case2]] [FLAGS]
+./scripts/sap_automation_qa.sh --test-groups=<GROUP> [--test-cases=[case1,case2]] [FLAGS]
 ```
 
 ### Test Groups
@@ -52,32 +52,44 @@ Run tests directly via Ansible (no API server required).
 | `--offline` | Run offline validation (no live cluster) |
 | `--extra-vars='{...}'` | Pass extra variables as JSON |
 
+### Parameter Overrides (override vars.yaml at runtime)
+
+| Flag | Description |
+|------|-------------|
+| `--test-type=TYPE` | `SAPFunctionalTests` or `ConfigurationChecks` |
+| `--system-config=NAME` | System configuration name |
+| `--functional-test-type=TYPE` | e.g., `DatabaseHighAvailability` |
+| `--auth-type=TYPE` | `SSHKEY` or `VMPASSWORD` |
+| `--workspaces-dir=DIR` | Workspaces directory (default: `WORKSPACES`) |
+| `--telemetry-destination=DEST` | `azureloganalytics` or `azuredataexplorer` |
+| `--identity-client-id=ID` | User-assigned managed identity client ID |
+
 ### Examples
 
 ```bash
 # Run all HANA HA tests
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA
 
 # Run specific test cases
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash]
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --test-cases=[ha-config,primary-node-crash]
 
 # Run SCS tests
-./scripts/sap_automation_qa.sh --test_groups=HA_SCS
+./scripts/sap_automation_qa.sh --test-groups=HA_SCS
 
 # Run Azure Backup tests
-./scripts/sap_automation_qa.sh --test_groups=BACKUP_DB_HANA
+./scripts/sap_automation_qa.sh --test-groups=BACKUP_DB_HANA
 
-# Run configuration checks (all types)
-./scripts/sap_automation_qa.sh --extra-vars='{"configuration_test_type":"all"}'
+# Run configuration checks (via CLI flag, no vars.yaml change needed)
+./scripts/sap_automation_qa.sh --test-type=ConfigurationChecks --system-config=DEV-WEEU-SAP01-X00 --auth-type=SSHKEY
 
 # Run specific config check type
-./scripts/sap_automation_qa.sh --extra-vars='{"configuration_test_type":"Database"}'
+./scripts/sap_automation_qa.sh --test-type=ConfigurationChecks --system-config=DEV-WEEU-SAP01-X00 --extra-vars='{"configuration_test_type":"Database"}'
 
 # Offline HA validation (no cluster interaction)
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config-offline] --offline
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --test-cases=[ha-config-offline] --offline
 
 # Verbose output
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config] -vv
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --test-cases=[ha-config] -vv
 ```
 
 ## Capturing Execution Logs
@@ -93,13 +105,13 @@ mkdir -p logs/
 Capture stdout and stderr to a timestamped file while still printing to the terminal:
 
 ```bash
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config] 2>&1 | tee logs/run_$(date +%Y%m%d_%H%M%S).log
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --test-cases=[ha-config] 2>&1 | tee logs/run_$(date +%Y%m%d_%H%M%S).log
 ```
 
 Redirect all output silently to a file:
 
 ```bash
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA 2>&1 > logs/run_$(date +%Y%m%d_%H%M%S).log
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA 2>&1 > logs/run_$(date +%Y%m%d_%H%M%S).log
 ```
 
 ### Automatic Framework Logs
@@ -125,7 +137,7 @@ For API-driven runs, stream logs and events in real time:
 
 ### Configuration Check Types
 
-When `TEST_TYPE=ConfigurationChecks` in vars.yaml, use `--extra-vars`:
+When running configuration checks, use `--test-type=ConfigurationChecks` CLI flag or set `TEST_TYPE=ConfigurationChecks` in vars.yaml. Use `--extra-vars` to select a specific check type:
 
 | Type | Description |
 |------|-------------|
@@ -226,7 +238,7 @@ Full test case reference: [references/test-catalog.md](references/test-catalog.m
 |-------|-------|-----|
 | `Workspace not found` | Invalid SYSTEM_CONFIG_NAME in vars.yaml | Check workspace exists |
 | `SSH connection failed` | Auth or network issue | Validate SSH key, check connectivity |
-| `vars.yaml not found` | Missing config | Create vars.yaml at project root |
+| `vars.yaml not found` | Missing config | Create vars.yaml at project root or use CLI flags |
 | `API not reachable` | Server not running | Start with `./scripts/setup.sh container start` |
 | `Job already running` | Workspace locked | Wait for completion or cancel existing job |
 | `Test case not found` | Invalid test-case name | Check test-catalog.md for valid names |

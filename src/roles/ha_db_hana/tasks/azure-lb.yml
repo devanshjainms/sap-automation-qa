@@ -1,10 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-- name:                             Read constants file and set the facts
+- name:                             "Test Setup: {{ item.name | default('') }} - Read constants file and set the facts"
   ansible.builtin.set_fact:
     all_constants:                  "{{ lookup('file', 'constants.yaml') | from_yaml }}"
 
-- name:                             Include Load Balancer tasks
+- name:                             "Pre Validation: {{ item.name | default('') }} - Include Load Balancer tasks"
   ansible.builtin.include_tasks:    "roles/misc/tasks/loadbalancer.yml"
   tags:                             [pre-validation]

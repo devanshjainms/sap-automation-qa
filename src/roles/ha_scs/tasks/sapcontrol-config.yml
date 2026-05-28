@@ -5,7 +5,7 @@
 # /*---------------------------------------------------------------------------
 # |                    sapcontrol commands to validate scs                    |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   run_once:                             true
   tags:                                 [pre-validation]
@@ -13,29 +13,29 @@
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Pre Validations: SCS Nodes"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - SCS Nodes"
   ansible.builtin.include_tasks:        "roles/misc/tasks/pre-validations-scs.yml"
   tags:                                 [pre-validation]
 
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Execution: SAPControl Config"
+- name:                                 "Test Execution: {{ item.name | default('') }} - SAPControl Config"
   become:                               true
   when:                                 pre_validations_status == "PASSED" and (ansible_os_family | upper) == "SUSE"
   tags:                                 [test-execution]
   block:
-    - name:                             "Test Execution: Run sapcontrol command"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Run sapcontrol command"
       when:                             ansible_hostname == cluster_status_pre.ascs_node
       become:                           true
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Start timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Start timer"
           ansible.builtin.set_fact:
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.ascs_node].ansible_hostname }}"
 
-        - name:                         "Test Execution: Run sapcontrol commands {{ sapcontrol_method }}"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Run sapcontrol commands {{ sapcontrol_method }}"
           become:                       true
           become_user:                  "{{ sap_sid | lower }}adm"
           ansible.builtin.shell:        sapcontrol -nr {{ scs_instance_number }} -function {{ sapcontrol_method }}
@@ -53,7 +53,7 @@
           loop_control:
             loop_var:                    sapcontrol_method
 
-        - name:                         "Test Execution: Validate sapcontrol commands"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate sapcontrol commands"
           ansible.builtin.set_fact:
             test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_case_message_from_test_case: >-
@@ -62,7 +62,7 @@
                 - {{ res.sapcontrol_method }}: {{ 'Success' if res.rc == 0 else 'Failed' }}
               {% endfor %}
 
-        - name:                         "Test Execution: Collect sapcontrol command details"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Collect sapcontrol command details"
           vars:
             _details: >-
               [{%- for res in sapcontrol_results.results -%}
@@ -78,26 +78,26 @@
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
 # +--------------------------------------------------------------------------*/
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]
 
   rescue:
-    - name:                             "Rescue operation"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
       tags:                             [cleanup]
 
-- name:                                 "Pre Validations: Test Case Skipped"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Test Case Skipped"
   become:                               true
   when:                                 pre_validations_status == "FAILED"
   block:
-    - name:                             "Set test case message and details"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: "Pre Validations for SCS cluster status checks failed. Please check the details."
         test_case_details_from_test_case: {
                                           "Pre Validations: Validate SCS cluster status": "{{ cluster_status_pre }}",
                                         }
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]

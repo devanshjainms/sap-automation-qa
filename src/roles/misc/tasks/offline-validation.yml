@@ -5,26 +5,26 @@
 # |                    Process HA Configuration for Single Host               |
 # +--------------------------------------------------------------------------*/
 
-- name:                                 "Extract hostname from CIB file path"
+- name:                                 "Test Setup: Extract Hostname From CIB Path"
   ansible.builtin.set_fact:
     current_hostname:                   "{{ offline_validation_host.path | regex_replace('.*/offline_validation/([^/]+)/cib$', '\\1') }}"
 
-- name:                                 "Test Setup Tasks for {{ current_hostname }}"
+- name:                                 "Test Setup: {{ current_hostname }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   tags:                                 [pre-validation]
 
-- name:                                 "Read CIB content for {{ current_hostname }}"
+- name:                                 "Pre Validation: {{ current_hostname }} - Read CIB Content"
   ansible.builtin.slurp:
     src:                                "{{ offline_validation_host.path }}"
   register:                             cib_file_content
   delegate_to:                          localhost
 
-- name:                                 "HA Configuration check for {{ current_hostname }}"
+- name:                                 "Test Execution: {{ current_hostname }} - HA Configuration Check"
   block:
-    - name:                             "Offline HA Configuration validation for DB"
+    - name:                             "Test Execution: {{ current_hostname }} - Validate DB HA Configuration"
       when:                             SAP_FUNCTIONAL_TEST_TYPE == "DatabaseHighAvailability"
       block:
-        - name:                         "Get Pacemaker properties for DB"
+        - name:                         "Test Execution: {{ current_hostname }} - Get DB Pacemaker Properties"
           get_pcmk_properties_db:
             sid:                        "{{ db_sid | upper }}"
             instance_number:            "{{ db_instance_number }}"
@@ -37,7 +37,7 @@
             cib_output:                 "{{ cib_file_content.content | b64decode if cib_file_content.content is defined else '' }}"
           register:                     test_result
 
-        - name:                         "Set the test case status to PASSED for {{ current_hostname }}"
+        - name:                         "Post Validation: {{ current_hostname }} - Set Test Case Status"
           ansible.builtin.set_fact:
             test_case_name:             "HA Parameters Validation: {{ current_hostname }}"
             test_case_status:           "{{ test_result.status }}"
@@ -45,10 +45,10 @@
             test_case_details:          "{{ test_result.details }}"
             test_case_hostname:         "{{ current_hostname }}"
 
-    - name:                             "Offline HA Configuration validation for SCS"
+    - name:                             "Test Execution: {{ current_hostname }} - Validate SCS HA Configuration"
       when:                             SAP_FUNCTIONAL_TEST_TYPE == "CentralServicesHighAvailability"
       block:
-        - name:                         "Get Pacemaker properties for SCS"
+        - name:                         "Test Execution: {{ current_hostname }} - Get SCS Pacemaker Properties"
           get_pcmk_properties_scs:
             sid:                        "{{ sap_sid | upper }}"
             ascs_instance_number:       "{{ scs_instance_number }}"
@@ -61,7 +61,7 @@
             cib_output:                 "{{ cib_file_content.content | b64decode if cib_file_content.content is defined else '' }}"
           register:                     test_result
 
-        - name:                         "Set the test case status to PASSED for {{ current_hostname }}"
+        - name:                         "Post Validation: {{ current_hostname }} - Set Test Case Status"
           ansible.builtin.set_fact:
             test_case_name:             "HA Parameters Validation: {{ current_hostname }}"
             test_case_status:           "{{ test_result.status }}"
@@ -69,12 +69,12 @@
             test_case_details:          "{{ test_result.details }}"
             test_case_hostname:         "{{ current_hostname }}"
 
-    - name:                             "Post Telemetry Data for {{ current_hostname }}"
+    - name:                             "Telemetry: {{ current_hostname }} - Send Telemetry Data"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-telemetry-data.yml"
       tags:                             [telemetry]
 
   rescue:
-    - name:                             "Test case failed for {{ current_hostname }}"
+    - name:                             "Rescue: {{ current_hostname }} - Set Test Case Failure"
       ansible.builtin.set_fact:
         test_case_name:                 "HA Parameters Validation: {{ current_hostname }}"
         test_case_status:               "FAILED"
@@ -83,6 +83,6 @@
         test_case_hostname:             "{{ current_hostname }}"
         package_versions:               "{{ packages_list.details | default({}) }}"
 
-    - name:                             "Post Telemetry Data for failed {{ current_hostname }}"
+    - name:                             "Telemetry: {{ current_hostname }} - Send Telemetry Data After Rescue"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-telemetry-data.yml"
       tags:                             [telemetry]

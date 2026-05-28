@@ -5,9 +5,9 @@
 # |                          Get SAPHanaSR Provider (on SUSE only)            |
 # +--------------------------------------------------------------------------*/
 
-- name:                               Get SAPHanaSR provider
+- name:                               "Pre Validation: {{ item.name | default('') }} - Get SAPHanaSR Provider"
   block:
-  - name:                             "Get SAPHanaSR Provider using command (SUSE only)"
+  - name:                             "Pre Validation: {{ item.name | default('') }} - Query SAPHanaSR Provider"
     when:                             (ansible_os_family | upper) == "SUSE"
     become:                           true
     become_user:                      "{{ db_sid | lower }}adm"
@@ -18,7 +18,7 @@
     args:
       chdir:                          "/usr/sbin"
 
-  - name:                             "Detect SAPHanaController resource type in CIB"
+  - name:                             "Pre Validation: {{ item.name | default('') }} - Detect SAPHanaController Resource Type"
     become:                           true
     ansible.builtin.shell: >-
                                       set -o pipefail &&
@@ -31,7 +31,7 @@
     changed_when:                     false
     failed_when:                      false
 
-  - name:                             "Check if SAPHanaSR-ScaleOut package is installed"
+  - name:                             "Pre Validation: {{ item.name | default('') }} - Check SAPHanaSR Scale-Out Package"
     become:                           true
     ansible.builtin.shell: >-
                                       set -o pipefail &&
@@ -43,13 +43,13 @@
     changed_when:                     false
     failed_when:                      false
 
-  - name:                             "Set SAPHanaSR-ScaleOut Provider"
+  - name:                             "Pre Validation: {{ item.name | default('') }} - Set SAPHanaSR Scale-Out Provider"
     when:
                                       - scaleout_rpm_check.rc | int == 0
     ansible.builtin.set_fact:
       saphanasr_provider:             "SAPHanaSR-ScaleOut"
 
-  - name:                             "Set SAPHanaSR-angi Provider"
+  - name:                             "Pre Validation: {{ item.name | default('') }} - Set SAPHanaSR Angi Provider"
     when:                             >
                                       saphanasr_provider is not defined
                                       and (
@@ -62,7 +62,7 @@
     ansible.builtin.set_fact:
       saphanasr_provider:             "SAPHanaSR-angi"
 
-  - name:                             "Set SAPHanaSR Provider"
+  - name:                             "Pre Validation: {{ item.name | default('') }} - Set SAPHanaSR Provider"
     when:                             saphanasr_provider is not defined
     ansible.builtin.set_fact:
       saphanasr_provider:             "SAPHanaSR"

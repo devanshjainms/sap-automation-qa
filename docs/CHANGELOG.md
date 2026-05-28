@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.1
+Release Date: 05-30-2026
+
+1. Copilot CLI Skills
+   - Added Copilot CLI skills for helping users with test execution, configuration checks, and troubleshooting.
+   - Skills include natural language queries for test status, configuration validation, and error resolution.
+2. Standardize Ansible task labels with phase-based prefixes and dynamic `{{ item.name }}` references for traceability
+   - CI-enforced label validation tests and defensive `| default('')` filter for runtime resilience.
+   - Fixed loop variable shadowing in `secondary-block-network.yml`.
+3. Add CLI flags to `sap_automation_qa.sh` for runtime parameter overrides without modifying `vars.yaml`
+   - Fixed bug where `SAP_FUNCTIONAL_TEST_TYPE` was incorrectly required for configuration checks.
+4. Publish Docker image to GitHub Container Registry (GHCR) on PR merge to main
+   - Docker build validation on every PR raise and push event.
+
 ## 1.1.0
 Release Date: 05-11-2026
 1. Add support for scale-out HANA System Replication (HSR) topology in HA functional tests

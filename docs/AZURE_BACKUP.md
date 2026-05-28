@@ -1,4 +1,6 @@
-# Functional Test for Azure Backup for SAP HANA
+# Functional Test for Azure Backup for SAP HANA (Preview)
+
+> **Note:** Azure Backup testing is currently in **public preview**. Features and behavior may change before general availability.
 
 The SAP Testing Automation Framework includes an Azure Backup testing component that validates the configuration of Azure Backup infrastructure and functionality of restore operations by performing actual restore for SAP HANA databases deployed on Azure.
 
@@ -24,7 +26,7 @@ Follow the steps (1.1 - 1.5) in [Setup Guide for SAP Testing Automation Framewor
 
 ### 2. System Configuration
 
-Update the `TEST_TYPE` parameter in [`vars.yaml`](./../vars.yaml) file to `SAPFunctionalTests` and `SAP_FUNCTIONAL_TEST_TYPE` to `AzureBackupDatabase` to enable the Azure Backup test scenarios.
+Update the `TEST_TYPE` parameter to `SAPFunctionalTests` and `SAP_FUNCTIONAL_TEST_TYPE` to `AzureBackupDatabase` — either in [`vars.yaml`](./../vars.yaml) or via CLI flags (`--test-type=SAPFunctionalTests --functional-test-type=AzureBackupDatabase`).
 
 Follow the steps (2.1 - 2.2) in [Setup Guide for SAP Testing Automation Framework](./SETUP.MD#2-system-configuration) to configure your system details.
 
@@ -54,7 +56,7 @@ For setup guidance, see [Back up SAP HANA databases in Azure VMs](https://learn.
 
 ### 1. Update `vars.yaml`
 
-Set the test type to `AzureBackupDatabase`:
+Set `TEST_TYPE` to `SAPFunctionalTests` and `SAP_FUNCTIONAL_TEST_TYPE` to `AzureBackupDatabase`:
 
 ```yaml
 TEST_TYPE:                  SAPFunctionalTests
@@ -118,16 +120,16 @@ If omitted or set to `null`, the framework uses system-assigned managed identity
 Run the tests using the `sap_automation_qa.sh` script:
 
 ```bash
-# Run all Azure Backup test cases
-./scripts/sap_automation_qa.sh --test_groups=BACKUP_DB_HANA
+# Run all Azure Backup test cases (using vars.yaml)
+./scripts/sap_automation_qa.sh --test-groups=BACKUP_DB_HANA
 
 # Run specific test cases
-./scripts/sap_automation_qa.sh --test_groups=BACKUP_DB_HANA --test_cases=[backup-setup-verification]
-./scripts/sap_automation_qa.sh --test_groups=BACKUP_DB_HANA --test_cases=[restore-to-db,restore-to-filesystem]
-./scripts/sap_automation_qa.sh --test_groups=BACKUP_DB_HANA --test_cases=[restore-cross-vm]
+./scripts/sap_automation_qa.sh --test-groups=BACKUP_DB_HANA --test-cases=[backup-setup-verification]
+./scripts/sap_automation_qa.sh --test-groups=BACKUP_DB_HANA --test-cases=[restore-to-db,restore-to-filesystem]
+./scripts/sap_automation_qa.sh --test-groups=BACKUP_DB_HANA --test-cases=[restore-cross-vm]
 
 # Run with verbose output
-./scripts/sap_automation_qa.sh --test_groups=BACKUP_DB_HANA -vv
+./scripts/sap_automation_qa.sh --test-groups=BACKUP_DB_HANA -vv
 ```
 
 ### Via SAP QA Service API

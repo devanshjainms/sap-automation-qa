@@ -37,23 +37,23 @@ class TestDbSecondaryHDBOperations(RolesTestingBaseDB):
         if task_name == "secondary-node-kill":
             return {
                 "task_name": task_name,
-                "command_task": "Test Execution: Kill the HANA DB",
+                "command_task": "Kill the HANA DB",
                 "command_type": "kill-9",
-                "validate_task": "Test execution: Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
         elif task_name == "secondary-echo-b":
             return {
                 "task_name": task_name,
-                "command_task": "Test Execution: Echo b",
+                "command_task": "Echo b",
                 "command_type": "echo b",
-                "validate_task": "Test Execution: Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
         elif task_name == "secondary-crash-index":
             return {
                 "task_name": task_name,
-                "command_task": "Test Execution: Crash the index server",
+                "command_task": "Crash the index server",
                 "command_type": "killall",
-                "validate_task": "Test Execution: Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
 
     @pytest.fixture
@@ -194,7 +194,7 @@ class TestDbSecondaryHDBOperations(RolesTestingBaseDB):
             if task and task_type["validate_task"] in task:
                 if task_result.get("primary_node") and task_result.get("secondary_node"):
                     post_status = task_result
-            elif task and "Pre Validation: Validate HANA DB" in task:
+            elif task and "Pre Validation:" in task and "Validate HANA DB" in task:
                 pre_status = task_result
 
         assert post_status.get("primary_node") == pre_status.get("primary_node")

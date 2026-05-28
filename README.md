@@ -37,7 +37,7 @@ SAP Testing Automation is designed as a scalable framework to orchestrate and va
 
 > [!NOTE]
 >
-> The High Availability testing scenario in the SAP Testing Framework is **generally available (GA)**, while the Configuration Checks scenario is currently in **public preview**.
+> The High Availability testing scenario in the SAP Testing Framework is **generally available (GA)**, while the Configuration Checks and Azure Backup Testing scenarios are currently in **public preview**.
 
 ### High Availability Testing
 
@@ -47,7 +47,7 @@ In the SAP Testing Automation Framework, thorough validation of high availabilit
 - **Functional Testing:** The framework executes series of real-world scenarios based on the SAP HANA and SAP Central Services high availability setup to identify potential issues, whether during a new system deployment or before implementing cluster changes in a production environment. The test cases are based on what is documented in how-to guides for SAP HANA and SAP Central Services configuration.
 - **Offline configuration validation:** Offline validation is a mode of the framework that validates SAP HANA and SAP Central Services high availability cluster configurations without establishing a live SSH connection to the production cluster. Instead, it analyzes captured cluster information base (CIB) XML files exported from each cluster node.
 
-### Azure Backup Testing
+### Azure Backup Testing (Preview)
 
 The framework validates Azure Backup operations for SAP HANA databases, covering the full backup-restore lifecycle. It supports both HA (two-node cluster) and non-HA (single-node) deployments.
 

@@ -4,7 +4,7 @@
 # /*---------------------------------------------------------------------------
 # |                          Manual resource migration                        |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   run_once:                             true
   tags:                                 [pre-validation]
@@ -12,34 +12,34 @@
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Pre Validations: HANA DB Nodes"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - HANA DB Nodes"
   ansible.builtin.include_tasks:        "roles/misc/tasks/pre-validations-db.yml"
   tags:                                 [pre-validation]
 
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Execution: Manual resource migration"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Manual resource migration"
   become:                               true
   when:                                 node_tier == "hana"
   tags:                                 [test-execution]
   block:
-    - name:                             "Test Execution: Manual resource migration init"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Manual resource migration init"
       when:
                                         - pre_validations_status == "PASSED"
                                         - ansible_hostname == cluster_status_pre.primary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Start timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Start timer"
           ansible.builtin.set_fact:
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.primary_node].ansible_hostname }}"
 
-        - name:                         "Test Execution: Get HANA resource id for saphanasr_angi"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Get HANA resource id for saphanasr_angi"
           when:                         saphanasr_provider | default('SAPHanaSR') in ["SAPHanaSR-angi", "SAPHanaSR-ScaleOut"]
           tags:                         [test-execution]
           block:
-            - name:                     "Test Execution: Get HANA resource id for saphanasr_angi"
+            - name:                     "Test Execution: {{ item.name | default('') }} - Get HANA resource id for saphanasr_angi"
               ansible.builtin.shell: >-
                                         set -o pipefail && {{ commands
                                           | selectattr('name','equalto','get_hana_clone_resource_id_saphanasr_angi')
@@ -52,15 +52,15 @@
               register:                 hana_clone_resource_id
               failed_when:              hana_clone_resource_id.rc != 0
 
-            - name:                     "Test Execution: Set fact the hana_clone_resource_name"
+            - name:                     "Test Execution: {{ item.name | default('') }} - Set fact the hana_clone_resource_name"
               ansible.builtin.set_fact:
                 hana_clone_resource_name:     "{{ hana_clone_resource_id.stdout }}"
 
-        - name:                         "Test Execution: Get HANA resource id"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Get HANA resource id"
           when:                         saphanasr_provider | default('SAPHanaSR') == "SAPHanaSR"
           tags:                         [test-execution]
           block:
-            - name:                     "Try master resource ID"
+            - name:                     "Test Execution: {{ item.name | default('') }} - Try master resource ID"
               ansible.builtin.shell: >-
                                         set -o pipefail && {{ commands
                                           | selectattr('name','equalto','get_hana_clone_resource_id')
@@ -73,7 +73,7 @@
               register:                 hana_clone_resource_id
               failed_when:              hana_clone_resource_id.rc != 0
           rescue:
-            - name:                     "Try clone resource ID"
+            - name:                     "Test Execution: {{ item.name | default('') }} - Try clone resource ID"
               ansible.builtin.shell: >-
                                         set -o pipefail && {{ commands
                                           | selectattr('name','equalto','get_hana_clone_resource_id')
@@ -87,7 +87,7 @@
               failed_when:              hana_clone_resource_id.rc != 0
               ignore_errors:            true
           always:
-            - name:                     "Test Execution: Set the resource name"
+            - name:                     "Test Execution: {{ item.name | default('') }} - Set the resource name"
               when:
                                         - hana_clone_resource_id.rc == 0
                                         - hana_clone_resource_id.stdout is defined
@@ -96,7 +96,7 @@
               ansible.builtin.set_fact:
                 hana_clone_resource_name: "{{ hana_clone_resource_id.stdout }}"
 
-        - name:                         "Test Execution: Move the resource to the targeted node"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Move the resource to the targeted node"
           ansible.builtin.shell: |
                                         set -o pipefail && {{ commands | selectattr(
                                         'name', 'equalto', 'resource_migration_cmd') | map(
@@ -107,7 +107,7 @@
           args:
             executable:                 /bin/bash
 
-        - name:                         "Test Execution: Validate HANA DB cluster status 1"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (post migration)"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "test_execution"
@@ -125,17 +125,17 @@
                                         cluster_status_test_execution.primary_node == cluster_status_pre.secondary_node and
                                         cluster_status_test_execution.secondary_node == ""
 
-        - name:                         "Test Execution: Register Failed Resource when automated_register is false"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Register Failed Resource when automated_register is false"
           when:                         cluster_status_pre.AUTOMATED_REGISTER == "false"
           tags:                         [test-execution]
           block:
-            - name:                     "Test Execution: Set facts for the failed resource"
+            - name:                     "Test Execution: {{ item.name | default('') }} - Set facts for the failed resource"
               ansible.builtin.set_fact:
                 replication_mode:       "{{ cluster_status_pre.replication_mode }}"
                 primary_site_name:      "{{ cluster_status_pre.primary_site_name }}"
                 operation_mode:         "{{ cluster_status_pre.operation_mode }}"
 
-            - name:                     "Test Execution: Register the failed resource"
+            - name:                     "Test Execution: {{ item.name | default('') }} - Register the failed resource"
               become:                   true
               become_user:              "{{ db_sid | lower }}adm"
               ansible.builtin.shell: |
@@ -150,24 +150,24 @@
               args:
                 executable:             /bin/bash
 
-            - name:                     "Pre Validation: CleanUp any failed resource"
+            - name:                     "Pre Validation: {{ item.name | default('') }} - CleanUp any failed resource"
               become:                   true
               ansible.builtin.command:  crm_resource --cleanup
               ignore_errors:            true
               register:                 cleanup_failed_resource_post
 
-        - name:                         "Test Execution: Remove any location_constraints"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Remove any location_constraints"
           location_constraints:
             action:                     "remove"
           register:                     location_constraints_result
 
         # This is required because the cluster reports incorrect location constraints
         # after the location constraints is removed.
-        - name:                         "Test Execution: Wait for 100 seconds"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Wait for cluster to stabilize after constraint removal"
           ansible.builtin.wait_for:
             timeout:                    100
 
-        - name:                         "Test Execution: Validate HANA DB cluster status 2"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (post cleanup)"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "test_execution"
@@ -185,18 +185,18 @@
                                         cluster_status_test_execution_1.primary_node == cluster_status_pre.secondary_node and
                                         cluster_status_test_execution_1.secondary_node == cluster_status_pre.primary_node
 
-        - name:                         "Test Execution: Determine test execution status"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Determine test execution status"
           ansible.builtin.set_fact:
             test_execution_status:      "{{ 'PASSED' if (
                                             cluster_status_test_execution_1.primary_node == cluster_status_pre.secondary_node and
                                             cluster_status_test_execution_1.secondary_node == cluster_status_pre.primary_node
                                           ) else 'FAILED' }}"
 
-        - name:                         "Test Execution: Stop timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Stop timer"
           ansible.builtin.set_fact:
             test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
 
-        - name:                         "Set test case message and details"
+        - name:                         "Report: {{ item.name | default('') }} - Set test case message and details"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: "Old primary: {{ cluster_status_pre.primary_node }} \
                                           New primary: {{ cluster_status_test_execution_1.primary_node }} \
@@ -211,20 +211,20 @@
                                         }
 
   rescue:
-    - name:                             "Rescue operation"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
       tags:                             [cleanup]
 
   always:
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]
 
-- name:                                 "Pre Validations: Test Case Skipped"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Test Case Skipped"
   become:                               true
   when:                                 pre_validations_status == "FAILED"
   block:
-    - name:                             "Set test case message and details"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: "Pre Validations for HANA DB cluster status checks failed. Please check the details."
         test_case_details_from_test_case: {
@@ -234,6 +234,6 @@
                                           "Cluster Status": "{{ cluster_status_pre }}",
                                         }
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]

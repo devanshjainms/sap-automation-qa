@@ -110,12 +110,12 @@ class TestKillEnqueueServer(RolesTestingBaseSCS):
             task = event.get("event_data", {}).get("task")
             if task and "Kill Enqueue Server Process" in task:
                 kill_executed = True
-            elif task and "Test Execution: Validate SCS cluster status" in task:
+            elif task and "Test Execution:" in task and "Validate SCS cluster status" in task:
                 validate_executed = True
                 post_status = event.get("event_data", {}).get("res")
             elif task and "Cleanup resources" in task:
                 cleanup_executed = True
-            elif task and "Pre Validation: Validate SCS" in task:
+            elif task and "Pre Validation:" in task and "Validate SCS" in task:
                 pre_status = event.get("event_data", {}).get("res")
 
         assert post_status.get("ascs_node") == pre_status.get("ers_node")

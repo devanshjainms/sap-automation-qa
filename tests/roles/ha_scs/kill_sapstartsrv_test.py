@@ -116,7 +116,7 @@ class TestKillSapStartSrv(RolesTestingBaseSCS):
         for event in ok_events:
             task = event.get("event_data", {}).get("task")
             print(task)
-            if "Test Execution: Kill sapstartsrv Process" in task:
+            if "Test Execution:" in task and "Kill sapstartsrv Process" in task:
                 sapstartsrv_executed = True
             elif "Find sapstartsrv PID after killing the process" in task:
                 sapstartsrv_executed_post = True

@@ -49,40 +49,40 @@ class TestDbHDBOperations(RolesTestingBaseDB):
                 "task_name": task_name,
                 "command_task": "Stop the HANA DB",
                 "command_type": "stop",
-                "validate_task": "Test execution: Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
         elif task_name == "primary-node-kill":
             return {
                 "task_name": task_name,
-                "command_task": "Test Execution: Kill the HANA DB",
+                "command_task": "Kill the HANA DB",
                 "command_type": "kill-9",
-                "validate_task": "Test execution: Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
         elif task_name == "primary-echo-b":
             return {
                 "task_name": task_name,
-                "command_task": "Test Execution: Echo b",
+                "command_task": "Echo b",
                 "command_type": "echo b",
-                "validate_task": "Test Execution: Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
         elif task_name == "primary-crash-index":
             return {
                 "task_name": task_name,
-                "command_task": "Test Execution: Crash the index server",
+                "command_task": "Crash the index server",
                 "command_type": "killall",
-                "validate_task": "Test Execution: Validate HANA DB cluster status",
+                "validate_task": "Validate HANA DB cluster status",
             }
         elif task_name == "sbd-fencing":
             return {
                 "task_name": task_name,
-                "command_task": "Test Execution: Kill the inquisitor process",
+                "command_task": "Kill the inquisitor process",
                 "command_type": "kill",
-                "validate_task": "Test Execution: Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post fencing)",
             }
         elif task_name == "fs-freeze":
             return {
                 "task_name": task_name,
-                "validate_task": "Test Execution: Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
                 "command_task": "dummy (no command)",
             }
 
@@ -230,7 +230,7 @@ class TestDbHDBOperations(RolesTestingBaseDB):
                     assert task_result.get("rc") == 0
             elif (
                 task
-                and "Test Execution: Validate HANA DB cluster status 1" in task
+                and "Validate HANA DB cluster status (failover)" in task
                 and task_type["task_name"] == "primary-node-crash"
             ):
                 if event.get("event") == "runner_on_ok":
@@ -238,7 +238,7 @@ class TestDbHDBOperations(RolesTestingBaseDB):
             elif task and task_type["validate_task"] in task:
                 if task_result.get("primary_node") and task_result.get("secondary_node"):
                     post_status = task_result
-            elif task and "Pre Validation: Validate HANA DB" in task:
+            elif task and "Pre Validation:" in task and "Validate HANA DB" in task:
                 pre_status = task_result
             elif task and "Remove any location_constraints" in task:
                 if event.get("event") == "runner_on_ok":

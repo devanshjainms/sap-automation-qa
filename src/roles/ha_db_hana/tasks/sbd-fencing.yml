@@ -4,7 +4,7 @@
 # /*---------------------------------------------------------------------------
 # |               Kill SBD Inquisitor                                         |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   when:                                 database_cluster_type == "ISCSI"
   run_once:                             true
@@ -13,7 +13,7 @@
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Pre Validations: HANA DB Nodes"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - HANA DB Nodes"
   when:                                 database_cluster_type == "ISCSI"
   ansible.builtin.include_tasks:        "roles/misc/tasks/pre-validations-db.yml"
   tags:                                 [pre-validation]
@@ -21,7 +21,7 @@
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Execution: SBD Inquisitor kill"
+- name:                                 "Test Execution: {{ item.name | default('') }} - SBD Inquisitor kill"
   become:                               true
   when:
                                         - node_tier == "hana"
@@ -30,16 +30,16 @@
                                         - cluster_status_pre.stonith_action == "reboot"
   tags:                                 [test-execution]
   block:
-    - name:                             "Test Execution: SBD Inquisitor kill init"
+    - name:                             "Test Execution: {{ item.name | default('') }} - SBD Inquisitor kill init"
       when:                             ansible_hostname == cluster_status_pre.primary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Start timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Start timer"
           ansible.builtin.set_fact:
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.primary_node].ansible_hostname }}"
 
-        - name:                         "Test Execution:  Find the port of inquisitor process"
+        - name:                         "Test Execution: {{ item.name | default('') }} -  Find the port of inquisitor process"
           become:                       true
           ansible.builtin.shell: |
                                         set -o pipefail
@@ -47,18 +47,18 @@
           register:                     inquisitor_port
           failed_when:                  inquisitor_port.rc != 0
 
-        - name:                         "Test Execution: Kill the inquisitor process"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Kill the inquisitor process"
           become:                       true
           ansible.builtin.shell:        "kill -9 {{ inquisitor_port.stdout }}"
           async:                        1
           poll:                         0
           register:                     inquisitor_kill
 
-    - name:                             "Test Execution: Wait for the failover to happen"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Wait for the failover to happen"
       when:                             ansible_hostname == cluster_status_pre.secondary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Validate HANA DB cluster status during stop operation."
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status during stop operation."
           when:                         cluster_status_pre.AUTOMATED_REGISTER == "true"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
@@ -84,11 +84,11 @@
                                            cluster_status_test_execution.secondary_node == cluster_status_pre.primary_node)
                                         )
 
-    - name:                             "Test Execution: SBD Inquisitor kill manual fail over"
+    - name:                             "Test Execution: {{ item.name | default('') }} - SBD Inquisitor kill manual fail over"
       when:                             ansible_hostname == cluster_status_pre.primary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Validate HANA DB cluster status 2"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (post fencing)"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "test_execution"
@@ -113,7 +113,7 @@
                                            cluster_status_test_post.secondary_node == cluster_status_pre.primary_node)
                                         )
 
-        - name:                         "Test Execution: Determine test execution status"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Determine test execution status"
           ansible.builtin.set_fact:
             test_execution_status:      "{{ 'PASSED' if (
                                             (hana_topology | default('scale_up') == 'scale_out_hsr' and
@@ -125,11 +125,11 @@
                                              cluster_status_test_post.secondary_node == cluster_status_pre.primary_node)
                                           ) else 'FAILED' }}"
 
-        - name:                         "Test Execution: Stop timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Stop timer"
           ansible.builtin.set_fact:
             test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
 
-        - name:                         "Set test case message and details"
+        - name:                         "Report: {{ item.name | default('') }} - Set test case message and details"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: "Old primary: {{ cluster_status_pre.primary_node }} \
                                         New primary: {{ cluster_status_test_post.primary_node }} \
@@ -144,20 +144,20 @@
                                         }
 
   rescue:
-    - name:                             "Rescue operation"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
       tags:                             [cleanup]
 
   always:
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]
 
-- name:                                 "Pre Validations: Test Case Skipped"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Test Case Skipped"
   become:                               true
   when:                                 pre_validations_status == "FAILED"
   block:
-    - name:                             "Set test case message and details"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: "Pre Validations for HANA DB cluster status checks failed. Please check the details."
         test_case_details_from_test_case: {
@@ -167,6 +167,6 @@
                                           "Cluster Status": "{{ cluster_status_pre }}",
                                         }
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]

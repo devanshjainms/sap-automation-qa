@@ -182,7 +182,7 @@ source .venv/bin/activate
 
 #### 1.4.2. Container Setup (Preview)
 
-As an alternative to the local setup, the framework can also run as a Docker container on the management server. The containerized deployment exposes a REST API that allows you to execute tests, schedule recurring test runs, and monitor job status. For detailed information on API usage, scheduling, and troubleshooting, see [SAP QA Service](./SAP_QA_SERVICE.md).
+As an alternative to the local setup, the framework can also run as a Docker container on the management server. The containerized deployment exposes a REST API that allows you to execute tests, schedule recurring test runs, and monitor job status. For detailed information on API usage, scheduling, and troubleshooting, see [SAP QA Service](./SCHEDULE.md).
 
 The container builds its own isolated environment, so the local setup (step 1.4.1) is not required when using this approach. However, the system configuration described in section 2 must still be completed, as the container reads workspace configuration files from `WORKSPACES/SYSTEM/`.
 
@@ -242,8 +242,9 @@ TEST_TYPE: "SAPFunctionalTests"
 # The type of SAP functional test to be executed. Supported values are:
 # - DatabaseHighAvailability
 # - CentralServicesHighAvailability
-# - Not required for ConfigurationChecks test type
-SAP_FUNCTIONAL_TEST_TYPE: "DatabaseHighAvailability"  # or "CentralServicesHighAvailability"
+# - AzureBackupDatabase
+# - Optional for ConfigurationChecks test type
+SAP_FUNCTIONAL_TEST_TYPE: "DatabaseHighAvailability"  # or "CentralServicesHighAvailability" / "AzureBackupDatabase"
 
 # The name of the SAP system configuration for which you want to execute the test cases.
 # It would be the name of the folder under 'WORKSPACE/SYSTEM/' where it could find hosts.yaml, sap-parameters.yaml files of the SAP system configuration
@@ -284,6 +285,8 @@ adx_cluster_fqdn: "your-adx-cluster-fqdn"
 adx_database_name: "your-adx-database-name"
 adx_client_id: "your-adx-client-id"
 ```
+
+> **Tip:** Individual `vars.yaml` values can be overridden at runtime using CLI flags (e.g., `--test-type=`, `--system-config=`). Run `./scripts/sap_automation_qa.sh --help` for the full list of available flags.
 
 #### 2.2. System Configuration (WORKSPACES)
 

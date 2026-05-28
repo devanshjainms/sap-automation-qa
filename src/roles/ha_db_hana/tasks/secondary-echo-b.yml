@@ -4,7 +4,7 @@
 # /*---------------------------------------------------------------------------
 # |               Crash the secondary node with echo b                        |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   run_once:                             true
   tags:                                 [pre-validation]
@@ -13,14 +13,14 @@
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Pre Validations: HANA DB Nodes"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - HANA DB Nodes"
   ansible.builtin.include_tasks:        "roles/misc/tasks/pre-validations-db.yml"
   tags:                                 [pre-validation]
 
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Execution: Secondary Node Crash with echo b init"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Secondary Node Crash with echo b init"
   become:                               true
   when:
                                         - node_tier == "hana"
@@ -28,20 +28,20 @@
                                         - cluster_status_pre.stonith_action == "reboot"
   tags:                                 [test-execution]
   block:
-    - name:                             "Test Execution: Crash the secondary node with echo b init"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Crash the secondary node with echo b init"
       when:                             ansible_hostname == cluster_status_pre.primary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Start timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Start timer"
           ansible.builtin.set_fact:
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ hostvars[cluster_status_pre.secondary_node].ansible_hostname }}"
 
-    - name:                             "Test Execution: Crash the secondary node with echo b init"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Crash the secondary node with echo b init"
       when:                             ansible_hostname == cluster_status_pre.secondary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Echo b"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Echo b"
           become:                       true
           ansible.builtin.shell:        echo b > /proc/sysrq-trigger
           async:                        1
@@ -49,11 +49,11 @@
           ignore_errors:                true
           register:                     echo_b_result
 
-    - name:                             "Test Execution: Switch to secondary node"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Switch to secondary node"
       when:                             ansible_hostname == cluster_status_pre.primary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Validate HANA DB cluster status"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "test_execution"
@@ -77,7 +77,7 @@
                                            cluster_status_test_execution.secondary_node == "")
                                         )
 
-        - name:                         "Test Execution: Validate HANA DB cluster status 2"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (post recovery)"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "post_failover"
@@ -104,11 +104,11 @@
                                         ) and
                                         (cluster_status_post.worker_node_scores_valid | default(false))
 
-        - name:                         "Test Execution: Set resource cleanup required flag"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Set resource cleanup required flag"
           ansible.builtin.set_fact:
             cleanup_failed_resource_post_required: "{{ cluster_status_post is failed }}"
 
-        - name:                         "Test Execution: CleanUp failed SAPHanaController resource"
+        - name:                         "Test Execution: {{ item.name | default('') }} - CleanUp failed SAPHanaController resource"
           when:                         cleanup_failed_resource_post_required | bool
           ansible.builtin.command:      crm_resource --cleanup
           register:                     cleanup_failed_resource_post
@@ -118,12 +118,12 @@
           changed_when:                 cleanup_failed_resource_post.rc == 0
           ignore_errors:                true
 
-        - name:                         "Test Execution: Wait for cluster to recover after resource cleanup"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Wait for cluster to recover after resource cleanup"
           when:                         cleanup_failed_resource_post_required | bool
           ansible.builtin.wait_for:
             timeout:                    "{{ default_timeout }}"
 
-        - name:                         "Test Execution: Validate HANA DB cluster status (post cleanup)"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (post cleanup)"
           when:                         cleanup_failed_resource_post_required | bool
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
@@ -150,12 +150,12 @@
                                         ) and
                                         (cluster_status_post_retry.worker_node_scores_valid | default(false))
 
-        - name:                         "Test Execution: Use retried post-recovery cluster status"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Use retried post-recovery cluster status"
           when:                         cleanup_failed_resource_post_required | bool
           ansible.builtin.set_fact:
             cluster_status_post:        "{{ cluster_status_post_retry }}"
 
-        - name:                         "Test Execution: Determine test execution status"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Determine test execution status"
           ansible.builtin.set_fact:
             test_execution_status:      "{{ 'PASSED' if (
                                             (hana_topology | default('scale_up') == 'scale_out_hsr' and
@@ -167,17 +167,17 @@
                                              cluster_status_post.secondary_node == cluster_status_pre.secondary_node)
                                           ) else 'FAILED' }}"
 
-        - name:                         "Test Execution: CleanUp any failed resource"
+        - name:                         "Test Execution: {{ item.name | default('') }} - CleanUp any failed resource"
           ansible.builtin.command:      crm_resource --cleanup
           register:                     cleanup_failed_resource_post
           changed_when:                 cleanup_failed_resource_post.rc == 0
           ignore_errors:                true
 
-        - name:                         "Test Execution: Stop timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Stop timer"
           ansible.builtin.set_fact:
             test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
 
-        - name:                         "Set test case message and details"
+        - name:                         "Report: {{ item.name | default('') }} - Set test case message and details"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                         "Old primary: {{ cluster_status_pre.primary_node }} \
@@ -193,20 +193,20 @@
                                         }
 
   rescue:
-    - name:                             "Rescue operation"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
       tags:                             [cleanup]
 
   always:
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]
 
-- name:                                 "Pre Validations: Test Case Skipped"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Test Case Skipped"
   become:                               true
   when:                                 pre_validations_status == "FAILED"
   block:
-    - name:                             "Set test case message and details"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: "Pre Validations for HANA DB cluster status checks failed. Please check the details."
         test_case_details_from_test_case: {
@@ -216,6 +216,6 @@
                                           "Cluster Status": "{{ cluster_status_pre }}",
                                         }
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]

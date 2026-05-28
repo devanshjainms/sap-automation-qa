@@ -4,7 +4,7 @@
 # /*---------------------------------------------------------------------------
 # |                          Freeze File System on Primary Node                |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   when:                                 NFS_provider == "ANF"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   run_once:                             true
@@ -13,7 +13,7 @@
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Pre Validations: HANA DB Nodes"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - HANA DB Nodes"
   when:                                 NFS_provider == "ANF"
   ansible.builtin.include_tasks:        "roles/misc/tasks/pre-validations-db.yml"
   tags:                                 [pre-validation]
@@ -22,7 +22,7 @@
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
 
-- name:                                 "Test Execution: Freeze File System on Primary Node init"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Freeze File System on Primary Node init"
   become:                               true
   when:
                                         - node_tier == "hana"
@@ -31,33 +31,33 @@
                                         - cluster_status_pre.stonith_action == "reboot"
   tags:                                 [test-execution]
   block:
-    - name:                             "Test Execution: Freeze File System on Primary Node init"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Freeze File System on Primary Node init"
       when:                             ansible_hostname == cluster_status_pre.primary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Start timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Start timer"
           ansible.builtin.set_fact:
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ ansible_hostname }}"
 
-        - name:                         "Test Execution: Freeze the file system"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Freeze the file system"
           become:                       true
           filesystem_freeze:
             nfs_provider:               "{{ NFS_provider }}"
             database_sid:               "{{ db_sid | upper }}"
           register:                     freeze_fs_results
 
-    - name:                             "Test Execution: Freeze File System on Primary Node init"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Freeze File System on Primary Node init"
       when:                             ansible_hostname == cluster_status_pre.secondary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: CleanUp any failed resource"
+        - name:                         "Test Execution: {{ item.name | default('') }} - CleanUp any failed resource"
           ansible.builtin.command:      "crm_resource --cleanup"
           register:                     cleanup_failed_resource_post
           changed_when:                 cleanup_failed_resource_post.rc == 0
           ignore_errors:                true
 
-        - name:                         "Test Execution: Validate HANA DB cluster status 1"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (failover)"
           when:                         cluster_status_pre.AUTOMATED_REGISTER | lower == "true"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
@@ -75,7 +75,7 @@
                                         cluster_status_test_execution.primary_node == cluster_status_pre.secondary_node and
                                         cluster_status_test_execution.secondary_node == cluster_status_pre.primary_node
 
-        - name:                         "Test Execution: Validate HANA DB cluster status (AUTOMATED_REGISTER=false)"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (AUTOMATED_REGISTER=false)"
           when:                         cluster_status_pre.AUTOMATED_REGISTER | lower == "false"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
@@ -93,13 +93,13 @@
                                         cluster_status_test_execution.primary_node == cluster_status_pre.secondary_node and
                                         cluster_status_test_execution.secondary_node == ""
 
-    - name:                             "Test Execution: Manual re-registration of old primary"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Manual re-registration of old primary"
       when:
                                         - ansible_hostname == cluster_status_pre.primary_node
                                         - cluster_status_pre.AUTOMATED_REGISTER | lower == "false"
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Register Failed Resource"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Register Failed Resource"
           become:                       true
           become_user:                  "{{ db_sid | lower }}adm"
           when:                         cluster_status_pre.AUTOMATED_REGISTER == "false"
@@ -117,16 +117,16 @@
           args:
             executable:                 /bin/bash
 
-        - name:                         "Test Execution: CleanUp any failed resource after registration"
+        - name:                         "Test Execution: {{ item.name | default('') }} - CleanUp any failed resource after registration"
           ansible.builtin.command:      "crm_resource --cleanup"
           changed_when:                 true
           failed_when:                  false
 
-    - name:                             "Test Execution: Freeze File System on Primary Node init"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Freeze File System on Primary Node init"
       when:                             ansible_hostname == cluster_status_pre.primary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Validate HANA DB cluster status 2"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (post recovery)"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "post_failover"
@@ -145,7 +145,7 @@
                                         cluster_status_post.secondary_node == cluster_status_pre.primary_node and
                                         (cluster_status_post.worker_node_scores_valid | default(false))
 
-        - name:                         "Test Execution: Determine test execution status"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Determine test execution status"
           ansible.builtin.set_fact:
             test_execution_status:      "{{ 'PASSED' if (
                                             cluster_status_post.primary_node == cluster_status_pre.secondary_node and
@@ -153,11 +153,11 @@
                                           ) else 'FAILED' }}"
 
 
-        - name:                         "Test Execution: Stop timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Stop timer"
           ansible.builtin.set_fact:
             test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
 
-        - name:                         "Set test case message and details"
+        - name:                         "Report: {{ item.name | default('') }} - Set test case message and details"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                                 Old primary: {{ cluster_status_pre.primary_node }}
@@ -173,20 +173,20 @@
                                               }
 
   rescue:
-    - name:                             "Rescue operation"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
       tags:                             [cleanup]
 
   always:
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]
 
-- name:                                 "Pre Validations: Test Case Skipped"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Test Case Skipped"
   become:                               true
   when:                                 pre_validations_status == "FAILED"
   block:
-    - name:                             "Set test case message and details"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: "Pre Validations for HANA DB cluster status checks failed. Please check the details."
         test_case_details_from_test_case: {
@@ -196,6 +196,6 @@
                                           "Cluster Status": "{{ cluster_status_pre }}",
                                         }
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]
