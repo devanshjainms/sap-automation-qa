@@ -5,27 +5,27 @@
 #              Display test result summary at end of playbook execution             #
 ####################################################################################
 
-- name:                                 "Display test result summary"
+- name:                                 "Report: Display Test Result Summary"
   run_once:                             true
   delegate_to:                          localhost
   block:
-    - name:                             "Generate test summary from log file"
+    - name:                             "Report: Generate Test Summary From Log File"
       display_test_summary:
         test_group_invocation_id:       "{{ test_group_invocation_id }}"
         workspace_directory:            "{{ _workspace_directory }}"
       register:                         test_summary_result
 
-    - name:                             "Show test execution summary"
+    - name:                             "Report: Show Test Execution Summary"
       ansible.builtin.debug:
         msg:                            "{{ test_summary_result.summary.split('\n') }}"
       when:                             test_summary_result.summary | default('') | length > 0
 
-    - name:                             "Show failed parameters detail"
+    - name:                             "Report: Show Failed Parameter Details"
       ansible.builtin.debug:
-        msg:                            "{{ item.name }}: actual={{ item.value }} expected={{ item.expected_value }} ({{ item.category }})"
+        msg:                            "{{ item.name | default('') }}: actual={{ item.value }} expected={{ item.expected_value }} ({{ item.category }})"
       loop:                             "{{ test_summary_result.failed_parameters | default([]) }}"
       loop_control:
-        label:                          "{{ item.name }}"
+        label:                          "{{ item.name | default('') }}"
       when:
                                         - test_summary_result.failed_parameters | default([]) | length > 0
                                         - display_failed_details | default(true) | bool

@@ -5,12 +5,12 @@
 # |           Azure Backup Setup Verification for SAP HANA                    |
 # +--------------------------------------------------------------------------*/
 
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   run_once:                             true
   tags:                                 [pre-validation]
 
-- name:                                 "Load backup parameter definitions"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Load backup parameter definitions"
   ansible.builtin.include_vars:
     file:                               "roles/backup_db_hana/vars/backup-parameters.yml"
   run_once:                             true
@@ -18,21 +18,21 @@
 # /*---------------------------------------------------------------------------
 # |                     Resolve Source VM for Discovery                        |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Resolve source VM name for HA systems"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Resolve Source VM Name for HA Systems"
   when:
                                         - node_tier == "hana"
                                         - database_high_availability | default(false) | bool
   block:
-    - name:                             "HA Setup: Run DB pre-validations to get cluster status"
+    - name:                             "Pre Validation: {{ item.name | default('') }} - Run DB pre-validations to get cluster status"
       ansible.builtin.include_tasks:    "roles/misc/tasks/pre-validations-db.yml"
       tags:                             [pre-validation]
 
-    - name:                             "HA Setup: Resolve primary node VM name"
+    - name:                             "Pre Validation: {{ item.name | default('') }} - Resolve primary node VM name"
       ansible.builtin.set_fact:
         backup_verify_vm_name:          "{{ hostvars[cluster_status_pre.primary_node].azure_instance_metadata.json.compute.name }}"
       run_once:                         true
 
-- name:                                 "Resolve source VM name for standalone systems"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Resolve Source VM Name for Standalone Systems"
   when:
                                         - node_tier == "hana"
                                         - not (database_high_availability | default(false) | bool)
@@ -43,16 +43,16 @@
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Azure Backup Setup Verification"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Azure Backup Setup Verification"
   when:                                 node_tier == "hana"
   block:
-    - name:                             "Test Execution: Start timer"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Start timer"
       ansible.builtin.set_fact:
         test_execution_start:           "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
         test_execution_hostname:        "{{ ansible_hostname }}"
       run_once:                         true
 
-    - name:                             "Test Execution: Discover and validate protected databases"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Discover and validate protected databases"
       delegate_to:                      localhost
       azure_backup_hana:
         operation:                      "discover_protected_items"
@@ -65,7 +65,7 @@
       register:                         backup_verification_result
       run_once:                         true
 
-    - name:                             "Test Execution: Validate protected items found"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Validate protected items found"
       ansible.builtin.assert:
         that:
           - backup_verification_result.protected_items | length > 0
@@ -76,7 +76,7 @@
         success_msg:                    "Found {{ backup_verification_result.protected_items | length }} protected database(s)"
       run_once:                         true
 
-    - name:                             "Test Execution: Display backup configuration per database"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Display backup configuration per database"
       ansible.builtin.debug:
         msg: |
           Database: {{ db_row.name }}
@@ -92,7 +92,7 @@
         loop_var:                       db_row
       run_once:                         true
 
-    - name:                             "Test Execution: Set cumulative test status"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Set cumulative test status"
       ansible.builtin.set_fact:
         test_execution_status:          "{{ backup_verification_result.status
                                             | replace('PASSED','PASSED')
@@ -100,12 +100,12 @@
                                             | replace('FAILED','FAILED') }}"
       run_once:                         true
 
-    - name:                             "Test Execution: Stop timer"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Stop timer"
       ansible.builtin.set_fact:
         test_execution_end:             "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
       run_once:                         true
 
-    - name:                             "Test Execution: Set test case message and details"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: "{{ backup_verification_result.message }}"
         test_case_details_from_test_case: "{{ backup_verification_result.details }}"
@@ -116,13 +116,13 @@
              | to_nice_json }}
       run_once:                         true
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/post-validations-backup.yml"
       tags:                             [post-validation]
       run_once:                         true
 
   rescue:
-    - name:                             "Rescue operation"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/rescue-backup.yml"
       tags:                             [cleanup]
       run_once:                         true

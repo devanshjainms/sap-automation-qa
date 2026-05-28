@@ -12,7 +12,7 @@
   name:                                "Setup deployer for Azure Backup Testing"
   vars_files:                          "./vars/input-api.yaml"
   tasks:
-    - name:                            "Install python azure packages required"
+    - name:                            "Init: Install Required Python Azure Packages"
       become:                          true
       no_log:                          true
       ansible.builtin.pip:
@@ -27,9 +27,9 @@
           - azure-storage-queue
           - pandas
 
-    - name:                            "Authenticate to Azure using Managed Identity"
+    - name:                            "Init: Authenticate to Azure Using Managed Identity"
       block:
-        - name:                        "Authenticate with --username (az cli >= 2.61)"
+        - name:                        "Init: Authenticate With Username (az cli >= 2.61)"
           ansible.builtin.command:
             cmd:                        >-
                                         az login --identity
@@ -39,7 +39,7 @@
                                         {% endif %}
           changed_when:                 false
       rescue:
-        - name:                        "Authenticate with --client-id (az cli < 2.61)"
+        - name:                        "Init: Authenticate With Client ID (az cli < 2.61)"
           ansible.builtin.command:
             cmd:                        >-
                                         az login --identity
@@ -54,12 +54,12 @@
   gather_facts:                        true
   vars_files:                          "./vars/input-api.yaml"
   tasks:
-    - name:                            "Enable profile_tasks callback plugin"
+    - name:                            "Init: Enable Profile Tasks Callback Plugin"
       ansible.builtin.set_fact:
         ansible_callbacks:
           profile_tasks:               true
 
-    - name:                            "SAP OS configuration: Get IP from instance metadata"
+    - name:                            "Init: Get IP Information From Instance Metadata Service"
       ansible.builtin.uri:
         url:                           http://169.254.169.254/metadata/instance/network/interface?api-version=2021-02-01&format=json
         use_proxy:                     false
@@ -67,7 +67,7 @@
           Metadata:                    true
       register:                        azure_network_metadata
 
-    - name:                            "Retrieve compute instance metadata (subscription, VM name)"
+    - name:                            "Init: Retrieve Compute Instance Metadata"
       ansible.builtin.uri:
         url:                           http://169.254.169.254/metadata/instance?api-version=2021-02-01
         use_proxy:                     false
@@ -75,23 +75,23 @@
           Metadata:                    true
       register:                        azure_instance_metadata
 
-    - name:                            "Parse JSON and extract network information"
+    - name:                            "Init: Parse Network Information From Metadata"
       ansible.builtin.set_fact:
         network_info_parsed:           "{{ lookup('template', 'interfaces.j2', wantlist=True) | flatten(levels=1) }}"
 
-    - name:                            "Display extracted network information"
+    - name:                            "Init: Display Extracted Network Information"
       ansible.builtin.debug:
         msg:                           "ipAddress: {{ item.ipAddress }} | interfaceName: {{ item.interfaceName }} | Subnet: {{ item.subnet }}"
       loop:                            "{{ network_info_parsed | list }}"
 
-    - name:                            "Set the test group name"
+    - name:                            "Orchestration: Set Test Group Name"
       ansible.builtin.set_fact:
         test_group_name:               "{{ sap_functional_test_type_map
                                         | selectattr('name', 'equalto', SAP_FUNCTIONAL_TEST_TYPE)
                                         | map(attribute='value') | first }}_{{ platform | upper }}"
       run_once:                        true
 
-    - name:                            "Set the test group facts"
+    - name:                            "Orchestration: Set Test Group Facts"
       ansible.builtin.set_fact:
         test_group_start_time:         "{{ now(utc=true,fmt='%Y-%m-%d %H:%M:%S') }}"
         test_group_invocation_id:      "{{ lookup('pipe', 'uuidgen') }}"
@@ -101,7 +101,7 @@
                                             | selectattr('enabled', 'equalto', true) | list }}"
       run_once:                        true
 
-    - name:                            "Validate required Azure Backup variables"
+    - name:                            "Orchestration: Validate Required Variables"
       ansible.builtin.assert:
         that:
           - backup_vault_resource_id | default('') | length > 0
@@ -112,7 +112,7 @@
         success_msg:                   "Backup vault: {{ backup_vault_resource_id }}"
       run_once:                        true
 
-    - name:                            "Run backup test cases by including tasks"
+    - name:                            "Orchestration: Run Test Cases"
       ansible.builtin.include_tasks:   "./roles/{{ test_group_name | lower }}/tasks/{{ item.task_name }}.yml"
       loop:                            "{{ test_cases | list }}"
       vars:
@@ -123,15 +123,15 @@
                                        - test_group_name is defined
                                        - item.enabled | default(true)
 
-    - name:                            "Render HTML report for the test group logs"
+    - name:                            "Report: Render HTML Report"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
       when:                            test_group_name is defined
 
-    - name:                            "Display test execution summary"
+    - name:                            "Report: Display Test Execution Summary"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/display-test-summary.yml"
       when:                            test_group_name is defined
 
-    - name:                            "Debug the group_invocation_id"
+    - name:                            "Report: Debug Group Invocation ID"
       ansible.builtin.debug:
         msg:                           "Group invocation ID: {{ test_group_invocation_id }}"
       when:                            test_group_invocation_id is defined

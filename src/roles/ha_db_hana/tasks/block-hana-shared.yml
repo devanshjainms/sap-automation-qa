@@ -5,7 +5,7 @@
 # |          Block /hana/shared NFS Access on Primary Site                     |
 # +--------------------------------------------------------------------------*/
 
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   run_once:                             true
   tags:                                 [pre-validation]
@@ -13,21 +13,21 @@
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Pre Validations: HANA DB Nodes"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - HANA DB Nodes"
   ansible.builtin.include_tasks:        "roles/misc/tasks/pre-validations-db.yml"
   tags:                                 [pre-validation]
 
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Execution: Block /hana/shared NFS Access"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Block /hana/shared NFS Access"
   become:                               true
   when:
                                         - node_tier == "hana"
                                         - pre_validations_status == "PASSED"
   tags:                                 [test-execution]
   block:
-    - name:                             "Test Execution: Get /hana/shared NFS server IP"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Get /hana/shared NFS server IP"
       ansible.builtin.shell: >-
         set -o pipefail &&
         df -kh | grep '/hana/shared' | awk '{print $1}' | cut -d':' -f1
@@ -38,20 +38,20 @@
       failed_when:                      hana_shared_nfs_ip_result.rc != 0 or
                                         hana_shared_nfs_ip_result.stdout | trim | length == 0
 
-    - name:                             "Test Execution: Set NFS server IP fact"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Set NFS server IP fact"
       ansible.builtin.set_fact:
         hana_shared_nfs_ip:             "{{ hana_shared_nfs_ip_result.stdout | trim }}"
 
-    - name:                             "Test Execution: Block /hana/shared on primary master nameserver"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Block /hana/shared on primary master nameserver"
       when:                             ansible_hostname == cluster_status_pre.primary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Start timer"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Start timer"
           ansible.builtin.set_fact:
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             test_execution_hostname:    "{{ ansible_hostname }}"
 
-        - name:                         "Test Execution: Create iptables rule to block /hana/shared NFS"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Create iptables rule to block /hana/shared NFS"
           ansible.builtin.shell: |
                                         iptables -I OUTPUT -d {{ hana_shared_nfs_ip }} -j DROP;
                                         iptables -I INPUT  -s {{ hana_shared_nfs_ip }} -j DROP
@@ -59,11 +59,11 @@
           changed_when:                 firewall_rule_created.rc == 0
           failed_when:                  firewall_rule_created.rc != 0
 
-        - name:                         "Test Execution: Wait for HANA resource agent monitoring to detect failure"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Wait for HANA resource agent monitoring to detect failure"
           ansible.builtin.wait_for:
             timeout:                    "{{ default_timeout }}"
 
-    - name:                             "Test Execution: Validate cluster after /hana/shared blocked"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Validate cluster after /hana/shared blocked"
       when:                             >
                                         ansible_hostname == (
                                           cluster_status_pre.secondary_site_nodes[0]
@@ -72,7 +72,7 @@
                                         )
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Validate HANA DB cluster status (failover)"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (failover)"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "test_execution"
@@ -88,13 +88,13 @@
                                         cluster_status_test_execution.primary_node != "" and
                                         cluster_status_test_execution.primary_node != cluster_status_pre.primary_node
 
-    - name:                             "Test Execution: Manual re-registration of old primary"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Manual re-registration of old primary"
       when:
                                         - ansible_hostname == cluster_status_pre.primary_node
                                         - cluster_status_pre.AUTOMATED_REGISTER == "false"
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Register Failed Resource"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Register Failed Resource"
           become:                       true
           become_user:                  "{{ db_sid | lower }}adm"
           when:                         cluster_status_pre.AUTOMATED_REGISTER == "false"
@@ -116,17 +116,17 @@
           args:
             executable:                 /bin/bash
 
-        - name:                         "Test Execution: CleanUp any failed resource after registration"
+        - name:                         "Test Execution: {{ item.name | default('') }} - CleanUp any failed resource after registration"
           become:                       true
           ansible.builtin.command:      "crm_resource --cleanup"
           changed_when:                 true
           failed_when:                  false
 
-    - name:                             "Test Execution: Cleanup and verify recovery"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Cleanup and verify recovery"
       when:                             ansible_hostname == cluster_status_pre.secondary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: Validate HANA DB cluster status (post recovery)"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (post recovery)"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "post_failover"
@@ -153,13 +153,13 @@
                                         ) and
                                         (cluster_status_post.worker_node_scores_valid | default(false))
 
-        - name:                         "Test Execution: CleanUp any failed resource"
+        - name:                         "Test Execution: {{ item.name | default('') }} - CleanUp any failed resource"
           ansible.builtin.command:      "crm_resource --cleanup"
           register:                     cleanup_failed_resource_post
           changed_when:                 cleanup_failed_resource_post.rc == 0
           ignore_errors:                true
 
-        - name:                         "Test Execution: Determine test execution status"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Determine test execution status"
           ansible.builtin.set_fact:
             test_execution_status:      "{{ 'PASSED' if (
                                             (hana_topology | default('scale_up') == 'scale_out_hsr' and
@@ -172,10 +172,10 @@
                                              cluster_status_post.secondary_node == cluster_status_pre.primary_node)
                                           ) else 'FAILED' }}"
 
-    - name:                             "Post Validations: Consolidate results on primary"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Consolidate results on primary"
       when:                             ansible_hostname == cluster_status_pre.primary_node
       block:
-        - name:                         "Post Validations: Pull results from secondary node"
+        - name:                         "Post Validation: {{ item.name | default('') }} - Pull results from secondary node"
           ansible.builtin.set_fact:
             test_execution_end:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
             cluster_status_post:        "{{ hostvars[cluster_status_pre.secondary_node].cluster_status_post
@@ -190,7 +190,7 @@
             cleanup_failed_resource_post: "{{ hostvars[cluster_status_pre.secondary_node].cleanup_failed_resource_post
                                             | default('N/A') }}"
 
-        - name:                         "Post Validations: Set test case message and details"
+        - name:                         "Post Validation: {{ item.name | default('') }} - Set test case message and details"
           ansible.builtin.set_fact:
             test_case_message_from_test_case: |
                                         NFS IP blocked:  {{ hana_shared_nfs_ip }}
@@ -214,7 +214,7 @@
                                         }
 
   rescue:
-    - name:                             "Rescue: Remove iptables rule blocking /hana/shared NFS"
+    - name:                             "Rescue: {{ item.name | default('') }} - Remove iptables rule blocking /hana/shared NFS"
       become:                           true
       ansible.builtin.shell: |
                                         iptables -D OUTPUT -d {{ hana_shared_nfs_ip }} -j DROP 2>/dev/null;
@@ -227,7 +227,7 @@
       when:                             ansible_hostname == cluster_status_pre.primary_node and
                                         hana_shared_nfs_ip is defined
 
-    - name:                             "Rescue: Re-mount /hana/shared"
+    - name:                             "Rescue: {{ item.name | default('') }} - Re-mount /hana/shared"
       become:                           true
       ansible.builtin.shell: |
                                         if ! mountpoint -q /hana/shared; then
@@ -237,20 +237,20 @@
       ignore_unreachable:               true
       when:                             ansible_hostname == cluster_status_pre.primary_node
 
-    - name:                             "Rescue operation"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
       tags:                             [cleanup]
 
   always:
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]
 
-- name:                                 "Pre Validations: Test Case Skipped"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Test Case Skipped"
   become:                               true
   when:                                 pre_validations_status == "FAILED"
   block:
-    - name:                             "Set test case message and details"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
           Pre Validations for HANA DB cluster status checks failed.
@@ -262,6 +262,6 @@
                                           "Cluster Status": "{{ cluster_status_pre }}",
                                         }
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]

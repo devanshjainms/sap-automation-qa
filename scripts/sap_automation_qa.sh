@@ -72,15 +72,23 @@ parse_arguments() {
     TEST_CASES=""
     EXTRA_VARS=""
 
+    CLI_TEST_TYPE=""
+    CLI_SYSTEM_CONFIG_NAME=""
+    CLI_SAP_FUNCTIONAL_TEST_TYPE=""
+    CLI_AUTHENTICATION_TYPE=""
+    CLI_WORKSPACES_DIR=""
+
+    CLI_ANSIBLE_OVERRIDES=()
+
     for arg in "$@"; do
         case "$arg" in
             -v|-vv|-vvv|-vvvv|-vvvvv|-vvvvvv)
                 ANSIBLE_VERBOSE="$arg"
                 ;;
-            --test_groups=*)
+            --test-groups=*|--test-groups=*)
                 TEST_GROUPS="${arg#*=}"
                 ;;
-            --test_cases=*)
+            --test-cases=*|--test-cases=*)
                 TEST_CASES="${arg#*=}"
                 TEST_CASES="${TEST_CASES#[}"
                 TEST_CASES="${TEST_CASES%]}"
@@ -90,6 +98,54 @@ parse_arguments() {
                 ;;
             --offline)
                 OFFLINE_MODE="true"
+                ;;
+            --test-type=*)
+                CLI_TEST_TYPE="${arg#*=}"
+                ;;
+            --system-config=*)
+                CLI_SYSTEM_CONFIG_NAME="${arg#*=}"
+                ;;
+            --functional-test-type=*)
+                CLI_SAP_FUNCTIONAL_TEST_TYPE="${arg#*=}"
+                ;;
+            --auth-type=*)
+                CLI_AUTHENTICATION_TYPE="${arg#*=}"
+                ;;
+            --workspaces-dir=*)
+                CLI_WORKSPACES_DIR="${arg#*=}"
+                ;;
+            --telemetry-destination=*)
+                CLI_ANSIBLE_OVERRIDES+=("telemetry_data_destination=${arg#*=}")
+                ;;
+            --telemetry-table=*)
+                CLI_ANSIBLE_OVERRIDES+=("telemetry_table_name=${arg#*=}")
+                ;;
+            --laws-shared-key=*)
+                CLI_ANSIBLE_OVERRIDES+=("laws_shared_key=${arg#*=}")
+                ;;
+            --laws-workspace-id=*)
+                CLI_ANSIBLE_OVERRIDES+=("laws_workspace_id=${arg#*=}")
+                ;;
+            --laws-subscription-id=*)
+                CLI_ANSIBLE_OVERRIDES+=("laws_subscription_id=${arg#*=}")
+                ;;
+            --laws-resource-group=*)
+                CLI_ANSIBLE_OVERRIDES+=("laws_resource_group=${arg#*=}")
+                ;;
+            --laws-workspace-name=*)
+                CLI_ANSIBLE_OVERRIDES+=("laws_workspace_name=${arg#*=}")
+                ;;
+            --adx-database=*)
+                CLI_ANSIBLE_OVERRIDES+=("adx_database_name=${arg#*=}")
+                ;;
+            --adx-cluster=*)
+                CLI_ANSIBLE_OVERRIDES+=("adx_cluster_fqdn=${arg#*=}")
+                ;;
+            --adx-client-id=*)
+                CLI_ANSIBLE_OVERRIDES+=("adx_client_id=${arg#*=}")
+                ;;
+            --identity-client-id=*)
+                CLI_ANSIBLE_OVERRIDES+=("user_assigned_identity_client_id=${arg#*=}")
                 ;;
             -h|--help)
                 show_sap_automation_qa_usage "$0"
@@ -106,50 +162,120 @@ log "INFO" "ANSIBLE_MODULE_UTILS: $ANSIBLE_MODULE_UTILS"
 # Define the path to the vars.yaml file
 VARS_FILE="${cmd_dir}/../vars.yaml"
 
-# Validate input parameters from vars.yaml.
+# Read a single parameter value from vars.yaml.
+# :param param_name: The YAML key to read.
+# :return: The value, or empty string if not found.
+_get_yaml_value() {
+    local param_name=$1
+    if [[ -f "$VARS_FILE" ]] && grep -q "^${param_name}:" "$VARS_FILE"; then
+        grep "^${param_name}:" "$VARS_FILE" | awk '{split($0,a,": "); print a[2]}' | xargs
+    fi
+}
+
+# Validate and merge input parameters from vars.yaml and CLI flags.
+# Precedence: CLI flags > vars.yaml > defaults.
+# vars.yaml is optional when all required params are provided via CLI.
 # :return: None. Exits with a non-zero status if validation fails.
 validate_params() {
-    local missing_params=()
-    local params=("TEST_TYPE" "SYSTEM_CONFIG_NAME" "SAP_FUNCTIONAL_TEST_TYPE" "AUTHENTICATION_TYPE")
-
-    # Check if vars.yaml exists
-    if [ ! -f "$VARS_FILE" ]; then
-        log "ERROR" "Error: $VARS_FILE not found."
-        exit 1
-    fi
-
-    for param in "${params[@]}"; do
-        if grep -q "^$param:" "$VARS_FILE"; then
-            value=$(grep "^$param:" "$VARS_FILE" | awk '{split($0,a,": "); print a[2]}' | xargs)
-        else
-            value=""
-        fi
-
-        if [[ -z "$value" ]]; then
-            missing_params+=("$param")
-        else
-            log "INFO" "$param: $value"
-            declare -g "$param=$value"
-        fi
-    done
-
-    if [ ${#missing_params[@]} -ne 0 ]; then
-        log "ERROR" "Error: The following parameters cannot be empty: ${missing_params[*]}"
-        exit 1
-    fi
-
-    if grep -q "^WORKSPACES_DIR:" "$VARS_FILE"; then
-        WORKSPACES_DIR=$(grep "^WORKSPACES_DIR:" "$VARS_FILE" | awk '{split($0,a,": "); print a[2]}' | xargs)
+    local vars_file_exists="false"
+    if [[ -f "$VARS_FILE" ]]; then
+        vars_file_exists="true"
+        log "INFO" "Reading parameters from $VARS_FILE"
     else
-        WORKSPACES_DIR=""
+        log "INFO" "vars.yaml not found at $VARS_FILE; using CLI parameters only"
     fi
+
+    TEST_TYPE="${CLI_TEST_TYPE:-$(_get_yaml_value "TEST_TYPE")}"
+    SYSTEM_CONFIG_NAME="${CLI_SYSTEM_CONFIG_NAME:-$(_get_yaml_value "SYSTEM_CONFIG_NAME")}"
+    SAP_FUNCTIONAL_TEST_TYPE="${CLI_SAP_FUNCTIONAL_TEST_TYPE:-$(_get_yaml_value "SAP_FUNCTIONAL_TEST_TYPE")}"
+    AUTHENTICATION_TYPE="${CLI_AUTHENTICATION_TYPE:-$(_get_yaml_value "AUTHENTICATION_TYPE")}"
+    WORKSPACES_DIR="${CLI_WORKSPACES_DIR:-$(_get_yaml_value "WORKSPACES_DIR")}"
+
+    if [[ -n "$TEST_GROUPS" && -z "$TEST_TYPE" ]]; then
+        TEST_TYPE="SAPFunctionalTests"
+        log "INFO" "TEST_TYPE set to 'SAPFunctionalTests' (implied by --test-groups)"
+    fi
+
+    local missing_params=()
+    if [[ -z "$TEST_TYPE" ]]; then
+        missing_params+=("TEST_TYPE (use --test-type=)")
+    fi
+    if [[ -z "$SYSTEM_CONFIG_NAME" ]]; then
+        missing_params+=("SYSTEM_CONFIG_NAME (use --system-config=)")
+    fi
+    if [[ -z "$AUTHENTICATION_TYPE" ]]; then
+        missing_params+=("AUTHENTICATION_TYPE (use --auth-type=)")
+    fi
+
+    if [[ ${#missing_params[@]} -ne 0 ]]; then
+        log "ERROR" "Error: The following parameters are required: ${missing_params[*]}"
+        log "ERROR" "Provide them via CLI flags or in $VARS_FILE"
+        exit 1
+    fi
+
+    if [[ "$TEST_TYPE" == "SAPFunctionalTests" && -z "$SAP_FUNCTIONAL_TEST_TYPE" ]]; then
+        log "ERROR" "Error: SAP_FUNCTIONAL_TEST_TYPE is required when TEST_TYPE is 'SAPFunctionalTests'"
+        log "ERROR" "Use --functional-test-type= or set it in $VARS_FILE"
+        exit 1
+    fi
+
+    # Default WORKSPACES_DIR
     if [[ -z "$WORKSPACES_DIR" ]]; then
         WORKSPACES_DIR="WORKSPACES"
-        log "INFO" "WORKSPACES_DIR not set in vars.yaml, using default: $WORKSPACES_DIR"
-    else
-        log "INFO" "WORKSPACES_DIR: $WORKSPACES_DIR"
+        log "INFO" "WORKSPACES_DIR not set, using default: $WORKSPACES_DIR"
     fi
     export WORKSPACES_DIR
+
+    log "INFO" "TEST_TYPE: $TEST_TYPE"
+    log "INFO" "SYSTEM_CONFIG_NAME: $SYSTEM_CONFIG_NAME"
+    log "INFO" "AUTHENTICATION_TYPE: $AUTHENTICATION_TYPE"
+    log "INFO" "WORKSPACES_DIR: $WORKSPACES_DIR"
+    if [[ -n "$SAP_FUNCTIONAL_TEST_TYPE" ]]; then
+        log "INFO" "SAP_FUNCTIONAL_TEST_TYPE: $SAP_FUNCTIONAL_TEST_TYPE"
+    fi
+}
+
+# Build a temporary YAML file with CLI parameter overrides for Ansible.
+# Writes core and telemetry overrides, redacts secrets from log output.
+# :return: Path to the temp file (empty if no overrides).
+build_cli_overrides_file() {
+    local has_overrides="false"
+    local overrides_content=""
+
+    # Core params that Ansible also needs
+    if [[ -n "$CLI_TEST_TYPE" ]]; then
+        overrides_content+="TEST_TYPE: ${CLI_TEST_TYPE}\n"
+        has_overrides="true"
+    fi
+    if [[ -n "$CLI_SAP_FUNCTIONAL_TEST_TYPE" ]]; then
+        overrides_content+="SAP_FUNCTIONAL_TEST_TYPE: ${CLI_SAP_FUNCTIONAL_TEST_TYPE}\n"
+        has_overrides="true"
+    fi
+    if [[ -n "$CLI_AUTHENTICATION_TYPE" ]]; then
+        overrides_content+="AUTHENTICATION_TYPE: ${CLI_AUTHENTICATION_TYPE}\n"
+        has_overrides="true"
+    fi
+    if [[ -n "$CLI_WORKSPACES_DIR" ]]; then
+        overrides_content+="WORKSPACES_DIR: ${CLI_WORKSPACES_DIR}\n"
+        has_overrides="true"
+    fi
+
+    # Telemetry/Ansible pass-through overrides
+    for override in "${CLI_ANSIBLE_OVERRIDES[@]}"; do
+        local key="${override%%=*}"
+        local val="${override#*=}"
+        overrides_content+="${key}: ${val}\n"
+        has_overrides="true"
+    done
+
+    if [[ "$has_overrides" == "true" ]]; then
+        local cli_overrides_file
+        cli_overrides_file=$(mktemp)
+        printf '%b' "$overrides_content" > "$cli_overrides_file"
+        chmod 600 "$cli_overrides_file"
+        log "INFO" "CLI overrides written to temporary file" >&2
+        echo "$cli_overrides_file"
+    fi
 }
 
 # Extract the error message from a command's output.
@@ -331,6 +457,18 @@ run_ansible_playbook() {
     local auth_type=$4
     local system_config_folder=$5
 
+    local vars_file_args=""
+    if [[ -f "$VARS_FILE" ]]; then
+        vars_file_args="-e @$VARS_FILE"
+    fi
+
+    local cli_overrides_file=""
+    cli_overrides_file=$(build_cli_overrides_file)
+    local cli_overrides_args=""
+    if [[ -n "$cli_overrides_file" ]]; then
+        cli_overrides_args="-e @$cli_overrides_file"
+    fi
+
     local extra_vars=""
     if [[ -n "$TEST_GROUPS" || -n "$TEST_CASES" ]]; then
         local filtered_config
@@ -348,11 +486,13 @@ run_ansible_playbook() {
         extra_vars+=" --extra-vars '$escaped_extra_vars'"
     fi
 
+    local common_extra_vars="$vars_file_args -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars $cli_overrides_args"
+
     # Skip authentication setup if in offline mode
     if [[ "$OFFLINE_MODE" == "true" ]]; then
         log "INFO" "Offline mode: Skipping SSH authentication setup"
         command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts \
-            -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars --connection=local"
+            $common_extra_vars --connection=local"
     else
         # Set local secret_id and key_vault_id if defined
         local secret_id=$(grep "^secret_id:" "$system_params" | awk '{split($0,a,": "); print a[2]}' | xargs || true)
@@ -376,7 +516,7 @@ run_ansible_playbook() {
                 check_file_exists "$temp_file" \
                     "Temporary SSH key file not found. Please check the Key Vault secret ID."
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts --private-key $temp_file \
-                    -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars"
+                    $common_extra_vars"
             else
                 local ssh_key_dir="${cmd_dir}/../$WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME"
                 local ssh_key=""
@@ -408,7 +548,7 @@ run_ansible_playbook() {
 
                 chmod 600 "$ssh_key"
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts --private-key $ssh_key \
-                    -e @$VARS_FILE -e @$system_params -e '_workspace_directory=$system_config_folder' $extra_vars"
+                    $common_extra_vars"
             fi
 
         elif [[ "$auth_type" == "VMPASSWORD" ]]; then
@@ -421,15 +561,13 @@ run_ansible_playbook() {
                 check_file_exists "$temp_file" \
                     "Temporary password file not found. Please check the Key Vault secret ID."
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts \
-                    --extra-vars 'ansible_ssh_pass=$(cat $temp_file)' --extra-vars @$VARS_FILE -e @$system_params \
-                    -e '_workspace_directory=$system_config_folder' $extra_vars"
+                    --extra-vars 'ansible_ssh_pass=$(cat $temp_file)' $common_extra_vars"
             else
                 local password_file="${cmd_dir}/../$WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME/password"
                 check_file_exists "$password_file" \
                     "password file not found in $WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME directory."
                 command="ansible-playbook ${cmd_dir}/../src/$playbook_name.yml -i $system_hosts \
-                    --extra-vars 'ansible_ssh_pass=$(cat $password_file)' --extra-vars @$VARS_FILE -e @$system_params \
-                    -e '_workspace_directory=$system_config_folder' $extra_vars"
+                    --extra-vars 'ansible_ssh_pass=$(cat $password_file)' $common_extra_vars"
             fi
 
         else
@@ -468,6 +606,11 @@ run_ansible_playbook() {
     if [[ -n "$temp_config_file" && -f "$temp_config_file" ]]; then
         rm -f "$temp_config_file"
         log "INFO" "Temporary config file deleted: $temp_config_file"
+    fi
+
+    if [[ -n "$cli_overrides_file" && -f "$cli_overrides_file" ]]; then
+        rm -f "$cli_overrides_file"
+        log "INFO" "CLI overrides file deleted"
     fi
 
     exit $return_code
@@ -539,10 +682,10 @@ main() {
         log "INFO" "Found $cib_files CIB file(s) for offline analysis"
     fi
 
-    # Override SAP_FUNCTIONAL_TEST_TYPE based on --test_groups if specified
+    # Override SAP_FUNCTIONAL_TEST_TYPE based on --test-groups if specified
     if [[ -n "$TEST_GROUPS" ]]; then
         if [[ "$TEST_TYPE" != "SAPFunctionalTests" ]]; then
-            log "INFO" "Overriding TEST_TYPE: '$TEST_TYPE' -> 'SAPFunctionalTests' (--test_groups implies functional tests)"
+            log "INFO" "Overriding TEST_TYPE: '$TEST_TYPE' -> 'SAPFunctionalTests' (--test-groups implies functional tests)"
             TEST_TYPE="SAPFunctionalTests"
         fi
         local test_filter_script="${cmd_dir}/../src/module_utils/filter_tests.py"
@@ -551,7 +694,7 @@ main() {
         resolved_type=$(python3 "$test_filter_script" "$input_api_file" "$TEST_GROUPS" "null" 2>/dev/null \
             | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('SAP_FUNCTIONAL_TEST_TYPE',''))" 2>/dev/null || true)
         if [[ -n "$resolved_type" && "$resolved_type" != "$SAP_FUNCTIONAL_TEST_TYPE" ]]; then
-            log "INFO" "Overriding SAP_FUNCTIONAL_TEST_TYPE: '$SAP_FUNCTIONAL_TEST_TYPE' -> '$resolved_type' (from --test_groups=$TEST_GROUPS)"
+            log "INFO" "Overriding SAP_FUNCTIONAL_TEST_TYPE: '$SAP_FUNCTIONAL_TEST_TYPE' -> '$resolved_type' (from --test-groups=$TEST_GROUPS)"
             SAP_FUNCTIONAL_TEST_TYPE="$resolved_type"
         fi
     fi

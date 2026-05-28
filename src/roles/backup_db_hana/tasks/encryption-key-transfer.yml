@@ -8,14 +8,14 @@
 # /*-----------------------------------------------------------------------
 # |     Step 1: Generate and set root key backup password on source        |
 # +-----------------------------------------------------------------------*/
-- name:                                 "Encryption Key Transfer: Generate temporary root key backup password"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Generate temporary root key backup password"
   ansible.builtin.set_fact:
     _root_key_backup_password:          "{{ lookup('password', '/dev/null length=28 chars=ascii_letters,digits') }}"
   run_once:                             true
   no_log:                               true
   when:                                 backup_encryption_enabled | default(false) | bool
 
-- name:                                 "Encryption Key Transfer: Create temp directory on source"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Create temp directory on source"
   become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.file:
@@ -25,7 +25,7 @@
   run_once:                             true
   when:                                 backup_encryption_enabled | default(false) | bool
 
-- name:                                 "Encryption Key Transfer: Check tenant status on source"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Check tenant status on source"
   become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
@@ -46,7 +46,7 @@
                                         - backup_encryption_enabled | default(false) | bool
                                         - backup_tenant_items | length > 0
 
-- name:                                 "Encryption Key Transfer: Start tenant '{{ db_item.name }}' on source (if not active)"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Start tenant '{{ db_item.name }}' on source (if not active)"
   become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
@@ -69,7 +69,7 @@
                                         - backup_tenant_items | length > 0
                                         - encryption_tenant_status.results[idx].stdout | default('') is not search('YES')
 
-- name:                                 "Encryption Key Transfer: Set root key backup password on tenant '{{ db_item.name }}'"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Set root key backup password on tenant '{{ db_item.name }}'"
   become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
@@ -93,7 +93,7 @@
 # /*-----------------------------------------------------------------------
 # |     Step 2: Back up root keys from source HANA                         |
 # +-----------------------------------------------------------------------*/
-- name:                                 "Encryption Key Transfer: Backup root keys from tenant '{{ db_item.name }}'"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Backup root keys from tenant '{{ db_item.name }}'"
   become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
@@ -114,7 +114,7 @@
                                         - backup_encryption_enabled | default(false) | bool
                                         - backup_tenant_items | length > 0
 
-- name:                                 "Encryption Key Transfer: Log tenant key backup results"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Log tenant key backup results"
   ansible.builtin.debug:
     msg: >-
       Tenant key backup from '{{ db_result.db_item.name }}' (direct connection via -d):
@@ -131,7 +131,7 @@
 # /*-----------------------------------------------------------------------
 # |     Step 3: Transfer root key files via Ansible controller             |
 # +-----------------------------------------------------------------------*/
-- name:                                 "Encryption Key Transfer: List exported root key files"
+- name:                                 "Test Execution: {{ item.name | default('') }} - List exported root key files"
   ansible.builtin.find:
     paths:                              "{{ _root_key_tmp_path }}"
     patterns:                           "*_rootkeys"
@@ -139,7 +139,7 @@
   run_once:                             true
   when:                                 backup_encryption_enabled | default(false) | bool
 
-- name:                                 "Encryption Key Transfer: Log exported root key files"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Log exported root key files"
   ansible.builtin.debug:
     msg: >-
       Exported {{ encryption_exported_files.files | default([]) | length }} root key file(s)
@@ -148,7 +148,7 @@
   run_once:                             true
   when:                                 backup_encryption_enabled | default(false) | bool
 
-- name:                                 "Encryption Key Transfer: Fetch root key files to controller"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Fetch root key files to controller"
   ansible.builtin.fetch:
     src:                                "{{ rkb_file.path }}"
     dest:                               "/tmp/sap_root_keys_controller/"
@@ -165,7 +165,7 @@
 # /*-----------------------------------------------------------------------
 # |     Step 4: Import root keys on target HANA                            |
 # +-----------------------------------------------------------------------*/
-- name:                                 "Encryption Key Transfer: Create temp directory on target"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Create temp directory on target"
   ansible.builtin.file:
     path:                               "{{ _root_key_tmp_path }}"
     state:                              directory
@@ -178,7 +178,7 @@
                                         - backup_encryption_enabled | default(false) | bool
                                         - encryption_exported_files.files | default([]) | length > 0
 
-- name:                                 "Encryption Key Transfer: Copy root key files to target VM"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Copy root key files to target VM"
   ansible.builtin.copy:
     src:                                "/tmp/sap_root_keys_controller/{{ rkb_file.path | basename }}"
     dest:                               "{{ _root_key_tmp_path }}/{{ rkb_file.path | basename }}"
@@ -195,7 +195,7 @@
                                         - backup_encryption_enabled | default(false) | bool
                                         - encryption_exported_files.files | default([]) | length > 0
 
-- name:                                 "Encryption Key Transfer: Stop tenant DB on target before key recovery"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Stop tenant DB on target before key recovery"
   become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
@@ -218,7 +218,7 @@
                                         - encryption_exported_files.files | default([]) | length > 0
                                         - backup_tenant_items | length > 0
 
-- name:                                 "Encryption Key Transfer: Recover root keys on target - tenant '{{ db_item.name }}'"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Recover root keys on target - tenant '{{ db_item.name }}'"
   become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
@@ -241,7 +241,7 @@
                                         - encryption_exported_files.files | default([]) | length > 0
                                         - backup_tenant_items | length > 0
 
-- name:                                 "Encryption Key Transfer: Start tenant DB on target after key recovery"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Start tenant DB on target after key recovery"
   become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
@@ -263,7 +263,7 @@
                                         - backup_encryption_enabled | default(false) | bool
                                         - backup_tenant_items | length > 0
 
-- name:                                 "Encryption Key Transfer: Log import results"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Log import results"
   ansible.builtin.debug:
     msg: >-
       Root key transfer completed (SAP Note 3619961).

@@ -152,7 +152,7 @@
         filter_categories:          "{{ categories_filter | default(omit) }}"
         workspace_directory:        "{{ _workspace_directory }}"
         test_group_invocation_id:   "{{ test_group_invocation_id }}"
-        test_group_name:            "ConfigurationChecks"
+        test_group_name:            "{{ test_group_name }}"
         hostname:                   "{{ inventory_hostname }}"
         parallel_execution:         true
         max_workers:                1
@@ -187,7 +187,7 @@
         filter_categories:          "{{ categories_filter | default(omit) }}"
         workspace_directory:        "{{ _workspace_directory }}"
         test_group_invocation_id:   "{{ test_group_invocation_id }}"
-        test_group_name:            "ConfigurationChecks"
+        test_group_name:            "{{ test_group_name }}"
         hostname:                   "{{ inventory_hostname }}"
         parallel_execution:         true
         max_workers:                1
@@ -221,7 +221,7 @@
         filter_categories:          "{{ categories_filter | default(omit) }}"
         workspace_directory:        "{{ _workspace_directory }}"
         test_group_invocation_id:   "{{ test_group_invocation_id }}"
-        test_group_name:            "ConfigurationChecks"
+        test_group_name:            "{{ test_group_name }}"
         hostname:                   "{{ inventory_hostname }}"
         parallel_execution:         true
         max_workers:                1

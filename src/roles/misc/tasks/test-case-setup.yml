@@ -5,9 +5,9 @@
 #                       Task to setup telemetry information for each test case           #
 ##########################################################################################
 
-- name:                                 "Setup telemetry data for each test case"
+- name:                                 "Telemetry: {{ item.name | default('') }} - Setup Test Case Data"
   ansible.builtin.set_fact:
-    test_case_name:                     "{{ item.name }}"
+    test_case_name:                     "{{ item.name | default('') }}"
     test_case_description:              "{{ item.description }}"
     test_case_invocation_id:            "{{ lookup('pipe', 'uuidgen') }}"
     test_case_start_time_epoch:         "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
@@ -23,7 +23,7 @@
     test_case_message_from_test_case:   ""
     test_case_details_from_test_case:   []
 
-- name:                                 "Ensure test_case_invocation_id is available on all nodes"
+- name:                                 "Telemetry: {{ item.name | default('') }} - Propagate Test Case ID"
   ansible.builtin.set_fact:
     test_case_invocation_id:            "{{ test_case_invocation_id }}"
     test_case_start_time_epoch:         "{{ test_case_start_time_epoch }}"

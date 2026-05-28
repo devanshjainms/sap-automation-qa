@@ -5,7 +5,7 @@
 # |       Recover HANA DB using database commands                             |
 # +--------------------------------------------------------------------------*/
 
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   run_once:                             true
   tags:                                 [pre-validation]
@@ -13,10 +13,10 @@
 # /*---------------------------------------------------------------------------
 # |                          Pre Validations                                  |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Pre Validations: HANA DB Recovery"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - HANA DB Recovery"
   when:                                 node_tier == "hana"
   block:
-    - name:                             "Pre Validation: Verify HANA instance is accessible"
+    - name:                             "Pre Validation: {{ item.name | default('') }} - Verify HANA instance is accessible"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -30,14 +30,14 @@
       changed_when:                     false
       failed_when:                      hana_pre_check.rc not in [0, 3, 4]
 
-    - name:                             "Pre Validation: HA cluster status"
+    - name:                             "Pre Validation: {{ item.name | default('') }} - HA cluster status"
       when:                             database_high_availability | default(false) | bool
       block:
-        - name:                         "Pre Validation: Run standard DB pre-validations"
+        - name:                         "Pre Validation: {{ item.name | default('') }} - Run standard DB pre-validations"
           ansible.builtin.include_tasks: "roles/misc/tasks/pre-validations-db.yml"
           tags:                         [pre-validation]
 
-        - name:                         "Pre Validation: Set primary/secondary from cluster status"
+        - name:                         "Pre Validation: {{ item.name | default('') }} - Set primary/secondary from cluster status"
           ansible.builtin.set_fact:
             backup_primary_node:        "{{ cluster_status_pre.primary_node }}"
             backup_secondary_node:      "{{ cluster_status_pre.secondary_node }}"
@@ -45,7 +45,7 @@
             backup_secondary_site_name: "{{ cluster_status_pre.secondary_site_name | default('') }}"
           run_once:                     true
 
-        - name:                         "Pre Validation: Verify secondary node is resolved"
+        - name:                         "Pre Validation: {{ item.name | default('') }} - Verify secondary node is resolved"
           ansible.builtin.assert:
             that:
               - backup_secondary_node | default('') != ''
@@ -54,14 +54,14 @@
               cluster_status_pre.secondary_node was not resolved.
           run_once:                     true
 
-    - name:                             "Pre Validation: Set standalone node facts"
+    - name:                             "Pre Validation: {{ item.name | default('') }} - Set standalone node facts"
       ansible.builtin.set_fact:
         backup_primary_node:            "{{ ansible_hostname }}"
         backup_secondary_node:          ""
       run_once:                         true
       when:                             not (database_high_availability | default(false) | bool)
 
-    - name:                             "Pre Validation: Set pre-validation status"
+    - name:                             "Pre Validation: {{ item.name | default('') }} - Set pre-validation status"
       ansible.builtin.set_fact:
         pre_validations_status:         "{{ 'PASSED' if (
                                             hana_pre_check.rc | default(1) in [0, 3]
@@ -71,27 +71,27 @@
 # /*---------------------------------------------------------------------------
 # |                          Test Execution                                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Test Execution: Recover DB using database commands"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Recover DB Using Database Commands"
   when:
                                         - node_tier == "hana"
                                         - pre_validations_status == "PASSED"
   become:                               true
   tags:                                 [test-execution]
   block:
-    - name:                             "Test Execution: Start timer"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Start timer"
       ansible.builtin.set_fact:
         test_execution_start:           "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
         test_execution_hostname:        "{{ ansible_hostname }}"
       run_once:                         true
 
-    - name:                             "Test Execution: Put cluster in maintenance mode"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Put cluster in maintenance mode"
       when:                             database_high_availability | default(false) | bool
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/includes/cluster-maintenance-on.yml"
 
-    - name:                             "Test Execution: HSR - Teardown replication before recovery"
+    - name:                             "Test Execution: {{ item.name | default('') }} - HSR - Teardown replication before recovery"
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/includes/hsr-teardown.yml"
 
-    - name:                             "Test Execution: Query backup catalog for latest full data backup"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Query backup catalog for latest full data backup"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -109,7 +109,7 @@
       run_once:                         true
       changed_when:                     false
 
-    - name:                             "Test Execution: Extract backup ID from catalog"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Extract backup ID from catalog"
       ansible.builtin.set_fact:
         backup_id_from_catalog:         "{{ backup_catalog_result.stdout
                                             | default('')
@@ -120,7 +120,7 @@
                                         - backup_catalog_result.rc | default(1) == 0
                                         - backup_catalog_result.stdout | default('') | regex_search('[0-9]+') | default('') != ''
 
-    - name:                             "Test Execution: Stop HANA DB for recovery"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Stop HANA DB for recovery"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -134,7 +134,7 @@
       run_once:                         true
       changed_when:                     hana_stop_result.rc == 0
 
-    - name:                             "Test Execution: Recover HANA SYSTEMDB from catalog"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Recover HANA SYSTEMDB from catalog"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -150,7 +150,7 @@
       run_once:                         true
       when:                             backup_catalog_result.rc | default(1) == 0
 
-    - name:                             "Test Execution: Recover HANA using most recent backup"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Recover HANA using most recent backup"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -166,7 +166,7 @@
       run_once:                         true
       when:                             backup_catalog_result.rc | default(1) != 0
 
-    - name:                             "Test Execution: Start HANA DB after recovery"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Start HANA DB after recovery"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -180,12 +180,12 @@
       run_once:                         true
       changed_when:                     hana_start_result.rc == 0
 
-    - name:                             "Test Execution: Wait for SQL connectivity after recovery"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Wait for SQL connectivity after recovery"
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/includes/wait-for-sql.yml"
       vars:
         wait_sql_delegate_to:           "{{ backup_primary_node }}"
 
-    - name:                             "Test Execution: Verify DB consistency post-recovery"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Verify DB consistency post-recovery"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -200,11 +200,11 @@
       run_once:                         true
       changed_when:                     false
 
-    - name:                             "Test Execution: HSR - Re-establish replication"
+    - name:                             "Test Execution: {{ item.name | default('') }} - HSR - Re-establish replication"
       when:                             database_high_availability | default(false) | bool
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/includes/hsr-reestablish.yml"
 
-    - name:                             "Test Execution: Take cluster out of maintenance (standalone)"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Take cluster out of maintenance (standalone)"
       when:
                                         - database_high_availability | default(false) | bool
                                         - cluster_maintenance_off_result is not defined
@@ -220,7 +220,7 @@
       run_once:                         true
       changed_when:                     cluster_maintenance_off_result.rc == 0
 
-    - name:                             "Test Execution: Determine test execution status (HSR)"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Determine test execution status (HSR)"
       when:                             database_high_availability | default(false) | bool
       ansible.builtin.set_fact:
         test_execution_status:          "{{ 'PASSED' if (
@@ -232,7 +232,7 @@
                                           ) else 'FAILED' }}"
       run_once:                         true
 
-    - name:                             "Test Execution: Determine test execution status (standalone)"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Determine test execution status (standalone)"
       when:                             not (database_high_availability | default(false) | bool)
       ansible.builtin.set_fact:
         test_execution_status:          "{{ 'PASSED' if (
@@ -243,12 +243,12 @@
                                           ) else 'FAILED' }}"
       run_once:                         true
 
-    - name:                             "Test Execution: Stop timer"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Stop timer"
       ansible.builtin.set_fact:
         test_execution_end:             "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
       run_once:                         true
 
-    - name:                             "Set test case message and details (standalone)"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details (standalone)"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
           HANA DB recovery ({{ 'Catalog-based' if (backup_catalog_result.rc | default(1) == 0) else 'Most-recent-backup' }}):
@@ -266,7 +266,7 @@
       run_once:                         true
       when:                             not (database_high_availability | default(false) | bool)
 
-    - name:                             "Set test case message and details (HSR)"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details (HSR)"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
           HANA DB recovery (HSR, {{ 'Catalog-based' if (backup_catalog_result.rc | default(1) == 0) else 'Most-recent-backup' }}):
@@ -291,21 +291,21 @@
       run_once:                         true
       when:                             database_high_availability | default(false) | bool
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/post-validations-backup.yml"
       tags:                             [post-validation]
       run_once:                         true
 
   rescue:
-    - name:                             "Rescue operation"
+    - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/rescue-backup.yml"
       tags:                             [cleanup]
       run_once:                         true
 
-- name:                                 "Pre Validations: Test Case Skipped"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Test Case Skipped"
   when:                                 pre_validations_status | default('FAILED') == "FAILED"
   block:
-    - name:                             "Set test case message and details"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_case_message_from_test_case: >-
           Pre Validations for HANA DB recovery failed.
@@ -314,7 +314,7 @@
           hana_pre_check:               "{{ hana_pre_check | default({}) }}"
       run_once:                         true
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/post-validations-backup.yml"
       tags:                             [post-validation]
       run_once:                         true

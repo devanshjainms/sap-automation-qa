@@ -53,7 +53,7 @@ This setup is defined in the Getting Started section of the [High Availability G
 
 - Ansible inventory file (`hosts.yaml`) with the SAP system configuration.
 - SAP system parameters file (`sap-parameters.yaml`).
-- Updated vars.yaml file with the necessary parameters.
+- Updated `vars.yaml` file with the necessary parameters (see [Setup Guide](./SETUP.MD#21-test-environment-configuration)).
 
 ### Step 2: Collect CIB XML Files
 

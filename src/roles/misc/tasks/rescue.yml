@@ -5,16 +5,16 @@
 #                Rescue tasks for the test cases                               #
 ################################################################################
 
-- name:                                 "Read var log messages by importing role"
+- name:                                 "Rescue: {{ test_case_name | default('') }} - Read Log Messages"
   ansible.builtin.include_tasks:        "roles/misc/tasks/var-log-messages.yml"
 
-- name:                                 "Post Validations: HA cluster status after test execution"
+- name:                                 "Rescue: {{ test_case_name | default('') }} - HA Cluster Status"
   block:
-    - name:                             "Validate cluster_status_pre exists"
+    - name:                             "Rescue: {{ test_case_name | default('') }} - Validate Cluster Status"
       ansible.builtin.set_fact:
         cluster_status_pre:             "{{ cluster_status_pre | default({}) }}"
 
-    - name:                             "Set first_node variable"
+    - name:                             "Rescue: {{ test_case_name | default('') }} - Set First Node"
       ansible.builtin.set_fact:
         first_node: >-
           {{
@@ -25,7 +25,7 @@
             )
           }}
 
-    - name:                              "Set second_node variable"
+    - name:                              "Rescue: {{ test_case_name | default('') }} - Set Second Node"
       ansible.builtin.set_fact:
         second_node: >-
           {{
@@ -36,7 +36,7 @@
             )
           }}
 
-    - name:                             "Merge and sort logs from all nodes by timestamp"
+    - name:                             "Rescue: {{ test_case_name | default('') }} - Merge Node Logs"
       delegate_to:                      localhost
       log_parser:
         function:                       "merge_logs"
@@ -46,19 +46,19 @@
       register:                         merged_logs_output
       failed_when:                      false
 
-    - name:                           "Set combined logs variable"
+    - name:                           "Rescue: {{ test_case_name | default('') }} - Set Combined Logs"
       ansible.builtin.set_fact:
         combined_logs:                "{{ (merged_logs_output.filtered_logs | from_json) if (merged_logs_output is defined and merged_logs_output is not failed and merged_logs_output.filtered_logs is defined) else [] }}"
 
   rescue:
-    - name:                             "Log merge failed - continuing with empty logs"
+    - name:                             "Rescue: {{ test_case_name | default('') }} - Log Merge Failed"
       ansible.builtin.set_fact:
         combined_logs:                  []
 
-- name:                                 "Post Validations: Rescue operation set test case status"
+- name:                                 "Rescue: {{ test_case_name | default('') }} - Set Test Case Status"
   delegate_to:                          localhost
   ansible.builtin.set_fact:
-    test_case_name:                     "{{ item.name }}: {{ test_execution_hostname | default(virtual_host | default(inventory_hostname)) }}"
+    test_case_name:                     "{{ item.name | default('') }}: {{ test_execution_hostname | default(virtual_host | default(inventory_hostname)) }}"
     test_case_hostname:                 "{{ virtual_host | default(inventory_hostname) }}"
     test_case_description:              "{{ item.description }}"
     test_case_status:                   "FAILED"
@@ -67,5 +67,5 @@
     test_case_var_log_messages:         "{{ combined_logs | default([]) }}"
     test_execution_end:                 "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
 
-- name:                                 "Clear the failed state of hosts for next test case"
+- name:                                 "Rescue: {{ test_case_name | default('') }} - Clear Host Errors"
   ansible.builtin.meta:                 clear_host_errors

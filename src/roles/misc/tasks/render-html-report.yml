@@ -5,21 +5,21 @@
 #                     Render HTML report from the test results                     #
 ####################################################################################
 
-- name:                                 "Create HTML report and upload it to storage account"
+- name:                                 "Report: Create HTML Report"
   run_once:                             true
   delegate_to:                          localhost
   block:
-    - name:                             "Load HTML jinja2 template"
+    - name:                             "Report: Load HTML Template"
       no_log:                           true
       ansible.builtin.set_fact:
         html_report_template:           "{{ lookup('file', html_template_name | default('./templates/report.html')) }}"
 
-    - name:                             "Get framework version"
+    - name:                             "Report: Get Framework Version"
       no_log:                           true
       ansible.builtin.set_fact:
         framework_version:              "{{ lookup('file', playbook_dir + '/../VERSION', errors='ignore') | default('unknown') }}"
 
-    - name:                             "Resolve execution log path"
+    - name:                             "Report: Resolve Execution Log Path"
       ansible.builtin.set_fact:
         _execution_log_path:            "{{ execution_log_path
                                             | default(
@@ -28,7 +28,7 @@
                                               true)
                                           }}"
 
-    - name:                             "Read the log file and create a HTML report"
+    - name:                             "Report: Render HTML Report"
       render_html_report:
         test_group_invocation_id:       "{{ test_group_invocation_id }}"
         test_group_name:                "{{

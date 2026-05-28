@@ -42,7 +42,7 @@ Follow the steps in the [Setup Guide for SAP Testing Automation Framework](./SET
 
 ### 3. Configure the System for HA Testing
 
-1. Update the `TEST_TYPE` parameter in the `vars.yaml` file to `SAPFunctionalTests` to enable the High Availability test scenarios.
+1. Set the `TEST_TYPE` parameter to `SAPFunctionalTests` in `vars.yaml`.
 2. Follow the steps in the [System Configuration section of the Setup Guide](./SETUP.MD#2-system-configuration) to provide the details of your SAP system.
 
 ### 4. Required Access and Permission (required for Load Balancer)
@@ -67,18 +67,18 @@ Execute the tests using the `sap_automation_qa.sh` script from the `scripts` dir
 ./scripts/sap_automation_qa.sh
 
 # Run specific test cases from HA_DB_HANA group
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config,primary-node-crash]
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --test-cases=[ha-config,primary-node-crash]
 
 # Run specific test cases from HA_SCS group
-./scripts/sap_automation_qa.sh --test_groups=HA_SCS --test_cases=[ha-config]
+./scripts/sap_automation_qa.sh --test-groups=HA_SCS --test-cases=[ha-config]
 
 # Run with verbose output
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[primary-node-crash] -vvv
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --test-cases=[primary-node-crash] -vvv
 ```
 
 ### Scale-Out HSR Configuration
 
-For HANA scale-out HSR deployments, set `database_scale_out: true` in the system configuration (`vars.yaml` or extra variables). This enables:
+For HANA scale-out HSR deployments, set `database_scale_out: true` in the system configuration (extra variables). This enables:
 
 - Scale-out-aware pre-validation (verifies site node lists and majority maker node).
 - Site membership-based failover validation instead of exact node identity checks.
@@ -86,7 +86,7 @@ For HANA scale-out HSR deployments, set `database_scale_out: true` in the system
 
 ```bash
 # Run HA tests for a scale-out HSR deployment
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --extra_vars="database_scale_out=true"
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --extra-vars='database_scale_out=true'
 ```
 
 ## Viewing Test Results

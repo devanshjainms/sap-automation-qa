@@ -4,7 +4,7 @@
 ##########################################################################################
 #                       Tasks for sending telemetry data to the data explorer            #
 ##########################################################################################
-- name:                                 "Create the telemetry JSON object for the test case"
+- name:                                 "Telemetry: {{ test_case_name | default('') }} - Send Telemetry Data"
   failed_when:                          false
   delegate_to:                          localhost
   send_telemetry_data:

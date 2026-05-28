@@ -1,22 +1,22 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-- name:                                 "Test Setup Tasks"
+- name:                                 "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
   ansible.builtin.include_tasks:        "roles/misc/tasks/test-case-setup.yml"
   run_once:                             true
   tags:                                 [pre-validation]
 
-- name:                                 "Pre Validations: HANA DB Nodes"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - HANA DB Nodes"
   ansible.builtin.include_tasks:        "roles/misc/tasks/pre-validations-db.yml"
   tags:                                 [pre-validation]
 
-- name:                                 "Pre Validations: Check if indexserver process is enabled"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Check if indexserver process is enabled"
   become:                               true
   check_indexserver:
     database_sid:                       "{{ db_sid | upper }}"
   register:                             index_server_check
 
-- name:                                 "Pre Validations: Check if indexserver is running on primary workers"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Check if indexserver is running on primary workers"
   become:                               true
   ansible.builtin.shell: >-
     set -o pipefail && pgrep -x hdbindexserver | head -1
@@ -34,7 +34,7 @@
     - index_server_check.indexserver_enabled == "yes"
     - primary_worker_nodes | default([]) | length > 0
 
-- name:                                 "Pre Validations: Select first worker with indexserver running"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Select first worker with indexserver running"
   ansible.builtin.set_fact:
     indexserver_target_worker:           "{{ ((worker_indexserver_results.results | default([])
                                               | selectattr('rc', 'defined')
@@ -43,7 +43,7 @@
                                               | list) or [''])[0] }}"
   when:                                 index_server_check.indexserver_enabled == "yes"
 
-- name:                                 "Test Execution: Primary Worker Crash Index"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Primary Worker Crash Index"
   when:
     - index_server_check.indexserver_enabled == "yes"
     - indexserver_target_worker | default('') != ''
@@ -55,13 +55,13 @@
     hana_test_action_command:           "killall -9 hdbindexserver"
     hana_test_requires_reboot:          true
 
-- name:                                 "Test Execution: Skipped - No indexserver on worker nodes"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Skipped - No indexserver on worker nodes"
   become:                               true
   when:
     - index_server_check.indexserver_enabled == "yes"
     - indexserver_target_worker | default('') == ''
   block:
-    - name:                             "Set test case message and details"
+    - name:                             "Report: {{ item.name | default('') }} - Set test case message and details"
       ansible.builtin.set_fact:
         test_execution_start:           "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
         test_execution_end:             "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
@@ -77,6 +77,6 @@
                                           "Primary worker nodes checked": "{{ primary_worker_nodes | default([]) }}",
                                         }
 
-    - name:                             "Post Validations Tasks"
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
       tags:                             [post-validation]

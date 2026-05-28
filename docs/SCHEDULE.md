@@ -67,7 +67,7 @@ To create a new schedule that runs tests automatically:
 ```bash
 ./scripts/sap_automation_qa.sh schedule create \
   --name "Nightly HA DB tests" --cron "0 2 * * *" \
-  --workspaces DEV-WEEU-SAP01-X00 --test-group HA_DB_HANA
+  --workspaces DEV-WEEU-SAP01-X00 --test-group DatabaseHighAvailability
 ```
 
 The following table describes the available options:
@@ -142,7 +142,8 @@ A job represents a single test execution run against a workspace. When you creat
 To create and start a new test execution job:
 
 ```bash
-./scripts/sap_automation_qa.sh job create --workspace DEV-WEEU-SAP01-X00 --test-group HA_DB_HANA
+./scripts/sap_automation_qa.sh job create --workspace DEV-WEEU-SAP01-X00 --test-group DatabaseHighAvailability
+./scripts/sap_automation_qa.sh job create --workspace DEV-WEEU-SAP01-X00 --test-group AzureBackupDatabase
 ```
 
 The following table describes the available options:
@@ -150,7 +151,7 @@ The following table describes the available options:
 | CLI Flag | Required | Description |
 |----------|:--------:|-------------|
 | `--workspace` | Yes | Must match a directory under `WORKSPACES/SYSTEM/` |
-| `--test-group` | Yes | One of: `CONFIG_CHECKS`, `HA_DB_HANA`, `HA_SCS`, `HA_OFFLINE` |
+| `--test-group` | Yes | One of: `ConfigurationChecks`, `DatabaseHighAvailability`, `CentralServicesHighAvailability`, `AzureBackupDatabase` |
 | `--test-ids` | No | Comma-separated test case IDs. If omitted, all tests in the group are executed |
 
 #### List jobs

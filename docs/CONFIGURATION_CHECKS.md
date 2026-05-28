@@ -46,7 +46,7 @@ Follow the steps (1.1 - 1.5) in [Setup Guide for SAP Testing Automation Framewor
 
 ### 2. System Configuration
 
-Update the `TEST_TYPE` parameter in [`vars.yaml`](./../vars.yaml) file to `ConfigurationChecks` to enable the Configuration Checks test scenarios.
+Update the `TEST_TYPE` parameter to `ConfigurationChecks` in [`vars.yaml`](./../vars.yaml). Unlike SAP functional runs, configuration checks do **not** require `SAP_FUNCTIONAL_TEST_TYPE`; the selector remains optional and is supplied only through `--extra-vars` when you want to limit scope.
 
 Follow the steps (2.1 - 2.2) in [Setup Guide for SAP Testing Automation Framework](./SETUP.MD#2-system-configuration) to configure your system details.
 
@@ -77,16 +77,16 @@ az login --identity --username <client-id-of-user-assigned-managed-identity>
 az account set --subscription <subscription-id>
 ```
 
-To execute the script, run following command:
+To execute the script, run the following commands:
 
 ```bash
 # Help option
 ./scripts/sap_automation_qa.sh --help
 
-# Run all the configuration checks with default parameters
+# Run all configuration checks
 ./scripts/sap_automation_qa.sh
 
-# Run checks with verbose logging
+# Run all configuration checks with verbose logging
 ./scripts/sap_automation_qa.sh -vv
 
 # Run only Database configuration checks (supports both HANA and DB2)
@@ -97,7 +97,23 @@ To execute the script, run following command:
 
 # Run only Application Server configuration checks
 ./scripts/sap_automation_qa.sh --extra-vars='{"configuration_test_type":"ApplicationInstances"}'
+
+# Run with verbose output and scoped to Database checks
+./scripts/sap_automation_qa.sh --extra-vars configuration_test_type=Database -vv
 ```
+
+### Supported `configuration_test_type` selectors
+
+The supported selectors come from `src/vars/input-api.yaml` and are validated before playbook selection:
+
+| Selector | Scope |
+|----------|-------|
+| `all` | Run every supported configuration-check family |
+| `Database` | Database hosts, including HANA, Db2, and HA database validation when enabled |
+| `CentralServiceInstances` | SCS and ERS hosts, including HA SCS validation when enabled |
+| `ApplicationInstances` | Application server and PAS hosts |
+| `WebDispatcherInstances` | Web dispatcher hosts plus the shared application-server execution path used by the current playbook |
+| `ObserverInstances` | Reserved canonical selector in the catalog; the current playbook does not branch observer-only checks yet |
 
 ## Viewing Test Results
 
@@ -118,11 +134,11 @@ After the test execution completes, a detailed HTML report is generated. The rep
    The report file is named using the following format:
 
    ```html
-   all_{DISTRO}_{INVOCATION_ID}.html
+   CONFIG_{SAP_SID}_{DB_TYPE}_{INVOCATION_ID}.html
    ```
 
-   - `DISTRO`: Linux distribution (SLES or RHEL)
-
+   - `SAP_SID`: SAP system identifier from the workspace configuration.
+   - `DB_TYPE`: Database platform such as HANA or DB2.
    - `INVOCATION_ID`: A unique identifier (Group invocation ID) for the test run which is logged at the end of test execution. Find example screenshot below:
 
    ![Test Execution Completion Screenshot](./images/execution_screenshot.png)

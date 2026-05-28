@@ -10,7 +10,7 @@
   name:                                 "Setup deployer for Configuration Checks"
   vars_files:                           "./vars/input-api.yaml"
   tasks:
-    - name:                             "Install python azure packages required"
+    - name:                             "Init: Install Required Python Azure Packages"
       become:                           true
       ansible.builtin.pip:
         name:
@@ -22,9 +22,9 @@
           - azure-storage-blob
           - azure-storage-queue
 
-    - name:                             "Authenticate to Azure using Managed Identity"
+    - name:                             "Init: Authenticate to Azure Using Managed Identity"
       block:
-        - name:                         "Authenticate with --username (az cli >= 2.61)"
+        - name:                         "Init: Authenticate With Username (az cli >= 2.61)"
           ansible.builtin.command:
             cmd:                        >-
                                         az login --identity
@@ -34,7 +34,7 @@
                                         {% endif %}
           changed_when:                  false
       rescue:
-        - name:                         "Authenticate with --client-id (az cli < 2.61)"
+        - name:                         "Init: Authenticate With Client ID (az cli < 2.61)"
           ansible.builtin.command:
             cmd:                        >-
                                         az login --identity
@@ -45,13 +45,13 @@
           changed_when:                  false
 
 
-    - name:                             "Generate test group ID and timestamp"
+    - name:                             "Orchestration: Generate Test Group ID and Timestamp"
       ansible.builtin.set_fact:
         test_group_invocation_id:       "{{ lookup('pipe', 'uuidgen') }}"
         test_group_start_time:          "{{ now(utc=true,fmt='%Y-%m-%d %H:%M:%S') }}"
         configuration_test_type:        "{{ configuration_test_type | default('all') }}"
 
-    - name:                             "Set the test group name"
+    - name:                             "Orchestration: Set Test Group Name"
       ansible.builtin.set_fact:
         test_group_name:                "{{ configuration_test_type_map
                                         | selectattr('name', 'equalto', configuration_test_type)
@@ -69,41 +69,41 @@
   gather_facts:                         true
   vars_files:                           "./vars/input-api.yaml"
   tasks:
-    - name:                             "Enable profile_tasks callback plugin"
+    - name:                             "Init: Enable Profile Tasks Callback Plugin"
       ansible.builtin.set_fact:
         ansible_callbacks:
           profile_tasks:                true
 
-    - name:                             "Set configuration test type if not defined"
+    - name:                             "Orchestration: Set Configuration Test Type"
       ansible.builtin.set_fact:
         configuration_test_type:        "{{ configuration_test_type | default('all') }}"
       run_once:                         true
 
-    - name:                             "Get test group details from control node"
+    - name:                             "Orchestration: Get Test Group Details From Control Node"
       ansible.builtin.set_fact:
         test_group_invocation_id:       "{{ hostvars['localhost'].test_group_invocation_id }}"
         test_group_name:                "{{ hostvars['localhost'].test_group_name }}"
         test_group_start_time:          "{{ hostvars['localhost'].test_group_start_time }}"
         configuration_test_type:        "{{ hostvars['localhost'].configuration_test_type }}"
 
-    - name:                             "Set role from inventory group"
+    - name:                             "Orchestration: Set Role From Inventory Group"
       ansible.builtin.set_fact:
         role:                           "{{ (group_names
                                         | select('match', sap_sid + '_.*')
                                         | map('regex_replace', sap_sid + '_(.*)', '\\1')
                                         | list)[0] | default('UNKNOWN') }}"
 
-    - name:                             "Debug host role assignment"
+    - name:                             "Report: Debug Host Role Assignment"
       ansible.builtin.debug:
         msg:                            "Host {{ inventory_hostname }} assigned role: {{ role }} from groups: {{ group_names }}"
 
-    - name:                             "Load supported VM information"
+    - name:                             "Orchestration: Load Supported VM Information"
       no_log:                           true
       ansible.builtin.include_vars:
         file:                           "./roles/configuration_checks/vars/vm-support.yml"
         name:                           vm_support
 
-    - name:                             "Run common VM information checks on all hosts"
+    - name:                             "Orchestration: Run Common VM Information Checks"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
       loop:
@@ -134,7 +134,7 @@
       loop_control:
         loop_var:                       check_type
 
-    - name:                             "Run role-specific checks for HANA DB hosts"
+    - name:                             "Orchestration: Run HANA DB Checks"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
       vars:
@@ -149,7 +149,7 @@
                                         (configuration_test_type == 'all' or
                                           configuration_test_type == 'Database')
 
-    - name:                             "Debug HANA checks execution"
+    - name:                             "Report: Debug HANA Checks Execution"
       ansible.builtin.debug:
         msg:                            "Executing Database (HANA) checks on host {{ inventory_hostname }}"
       when:                             >-
@@ -158,7 +158,7 @@
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'Database')
 
-    - name:                             "Run role-specific checks for Db2 DB hosts"
+    - name:                             "Orchestration: Run Db2 DB Checks"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
       vars:
@@ -173,7 +173,7 @@
                                         (configuration_test_type == 'all' or
                                           configuration_test_type == 'Database')
 
-    - name:                             "Debug Db2 checks execution"
+    - name:                             "Report: Debug Db2 Checks Execution"
       ansible.builtin.debug:
         msg:                            "Executing Database (Db2) checks on host {{ inventory_hostname }}"
       when:                             >-
@@ -182,7 +182,7 @@
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'Database')
 
-    - name:                             "Run HA configuration checks for HANA DB hosts"
+    - name:                             "Orchestration: Run HANA DB HA Configuration Checks"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
       vars:
@@ -197,7 +197,7 @@
                                         - database_high_availability | default(false) | bool
                                         - (configuration_test_type == 'all' or configuration_test_type == 'Database')
 
-    - name:                             "Run role-specific checks for ASCS/SCS hosts"
+    - name:                             "Orchestration: Run ASCS/SCS Checks"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
       vars:
@@ -211,7 +211,7 @@
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'CentralServiceInstances')
 
-    - name:                             "Debug ASCS/SCS checks execution"
+    - name:                             "Report: Debug ASCS/SCS Checks Execution"
       ansible.builtin.debug:
         msg:                            "Executing ASCS/SCS checks on host {{ inventory_hostname }}"
       when:                             >-
@@ -219,7 +219,7 @@
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'CentralServiceInstances')
 
-    - name:                             "Run HA configuration checks for SCS/ERS hosts"
+    - name:                             "Orchestration: Run SCS/ERS HA Configuration Checks"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
       vars:
@@ -234,7 +234,7 @@
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'CentralServiceInstances')
 
-    - name:                             "Run role-specific checks for Application Server hosts"
+    - name:                             "Orchestration: Run Application Server Checks"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
       vars:
@@ -249,7 +249,7 @@
                                          configuration_test_type == 'ApplicationInstances' or
                                          configuration_test_type == 'WebDispatcherInstances')
 
-    - name:                             "Debug Application Server checks execution"
+    - name:                             "Report: Debug Application Server Checks Execution"
       ansible.builtin.debug:
         msg:                            "Executing Application Server checks on host {{ inventory_hostname }}"
       when:                             >-
@@ -263,16 +263,16 @@
   gather_facts:                         false
   vars_files:                           "./vars/input-api.yaml"
   tasks:
-    - name:                             "Set workspace directory if not defined"
+    - name:                             "Orchestration: Set Workspace Directory"
       ansible.builtin.set_fact:
         _workspace_directory:           "{{ _workspace_directory | default('/tmp/sap_automation_qa') }}"
 
-    - name:                             "Collect all configuration check results"
+    - name:                             "Report: Collect All Configuration Check Results"
       ansible.builtin.set_fact:
         all_results:                    []
         execution_metadata:             []
 
-    - name:                             "Collect common check results"
+    - name:                             "Report: Collect Common Check Results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].vm_info_results
                                             | default([]) }}"
@@ -289,7 +289,7 @@
                                         groups[sap_sid | upper + '_PAS']|default([])) | unique }}"
       when:                             hostvars[item].vm_info_results is defined
 
-    - name:                             "Collect package info check results"
+    - name:                             "Report: Collect Package Info Check Results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].package_info_results
                                             | default([]) }}"
@@ -306,7 +306,7 @@
                                           groups[sap_sid | upper + '_PAS']|default([])) | unique }}"
       when:                             hostvars[item].package_info_results is defined
 
-    - name:                             "Collect common SAP check results"
+    - name:                             "Report: Collect Common SAP Check Results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].common_sap_results
                                             | default([]) }}"
@@ -323,7 +323,7 @@
                                           groups[sap_sid | upper + '_PAS']|default([])) | unique }}"
       when:                             hostvars[item].common_sap_results is defined
 
-    - name:                             "Collect networking check results"
+    - name:                             "Report: Collect Networking Check Results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].networking_results
                                             | default([]) }}"
@@ -340,7 +340,7 @@
                                           groups[sap_sid | upper + '_PAS']|default([])) | unique }}"
       when:                             hostvars[item].networking_results is defined
 
-    - name:                             "Collect DB (HANA) check results"
+    - name:                             "Report: Collect DB (HANA) Check Results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].db_hana_results
                                             | default([]) }}"
@@ -352,7 +352,7 @@
       loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].db_hana_results is defined
 
-    - name:                             "Collect DB (Db2) check results"
+    - name:                             "Report: Collect DB (Db2) Check Results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].db_db2_results
                                             | default([]) }}"
@@ -364,7 +364,7 @@
       loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].db_db2_results is defined
 
-    - name:                             "Collect DB HA configuration check results"
+    - name:                             "Report: Collect DB HA Configuration Check Results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].db_ha_config_results
                                             | default([]) }}"
@@ -376,7 +376,7 @@
       loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].db_ha_config_results is defined
 
-    - name:                             "Collect ASCS/SCS check results"
+    - name:                             "Report: Collect ASCS/SCS Check Results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].ascs_scs_results
                                             | default([]) }}"
@@ -389,7 +389,7 @@
                                           groups[sap_sid | upper + '_ERS']|default([])) | unique }}"
       when:                             hostvars[item].ascs_scs_results is defined
 
-    - name:                             "Collect SCS/ERS HA configuration check results"
+    - name:                             "Report: Collect SCS/ERS HA Configuration Check Results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].scs_ha_config_results
                                             | default([]) }}"
@@ -402,7 +402,7 @@
                                           groups[sap_sid | upper + '_ERS']|default([])) | unique }}"
       when:                             hostvars[item].scs_ha_config_results is defined
 
-    - name:                             "Collect Application Server check results"
+    - name:                             "Report: Collect Application Server Check Results"
       ansible.builtin.set_fact:
         all_results:                    "{{ all_results + hostvars[item].app_server_results
                                             | default([]) }}"
@@ -416,12 +416,12 @@
                                           groups[sap_sid | upper + '_WEB']|default([])) | unique }}"
       when:                             hostvars[item].app_server_results is defined
 
-    - name:                             "Debug execution metadata"
+    - name:                             "Report: Debug Execution Metadata"
       ansible.builtin.debug:
         msg:                            "Configuration checks completed. Check types executed: {{ execution_metadata | map(attribute='check_type') | unique | list }}"
       run_once:                         true
 
-    - name:                             "Set the summary"
+    - name:                             "Report: Set Result Summary"
       ansible.builtin.set_fact:
         passed_count:                   "{{ all_results | selectattr('status', 'equalto', 'PASSED') | list | length }}"
         error_count:                    "{{ all_results | selectattr('status', 'equalto', 'FAILED') | list | length }}"
@@ -430,7 +430,7 @@
         config_check_types:             "{{ all_results | map(attribute='check.category') | unique | list }}"
 
 
-    - name:                             "Collect system information for report"
+    - name:                             "Report: Collect System Information"
       ansible.builtin.set_fact:
         system_info:
           sap_sid:                      "{{ sap_sid | upper }}"
@@ -449,23 +449,23 @@
           info_count:                   "{{ all_results | selectattr('status', 'equalto', 'INFO') | list | length }}"
           config_check_types:           "{{ all_results | map(attribute='check.category') | unique | list }}"
 
-    - name:                            "Render HTML report for configuration checks"
+    - name:                            "Report: Render HTML Report"
       ansible.builtin.include_tasks:   "./roles/misc/tasks/render-html-report.yml"
       no_log:                           true
       vars:
         html_template_name:            "./templates/config_checks_report.html"
         report_file_name:              "CONFIG_{{ sap_sid | upper }}_{{ platform | upper }}"
 
-    - name:                             "Debug the file name of the report generated"
+    - name:                             "Report: Debug Report File Name"
       ansible.builtin.debug:
         msg:                            "Report file CONFIG_{{ sap_sid | upper }}_{{ platform | upper }}_{{ test_group_invocation_id }} generated."
 
-    - name:                             "Debug system_context map building"
+    - name:                             "Report: Debug System Context Map"
       ansible.builtin.debug:
         msg:                            "Building system context map for hosts: {{ all_results | map(attribute='hostname') | unique | list }}"
       run_once:                         true
 
-    - name:                             "Build system context map for all hosts"
+    - name:                             "Report: Build System Context Map"
       ansible.builtin.set_fact:
         _system_context_map:            "{{ _system_context_map | default({}) | combine({item: hostvars[item].system_context | default({})}) }}"
       loop:                             "{{ all_results | map(attribute='hostname') | unique | list }}"
@@ -473,7 +473,7 @@
         label:                          "{{ item }}"
       when:                             item in hostvars
 
-    - name:                             "Send check results to Python for batch telemetry processing"
+    - name:                             "Telemetry: Send Check Results"
       no_log:                           true
       when:                             all_results is defined and all_results | length > 0
       ansible.builtin.include_role:

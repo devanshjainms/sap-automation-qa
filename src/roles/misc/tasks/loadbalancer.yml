@@ -4,17 +4,17 @@
 # /*---------------------------------------------------------------------------
 # |                          Azure Load Balancer Validation                   |
 # +--------------------------------------------------------------------------*/
-- name:                                 "Azure LB Validation"
+- name:                                 "Test Execution: {{ item.name | default('') }} - Azure LB Validation"
   run_once:                             true
   block:
-    - name:                             "Test Setup Tasks"
+    - name:                             "Test Setup: {{ item.name | default('') }} - Initialize Test Case"
       ansible.builtin.include_tasks:    "roles/misc/tasks/test-case-setup.yml"
       tags:                             [pre-validation]
 
-    - name:                             "Pre Validations: Validate the Azure Load Balancer config"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Validate Azure Load Balancer Config"
       become:                           true
       block:
-        - name:                         "Retrieve Subscription ID and Resource Group Name"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Retrieve Azure Instance Metadata"
           ansible.builtin.uri:
             url:                        http://169.254.169.254/metadata/instance?api-version=2021-02-01
             use_proxy:                  false
@@ -22,7 +22,7 @@
               Metadata:                 true
           register:                     azure_instance_metadata
 
-        - name:                         "Get the Azure Load Balancer IP"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Get Azure Load Balancer IP"
           ansible.builtin.uri:
             url:                        http://169.254.169.254:80/metadata/loadbalancer?api-version=2020-10-01
             use_proxy:                  false
@@ -30,7 +30,7 @@
               Metadata:                 true
           register:                     azure_loadbalancer_metadata
 
-        - name:                         "Azure Load Balancer check for the DB nodes"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Check Azure Load Balancer"
           delegate_to:                  localhost
           get_azure_lb:
             subscription_id:            "{{ azure_instance_metadata.json.compute.subscriptionId }}"
@@ -40,23 +40,23 @@
             msi_client_id:              "{{ user_assigned_identity_client_id | default('') }}"
           register:                     test_result
 
-        - name:                         "Set the test case status"
+        - name:                         "Post Validation: {{ item.name | default('') }} - Set Test Case Status"
           ansible.builtin.set_fact:
-            test_case_name:             "{{ item.name }}: {{ virtual_host }}"
+            test_case_name:             "{{ item.name | default('') }}: {{ virtual_host }}"
             test_case_message:          "{{ test_result.message }}"
             test_case_details:          "{{ test_result.details }}"
             test_case_hostname:         "{{ virtual_host }}"
             test_case_status:           "{{ test_result.status }}"
 
       rescue:
-        - name:                         "Test case failed"
+        - name:                         "Rescue: {{ item.name | default('') }} - Set Test Case Failure"
           ansible.builtin.set_fact:
-              test_case_name:           "{{ item.name }}: {{ virtual_host }}"
+              test_case_name:           "{{ item.name | default('') }}: {{ virtual_host }}"
               test_case_status:         "FAILED"
               test_case_details:        "{{ test_result }}"
               test_case_message:        "{{ ansible_failed_result }}"
               test_case_hostname:       "{{ virtual_host }}"
 
-    - name:                             "Post Telemetry Data"
+    - name:                             "Telemetry: {{ item.name | default('') }} - Send Telemetry Data"
       ansible.builtin.include_tasks:    "roles/misc/tasks/post-telemetry-data.yml"
       tags:                             [telemetry]

@@ -5,10 +5,10 @@
 #         Rescue tasks for Azure Backup test cases                             #
 ################################################################################
 
-- name:                                 "Post Validations: Rescue operation set test case status"
+- name:                                 "Post Validation: {{ item.name | default('') }} - Set Test Case Status"
   delegate_to:                          localhost
   ansible.builtin.set_fact:
-    test_case_name:                     "{{ item.name }}: {{ test_execution_hostname | default(ansible_hostname) }}"
+    test_case_name:                     "{{ item.name | default('') }}: {{ test_execution_hostname | default(ansible_hostname) }}"
     test_case_hostname:                 "{{ test_execution_hostname | default(ansible_hostname) }}"
     test_case_description:              "{{ item.description }}"
     test_case_status:                   "FAILED"
@@ -16,7 +16,7 @@
     test_case_details:                  "{{ ansible_failed_result | default('No error details available') }}"
     test_case_var_log_messages:         []
 
-- name:                                 "Rescue: Start HANA DB on primary"
+- name:                                 "Rescue: {{ item.name | default('') }} - Start HANA DB on primary"
   become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
@@ -30,10 +30,10 @@
   changed_when:                         false
   failed_when:                          false
 
-- name:                                 "Rescue: HSR - Re-establish replication"
+- name:                                 "Rescue: {{ item.name | default('') }} - HSR - Re-establish replication"
   when:                                 database_high_availability | default(false) | bool
   block:
-    - name:                             "Rescue: HSR - Debug cluster_status_pre site names"
+    - name:                             "Rescue: {{ item.name | default('') }} - HSR - Debug cluster_status_pre site names"
       ansible.builtin.debug:
         msg: >-
           Rescue HSR re-establish: primary_site={{ cluster_status_pre.primary_site_name | default('UNSET') }},
@@ -42,7 +42,7 @@
           secondary_node={{ backup_secondary_node | default('UNSET') }}
       run_once:                         true
 
-    - name:                             "Rescue: HSR - Stop HANA on secondary"
+    - name:                             "Rescue: {{ item.name | default('') }} - HSR - Stop HANA on secondary"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -56,7 +56,7 @@
       failed_when:                      false
       when:                             backup_secondary_node | default('') != ''
 
-    - name:                             "Rescue: HSR - Unregister secondary (clear stale state)"
+    - name:                             "Rescue: {{ item.name | default('') }} - HSR - Unregister secondary (clear stale state)"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -70,7 +70,7 @@
       failed_when:                      false
       when:                             backup_secondary_node | default('') != ''
 
-    - name:                             "Rescue: HSR - Enable replication on primary"
+    - name:                             "Rescue: {{ item.name | default('') }} - HSR - Enable replication on primary"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -83,7 +83,7 @@
       run_once:                         true
       failed_when:                      false
 
-    - name:                             "Rescue: HSR - Register secondary for replication"
+    - name:                             "Rescue: {{ item.name | default('') }} - HSR - Register secondary for replication"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -103,7 +103,7 @@
       failed_when:                      false
       when:                             backup_secondary_node | default('') != ''
 
-    - name:                             "Rescue: HSR - Debug sr_register result"
+    - name:                             "Rescue: {{ item.name | default('') }} - HSR - Debug sr_register result"
       ansible.builtin.debug:
         msg: >-
           sr_register rc={{ rescue_hsr_register_result.rc | default('N/A') }},
@@ -112,7 +112,7 @@
       run_once:                         true
       when:                             rescue_hsr_register_result is defined
 
-    - name:                             "Rescue: HSR - Start HANA on secondary after registration"
+    - name:                             "Rescue: {{ item.name | default('') }} - HSR - Start HANA on secondary after registration"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -126,7 +126,7 @@
       failed_when:                      false
       when:                             backup_secondary_node | default('') != ''
 
-    - name:                             "Rescue: HSR - Validate replication state on secondary"
+    - name:                             "Rescue: {{ item.name | default('') }} - HSR - Validate replication state on secondary"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
@@ -142,13 +142,13 @@
       failed_when:                      false
       when:                             backup_secondary_node | default('') != ''
 
-    - name:                             "Rescue: HSR - Debug sr_state result"
+    - name:                             "Rescue: {{ item.name | default('') }} - HSR - Debug sr_state result"
       ansible.builtin.debug:
         msg: "{{ rescue_hsr_state_result.stdout_lines | default(['sr_state not available']) }}"
       run_once:                         true
       when:                             rescue_hsr_state_result is defined
 
-- name:                                 "Rescue: Take cluster out of maintenance mode"
+- name:                                 "Rescue: {{ item.name | default('') }} - Take cluster out of maintenance mode"
   when:                                 database_high_availability | default(false) | bool
   become:                               true
   ansible.builtin.shell: >-
@@ -163,7 +163,7 @@
   changed_when:                         false
   failed_when:                          false
 
-- name:                                 "Rescue: Cleanup pacemaker resources"
+- name:                                 "Rescue: {{ item.name | default('') }} - Cleanup pacemaker resources"
   when:                                 database_high_availability | default(false) | bool
   become:                               true
   ansible.builtin.command:              crm_resource --cleanup
@@ -171,7 +171,7 @@
   changed_when:                         false
   failed_when:                          false
 
-- name:                                 "Rescue: Wait for cluster to stabilize"
+- name:                                 "Rescue: {{ item.name | default('') }} - Wait for cluster to stabilize"
   when:                                 database_high_availability | default(false) | bool
   become:                               true
   get_cluster_status_db:
@@ -190,10 +190,10 @@
   run_once:                             true
   failed_when:                          false
 
-- name:                                 "Post Telemetry Data"
+- name:                                 "Telemetry: {{ item.name | default('') }} - Send Telemetry Data"
   ansible.builtin.include_tasks:        "roles/misc/tasks/post-telemetry-data.yml"
   tags:                                 [telemetry]
   run_once:                             true
 
-- name:                                 "Clear the failed state of hosts for next test case"
+- name:                                 "Rescue: {{ item.name | default('') }} - Clear the failed state of hosts for next test case"
   ansible.builtin.meta:                 clear_host_errors

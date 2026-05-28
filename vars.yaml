@@ -2,7 +2,8 @@
 #           DONOT PUSH THIS FILE TO GitHub                    #
 ###############################################################
 
-# Input parameters for executing the SAP Functional Tests:
+# Input parameters for executing the SAP Functional Tests.
+
 # SAP Functional Test Type
 # Options: SAPFunctionalTests, ConfigurationChecks
 TEST_TYPE:                  SAPFunctionalTests
