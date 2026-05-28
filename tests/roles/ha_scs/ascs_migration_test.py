@@ -123,12 +123,12 @@ class TestASCSMigration(RolesTestingBaseSCS):
             task = event.get("event_data", {}).get("task")
             if task and "Migrate ASCS resource" in task:
                 migrate_executed = True
-            elif task and "Test Execution: Validate SCS" in task:
+            elif task and "Test Execution:" in task and "Validate SCS" in task:
                 validate_executed = True
                 post_status = event.get("event_data", {}).get("res")
             elif task and "Cleanup resources" in task:
                 cleanup_executed = True
-            elif task and "Pre Validation: Validate SCS" in task:
+            elif task and "Pre Validation:" in task and "Validate SCS" in task:
                 pre_status = event.get("event_data", {}).get("res")
             elif task and "Remove location constraints" in task:
                 unmigrate_executed = True

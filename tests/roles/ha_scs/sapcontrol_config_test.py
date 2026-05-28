@@ -134,9 +134,9 @@ class TestSAPControlConfig(RolesTestingBaseSCS):
             print(task)
             if task and "Run sapcontrol commands" in task:
                 sapcontrol_executed = True
-            elif task and "Test Execution: Validate sapcontrol commands" in task:
+            elif task and "Test Execution:" in task and "Validate sapcontrol commands" in task:
                 test_fact_set = True
-            elif task and "Pre Validation: Validate SCS" in task:
+            elif task and "Pre Validation:" in task and "Validate SCS" in task:
                 pre_validate_executed = True
 
         assert sapcontrol_executed, "SAPControl commands were not executed"

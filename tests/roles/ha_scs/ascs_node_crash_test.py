@@ -109,12 +109,12 @@ class TestASCSNodeCrash(RolesTestingBaseSCS):
             task = event.get("event_data", {}).get("task")
             if task and "Echo B to /proc/sysrq-trigger" in task:
                 node_crash_executed = True
-            elif task and "Test Execution: Validate SCS" in task:
+            elif task and "Test Execution:" in task and "Validate SCS" in task:
                 validate_executed = True
                 post_status = event.get("event_data", {}).get("res")
             elif task and "Cleanup resources" in task:
                 cleanup_executed = True
-            elif task and "Pre Validation: Validate SCS" in task:
+            elif task and "Pre Validation:" in task and "Validate SCS" in task:
                 pre_status = event.get("event_data", {}).get("res")
 
         assert post_status.get("ascs_node") == pre_status.get("ers_node")

@@ -243,11 +243,11 @@
       ansible.builtin.set_fact:
         test_case_message_from_test_case:   "Pre Validations for HANA DB cluster status checks failed. Please check the details."
         test_case_details_from_test_case:   {
-                                            "Pre Validations: Remove any location_constraints": "{{ location_constraints_results }}",
-                                            "Pre Validations: Validate HANA DB cluster status": "{{ cluster_status_pre }}",
+                                            "Pre Validations: Remove any location_constraints": "{{ location_constraints_results | default('Not Executed') }}",
+                                            "Pre Validations: Validate HANA DB cluster status": "{{ cluster_status_pre | default('Not Executed') }}",
                                             "Pre Validations: priority-fencing-delay": "{{ cluster_status_pre.PRIORITY_FENCING_DELAY | default('Not Configured') }}",
                                             "Pre Validations: CleanUp any failed resource": "{{ cleanup_failed_resource_pre | default('Not Executed') }}",
-                                            "Cluster Status": "{{ cluster_status_pre }}",
+                                            "Cluster Status": "{{ cluster_status_pre | default('Not Executed') }}",
                                             }
 
     - name:                                 "Post Validation: {{ item.name | default('') }} - Validate Results"

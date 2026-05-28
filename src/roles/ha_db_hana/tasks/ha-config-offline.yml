@@ -38,7 +38,7 @@
     msg:                                "No hosts found for Database layer, validation not run"
   when:                                 db_cib_files | default([]) | length == 0
 
-- name:                                 "Test Execution: {{ item.name | default('') }} - Process HA Configuration for each DB host"
+- name:                                 "Pre Validation: {{ item.name | default('') }} - Process HA Configuration for each DB host"
   ansible.builtin.include_tasks:        "./roles/misc/tasks/offline-validation.yml"
   tags:                                 [pre-validation]
   loop:                                 "{{ db_cib_files | default([]) }}"
