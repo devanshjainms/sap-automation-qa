@@ -157,7 +157,7 @@ curl http://localhost:8000/healthz
 
 ## Configuration: vars.yaml
 
-Create `vars.yaml` at the project root:
+Create `vars.yaml` at the project root. All values can be overridden at runtime using CLI flags (e.g., `--test-type`, `--system-config`, `--auth-type`).
 
 ```yaml
 # --- Required fields ---
@@ -300,7 +300,7 @@ WORKSPACES/
 docker logs -f sap-automation-qa
 
 # Direct mode — capture output to file
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA 2>&1 | tee run.log
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA 2>&1 | tee run.log
 ```
 
 ## Output Format

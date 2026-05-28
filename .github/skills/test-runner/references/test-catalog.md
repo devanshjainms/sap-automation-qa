@@ -82,7 +82,7 @@ API name: `AzureBackupDatabase`
 
 ## ConfigurationChecks
 
-API name: `ConfigurationChecks` (set `TEST_TYPE=ConfigurationChecks` in vars.yaml)
+API name: `ConfigurationChecks` (use `--test-type=ConfigurationChecks` CLI flag or set `TEST_TYPE=ConfigurationChecks` in vars.yaml)
 
 | Type | Description |
 |------|-------------|
@@ -95,8 +95,8 @@ API name: `ConfigurationChecks` (set `TEST_TYPE=ConfigurationChecks` in vars.yam
 
 **Direct execution:**
 ```bash
-./scripts/sap_automation_qa.sh --extra-vars='{"configuration_test_type":"all"}'
-./scripts/sap_automation_qa.sh --extra-vars='{"configuration_test_type":"Database"}'
+./scripts/sap_automation_qa.sh --test-type=ConfigurationChecks --system-config=DEV-WEEU-SAP01-X00 --auth-type=SSHKEY
+./scripts/sap_automation_qa.sh --test-type=ConfigurationChecks --system-config=DEV-WEEU-SAP01-X00 --extra-vars='{"configuration_test_type":"Database"}'
 ```
 
 ---
@@ -105,16 +105,16 @@ API name: `ConfigurationChecks` (set `TEST_TYPE=ConfigurationChecks` in vars.yam
 
 ```bash
 # Single test
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config]
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --test-cases=[ha-config]
 
 # Multiple tests
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config,azure-lb,resource-migration]
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --test-cases=[ha-config,azure-lb,resource-migration]
 
 # All tests in group
-./scripts/sap_automation_qa.sh --test_groups=HA_SCS
+./scripts/sap_automation_qa.sh --test-groups=HA_SCS
 
 # Offline-only (safe, no cluster changes)
-./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config-offline] --offline
+./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --test-cases=[ha-config-offline] --offline
 
 # API mode
 ./scripts/sap_automation_qa.sh job create --workspace DEV-WEEU-SAP01-X00 --test-group DatabaseHighAvailability --test-ids ha-config,azure-lb

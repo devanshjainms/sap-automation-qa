@@ -174,7 +174,7 @@ host2 : ok=43 changed=2 unreachable=0 failed=1 skipped=14 rescued=0 ignored=0
 2. Important: {fix this next}
 
 ### Re-Run Command
-./scripts/sap_automation_qa.sh --test_groups={group} --test_cases=[{failed-tests}]
+./scripts/sap_automation_qa.sh --test-groups={group} --test-cases=[{failed-tests}]
 ```
 
 ## Failure Classification

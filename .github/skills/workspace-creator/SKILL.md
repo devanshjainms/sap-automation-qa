@@ -171,7 +171,7 @@ Files created:
 
 Next steps:
   1. Validate: python3 .github/skills/workspace-validator/scripts/validate_workspace.py WORKSPACES/SYSTEM/DEV-WEEU-SAP01-X00
-  2. Run tests: ./scripts/sap_automation_qa.sh --test_groups=HA_DB_HANA --test_cases=[ha-config]
+  2. Run tests: ./scripts/sap_automation_qa.sh --test-groups=HA_DB_HANA --test-cases=[ha-config]
 ```
 
 ## Error Handling
