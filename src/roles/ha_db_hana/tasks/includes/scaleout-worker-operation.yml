@@ -37,7 +37,7 @@
 
     - name:                             "Test Execution: {{ item.name | default('') }} - Validate worker operation cluster status"
       block:
-        - name:                         "Test Execution: {{ item.name | default('') }} - Wait for the cluster to be in a stable state"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Wait for cluster to detect worker node failure"
           ansible.builtin.wait_for:
             timeout:                    "{{ default_timeout }}"
 

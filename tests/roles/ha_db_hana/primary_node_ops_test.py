@@ -49,21 +49,21 @@ class TestDbHDBOperations(RolesTestingBaseDB):
                 "task_name": task_name,
                 "command_task": "Stop the HANA DB",
                 "command_type": "stop",
-                "validate_task": "Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
         elif task_name == "primary-node-kill":
             return {
                 "task_name": task_name,
                 "command_task": "Kill the HANA DB",
                 "command_type": "kill-9",
-                "validate_task": "Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
         elif task_name == "primary-echo-b":
             return {
                 "task_name": task_name,
                 "command_task": "Echo b",
                 "command_type": "echo b",
-                "validate_task": "Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
         elif task_name == "primary-crash-index":
             return {
@@ -77,12 +77,12 @@ class TestDbHDBOperations(RolesTestingBaseDB):
                 "task_name": task_name,
                 "command_task": "Kill the inquisitor process",
                 "command_type": "kill",
-                "validate_task": "Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post fencing)",
             }
         elif task_name == "fs-freeze":
             return {
                 "task_name": task_name,
-                "validate_task": "Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
                 "command_task": "dummy (no command)",
             }
 
@@ -230,7 +230,7 @@ class TestDbHDBOperations(RolesTestingBaseDB):
                     assert task_result.get("rc") == 0
             elif (
                 task
-                and "Validate HANA DB cluster status 1" in task
+                and "Validate HANA DB cluster status (failover)" in task
                 and task_type["task_name"] == "primary-node-crash"
             ):
                 if event.get("event") == "runner_on_ok":

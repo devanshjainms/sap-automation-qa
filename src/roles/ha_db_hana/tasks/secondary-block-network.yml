@@ -46,7 +46,7 @@
         loop_var:                           secondary_node
       ignore_unreachable:                   true
 
-    - name:                                 "Test Execution: {{ item.name | default('') }} - Wait for the cluster to be in a stable state"
+    - name:                                 "Test Execution: {{ item.name | default('') }} - Wait for cluster to detect secondary network disruption"
       ansible.builtin.wait_for:
         timeout:                            "{{ default_timeout }}"
 

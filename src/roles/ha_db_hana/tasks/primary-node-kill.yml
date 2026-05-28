@@ -43,7 +43,7 @@
           changed_when:                 hana_db_kill_results.rc == 0
           failed_when:                  hana_db_kill_results.rc != 0
 
-        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status 1"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (failover)"
           when:                         cluster_status_pre.AUTOMATED_REGISTER == "true"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
@@ -130,7 +130,7 @@
           changed_when:                 cleanup_failed_resource_post.rc == 0
           ignore_errors:                true
 
-        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status 2"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (post recovery)"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "post_failover"

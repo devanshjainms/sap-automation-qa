@@ -39,21 +39,21 @@ class TestDbSecondaryHDBOperations(RolesTestingBaseDB):
                 "task_name": task_name,
                 "command_task": "Kill the HANA DB",
                 "command_type": "kill-9",
-                "validate_task": "Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
         elif task_name == "secondary-echo-b":
             return {
                 "task_name": task_name,
                 "command_task": "Echo b",
                 "command_type": "echo b",
-                "validate_task": "Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
         elif task_name == "secondary-crash-index":
             return {
                 "task_name": task_name,
                 "command_task": "Crash the index server",
                 "command_type": "killall",
-                "validate_task": "Validate HANA DB cluster status 2",
+                "validate_task": "Validate HANA DB cluster status (post recovery)",
             }
 
     @pytest.fixture

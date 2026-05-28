@@ -52,10 +52,9 @@
           register:                     block_network_result
           changed_when:                 true
 
-        - name:                         "Test Execution: {{ item.name | default('') }} - Wait for the cluster to be in a stable state"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Wait for cluster to detect network disruption"
           ansible.builtin.wait_for:
             timeout:                    "{{ default_timeout }}"
-
 
     - name:                             "Test Execution: {{ item.name | default('') }} - Check node status on primary and secondary"
       tags:                             [test-execution]
@@ -124,7 +123,7 @@
       become:                           true
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: {{ item.name | default('') }} - Wait for the cluster to be in a stable state"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Wait for cluster to recover after network restore"
           ansible.builtin.wait_for:
             timeout:                    "{{ ascs_stonith_timeout }}"
 

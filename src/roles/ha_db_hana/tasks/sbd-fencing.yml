@@ -88,7 +88,7 @@
       when:                             ansible_hostname == cluster_status_pre.primary_node
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status 2"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (post fencing)"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "test_execution"

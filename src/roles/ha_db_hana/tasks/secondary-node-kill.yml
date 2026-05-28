@@ -75,7 +75,7 @@
                                            cluster_status_test_execution.secondary_node == "")
                                         )
 
-        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status 2"
+        - name:                         "Test Execution: {{ item.name | default('') }} - Validate HANA DB cluster status (post recovery)"
           get_cluster_status_db:
             db_instance_number:         "{{ db_instance_number }}"
             operation_step:             "test_execution"
