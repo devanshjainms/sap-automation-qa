@@ -308,6 +308,118 @@ ha_dr_saphanasr = info
 ha_dr_chksrv = info
 """
 
+DUMMY_XML_RHEL_ANGI_RESOURCES = """<resources>
+  <primitive id="rsc_st_azure" class="stonith" type="fence_azure_arm">
+    <instance_attributes>
+      <nvpair name="msi" value="true"/>
+    </instance_attributes>
+  </primitive>
+  <clone id="cln_SAPHanaTopology_HDB_HDB00">
+    <meta_attributes id="cln_SAPHanaTopology_HDB_HDB00-meta_attributes">
+      <nvpair name="clone-max" value="2"/>
+      <nvpair name="clone-node-max" value="1"/>
+      <nvpair name="interleave" value="true"/>
+    </meta_attributes>
+    <primitive id="rsc_SAPHanaTopology_HDB_HDB00" class="ocf" provider="heartbeat" type="SAPHanaTopology">
+      <instance_attributes>
+        <nvpair name="SID" value="HDB"/>
+        <nvpair name="InstanceNumber" value="00"/>
+      </instance_attributes>
+      <operations>
+        <op name="monitor" interval="30" timeout="300"/>
+        <op name="start" interval="0" timeout="600"/>
+        <op name="stop" interval="0" timeout="300"/>
+      </operations>
+    </primitive>
+  </clone>
+  <clone id="cln_SAPHanaController_HDB_HDB00">
+    <meta_attributes id="cln_SAPHanaController_HDB_HDB00-meta_attributes">
+      <nvpair name="clone-max" value="2"/>
+      <nvpair name="clone-node-max" value="1"/>
+      <nvpair name="interleave" value="true"/>
+      <nvpair name="promotable" value="true"/>
+    </meta_attributes>
+    <primitive id="rsc_SAPHanaController_HDB_HDB00" class="ocf" provider="heartbeat" type="SAPHanaController">
+      <instance_attributes id="rsc_SAPHanaController_HDB_HDB00-instance_attributes">
+        <nvpair name="SID" value="HDB"/>
+        <nvpair name="InstanceNumber" value="00"/>
+        <nvpair name="PREFER_SITE_TAKEOVER" value="true"/>
+        <nvpair name="DUPLICATE_PRIMARY_TIMEOUT" value="7200"/>
+        <nvpair name="AUTOMATED_REGISTER" value="true"/>
+      </instance_attributes>
+      <meta_attributes id="rsc_SAPHanaController_HDB_HDB00-meta_attributes">
+        <nvpair name="priority" value="10"/>
+      </meta_attributes>
+      <operations>
+        <op name="start" interval="0" timeout="3600"/>
+        <op name="stop" interval="0" timeout="3600"/>
+        <op name="promote" interval="0" timeout="900"/>
+        <op name="demote" interval="0" timeout="320"/>
+        <op name="monitor" interval="59" timeout="700" role="Promoted"/>
+        <op name="monitor" interval="61" timeout="700" role="Unpromoted"/>
+      </operations>
+    </primitive>
+  </clone>
+  <clone id="cln_SAPHanaFilesystem_HDB_HDB00">
+    <meta_attributes id="cln_SAPHanaFilesystem_HDB_HDB00-meta_attributes">
+      <nvpair name="clone-node-max" value="1"/>
+      <nvpair name="interleave" value="true"/>
+    </meta_attributes>
+    <primitive id="rsc_SAPHanaFilesystem_HDB_HDB00" class="ocf" provider="heartbeat" type="SAPHanaFilesystem">
+      <instance_attributes>
+        <nvpair name="SID" value="HDB"/>
+        <nvpair name="InstanceNumber" value="00"/>
+        <nvpair name="ON_FAIL_ACTION" value="fence"/>
+      </instance_attributes>
+      <operations>
+        <op name="monitor" interval="120" timeout="120"/>
+        <op name="start" interval="0" timeout="10"/>
+        <op name="stop" interval="0" timeout="20"/>
+      </operations>
+    </primitive>
+  </clone>
+  <primitive id="rsc_ip_HDB_HDB00" class="ocf" provider="heartbeat" type="IPaddr2">
+    <instance_attributes>
+      <nvpair name="ip" value="172.238.1.36"/>
+    </instance_attributes>
+  </primitive>
+  <primitive id="rsc_nc_HDB_HDB00" class="ocf" provider="heartbeat" type="azure-lb">
+    <instance_attributes>
+      <nvpair name="port" value="62500"/>
+    </instance_attributes>
+  </primitive>
+</resources>"""
+
+DUMMY_XML_RHEL_ANGI_CIB = f"""<?xml version="1.0" encoding="UTF-8"?>
+<cib>
+  <configuration>
+    {DUMMY_XML_CRM}
+    {DUMMY_XML_RSC}
+    {DUMMY_XML_OP}
+    {DUMMY_XML_CONSTRAINTS}
+    {DUMMY_XML_RHEL_ANGI_RESOURCES}
+  </configuration>
+</cib>"""
+
+DUMMY_GLOBAL_INI_RHEL_ANGI = """[DEFAULT]
+dummy1 = dummy2
+
+[ha_dr_provider_hanasr]
+provider = HanaSR
+path = /usr/share/sap-hana-ha/
+execution_order = 1
+
+[ha_dr_provider_chksrv]
+provider = ChkSrv
+path = /usr/share/sap-hana-ha/
+execution_order = 2
+action_on_lost = stop
+
+[trace]
+ha_dr_hanasr = info
+ha_dr_chksrv = info
+"""
+
 DUMMY_OS_COMMAND = """kernel.numa_balancing = 0"""
 
 DUMMY_GLOBAL_INI_SAPHANASR = """[DEFAULT]
@@ -357,6 +469,10 @@ DUMMY_CONSTANTS = {
         "sbd": {"pcmk_delay_max": {"value": "30", "required": False}},
         "scale_out_hsr": {
             "migration-threshold": {"value": ["50"], "required": True},
+        },
+        "angi_scale_up": {
+            "node-health-strategy": {"value": "custom", "required": True},
+            "concurrent-fencing": {"value": "true", "required": False},
         },
     },
     "RSC_DEFAULTS": {
@@ -460,6 +576,63 @@ DUMMY_CONSTANTS = {
                     },
                 },
             },
+            "angi_topology": {
+                "meta_attributes": {
+                    "clone-max": {"value": "2", "required": False},
+                    "clone-node-max": {"value": "1", "required": False},
+                    "interleave": {"value": "true", "required": False},
+                },
+                "operations": {
+                    "monitor": {
+                        "interval": {"value": ["30", "30s"], "required": False},
+                        "timeout": {"value": ["300", "300s"], "required": False},
+                    },
+                    "start": {"timeout": {"value": ["600", "600s"], "required": False}},
+                    "stop": {"timeout": {"value": ["300", "300s"], "required": False}},
+                },
+            },
+            "angi_hana": {
+                "meta_attributes": {
+                    "clone-max": {"value": "2", "required": False},
+                    "clone-node-max": {"value": "1", "required": False},
+                    "interleave": {"value": "true", "required": False},
+                    "promotable": {"value": "true", "required": False},
+                    "priority": {"value": "10", "required": False},
+                },
+                "instance_attributes": {
+                    "PREFER_SITE_TAKEOVER": {"value": "true", "required": False},
+                    "DUPLICATE_PRIMARY_TIMEOUT": {"value": "7200", "required": False},
+                    "AUTOMATED_REGISTER": {"value": "true", "required": False},
+                },
+                "operations": {
+                    "promote": {"timeout": {"value": ["900", "900s"], "required": False}},
+                    "demote": {"timeout": {"value": ["320", "320s"], "required": False}},
+                    "monitor": {
+                        "interval": {
+                            "value": ["59", "59s", "61", "61s"],
+                            "required": False,
+                        },
+                        "timeout": {"value": ["700", "700s"], "required": False},
+                    },
+                    "start": {"timeout": {"value": ["3600", "3600s"], "required": False}},
+                    "stop": {"timeout": {"value": ["3600", "3600s"], "required": False}},
+                },
+            },
+            "angi_filesystem": {
+                "instance_attributes": {
+                    "ON_FAIL_ACTION": {"value": "fence", "required": False},
+                },
+                "meta_attributes": {
+                    "clone-node-max": {"value": "1", "required": False},
+                    "interleave": {"value": "true", "required": False},
+                },
+                "operations": {
+                    "monitor": {
+                        "interval": {"value": ["120", "120s"], "required": False},
+                        "timeout": {"value": ["120", "120s"], "required": False},
+                    },
+                },
+            },
         }
     },
     "OS_PARAMETERS": {
@@ -519,6 +692,29 @@ DUMMY_CONSTANTS = {
                 },
                 "trace": {
                     "ha_dr_saphanasr": {"required": False},
+                    "ha_dr_chksrv": {"required": False},
+                },
+            },
+            "SAPHanaSR-angi": {
+                "ha_dr_provider_hanasr": {
+                    "provider": {"value": "HanaSR", "required": True},
+                    "path": {
+                        "value": ["/usr/share/sap-hana-ha", "/hana/shared/myHooks"],
+                        "required": True,
+                    },
+                    "execution_order": {"value": "1", "required": True},
+                },
+                "ha_dr_provider_chksrv": {
+                    "provider": {"value": "ChkSrv", "required": True},
+                    "path": {
+                        "value": ["/usr/share/sap-hana-ha", "/hana/shared/myHooks"],
+                        "required": True,
+                    },
+                    "execution_order": {"value": "2", "required": True},
+                    "action_on_lost": {"value": "stop", "required": True},
+                },
+                "trace": {
+                    "ha_dr_hanasr": {"required": False},
                     "ha_dr_chksrv": {"required": False},
                 },
             },
@@ -757,6 +953,82 @@ class TestHAClusterValidator:
             saphanasr_provider=HanaSRProvider.SAPHANASR,
             hana_topology=HanaTopology.SCALE_OUT_HSR,
             cib_output=DUMMY_XML_SCALEOUT_CIB,
+        )
+
+    @pytest.fixture
+    def validator_rhel_angi(self):
+        """
+        Fixture for creating a RHEL + SAPHanaSR-angi scale-up validator with CIB output.
+        """
+        return HAClusterValidator(
+            os_type=OperatingSystemFamily.REDHAT,
+            sid="HDB",
+            instance_number="00",
+            fencing_mechanism="AFA",
+            virtual_machine_name="rh7dhdb00l043",
+            constants=DUMMY_CONSTANTS,
+            saphanasr_provider=HanaSRProvider.ANGI,
+            hana_topology=HanaTopology.SCALE_UP,
+            cib_output=DUMMY_XML_RHEL_ANGI_CIB,
+        )
+
+    def test_rhel_angi_active_categories(self, validator_rhel_angi):
+        """
+        RHEL angi scale-up must use angi categories and drop SAPHanaSR/master ones.
+        """
+        categories = validator_rhel_angi._get_active_resource_categories()
+        assert "angi_topology" in categories
+        assert "angi_hana" in categories
+        assert "angi_filesystem" in categories
+        assert "angi_topology_meta" in categories
+        assert "angi_hana_meta" in categories
+        assert "angi_filesystem_meta" in categories
+        assert "topology" not in categories
+        assert "topology_meta" not in categories
+        assert "hana" not in categories
+        assert "hana_meta" not in categories
+
+    def test_rhel_angi_resources_parsed(self, validator_rhel_angi):
+        """
+        RHEL angi resources (controller/topology/filesystem) and clone-level
+        metadata (promotable, clone-max) must validate as SUCCESS.
+        """
+        root = ET.fromstring(DUMMY_XML_RHEL_ANGI_RESOURCES)
+        params = validator_rhel_angi._parse_resources_section(root)
+        assert len(params) > 0
+        categories = {p.get("category", "") for p in params}
+        assert any(cat.startswith("angi_hana") for cat in categories)
+        assert any(cat.startswith("angi_topology") for cat in categories)
+        assert any(cat.startswith("angi_filesystem") for cat in categories)
+
+        promotable = [p for p in params if p.get("name") == "promotable"]
+        assert promotable, "clone-level promotable meta must be validated for angi controller"
+        assert promotable[0].get("status") == TestStatus.SUCCESS.value
+
+        non_info = [p for p in params if p.get("status") not in ("", TestStatus.INFO.value)]
+        assert all(
+            p.get("status") == TestStatus.SUCCESS.value
+            for p in non_info
+            if p.get("category", "").startswith("angi_")
+        )
+
+    def test_rhel_angi_global_ini(self, validator_rhel_angi):
+        """
+        RHEL angi global.ini (HanaSR + ChkSrv hooks) must validate.
+        """
+        original_open = builtins.open
+        builtins.open = MockOpen(DUMMY_GLOBAL_INI_RHEL_ANGI)
+        try:
+            params = validator_rhel_angi._parse_global_ini_parameters()
+        finally:
+            builtins.open = original_open
+        assert len(params) > 0
+        names = {(p.get("category", ""), p.get("name", ""), p.get("value", "")) for p in params}
+        assert any(name == "HanaSR" for _, _, name in names)
+        assert any(
+            p.get("status") == TestStatus.SUCCESS.value
+            for p in params
+            if p.get("name") == "provider"
         )
 
     def test_init(self, validator):
