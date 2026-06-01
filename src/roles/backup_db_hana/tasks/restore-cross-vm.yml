@@ -234,6 +234,12 @@
       vars:
         wait_sql_delegate_to:           "{{ backup_target_vm_name }}"
 
+    - name:                             "Test Execution: {{ item.name | default('') }} - Verify all tenant databases are active on target VM"
+      ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/includes/verify-tenant-db-active.yml"
+      vars:
+        verify_tenant_delegate_to:      "{{ backup_target_vm_name }}"
+        verify_tenant_expected_databases: "{{ backup_tenant_items | map(attribute='name') | list }}"
+
     - name:                             "Test Execution: {{ item.name | default('') }} - Verify DB on target VM"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
@@ -279,6 +285,7 @@
       ansible.builtin.set_fact:
         test_execution_status:          "{{ 'PASSED' if (
                                             alr_tenant_ok | bool
+                                            and tenant_db_health_result.all_active | default(false) | bool
                                           ) else 'FAILED' }}"
       run_once:                         true
 
@@ -292,7 +299,8 @@
         test_case_message_from_test_case: >-
           Cross-VM Restore (ALR) for {{ backup_tenant_items | length }} tenant DB(s) to {{ backup_target_vm_name }}:
           Tenants: {{ alr_tenant_ok }},
-          DB consistent: {{ (alr_db_check.rc | default(1)) == 0 }}
+          DB consistent: {{ (alr_db_check.rc | default(1)) == 0 }},
+          All tenants active: {{ tenant_db_health_result.all_active | default(false) }}
         test_case_details_from_test_case:
           target_vm:                    "{{ backup_target_vm_name }}"
           databases_restored:           "{{ backup_tenant_items | map(attribute='name') | list }}"
@@ -300,6 +308,7 @@
           tenant_job_statuses:          "{{ alr_tenant_job_statuses.results | default([]) }}"
           hana_target_start:            "{{ alr_hana_start }}"
           target_db_check:              "{{ alr_db_check }}"
+          tenant_db_health:             "{{ tenant_db_health_result | default({}) }}"
       run_once:                         true
 
     - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
