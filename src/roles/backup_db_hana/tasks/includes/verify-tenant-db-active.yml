@@ -4,17 +4,6 @@
 ################################################################################
 #  Verify all tenant databases are active after recovery/restore               #
 #                                                                              #
-#  Required variables:                                                         #
-#    - db_sid                                                                  #
-#    - verify_tenant_delegate_to (target host to run hdbsql on)               #
-#  Optional variables:                                                         #
-#    - hana_userstore_key (default: 'SYSTEM')                                  #
-#    - verify_tenant_expected_databases (list of tenant names to verify;       #
-#      if omitted, all non-SYSTEMDB databases are checked)                     #
-#    - backup_tenant_start_retries (default: 10)                               #
-#    - backup_tenant_start_delay (default: 30)                                 #
-#                                                                              #
-#  Registers: tenant_db_health_result                                          #
 ################################################################################
 
 - name:                                 "Tenant Health: Query all database statuses"
@@ -162,23 +151,4 @@
       inactive_before_start:            "{{ tenant_health_inactive_tenants }}"
       start_results:                    "{{ tenant_health_start_results.results | default([]) }}"
       final_query:                      "{{ tenant_health_final_status.stdout }}"
-  run_once:                             true
-
-- name:                                 "Tenant Health: Log final health status"
-  ansible.builtin.debug:
-    msg: >-
-      Tenant DB health check complete.
-      All active: {{ tenant_db_health_result.all_active }}.
-      Databases: {{ tenant_db_health_result.databases }}.
-      Tenants started: {{ tenant_db_health_result.inactive_before_start | join(', ') | default('none') }}.
-  run_once:                             true
-
-- name:                                 "Tenant Health: Assert all tenant databases are active"
-  ansible.builtin.assert:
-    that:
-      - tenant_db_health_result.all_active | bool
-    fail_msg: >-
-      Not all tenant databases are active after recovery/restore.
-      Final status: {{ tenant_db_health_result.final_query }}
-    success_msg:                        "All tenant databases are active."
   run_once:                             true

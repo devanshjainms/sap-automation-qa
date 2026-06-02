@@ -214,8 +214,8 @@
     - name:                             "Test Execution: {{ item.name | default('') }} - Log discovered tenants"
       ansible.builtin.debug:
         msg: >-
-          Discovered {{ recover_cmd_tenant_names | length }} tenant database(s):
-          {{ recover_cmd_tenant_names | join(', ') | default('none') }}
+                                        Discovered {{ recover_cmd_tenant_names | length }} tenant database(s):
+                                        {{ recover_cmd_tenant_names | join(', ') | default('none') }}
       run_once:                         true
 
     - name:                             "Test Execution: {{ item.name | default('') }} - Stop tenant '{{ tenant_name }}' before recovery"
