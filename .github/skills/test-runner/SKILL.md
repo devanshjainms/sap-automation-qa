@@ -6,6 +6,10 @@ description: >
   HA tests on SAP systems. Triggered by "run test", "execute ha test", "start test",
   "run configuration check", "test my system", or "trigger test job".
 allowed-tools: shell
+agents:
+  - copilot
+  - claude
+  - gemini
 ---
 
 # Test Runner

@@ -1,0 +1,7 @@
+{
+  "schema_version": "1.0",
+  "name": "setup-guide",
+  "description": "Guide for setting up the SAP Testing Automation Framework environment. Use when asked about installation, setup, Docker deployment, or Copilot integration.",
+  "supported_agents": ["copilot", "claude", "gemini"],
+  "entry_point": "SKILL.md"
+}

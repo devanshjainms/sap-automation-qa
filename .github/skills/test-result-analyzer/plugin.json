@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "name": "test-result-analyzer",
+  "description": "Analyze STAF test results and identify root causes. Use when asked about test failures, what went wrong, or to interpret test output.",
+  "supported_agents": ["copilot", "claude", "gemini"],
+  "entry_point": "SKILL.md",
+  "references": ["references/known-failures.md"]
+}

@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "name": "staf-validate",
+  "description": "Validate STAF skills, agent definitions, and marketplace plugin manifests. Use when asked to validate skill files, check agent definitions, or verify plugin catalog integrity.",
+  "supported_agents": ["copilot", "claude", "gemini"],
+  "entry_point": "SKILL.md",
+  "scripts": ["scripts/validate.sh"]
+}

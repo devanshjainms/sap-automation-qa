@@ -4,6 +4,10 @@ description: >
   Validate SAP workspace configurations before running tests.
   Use when asked to validate a workspace, check config, or troubleshoot workspace setup issues.
 allowed-tools: shell
+agents:
+  - copilot
+  - claude
+  - gemini
 ---
 
 # Workspace Validator

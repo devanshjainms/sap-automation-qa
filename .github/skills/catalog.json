@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.staf.azure.com/skill-catalog/v1",
+  "version": "1.0",
+  "description": "STAF Skills Catalog — importable plugins for SAP Testing Automation Framework",
+  "plugins": [
+    {
+      "name": "setup-guide",
+      "path": ".github/skills/setup-guide",
+      "entry_point": "SKILL.md",
+      "description": "Guide for setting up the SAP Testing Automation Framework environment."
+    },
+    {
+      "name": "workspace-creator",
+      "path": ".github/skills/workspace-creator",
+      "entry_point": "SKILL.md",
+      "description": "Create new SAP workspace configurations for STAF testing."
+    },
+    {
+      "name": "workspace-validator",
+      "path": ".github/skills/workspace-validator",
+      "entry_point": "SKILL.md",
+      "description": "Validate SAP workspace configurations before running tests."
+    },
+    {
+      "name": "test-runner",
+      "path": ".github/skills/test-runner",
+      "entry_point": "SKILL.md",
+      "description": "Execute STAF tests using sap_automation_qa.sh."
+    },
+    {
+      "name": "test-result-analyzer",
+      "path": ".github/skills/test-result-analyzer",
+      "entry_point": "SKILL.md",
+      "description": "Analyze STAF test results and identify root causes."
+    },
+    {
+      "name": "staf-validate",
+      "path": ".github/skills/staf-validate",
+      "entry_point": "SKILL.md",
+      "description": "Validate STAF skills, agent definitions, and marketplace plugin manifests."
+    }
+  ]
+}

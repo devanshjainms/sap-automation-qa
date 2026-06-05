@@ -3,6 +3,10 @@ name: workspace-creator
 description: >
   Create new SAP workspace configurations for STAF testing.
   Use when asked to set up a new workspace, onboard a system, or create workspace configs.
+agents:
+  - copilot
+  - claude
+  - gemini
 ---
 
 # Workspace Creator

@@ -5,6 +5,10 @@ description: >
   Use when asked about installation, setup, Docker deployment, or Copilot integration.
   Triggered by "setup environment", "install staf", "how to get started", "container start",
   "setup.sh", "configure vars.yaml", "setup help", or "docker deployment".
+agents:
+  - copilot
+  - claude
+  - gemini
 ---
 
 # SAP Testing Automation Framework (STAF) Setup Guide

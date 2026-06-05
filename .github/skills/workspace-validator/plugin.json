@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "name": "workspace-validator",
+  "description": "Validate SAP workspace configurations before running tests. Use when asked to validate a workspace, check config, or troubleshoot workspace setup issues.",
+  "supported_agents": ["copilot", "claude", "gemini"],
+  "entry_point": "SKILL.md",
+  "scripts": ["scripts/validate_workspace.py"]
+}

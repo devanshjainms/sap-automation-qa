@@ -6,6 +6,10 @@ description: >
   "why did test fail", "test output", "check test status", "read test log",
   "interpret report", or "what happened in test".
 allowed-tools: shell
+agents:
+  - copilot
+  - claude
+  - gemini
 ---
 
 # Test Result Analyzer

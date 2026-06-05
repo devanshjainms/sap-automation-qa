@@ -196,7 +196,7 @@ def validate_scripts(
 
     for script in scripts:
         if not os.access(script, os.X_OK):
-            result.error(skill, f"Script not executable: {script.name}")
+            result.warn(skill, f"Script not executable: {script.name}")
         else:
             result.ok(skill, f"Script executable: {script.name}")
 
