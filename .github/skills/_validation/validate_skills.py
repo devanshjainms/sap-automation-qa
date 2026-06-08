@@ -7,6 +7,7 @@ Validate Copilot CLI skills against the Agent Skills specification.
 """
 
 from __future__ import annotations
+import argparse
 import os
 import re
 import sys
@@ -17,6 +18,12 @@ try:
     import yaml
 except ImportError:
     print("Error: PyYAML is required. Install it with: pip install pyyaml")
+    sys.exit(1)
+
+try:
+    import tomlkit
+except ImportError:
+    print("Error: tomlkit is required. Install it with: pip install tomlkit")
     sys.exit(1)
 
 MAX_NAME_LENGTH = 64
@@ -234,9 +241,7 @@ def validate_references(
             )
 
 
-def validate_compatibility_section(
-    skill_md: Path, result: ValidationResult, skill: str
-) -> None:
+def validate_compatibility_section(skill_md: Path, result: ValidationResult, skill: str) -> None:
     """Check that SKILL.md contains a '## Compatibility' section.
 
     :param skill_md: Path to SKILL.md.
@@ -253,11 +258,75 @@ def validate_compatibility_section(
         )
 
 
-def validate_skill(skill_dir: Path, result: ValidationResult) -> None:
+def validate_claude_command(
+    skill_name: str, result: ValidationResult, skill: str, repo_root: Path
+) -> None:
+    """Check that a Claude Code slash-command file exists and is correctly wired.
+
+    :param skill_name: Name of the skill (matches directory name).
+    :param result: Validation result to append findings to.
+    :param skill: Skill identifier for reporting.
+    :param repo_root: Absolute path to the repository root.
+    """
+    cmd_file = repo_root / ".claude" / "commands" / f"{skill_name}.md"
+    if not cmd_file.exists():
+        result.error(skill, f"Missing Claude command file: .claude/commands/{skill_name}.md")
+        return
+    content = cmd_file.read_text(encoding="utf-8")
+    expected_include = f"@.github/skills/{skill_name}/SKILL.md"
+    has_include = expected_include in content
+    has_args = "$ARGUMENTS" in content
+    if not has_include:
+        result.warn(skill, f"Claude command missing SKILL.md include: {expected_include}")
+    if not has_args:
+        result.warn(skill, "Claude command missing $ARGUMENTS placeholder")
+    if has_include and has_args:
+        result.ok(skill, f"Claude command valid: .claude/commands/{skill_name}.md")
+
+
+def validate_gemini_command(
+    skill_name: str, result: ValidationResult, skill: str, repo_root: Path
+) -> None:
+    """Check that a Gemini CLI slash-command file exists and is correctly wired.
+
+    :param skill_name: Name of the skill (matches directory name).
+    :param result: Validation result to append findings to.
+    :param skill: Skill identifier for reporting.
+    :param repo_root: Absolute path to the repository root.
+    """
+    cmd_file = repo_root / ".gemini" / "commands" / f"{skill_name}.toml"
+    if not cmd_file.exists():
+        result.error(skill, f"Missing Gemini command file: .gemini/commands/{skill_name}.toml")
+        return
+    try:
+        data = tomlkit.loads(cmd_file.read_text(encoding="utf-8"))
+    except Exception as exc:  # pylint: disable=broad-except
+        result.error(skill, f"Invalid TOML in Gemini command file: {exc}")
+        return
+    prompt = data.get("prompt", "")
+    description = data.get("description", "")
+    if not prompt:
+        result.error(skill, "Gemini command missing required 'prompt' field")
+        return
+    if not description:
+        result.error(skill, "Gemini command missing required 'description' field")
+    expected_ref = f".github/skills/{skill_name}/SKILL.md"
+    has_ref = expected_ref in prompt
+    has_args = "{{args}}" in prompt
+    if not has_ref:
+        result.warn(skill, f"Gemini command prompt missing SKILL.md reference: {expected_ref}")
+    if not has_args:
+        result.warn(skill, "Gemini command prompt missing {{args}} placeholder")
+    if has_ref and has_args and bool(description):
+        result.ok(skill, f"Gemini command valid: .gemini/commands/{skill_name}.toml")
+
+
+def validate_skill(skill_dir: Path, result: ValidationResult, repo_root: Path) -> None:
     """Validate a single skill directory.
 
     :param skill_dir: Path to the skill directory.
     :param result: Validation result to append findings to.
+    :param repo_root: Absolute path to the repository root.
     """
     dir_name = skill_dir.name
     skill_md = skill_dir / "SKILL.md"
@@ -281,12 +350,16 @@ def validate_skill(skill_dir: Path, result: ValidationResult) -> None:
     validate_scripts(skill_dir, frontmatter, result, dir_name)
     validate_references(skill_md, skill_dir, result, dir_name)
     validate_compatibility_section(skill_md, result, dir_name)
+    validate_claude_command(dir_name, result, dir_name, repo_root)
+    validate_gemini_command(dir_name, result, dir_name, repo_root)
 
 
-def validate_skills_directory(skills_dir: Path) -> ValidationResult:
+def validate_skills_directory(skills_dir: Path, repo_root: Path | None = None) -> ValidationResult:
     """Validate all skills in a directory.
 
     :param skills_dir: Path to the skills root (e.g., .github/skills).
+    :param repo_root: Absolute repo root override. When None, derived as
+        ``skills_dir.parent.parent`` (assumes the convention ``<repo>/.github/skills``).
     :returns: Aggregated validation result.
     """
     result = ValidationResult()
@@ -294,6 +367,8 @@ def validate_skills_directory(skills_dir: Path) -> ValidationResult:
     if not skills_dir.is_dir():
         result.error("(root)", f"Skills directory '{skills_dir}' not found")
         return result
+
+    effective_repo_root = repo_root if repo_root is not None else skills_dir.resolve().parent.parent
 
     skip_dirs = {"_validation", "__pycache__"}
     skill_dirs = sorted(
@@ -308,7 +383,7 @@ def validate_skills_directory(skills_dir: Path) -> ValidationResult:
 
     for skill_dir in skill_dirs:
         result.skills_checked += 1
-        validate_skill(skill_dir, result)
+        validate_skill(skill_dir, result, effective_repo_root)
 
     return result
 
@@ -346,8 +421,26 @@ def main() -> int:
 
     :returns: Exit code (0=pass, 1=fail).
     """
-    skills_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".github/skills")
-    result = validate_skills_directory(skills_dir)
+    parser = argparse.ArgumentParser(description="Validate STAF Copilot CLI skills.")
+    parser.add_argument(
+        "skills_dir",
+        nargs="?",
+        default=".github/skills",
+        type=Path,
+        help="Path to the skills root directory (default: .github/skills)",
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Repo root override. Defaults to skills_dir/../.. "
+            "(assumes <repo>/.github/skills convention)."
+        ),
+    )
+    args = parser.parse_args()
+    result = validate_skills_directory(args.skills_dir, repo_root=args.repo_root)
     print_results(result)
     return 0 if result.passed else 1
 

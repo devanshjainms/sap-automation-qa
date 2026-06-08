@@ -1,0 +1,2 @@
+description = "Analyze STAF test results and identify root causes. Use when asked about test failures or to interpret test output."
+prompt = "You are activating the STAF test-result-analyzer skill. Read and follow the instructions in .github/skills/test-result-analyzer/SKILL.md as your authoritative guide. {{args}}"

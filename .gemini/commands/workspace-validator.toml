@@ -1,0 +1,2 @@
+description = "Validate SAP workspace configurations before running tests. Use when asked to validate a workspace or check config."
+prompt = "You are activating the STAF workspace-validator skill. Read and follow the instructions in .github/skills/workspace-validator/SKILL.md as your authoritative guide. {{args}}"

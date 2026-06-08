@@ -1,0 +1,2 @@
+description = "Execute STAF tests using sap_automation_qa.sh. Use when asked to run tests, configuration checks, or start HA tests."
+prompt = "You are activating the STAF test-runner skill. Read and follow the instructions in .github/skills/test-runner/SKILL.md as your authoritative guide. {{args}}"

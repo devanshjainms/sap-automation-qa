@@ -1,0 +1,2 @@
+description = "Guide for setting up the SAP Testing Automation Framework environment. Triggered by 'setup environment', 'install staf', 'container start', or 'docker deployment'."
+prompt = "You are activating the STAF setup-guide skill. Read and follow the instructions in .github/skills/setup-guide/SKILL.md as your authoritative guide. {{args}}"

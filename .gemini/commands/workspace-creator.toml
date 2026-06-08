@@ -1,0 +1,2 @@
+description = "Create new SAP workspace configurations for STAF testing. Use when asked to onboard a system or create workspace configs."
+prompt = "You are activating the STAF workspace-creator skill. Read and follow the instructions in .github/skills/workspace-creator/SKILL.md as your authoritative guide. {{args}}"
