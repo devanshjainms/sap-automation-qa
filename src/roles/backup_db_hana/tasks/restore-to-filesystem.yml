@@ -448,6 +448,12 @@
         loop_var:                   db_item
         label:                      "{{ db_item.name }}"
 
+    - name:                         "Test Execution: {{ item.name | default('') }} - Verify all tenant databases are active"
+      ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/verify-tenant-db-active.yml"
+      vars:
+        verify_tenant_delegate_to:  "{{ backup_primary_node }}"
+        verify_tenant_expected_databases: "{{ backup_tenant_items | map(attribute='name') | list }}"
+
     - name:                         "Test Execution: {{ item.name | default('') }} - HSR - Re-establish replication"
       when:                         database_high_availability | default(false) | bool
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/hsr-reestablish.yml"
@@ -480,6 +486,7 @@
                                         and tenant_all_ok | bool
                                         and restored_files.files | length > 0
                                         and hsr_register_result.rc | default(1) == 0
+                                        and tenant_db_health_result.all_active | default(false) | bool
                                       ) else 'FAILED' }}"
       run_once:                     true
 
@@ -490,6 +497,7 @@
                                         systemdb_all_ok | bool
                                         and tenant_all_ok | bool
                                         and restored_files.files | length > 0
+                                        and tenant_db_health_result.all_active | default(false) | bool
                                       ) else 'FAILED' }}"
       run_once:                     true
 
@@ -504,6 +512,7 @@
           Restore-to-filesystem for {{ backup_source_items | length }} DB(s):
           SYSTEMDB: {{ systemdb_all_ok }}, Tenants: {{ tenant_all_ok }},
           Backup files found: {{ restored_files.files | length }},
+          All tenants active: {{ tenant_db_health_result.all_active | default(false) }}
         test_case_details_from_test_case:
           topology:                 "Standalone"
           databases_restored:       "{{ backup_source_items | map(attribute='name') | list }}"
@@ -514,6 +523,7 @@
           restored_files_count:     "{{ restored_files.files | length }}"
           hana_file_recover:        "{{ hana_file_recover_result }}"
           hana_start:               "{{ hana_start_result }}"
+          tenant_db_health:         "{{ tenant_db_health_result | default({}) }}"
       run_once:                     true
       when:                         not (database_high_availability | default(false) | bool)
 
@@ -523,7 +533,8 @@
           Restore-to-filesystem (HSR) for {{ backup_source_items | length }} DB(s):
           SYSTEMDB: {{ systemdb_all_ok }}, Tenants: {{ tenant_all_ok }},
           Backup files found: {{ restored_files.files | length }},
-          HSR re-established: {{ (hsr_register_result.rc | default(1)) == 0 }}
+          HSR re-established: {{ (hsr_register_result.rc | default(1)) == 0 }},
+          All tenants active: {{ tenant_db_health_result.all_active | default(false) }}
         test_case_details_from_test_case:
           topology:                 "HSR"
           databases_restored:       "{{ backup_source_items | map(attribute='name') | list }}"
@@ -541,6 +552,7 @@
           hsr_enable:               "{{ hsr_enable_result | default({}) }}"
           hsr_register:             "{{ hsr_register_result | default({}) }}"
           hsr_state:                "{{ hsr_state_result | default({}) }}"
+          tenant_db_health:         "{{ tenant_db_health_result | default({}) }}"
       run_once:                     true
       when:                         database_high_availability | default(false) | bool
 
