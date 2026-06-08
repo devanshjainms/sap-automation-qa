@@ -95,6 +95,9 @@ class ConfigurationCheckModule(SapAutomationQA):
             "min_list": self.validate_min_list,
             "check_support": self.validate_vm_support,
             "properties": self.validate_properties,
+            "disk_consistency": self.validate_disk_consistency,
+            "check_hana_scenario": self.validate_hana_scenario,
+            "check_storage_type": self.validate_storage_type_support,
         }
 
     def execute_check_with_retry(self, check: Check, max_retries: int = 3) -> CheckResult:
@@ -473,8 +476,14 @@ class ConfigurationCheckModule(SapAutomationQA):
                 ),
             }
         except ValueError:
+            min_val = check.validator_args.get("min", "N/A")
+            max_val = check.validator_args.get("max", "N/A")
             return {
                 "status": TestStatus.ERROR.value,
+                "details": (
+                    f"Cannot parse '{collected_data}' as number for "
+                    f"range check [min={min_val}, max={max_val}]"
+                ),
             }
 
     def validate_list(self, check: Check, collected_data: str) -> Dict[str, Any]:
@@ -574,14 +583,26 @@ class ConfigurationCheckModule(SapAutomationQA):
             if not value or not supported_configurations or not role:
                 return {
                     "status": TestStatus.ERROR.value,
+                    "details": (
+                        f"Missing input: vm='{value}', role='{role}', "
+                        f"configs_available={bool(supported_configurations)}"
+                    ),
                 }
 
             if "VMs" in validation_rules:
                 if database_type not in supported_configurations.get(value, {}).get(role, {}).get(
                     "SupportedDB", []
                 ):
+                    allowed_dbs = (
+                        supported_configurations.get(value, {}).get(role, {}).get("SupportedDB", [])
+                    )
                     return {
                         "status": TestStatus.ERROR.value,
+                        "details": (
+                            f"VM SKU '{value}' not supported for role '{role}' "
+                            f"with database '{database_type}'. "
+                            f"Allowed databases: {allowed_dbs}"
+                        ),
                     }
 
             elif "OSDB" in validation_rules:
@@ -590,17 +611,251 @@ class ConfigurationCheckModule(SapAutomationQA):
                 ) or value.upper() not in supported_configurations.get(database_type, {}).get(
                     role, []
                 ):
+                    allowed_os = supported_configurations.get(database_type, {}).get(role, [])
                     return {
                         "status": TestStatus.ERROR.value,
+                        "details": (
+                            f"OS '{value}' not supported for database "
+                            f"'{database_type}' role '{role}'. "
+                            f"Allowed OS: {allowed_os}"
+                        ),
                     }
 
             return {
                 "status": TestStatus.SUCCESS.value,
             }
 
-        except Exception:
+        except Exception as e:
             return {
                 "status": TestStatus.ERROR.value,
+                "details": f"VM support validation error: {str(e)}",
+            }
+
+    def validate_disk_consistency(self, check: Check, collected_data: str) -> Dict[str, Any]:
+        """
+        Validate that all disks backing a mount point share the same property value.
+
+        :param check: Check definition
+        :type check: Check
+        :param collected_data: Comma-separated property values from backing disks
+        :type collected_data: str
+        :return: Validation result
+        :rtype: Dict[str, Any]
+        """
+        try:
+            if not collected_data or collected_data in ("N/A", ""):
+                return {
+                    "status": TestStatus.ERROR.value,
+                    "details": "No disk data available for consistency check",
+                }
+            values = [v.strip() for v in str(collected_data).split(",") if v.strip()]
+            if not values:
+                return {
+                    "status": TestStatus.ERROR.value,
+                    "details": "No disk property values found",
+                }
+            unique_values = set(values)
+            is_consistent = len(unique_values) == 1
+            details = (
+                f"All {len(values)} disks have consistent value: {unique_values.pop()}"
+                if is_consistent
+                else f"Inconsistent values across {len(values)} disks: " f"{sorted(unique_values)}"
+            )
+            return {
+                "status": self._create_validation_result(check.severity, is_consistent),
+                "details": details,
+            }
+        except Exception as ex:
+            return {
+                "status": TestStatus.ERROR.value,
+                "details": f"Disk consistency validation failed: {str(ex)}",
+            }
+
+    def validate_storage_type_support(self, check: Check, collected_data: str) -> Dict[str, Any]:
+        """
+        Validate disk storage type against the per-SKU supported list from vm-support.yml.
+
+        Handles multi-disk mount points where collected_data may contain multiple
+        comma-separated SKU values (e.g. from LVM-striped volumes).
+
+        :param check: Check definition with validator_args containing mount_role
+        :type check: Check
+        :param collected_data: Disk SKU value(s), possibly comma-separated
+        :type collected_data: str
+        :return: Validation result with details
+        :rtype: Dict[str, Any]
+        """
+        try:
+            raw = str(collected_data).strip() if collected_data else ""
+            if not raw or raw in ("N/A", ""):
+                return {
+                    "status": TestStatus.ERROR.value,
+                    "details": "No storage type data collected",
+                }
+
+            values = [v.strip() for v in raw.split(",") if v.strip()]
+            if not values:
+                return {
+                    "status": TestStatus.ERROR.value,
+                    "details": "No storage type values found after parsing",
+                }
+
+            mount_role = check.validator_args.get("mount_role", "data")
+            supported_vms = self.context.get("supported_configurations", {}).get("SupportedVMs", {})
+            vm_size = self.context.get("vm_size", "")
+
+            role = self.context.get("role", "")
+            vm_config = supported_vms.get(vm_size, {}).get(role, {})
+
+            if mount_role == "log":
+                allowed = vm_config.get("HANAStorageTypeLog", [])
+            else:
+                allowed = vm_config.get("HANAStorageTypeData", [])
+
+            if not allowed:
+                return {
+                    "status": TestStatus.ERROR.value,
+                    "details": (
+                        f"No storage type constraints found for "
+                        f"VM '{vm_size}' role '{role}' mount '{mount_role}'"
+                    ),
+                }
+
+            flat_allowed = []
+            for item in allowed:
+                if isinstance(item, list):
+                    flat_allowed.extend(item)
+                else:
+                    flat_allowed.append(item)
+
+            violations = [v for v in values if v not in flat_allowed]
+            is_valid = len(violations) == 0
+            if is_valid:
+                detail_msg = (
+                    f"All {len(values)} disk(s) have supported storage "
+                    f"type for {mount_role}: {set(values)}"
+                )
+            else:
+                detail_msg = (
+                    f"Unsupported storage type(s) for {mount_role}: "
+                    f"{violations}. Allowed: {flat_allowed}"
+                )
+            return {
+                "status": self._create_validation_result(check.severity, is_valid),
+                "details": detail_msg,
+            }
+        except Exception as ex:
+            return {
+                "status": TestStatus.ERROR.value,
+                "details": f"Storage type validation failed: {str(ex)}",
+            }
+
+    def validate_hana_scenario(self, check: Check, collected_data: str) -> Dict[str, Any]:
+        """
+        Validate HANA scenario and storage type support for the VM SKU.
+
+        Checks three dimensions:
+        1. HANAScenario membership (if configured scenario available in context)
+        2. HANAStorageTypeData against current storage_type
+        3. HANAStorageTypeLog against current storage_type
+
+        :param check: Check definition
+        :type check: Check
+        :param collected_data: VM SKU from IMDS
+        :type collected_data: str
+        :return: Validation result with scenario details
+        :rtype: Dict[str, Any]
+        """
+        try:
+            value = collected_data.strip()
+            role = self.context.get("role", "")
+            database_type = self.context.get("database_type", "")
+            storage_type = self.context.get("storage_type", "")
+            supported_vms = self.context.get("supported_configurations", {}).get("SupportedVMs", {})
+
+            if not value or not supported_vms or role != "DB" or database_type != "HANA":
+                return {
+                    "status": TestStatus.ERROR.value,
+                    "details": (
+                        f"Missing context: vm={value}, role={role}, " f"db={database_type}"
+                    ),
+                }
+
+            vm_config = supported_vms.get(value, {}).get(role, {})
+            if not vm_config:
+                return {
+                    "status": TestStatus.ERROR.value,
+                    "details": (
+                        f"VM SKU '{value}' not found in support matrix " f"for role '{role}'"
+                    ),
+                }
+
+            supported_scenarios = vm_config.get("HANAScenario", [])
+            supported_storage_data = vm_config.get("HANAStorageTypeData", [])
+            supported_storage_log = vm_config.get("HANAStorageTypeLog", [])
+
+            if not supported_scenarios:
+                return {
+                    "status": TestStatus.ERROR.value,
+                    "details": (f"No HANA scenarios defined for VM SKU '{value}'"),
+                }
+
+            def _flatten(lst):
+                flat = []
+                for item in lst:
+                    if isinstance(item, list):
+                        flat.extend(item)
+                    else:
+                        flat.append(item)
+                return flat
+
+            flat_scenarios = _flatten(supported_scenarios)
+
+            # 1. Scenario membership (if scenario is provided in context or args)
+            configured_scenario = check.validator_args.get(
+                "hana_scenario", self.context.get("hana_scenario", "")
+            )
+            scenario_match = True
+            if configured_scenario:
+                scenario_match = configured_scenario in flat_scenarios
+
+            # 2. Storage type validation for data
+            data_match = True
+            if storage_type and supported_storage_data:
+                flat_data = _flatten(supported_storage_data)
+                if isinstance(storage_type, list):
+                    data_match = any(st in flat_data for st in storage_type)
+                else:
+                    data_match = storage_type in flat_data
+
+            # 3. Storage type validation for log
+            log_match = True
+            if storage_type and supported_storage_log:
+                flat_log = _flatten(supported_storage_log)
+                if isinstance(storage_type, list):
+                    log_match = any(st in flat_log for st in storage_type)
+                else:
+                    log_match = storage_type in flat_log
+
+            is_valid = scenario_match and data_match and log_match
+
+            details = (
+                f"VM '{value}': scenarios={flat_scenarios}, "
+                f"storage_data={supported_storage_data}, "
+                f"storage_log={supported_storage_log}, "
+                f"scenario_match={scenario_match}, "
+                f"data_storage_match={data_match}, "
+                f"log_storage_match={log_match}"
+            )
+
+            return {
+                "status": self._create_validation_result(check.severity, is_valid),
+                "details": details,
+            }
+        except Exception as ex:
+            return {
+                "status": TestStatus.ERROR.value,
+                "details": (f"HANA scenario validation failed: {str(ex)}"),
             }
 
     def validate_result(self, check: Check, collected_data: Any) -> Dict[str, Any]:
@@ -725,6 +980,7 @@ class ConfigurationCheckModule(SapAutomationQA):
                 status=validation_result["status"],
                 actual_value=collected_data,
                 execution_time=int(execution_time),
+                details=validation_result.get("details"),
             )
 
         except Exception as e:

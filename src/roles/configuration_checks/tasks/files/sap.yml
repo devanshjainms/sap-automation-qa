@@ -16,9 +16,9 @@ enums:
     - all_os:                         &os_type [*suse, *redhat, *oraclelinux, *windows]
 
   os_version:
-    - suse_12_3:                      &suse_12_3 "SUSE 12 SP3"
-    - suse_12_4:                      &suse_12_4 "SUSE 12 SP4"
-    - suse_12_5:                      &suse_12_5 "SUSE 12 SP5"
+    - suse_12_3:                      &suse_12_3 "12.3"
+    - suse_12_4:                      &suse_12_4 "12.4"
+    - suse_12_5:                      &suse_12_5 "12.5"
     - all_versions:                   &all_versions "all"
 
   hardware_type:
@@ -85,7 +85,8 @@ enums:
     - range:                          &range "range"
     - list:                           &list "list"
     - check_support:                  &check_support "check_support"
-    - all:                            &validator_type [*string, *range, *list]
+    - check_hana_scenario:            &check_hana_scenario "check_hana_scenario"
+    - all:                            &validator_type [*string, *range, *list, *check_support, *check_hana_scenario]
 
   report:
     - check:                          &check "check"
@@ -538,3 +539,27 @@ checks:
     report:                             *check
     references:
       microsoft:                        "https://learn.microsoft.com/en-us/azure/sap/workloads/high-availability-guide-rhel-pacemaker"
+
+  - id:                                 "SAP-0019"
+    name:                               "HANA scenario support validation"
+    description:                        "Validates that the VM size supports the configured HANA scenario and storage type per vm-support.yml"
+    category:                           *sap_check
+    severity:                           *high
+    workload:                           *sap
+    applicability:
+      os_type:                          *os_type
+      os_version:                       *all_versions
+      hardware_type:                    *all_hardware
+      storage_type:                     *all_storage
+      role:                             [*db_role]
+      database_type:                    [*hana]
+    collector_type:                     *command
+    collector_args:
+      command:                          curl -s --noproxy '*' -H Metadata:true 'http://169.254.169.254/metadata/instance/compute/vmSize?api-version=2021-02-01&format=text'
+    validator_type:                     *check_hana_scenario
+    validator_args:
+      validation_rules:                 "HANAScenario"
+    report:                             *check
+    references:
+      microsoft:                        "https://learn.microsoft.com/en-us/azure/sap/workloads/certifications"
+      sap:                              "1928533"

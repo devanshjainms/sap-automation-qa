@@ -182,6 +182,30 @@
                                         (configuration_test_type == 'all' or
                                          configuration_test_type == 'Database')
 
+    - name:                             "Orchestration: Run Oracle DB Checks"
+      ansible.builtin.include_tasks:
+        file:                           "./roles/configuration_checks/tasks/main.yml"
+      vars:
+        check_type:
+          name:                         "Database (Oracle) Checks"
+          file_name:                    "oracle"
+          checks_var:                   "db_oracle_checks"
+          results_var:                  "db_oracle_results"
+      when:                             >-
+                                        role == 'DB' and
+                                        (platform | default('HANA') | upper == 'ORACLE') and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'Database')
+
+    - name:                             "Report: Debug Oracle Checks Execution"
+      ansible.builtin.debug:
+        msg:                            "Executing Database (Oracle) checks on host {{ inventory_hostname }}"
+      when:                             >-
+                                        role == 'DB' and
+                                        (platform | default('HANA') | upper == 'ORACLE') and
+                                        (configuration_test_type == 'all' or
+                                         configuration_test_type == 'Database')
+
     - name:                             "Orchestration: Run HANA DB HA Configuration Checks"
       ansible.builtin.include_tasks:
         file:                           "./roles/configuration_checks/tasks/main.yml"
@@ -363,6 +387,18 @@
                                           | default({})}] }}"
       loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
       when:                             hostvars[item].db_db2_results is defined
+
+    - name:                             "Report: Collect DB (Oracle) Check Results"
+      ansible.builtin.set_fact:
+        all_results:                    "{{ all_results + hostvars[item].db_oracle_results
+                                            | default([]) }}"
+        execution_metadata:             "{{ execution_metadata + [
+                                          {'host': item,
+                                          'check_type': 'db_oracle',
+                                          'metadata': hostvars[item].db_oracle_results_metadata
+                                          | default({})}] }}"
+      loop:                             "{{ groups[sap_sid | upper + '_DB']|default([]) }}"
+      when:                             hostvars[item].db_oracle_results is defined
 
     - name:                             "Report: Collect DB HA Configuration Check Results"
       ansible.builtin.set_fact:
