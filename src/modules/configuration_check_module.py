@@ -96,7 +96,6 @@ class ConfigurationCheckModule(SapAutomationQA):
             "check_support": self.validate_vm_support,
             "properties": self.validate_properties,
             "disk_consistency": self.validate_disk_consistency,
-            "check_hana_scenario": self.validate_hana_scenario,
             "check_storage_type": self.validate_storage_type_support,
         }
 
@@ -713,11 +712,20 @@ class ConfigurationCheckModule(SapAutomationQA):
                 allowed = vm_config.get("HANAStorageTypeData", [])
 
             if not allowed:
+                general_storage = self.context.get("supported_configurations", {}).get(
+                    "storage_types", {}
+                )
+                if mount_role == "log":
+                    allowed = general_storage.get("ultra", [])
+                else:
+                    allowed = general_storage.get("premium", [])
+
+            if not allowed:
                 return {
-                    "status": TestStatus.ERROR.value,
+                    "status": TestStatus.INFO.value,
                     "details": (
-                        f"No storage type constraints found for "
-                        f"VM '{vm_size}' role '{role}' mount '{mount_role}'"
+                        f"No storage type constraints available for "
+                        f"VM '{vm_size}' role '{role}' mount '{mount_role}'."
                     ),
                 }
 
@@ -748,114 +756,6 @@ class ConfigurationCheckModule(SapAutomationQA):
             return {
                 "status": TestStatus.ERROR.value,
                 "details": f"Storage type validation failed: {str(ex)}",
-            }
-
-    def validate_hana_scenario(self, check: Check, collected_data: str) -> Dict[str, Any]:
-        """
-        Validate HANA scenario and storage type support for the VM SKU.
-
-        Checks three dimensions:
-        1. HANAScenario membership (if configured scenario available in context)
-        2. HANAStorageTypeData against current storage_type
-        3. HANAStorageTypeLog against current storage_type
-
-        :param check: Check definition
-        :type check: Check
-        :param collected_data: VM SKU from IMDS
-        :type collected_data: str
-        :return: Validation result with scenario details
-        :rtype: Dict[str, Any]
-        """
-        try:
-            value = collected_data.strip()
-            role = self.context.get("role", "")
-            database_type = self.context.get("database_type", "")
-            storage_type = self.context.get("storage_type", "")
-            supported_vms = self.context.get("supported_configurations", {}).get("SupportedVMs", {})
-
-            if not value or not supported_vms or role != "DB" or database_type != "HANA":
-                return {
-                    "status": TestStatus.ERROR.value,
-                    "details": (
-                        f"Missing context: vm={value}, role={role}, " f"db={database_type}"
-                    ),
-                }
-
-            vm_config = supported_vms.get(value, {}).get(role, {})
-            if not vm_config:
-                return {
-                    "status": TestStatus.ERROR.value,
-                    "details": (
-                        f"VM SKU '{value}' not found in support matrix " f"for role '{role}'"
-                    ),
-                }
-
-            supported_scenarios = vm_config.get("HANAScenario", [])
-            supported_storage_data = vm_config.get("HANAStorageTypeData", [])
-            supported_storage_log = vm_config.get("HANAStorageTypeLog", [])
-
-            if not supported_scenarios:
-                return {
-                    "status": TestStatus.ERROR.value,
-                    "details": (f"No HANA scenarios defined for VM SKU '{value}'"),
-                }
-
-            def _flatten(lst):
-                flat = []
-                for item in lst:
-                    if isinstance(item, list):
-                        flat.extend(item)
-                    else:
-                        flat.append(item)
-                return flat
-
-            flat_scenarios = _flatten(supported_scenarios)
-
-            # 1. Scenario membership (if scenario is provided in context or args)
-            configured_scenario = check.validator_args.get(
-                "hana_scenario", self.context.get("hana_scenario", "")
-            )
-            scenario_match = True
-            if configured_scenario:
-                scenario_match = configured_scenario in flat_scenarios
-
-            # 2. Storage type validation for data
-            data_match = True
-            if storage_type and supported_storage_data:
-                flat_data = _flatten(supported_storage_data)
-                if isinstance(storage_type, list):
-                    data_match = any(st in flat_data for st in storage_type)
-                else:
-                    data_match = storage_type in flat_data
-
-            # 3. Storage type validation for log
-            log_match = True
-            if storage_type and supported_storage_log:
-                flat_log = _flatten(supported_storage_log)
-                if isinstance(storage_type, list):
-                    log_match = any(st in flat_log for st in storage_type)
-                else:
-                    log_match = storage_type in flat_log
-
-            is_valid = scenario_match and data_match and log_match
-
-            details = (
-                f"VM '{value}': scenarios={flat_scenarios}, "
-                f"storage_data={supported_storage_data}, "
-                f"storage_log={supported_storage_log}, "
-                f"scenario_match={scenario_match}, "
-                f"data_storage_match={data_match}, "
-                f"log_storage_match={log_match}"
-            )
-
-            return {
-                "status": self._create_validation_result(check.severity, is_valid),
-                "details": details,
-            }
-        except Exception as ex:
-            return {
-                "status": TestStatus.ERROR.value,
-                "details": (f"HANA scenario validation failed: {str(ex)}"),
             }
 
     def validate_result(self, check: Check, collected_data: Any) -> Dict[str, Any]:

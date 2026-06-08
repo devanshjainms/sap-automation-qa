@@ -124,7 +124,6 @@ class TestConfigurationCheckModuleInit:
         assert "check_support" in registry
         assert "properties" in registry
         assert "disk_consistency" in registry
-        assert "check_hana_scenario" in registry
         assert "check_storage_type" in registry
 
 
@@ -1129,131 +1128,6 @@ class TestValidateDiskConsistency:
         assert result["status"] == TestStatus.ERROR.value
 
 
-class TestValidateHanaScenario:
-    """Test suite for validate_hana_scenario method"""
-
-    def test_supported_scenario_and_storage(self, config_module, sample_check):
-        """Test HANA scenario validation with supported config"""
-        config_module.set_context(
-            {
-                "role": "DB",
-                "database_type": "HANA",
-                "storage_type": "Premium_LRS",
-                "high_availability": "scale_up",
-                "supported_configurations": {
-                    "SupportedVMs": {
-                        "Standard_M32ts": {
-                            "DB": {
-                                "SupportedDB": ["HANA"],
-                                "HANAScenario": ["OLTP", "OLAP"],
-                                "HANAStorageTypeData": [
-                                    "Premium_LRS",
-                                    "UltraSSD_LRS",
-                                ],
-                                "HANAStorageTypeLog": [
-                                    "Premium_LRS",
-                                    "UltraSSD_LRS",
-                                ],
-                            }
-                        }
-                    }
-                },
-            }
-        )
-        sample_check.validator_args = {}
-        result = config_module.validate_hana_scenario(sample_check, "Standard_M32ts")
-        assert result["status"] == TestStatus.SUCCESS.value
-        assert "details" in result
-
-    def test_unsupported_storage_type(self, config_module, sample_check):
-        """Test HANA scenario validation with unsupported storage"""
-        config_module.set_context(
-            {
-                "role": "DB",
-                "database_type": "HANA",
-                "storage_type": "StandardSSD_LRS",
-                "high_availability": "false",
-                "supported_configurations": {
-                    "SupportedVMs": {
-                        "Standard_M32ts": {
-                            "DB": {
-                                "SupportedDB": ["HANA"],
-                                "HANAScenario": ["OLTP"],
-                                "HANAStorageTypeData": ["Premium_LRS"],
-                                "HANAStorageTypeLog": ["Premium_LRS"],
-                            }
-                        }
-                    }
-                },
-            }
-        )
-        sample_check.severity = TestSeverity.CRITICAL
-        result = config_module.validate_hana_scenario(sample_check, "Standard_M32ts")
-        assert result["status"] == TestStatus.ERROR.value
-
-    def test_vm_not_in_matrix(self, config_module, sample_check):
-        """Test HANA scenario validation with unknown VM SKU"""
-        config_module.set_context(
-            {
-                "role": "DB",
-                "database_type": "HANA",
-                "storage_type": "Premium_LRS",
-                "high_availability": "false",
-                "supported_configurations": {
-                    "SupportedVMs": {"Standard_M32ts": {"DB": {"SupportedDB": ["HANA"]}}}
-                },
-            }
-        )
-        result = config_module.validate_hana_scenario(sample_check, "Standard_UNKNOWN")
-        assert result["status"] == TestStatus.ERROR.value
-        assert "not found" in result["details"]
-
-    def test_missing_context(self, config_module, sample_check):
-        """Test HANA scenario validation with incomplete context"""
-        config_module.set_context({"role": "APP", "database_type": "HANA"})
-        result = config_module.validate_hana_scenario(sample_check, "Standard_M32ts")
-        assert result["status"] == TestStatus.ERROR.value
-
-    def test_non_hana_database(self, config_module, sample_check):
-        """Test HANA scenario validation skips for non-HANA databases"""
-        config_module.set_context(
-            {
-                "role": "DB",
-                "database_type": "Db2",
-                "supported_configurations": {"SupportedVMs": {}},
-            }
-        )
-        result = config_module.validate_hana_scenario(sample_check, "Standard_M32ts")
-        assert result["status"] == TestStatus.ERROR.value
-
-    def test_scenario_membership_validation(self, config_module, sample_check):
-        """Test that unsupported storage is caught even with valid scenarios"""
-        config_module.set_context(
-            {
-                "role": "DB",
-                "database_type": "HANA",
-                "storage_type": "StandardSSD_LRS",
-                "high_availability": "scale_out",
-                "supported_configurations": {
-                    "SupportedVMs": {
-                        "Standard_M32ts": {
-                            "DB": {
-                                "SupportedDB": ["HANA"],
-                                "HANAScenario": ["OLTP"],
-                                "HANAStorageTypeData": ["Premium_LRS"],
-                                "HANAStorageTypeLog": ["Premium_LRS"],
-                            }
-                        }
-                    }
-                },
-            }
-        )
-        sample_check.severity = TestSeverity.CRITICAL
-        result = config_module.validate_hana_scenario(sample_check, "Standard_M32ts")
-        assert result["status"] == TestStatus.ERROR.value
-        assert "data_storage_match=False" in result["details"]
-
-
 class TestValidateVmSupportDiagnostics:
     """Test suite for improved validate_vm_support diagnostics"""
 
@@ -1380,7 +1254,7 @@ class TestValidateStorageTypeSupport:
         assert result["status"] == TestStatus.ERROR.value
 
     def test_vm_not_in_matrix(self, config_module, sample_check):
-        """Test storage type validation with unknown VM"""
+        """Test storage type validation with unknown VM falls back to general list"""
         config_module.set_context(
             {
                 "role": "DB",
@@ -1388,11 +1262,30 @@ class TestValidateStorageTypeSupport:
                 "supported_configurations": {
                     "SupportedVMs": {
                         "Standard_M32ts": {"DB": {"HANAStorageTypeData": ["Premium_LRS"]}}
-                    }
+                    },
+                    "storage_types": {
+                        "premium": ["Premium_LRS", "UltraSSD_LRS", "ANF", "PremiumV2_LRS"],
+                        "ultra": ["UltraSSD_LRS", "ANF", "PremiumV2_LRS"],
+                    },
                 },
             }
         )
         sample_check.validator_args = {"mount_role": "data"}
         result = config_module.validate_storage_type_support(sample_check, "Premium_LRS")
-        assert result["status"] == TestStatus.ERROR.value
+        assert result["status"] == TestStatus.SUCCESS.value
+
+    def test_vm_not_in_matrix_no_fallback(self, config_module, sample_check):
+        """Test storage type validation with unknown VM and no fallback"""
+        config_module.set_context(
+            {
+                "role": "DB",
+                "vm_size": "Standard_UNKNOWN",
+                "supported_configurations": {
+                    "SupportedVMs": {},
+                },
+            }
+        )
+        sample_check.validator_args = {"mount_role": "data"}
+        result = config_module.validate_storage_type_support(sample_check, "Premium_LRS")
+        assert result["status"] == TestStatus.INFO.value
         assert "No storage type constraints" in result["details"]

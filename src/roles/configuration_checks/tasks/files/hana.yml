@@ -1642,7 +1642,7 @@ checks:
       database_type:                    [*hana]
     collector_type:                     *azure
     collector_args:
-      resource_type:                    "disks"
+      resource_type:                    "disk_consistency"
       property:                         "sku"
       mount_point:                      "/hana/data"
     validator_type:                     "check_storage_type"
@@ -1668,7 +1668,7 @@ checks:
       database_type:                    [*hana]
     collector_type:                     *azure
     collector_args:
-      resource_type:                    "disks"
+      resource_type:                    "disk_consistency"
       property:                         "sku"
       mount_point:                      "/hana/log"
     validator_type:                     "check_storage_type"
