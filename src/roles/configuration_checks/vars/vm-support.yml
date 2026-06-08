@@ -1,6 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
+# SAP on Azure - VM Support Matrix
+# https://me.sap.com/notes/1928533
+
 os_type:
   - suse:                        &suse "SUSE"
   - redhat:                      &redhat "REDHAT"
