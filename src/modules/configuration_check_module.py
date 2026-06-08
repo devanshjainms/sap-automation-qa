@@ -715,10 +715,7 @@ class ConfigurationCheckModule(SapAutomationQA):
                 general_storage = self.context.get("supported_configurations", {}).get(
                     "storage_types", {}
                 )
-                if mount_role == "log":
-                    allowed = general_storage.get("ultra", [])
-                else:
-                    allowed = general_storage.get("premium", [])
+                allowed = general_storage.get("premium", [])
 
             if not allowed:
                 return {
