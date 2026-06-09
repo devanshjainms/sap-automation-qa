@@ -64,7 +64,7 @@
       Scope filter: {{ tenant_health_scope | join(', ') | default('all tenants') }}.
   run_once:                             true
 
-- name:                                 "Tenant Health: Start inactive tenant database '{{ tenant_name }}'"
+- name:                                 "Tenant Health: Start inactive tenant database"
   become:                               true
   become_user:                          "{{ db_sid | lower }}adm"
   ansible.builtin.shell: |
