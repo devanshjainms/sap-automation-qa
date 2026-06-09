@@ -84,6 +84,54 @@
         test_execution_hostname:        "{{ ansible_hostname }}"
       run_once:                         true
 
+    - name:                             "Test Execution: {{ item.name | default('') }} - Discover tenant databases from M_DATABASES"
+      become:                           true
+      become_user:                      "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                        set -o pipefail
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
+                                          "SELECT DATABASE_NAME FROM SYS.M_DATABASES \
+                                           WHERE DATABASE_NAME != 'SYSTEMDB'"
+      args:
+        executable:                     /bin/bash
+      register:                         tenant_discovery_result
+      delegate_to:                      "{{ backup_primary_node }}"
+      run_once:                         true
+      changed_when:                     false
+
+    - name:                             "Test Execution: {{ item.name | default('') }} - Parse discovered tenant names"
+      ansible.builtin.set_fact:
+        recover_cmd_tenant_names:       "{{ tenant_discovery_result.stdout_lines | default([])
+                                            | map('regex_replace', '\"', '')
+                                            | map('trim')
+                                            | select('match', '^[A-Za-z0-9_]+$')
+                                            | list }}"
+      run_once:                         true
+
+    - name:                             "Test Execution: {{ item.name | default('') }} - Capture backup ID for each tenant database (while online, before recovery)"
+      become:                           true
+      become_user:                      "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                        set -o pipefail
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -d {{ tenant_name }} -j -a \
+                                          "SELECT TOP 1 BACKUP_ID FROM M_BACKUP_CATALOG \
+                                           WHERE ENTRY_TYPE_NAME = 'complete data backup' \
+                                           AND STATE_NAME = 'successful' \
+                                           ORDER BY UTC_START_TIME DESC"
+      args:
+        executable:                     /bin/bash
+      register:                         tenant_catalog_results
+      delegate_to:                      "{{ backup_primary_node }}"
+      run_once:                         true
+      changed_when:                     false
+      loop:                             "{{ recover_cmd_tenant_names }}"
+      loop_control:
+        loop_var:                       tenant_name
+        label:                          "{{ tenant_name }}"
+      when:                             recover_cmd_tenant_names | length > 0
+
     - name:                             "Test Execution: {{ item.name | default('') }} - Put cluster in maintenance mode"
       when:                             database_high_availability | default(false) | bool
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/includes/cluster-maintenance-on.yml"
@@ -184,109 +232,6 @@
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/includes/wait-for-sql.yml"
       vars:
         wait_sql_delegate_to:           "{{ backup_primary_node }}"
-
-    - name:                             "Test Execution: {{ item.name | default('') }} - Discover tenant databases from M_DATABASES"
-      become:                           true
-      become_user:                      "{{ db_sid | lower }}adm"
-      ansible.builtin.shell: |
-                                        set -o pipefail
-                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
-                                          "SELECT DATABASE_NAME FROM SYS.M_DATABASES \
-                                           WHERE DATABASE_NAME != 'SYSTEMDB'"
-      args:
-        executable:                     /bin/bash
-      register:                         tenant_discovery_result
-      delegate_to:                      "{{ backup_primary_node }}"
-      run_once:                         true
-      changed_when:                     false
-
-    - name:                             "Test Execution: {{ item.name | default('') }} - Parse discovered tenant names"
-      ansible.builtin.set_fact:
-        recover_cmd_tenant_names:       "{{ tenant_discovery_result.stdout_lines | default([])
-                                            | map('regex_replace', '\"', '')
-                                            | map('trim')
-                                            | select('match', '^[A-Za-z0-9_]+$')
-                                            | list }}"
-      run_once:                         true
-
-    - name:                             "Test Execution: {{ item.name | default('') }} - Log discovered tenants"
-      ansible.builtin.debug:
-        msg: >-
-                                        Discovered {{ recover_cmd_tenant_names | length }} tenant database(s):
-                                        {{ recover_cmd_tenant_names | join(', ') | default('none') }}
-      run_once:                         true
-
-    - name:                             "Test Execution: {{ item.name | default('') }} - Build tenant SQL name list"
-      ansible.builtin.set_fact:
-        recover_cmd_tenant_sql:         "{{ \"'\" + (recover_cmd_tenant_names | map('upper') | join(\"','\")) + \"'\" }}"
-      run_once:                         true
-      when:                             recover_cmd_tenant_names | length > 0
-
-    - name:                             "Test Execution: {{ item.name | default('') }} - Start tenant database to read backup catalog"
-      become:                           true
-      become_user:                      "{{ db_sid | lower }}adm"
-      ansible.builtin.shell: |
-                                        set -o pipefail
-                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
-                                          "ALTER SYSTEM START DATABASE {{ tenant_name }}"
-      args:
-        executable:                     /bin/bash
-      register:                         tenant_prestart_results
-      delegate_to:                      "{{ backup_primary_node }}"
-      run_once:                         true
-      changed_when:                     true
-      failed_when:                      false
-      loop:                             "{{ recover_cmd_tenant_names }}"
-      loop_control:
-        loop_var:                       tenant_name
-        label:                          "{{ tenant_name }}"
-      when:                             recover_cmd_tenant_names | length > 0
-
-    - name:                             "Test Execution: {{ item.name | default('') }} - Wait for tenant databases to be active before reading catalog"
-      become:                           true
-      become_user:                      "{{ db_sid | lower }}adm"
-      ansible.builtin.shell: |
-                                        set -o pipefail
-                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
-                                          "SELECT COUNT(*) FROM SYS.M_DATABASES \
-                                           WHERE DATABASE_NAME IN ({{ recover_cmd_tenant_sql }}) \
-                                           AND ACTIVE_STATUS != 'YES'"
-      args:
-        executable:                     /bin/bash
-      register:                         tenant_prestart_wait
-      delegate_to:                      "{{ backup_primary_node }}"
-      run_once:                         true
-      changed_when:                     false
-      retries:                          "{{ backup_tenant_start_retries | default(10) }}"
-      delay:                            "{{ backup_tenant_start_delay | default(30) }}"
-      until:                            tenant_prestart_wait.stdout | default('1') | regex_search('[0-9]+') | default('1', true) | int == 0
-      when:                             recover_cmd_tenant_names | length > 0
-
-    - name:                             "Test Execution: {{ item.name | default('') }} - Query backup catalog for tenant database"
-      become:                           true
-      become_user:                      "{{ db_sid | lower }}adm"
-      ansible.builtin.shell: |
-                                        set -o pipefail
-                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -d {{ tenant_name }} -j -a \
-                                          "SELECT TOP 1 BACKUP_ID FROM M_BACKUP_CATALOG \
-                                           WHERE ENTRY_TYPE_NAME = 'complete data backup' \
-                                           AND STATE_NAME = 'successful' \
-                                           ORDER BY UTC_START_TIME DESC"
-      args:
-        executable:                     /bin/bash
-      register:                         tenant_catalog_results
-      delegate_to:                      "{{ backup_primary_node }}"
-      run_once:                         true
-      changed_when:                     false
-      loop:                             "{{ recover_cmd_tenant_names }}"
-      loop_control:
-        loop_var:                       tenant_name
-        label:                          "{{ tenant_name }}"
-      when:                             recover_cmd_tenant_names | length > 0
 
     - name:                             "Test Execution: {{ item.name | default('') }} - Stop tenant database before recovery"
       become:                           true
