@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          SINCE=$(date -u -d '12 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          SINCE=$(date -u -d '150 hours ago' +%Y-%m-%dT%H:%M:%SZ)
           echo "Checking commits since ${SINCE} in articles/sap/workloads/"
 
           # Fetch commits; --method GET required (gh defaults to POST with -f)
