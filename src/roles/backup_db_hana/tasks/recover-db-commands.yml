@@ -114,11 +114,11 @@
         backup_id_from_catalog:         "{{ backup_catalog_result.stdout
                                             | default('')
                                             | regex_search('[0-9]+')
-                                            | default('') }}"
+                                            | default('', true) }}"
       run_once:                         true
       when:
                                         - backup_catalog_result.rc | default(1) == 0
-                                        - backup_catalog_result.stdout | default('') | regex_search('[0-9]+') | default('') != ''
+                                        - backup_catalog_result.stdout | default('') | regex_search('[0-9]+') | default('', true) != ''
 
     - name:                             "Test Execution: {{ item.name | default('') }} - Stop HANA DB for recovery"
       become:                           true
@@ -217,6 +217,29 @@
                                         {{ recover_cmd_tenant_names | join(', ') | default('none') }}
       run_once:                         true
 
+    - name:                             "Test Execution: {{ item.name | default('') }} - Query backup catalog for tenant database"
+      become:                           true
+      become_user:                      "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                        set -o pipefail
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -d {{ tenant_name }} -j -a \
+                                          "SELECT TOP 1 BACKUP_ID FROM M_BACKUP_CATALOG \
+                                           WHERE ENTRY_TYPE_NAME = 'complete data backup' \
+                                           AND STATE_NAME = 'successful' \
+                                           ORDER BY UTC_START_TIME DESC"
+      args:
+        executable:                     /bin/bash
+      register:                         tenant_catalog_results
+      delegate_to:                      "{{ backup_primary_node }}"
+      run_once:                         true
+      changed_when:                     false
+      loop:                             "{{ recover_cmd_tenant_names }}"
+      loop_control:
+        loop_var:                       tenant_name
+        label:                          "{{ tenant_name }}"
+      when:                             recover_cmd_tenant_names | length > 0
+
     - name:                             "Test Execution: {{ item.name | default('') }} - Stop tenant database before recovery"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
@@ -238,25 +261,32 @@
         label:                          "{{ tenant_name }}"
       when:                             recover_cmd_tenant_names | length > 0
 
-    - name:                             "Test Execution: {{ item.name | default('') }} - Recover tenant database from its own backup catalog"
+    - name:                             "Test Execution: {{ item.name | default('') }} - Recover tenant database from backup catalog"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                         set -o pipefail
                                         source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                         hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
-                                          "RECOVER DATABASE FOR {{ tenant_name }} USING CATALOG CLEAR LOG"
+                                          "RECOVER DATA FOR {{ tenant_name }} \
+                                           USING BACKUP_ID {{ tenant_catalog_results.results[idx].stdout
+                                             | default('')
+                                             | regex_search('[0-9]+')
+                                             | default('', true) }} CLEAR LOG"
       args:
         executable:                     /bin/bash
       register:                         tenant_recover_results
       delegate_to:                      "{{ backup_primary_node }}"
       run_once:                         true
-      changed_when:                     tenant_recover_results.rc == 0
       loop:                             "{{ recover_cmd_tenant_names }}"
       loop_control:
         loop_var:                       tenant_name
+        index_var:                      idx
         label:                          "{{ tenant_name }}"
-      when:                             recover_cmd_tenant_names | length > 0
+      when:
+                                        - recover_cmd_tenant_names | length > 0
+                                        - tenant_catalog_results.results[idx].rc | default(1) == 0
+                                        - tenant_catalog_results.results[idx].stdout | default('') | regex_search('[0-9]+') | default('', true) != ''
 
     - name:                             "Test Execution: {{ item.name | default('') }} - Start tenant database after recovery"
       become:                           true
@@ -368,6 +398,7 @@
           hana_start:                   "{{ hana_start_result }}"
           db_consistency:               "{{ db_consistency_check }}"
           tenant_names:                 "{{ recover_cmd_tenant_names }}"
+          tenant_catalog_results:       "{{ tenant_catalog_results.results | default([]) }}"
           tenant_recover_results:       "{{ tenant_recover_results.results | default([]) }}"
           tenant_start_results:         "{{ tenant_start_results.results | default([]) }}"
           tenant_db_health:             "{{ tenant_db_health_result | default({}) }}"
@@ -399,6 +430,7 @@
           hsr_register:                 "{{ hsr_register_result | default({}) }}"
           hsr_state:                    "{{ hsr_state_result | default({}) }}"
           tenant_names:                 "{{ recover_cmd_tenant_names }}"
+          tenant_catalog_results:       "{{ tenant_catalog_results.results | default([]) }}"
           tenant_recover_results:       "{{ tenant_recover_results.results | default([]) }}"
           tenant_start_results:         "{{ tenant_start_results.results | default([]) }}"
           tenant_db_health:             "{{ tenant_db_health_result | default({}) }}"
