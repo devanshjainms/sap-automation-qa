@@ -217,6 +217,54 @@
                                         {{ recover_cmd_tenant_names | join(', ') | default('none') }}
       run_once:                         true
 
+    - name:                             "Test Execution: {{ item.name | default('') }} - Build tenant SQL name list"
+      ansible.builtin.set_fact:
+        recover_cmd_tenant_sql:         "{{ \"'\" + (recover_cmd_tenant_names | map('upper') | join(\"','\")) + \"'\" }}"
+      run_once:                         true
+      when:                             recover_cmd_tenant_names | length > 0
+
+    - name:                             "Test Execution: {{ item.name | default('') }} - Start tenant database to read backup catalog"
+      become:                           true
+      become_user:                      "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                        set -o pipefail
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
+                                          "ALTER SYSTEM START DATABASE {{ tenant_name }}"
+      args:
+        executable:                     /bin/bash
+      register:                         tenant_prestart_results
+      delegate_to:                      "{{ backup_primary_node }}"
+      run_once:                         true
+      changed_when:                     true
+      failed_when:                      false
+      loop:                             "{{ recover_cmd_tenant_names }}"
+      loop_control:
+        loop_var:                       tenant_name
+        label:                          "{{ tenant_name }}"
+      when:                             recover_cmd_tenant_names | length > 0
+
+    - name:                             "Test Execution: {{ item.name | default('') }} - Wait for tenant databases to be active before reading catalog"
+      become:                           true
+      become_user:                      "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                        set -o pipefail
+                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
+                                          "SELECT COUNT(*) FROM SYS.M_DATABASES \
+                                           WHERE DATABASE_NAME IN ({{ recover_cmd_tenant_sql }}) \
+                                           AND ACTIVE_STATUS != 'YES'"
+      args:
+        executable:                     /bin/bash
+      register:                         tenant_prestart_wait
+      delegate_to:                      "{{ backup_primary_node }}"
+      run_once:                         true
+      changed_when:                     false
+      retries:                          "{{ backup_tenant_start_retries | default(10) }}"
+      delay:                            "{{ backup_tenant_start_delay | default(30) }}"
+      until:                            tenant_prestart_wait.stdout | default('1') | regex_search('[0-9]+') | default('1', true) | int == 0
+      when:                             recover_cmd_tenant_names | length > 0
+
     - name:                             "Test Execution: {{ item.name | default('') }} - Query backup catalog for tenant database"
       become:                           true
       become_user:                      "{{ db_sid | lower }}adm"
