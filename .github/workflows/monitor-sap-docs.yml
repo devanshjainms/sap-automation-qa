@@ -2,7 +2,7 @@ name: Monitor SAP Documentation Changes
 
 on:
   schedule:
-    - cron: '0 */12 * * *'
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 permissions:
@@ -25,27 +25,19 @@ jobs:
             api.github.com:443
             github.com:443
 
-      - name: Validate PAT is configured
-        env:
-          HAS_PAT: ${{ secrets.AZURE_DOCS_PAT != '' }}
-        run: |
-          if [ "$HAS_PAT" != "true" ]; then
-            echo "::error::AZURE_DOCS_PAT secret is not configured."
-            exit 1
-          fi
-
       - name: Fetch recent SAP doc changes
         id: check
         env:
-          GH_TOKEN: ${{ secrets.AZURE_DOCS_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          SINCE=$(date -u -d '12 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          SINCE=$(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%SZ)
           echo "Checking commits since ${SINCE} in articles/sap/workloads/"
 
-          # Fetch commits; cap at 50 to bound API calls and output size
-          COMMITS_JSON=$(gh api "repos/MicrosoftDocs/azure-docs-pr/commits" \
+          # Fetch commits; --method GET required (gh defaults to POST with -f)
+          COMMITS_JSON=$(gh api "repos/MicrosoftDocs/azure-docs/commits" \
+            --method GET \
             -f since="$SINCE" \
             -f path="articles/sap/workloads" \
             -f per_page=50 \
@@ -76,7 +68,7 @@ jobs:
             echo "## SAP Documentation Changes Detected"
             echo ""
             echo "**${COUNT}** commit(s) modified files under \`articles/sap/workloads/\` in"
-            echo "[MicrosoftDocs/azure-docs-pr](https://github.com/MicrosoftDocs/azure-docs-pr)."
+            echo "[MicrosoftDocs/azure-docs](https://github.com/MicrosoftDocs/azure-docs)."
             echo ""
             echo "### Commits"
             echo ""
@@ -108,7 +100,8 @@ jobs:
               echo "- _(additional commits truncated)_" >> "$BODY_FILE"
               break
             fi
-            gh api "repos/MicrosoftDocs/azure-docs-pr/commits/${SHA}" \
+            gh api "repos/MicrosoftDocs/azure-docs/commits/${SHA}" \
+              --method GET \
               --jq '.files[]? | select(.filename | startswith("articles/sap/workloads/")) | "- `\(.filename)` (\(.status))"' \
               >> "$BODY_FILE" || true
             PROCESSED=$((PROCESSED + 1))
@@ -138,7 +131,7 @@ jobs:
           # Ensure the label exists
           gh label create "sap-docs-update" \
             --repo "$REPO" \
-            --description "SAP documentation change detected in azure-docs-pr" \
+            --description "SAP documentation change detected in azure-docs" \
             --color "0075ca" 2>/dev/null || true
 
           # Check for existing open issue to avoid duplicates
