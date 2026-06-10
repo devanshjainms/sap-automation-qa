@@ -85,10 +85,10 @@ parse_arguments() {
             -v|-vv|-vvv|-vvvv|-vvvvv|-vvvvvv)
                 ANSIBLE_VERBOSE="$arg"
                 ;;
-            --test-groups=*|--test-groups=*)
+            --test-groups=*)
                 TEST_GROUPS="${arg#*=}"
                 ;;
-            --test-cases=*|--test-cases=*)
+            --test-cases=*)
                 TEST_CASES="${arg#*=}"
                 TEST_CASES="${TEST_CASES#[}"
                 TEST_CASES="${TEST_CASES%]}"
@@ -150,6 +150,11 @@ parse_arguments() {
             -h|--help)
                 show_sap_automation_qa_usage "$0"
                 exit 0
+                ;;
+            *)
+                log "ERROR" "Unknown argument: '$arg'"
+                show_sap_automation_qa_usage "$0"
+                exit 1
                 ;;
         esac
     done
