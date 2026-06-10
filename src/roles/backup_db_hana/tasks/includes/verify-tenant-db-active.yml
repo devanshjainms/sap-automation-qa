@@ -4,14 +4,16 @@
 ################################################################################
 #  Verify all tenant databases are active after recovery/restore               #
 #                                                                              #
+#  Optional variables:                                                         #
+#    - verify_tenant_db_sid (default: db_sid) - override SID for target host    #
 ################################################################################
 
 - name:                                 "Tenant Health: Query all database statuses"
   become:                               true
-  become_user:                          "{{ db_sid | lower }}adm"
+  become_user:                          "{{ (verify_tenant_db_sid | default(db_sid)) | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail
-                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        source /usr/sap/{{ (verify_tenant_db_sid | default(db_sid)) | upper }}/home/.sapenv.sh && \
                                         hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
                                           "SELECT DATABASE_NAME, ACTIVE_STATUS FROM SYS.M_DATABASES"
   args:
@@ -66,10 +68,10 @@
 
 - name:                                 "Tenant Health: Start inactive tenant database"
   become:                               true
-  become_user:                          "{{ db_sid | lower }}adm"
+  become_user:                          "{{ (verify_tenant_db_sid | default(db_sid)) | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail
-                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        source /usr/sap/{{ (verify_tenant_db_sid | default(db_sid)) | upper }}/home/.sapenv.sh && \
                                         hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
                                           "ALTER SYSTEM START DATABASE {{ tenant_name }}"
   args:
@@ -87,10 +89,10 @@
 
 - name:                                 "Tenant Health: Wait for tenant databases to become active"
   become:                               true
-  become_user:                          "{{ db_sid | lower }}adm"
+  become_user:                          "{{ (verify_tenant_db_sid | default(db_sid)) | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail
-                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        source /usr/sap/{{ (verify_tenant_db_sid | default(db_sid)) | upper }}/home/.sapenv.sh && \
                                         hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
                                           "SELECT COUNT(*) FROM SYS.M_DATABASES \
                                            WHERE DATABASE_NAME != 'SYSTEMDB' \
@@ -108,10 +110,10 @@
 
 - name:                                 "Tenant Health: Final status query"
   become:                               true
-  become_user:                          "{{ db_sid | lower }}adm"
+  become_user:                          "{{ (verify_tenant_db_sid | default(db_sid)) | lower }}adm"
   ansible.builtin.shell: |
                                         set -o pipefail
-                                        source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                        source /usr/sap/{{ (verify_tenant_db_sid | default(db_sid)) | upper }}/home/.sapenv.sh && \
                                         hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
                                           "SELECT DATABASE_NAME, ACTIVE_STATUS FROM SYS.M_DATABASES"
   args:
