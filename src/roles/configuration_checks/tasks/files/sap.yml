@@ -16,9 +16,9 @@ enums:
     - all_os:                         &os_type [*suse, *redhat, *oraclelinux, *windows]
 
   os_version:
-    - suse_12_3:                      &suse_12_3 "SUSE 12 SP3"
-    - suse_12_4:                      &suse_12_4 "SUSE 12 SP4"
-    - suse_12_5:                      &suse_12_5 "SUSE 12 SP5"
+    - suse_12_3:                      &suse_12_3 "12.3"
+    - suse_12_4:                      &suse_12_4 "12.4"
+    - suse_12_5:                      &suse_12_5 "12.5"
     - all_versions:                   &all_versions "all"
 
   hardware_type:
@@ -85,7 +85,7 @@ enums:
     - range:                          &range "range"
     - list:                           &list "list"
     - check_support:                  &check_support "check_support"
-    - all:                            &validator_type [*string, *range, *list]
+    - all:                            &validator_type [*string, *range, *list, *check_support]
 
   report:
     - check:                          &check "check"
