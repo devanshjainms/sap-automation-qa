@@ -1174,20 +1174,9 @@ RESOURCE_DEFAULTS:
           timeout:
             value:                  ["120", "120s"]
             required:               false
-        start:
-          interval:
-            value:                  ["0", "0s"]
-            required:               false
-          timeout:
-            value:                  ["120", "120s"]
-            required:               false
-        stop:
-          interval:
-            value:                  ["0", "0s"]
-            required:               false
-          timeout:
-            value:                  ["120", "120s"]
-            required:               false
+        on-fail:
+          value:                  "fence"
+          required:               false
 
     angi_filesystem:
       required:                     false
