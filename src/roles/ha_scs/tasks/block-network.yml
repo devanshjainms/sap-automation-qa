@@ -41,14 +41,11 @@
           register:                     ers_ip_result
 
         - name:                         "Test Execution: {{ item.name | default('') }} - Block network communication"
-          ansible.builtin.shell: |
-                                        set -o pipefail
-                                        iptables -C INPUT -s {{ ers_ip }} -j DROP 2>/dev/null || \
-                                          iptables -A INPUT -s {{ ers_ip }} -j DROP
-                                        iptables -C OUTPUT -d {{ ers_ip }} -j DROP 2>/dev/null || \
-                                          iptables -A OUTPUT -d {{ ers_ip }} -j DROP
+          ansible.builtin.shell:        "sleep 3; iptables -P INPUT DROP; iptables -P OUTPUT DROP"
           args:
             executable:                 /bin/bash
+          async:                        15
+          poll:                         0
           register:                     block_network_result
           changed_when:                 true
 
@@ -171,14 +168,28 @@
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
 # +--------------------------------------------------------------------------*/
-    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
-      ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
-      tags:                             [post-validation]
-
   rescue:
+    - name:                             "Rescue: {{ item.name | default('') }} - Restore network on ASCS node"
+      become:                           true
+      ansible.builtin.shell:            "iptables -P INPUT ACCEPT; iptables -P OUTPUT ACCEPT"
+      args:
+        executable:                     /bin/bash
+      register:                         rescue_unblock_network_result
+      changed_when:                     rescue_unblock_network_result.rc == 0
+      failed_when:                      false
+      ignore_unreachable:               true
+      when:
+                                        - ansible_hostname == cluster_status_pre.ascs_node | default('')
+                                        - ers_ip is defined
+
     - name:                             "Rescue: {{ item.name | default('') }} - Handle Failure"
       ansible.builtin.include_tasks:    "roles/misc/tasks/rescue.yml"
       tags:                             [cleanup]
+
+  always:
+    - name:                             "Post Validation: {{ item.name | default('') }} - Validate Results"
+      ansible.builtin.include_tasks:    "roles/misc/tasks/post-validations.yml"
+      tags:                             [post-validation]
 
 - name:                                 "Pre Validation: {{ item.name | default('') }} - Test Case Skipped"
   become:                               true
