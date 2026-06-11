@@ -25,16 +25,16 @@
   when:                                 pre_validations_status == "PASSED"
   tags:                                 [test-execution]
   block:
+    - name:                             "Test Execution: {{ item.name | default('') }} - Check for ENSA version"
+      ansible.builtin.shell:            pgrep -f 'enq.sap{{ sap_sid | upper }}'
+      register:                         ensa2_check
+      failed_when:                      false
+
     - name:                             "Test Execution: {{ item.name | default('') }} - Simulate ASCS Node Crash"
       when:                             ansible_hostname == cluster_status_pre.ascs_node
       become:                           true
       tags:                             [test-execution]
       block:
-        - name:                         "Test Execution: {{ item.name | default('') }} - Check for ENSA version"
-          ansible.builtin.shell:        pgrep -f 'enq.sap{{ sap_sid | upper }}'
-          register:                     ensa2_check
-          failed_when:                  false
-
         - name:                         "Test Execution: {{ item.name | default('') }} - Start timer"
           ansible.builtin.set_fact:
             test_execution_start:       "{{ now(utc=true, fmt='%Y-%m-%d %H:%M:%S') }}"
@@ -60,7 +60,7 @@
           until:                        cluster_status_test_execution_pre.ascs_node == ""
 
         - name:                         "Test Execution: {{ item.name | default('') }} - Validate SCS cluster status ENSA1"
-          when:                         hostvars[cluster_status_pre.ascs_node].ensa2_check.stdout | default('') == ""
+          when:                         ensa2_check.stdout == ""
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
           register:                     cluster_status_test_execution
@@ -71,7 +71,7 @@
                                         and cluster_status_test_execution.ers_node == cluster_status_pre.ascs_node
 
         - name:                         "Test Execution: {{ item.name | default('') }} - Validate SCS cluster status ENSA2"
-          when:                         hostvars[cluster_status_pre.ascs_node].ensa2_check.stdout | default('') != ""
+          when:                         ensa2_check.stdout != ""
           get_cluster_status_scs:
             sap_sid:                    "{{ sap_sid | lower }}"
           register:                     cluster_status_test_execution
