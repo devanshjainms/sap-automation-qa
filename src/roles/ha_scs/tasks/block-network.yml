@@ -41,7 +41,12 @@
           register:                     ers_ip_result
 
         - name:                         "Test Execution: {{ item.name | default('') }} - Block network communication"
-          ansible.builtin.shell:        "sleep 3; iptables -P INPUT DROP; iptables -P OUTPUT DROP"
+          ansible.builtin.shell: |
+                                        set -o pipefail
+                                        iptables -C INPUT -s {{ ers_ip }} -j DROP 2>/dev/null || \
+                                          iptables -A INPUT -s {{ ers_ip }} -j DROP
+                                        iptables -C OUTPUT -d {{ ers_ip }} -j DROP 2>/dev/null || \
+                                          iptables -A OUTPUT -d {{ ers_ip }} -j DROP
           args:
             executable:                 /bin/bash
           async:                        15
@@ -171,7 +176,9 @@
   rescue:
     - name:                             "Rescue: {{ item.name | default('') }} - Restore network on ASCS node"
       become:                           true
-      ansible.builtin.shell:            "iptables -P INPUT ACCEPT; iptables -P OUTPUT ACCEPT"
+      ansible.builtin.shell: |
+                                        iptables -D INPUT -s {{ ers_ip }} -j DROP 2>/dev/null || true
+                                        iptables -D OUTPUT -d {{ ers_ip }} -j DROP 2>/dev/null || true
       args:
         executable:                     /bin/bash
       register:                         rescue_unblock_network_result
