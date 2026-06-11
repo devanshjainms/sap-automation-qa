@@ -76,8 +76,8 @@
 
         - name:                         "Test Execution: {{ item.name | default('') }} - Set Node Status Facts"
           ansible.builtin.set_fact:
-            ascs_node_down:             "{{ hostvars[cluster_status_pre.ascs_node].node_status is failed }}"
-            ers_node_down:              "{{ hostvars[cluster_status_pre.ers_node].node_status is failed }}"
+            ascs_node_down:             "{{ hostvars[cluster_status_pre.ascs_node].node_status is defined and hostvars[cluster_status_pre.ascs_node].node_status is failed }}"
+            ers_node_down:              "{{ hostvars[cluster_status_pre.ers_node].node_status is defined and hostvars[cluster_status_pre.ers_node].node_status is failed }}"
 
         - name:                         "Test Execution: {{ item.name | default('') }} - Fail if both nodes are unavailable"
           ansible.builtin.fail:
