@@ -2,7 +2,7 @@ enums:
   os_type:
     - suse:                           &suse "SLES_SAP"
     - redhat:                         &redhat "REDHAT"
-    - oraclelinux:                    &oraclelinux "OracleLinux"
+    - oraclelinux:                    &oraclelinux "ORACLELINUX"
     - windows:                        &windows "Windows"
     - all_os:                         &all_os [*suse, *redhat, *oraclelinux, *windows]
 
@@ -29,8 +29,8 @@ enums:
   db:
     - hana:                           &hana "HANA"
     - mssql:                          &mssql "MSSQL"
-    - oracle:                         &oracle "Oracle"
-    - db2:                            &db2 "Db2"
+    - oracle:                         &oracle "ORACLE"
+    - db2:                            &db2 "DB2"
     - ase:                            &ase "ASE"
     - all_db:                         &all_db [*hana, *mssql, *oracle, *db2, *ase]
 
