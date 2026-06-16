@@ -7,7 +7,7 @@
 os_type:
   - suse:                        &suse "SUSE"
   - redhat:                      &redhat "REDHAT"
-  - oraclelinux:                 &oraclelinux "ORACLELINUX"
+  - oraclelinux:                 &oraclelinux "ORACLE"
   - windows:                     &windows "WINDOWS"
 
 SupportedOSDBCombinations:
