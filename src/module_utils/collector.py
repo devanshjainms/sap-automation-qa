@@ -131,8 +131,6 @@ class CommandCollector(Collector):
             if user and user != "root":
                 if user == "db2sid":
                     user = f"db2{context.get('database_sid', '').lower()}"
-                elif user == "orasid":
-                    user = f"ora{context.get('database_sid', '').lower()}"
                 command = f"su - {user} -c {shlex.quote(command)}"
                 self.parent.log(logging.INFO, f"Executing command as user {user} {command}")
 

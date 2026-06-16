@@ -71,8 +71,8 @@ enums:
   user:
     - root:                           &root "root"
     - sidadm:                         &sidadm "sidadm"
-    - orasid:                         &orasid "orasid"
-    - all_users:                      &user [*root, *sidadm, *orasid]
+    - oracle:                         &oracle_user "oracle"
+    - all_users:                      &user [*root, *sidadm, *oracle_user]
 
   validator_type:
     - string:                         &string "string"
@@ -131,7 +131,7 @@ checks:
     collector_type:                     *command
     collector_args:
       command:                          "echo $LANG"
-      user:                             *orasid
+      user:                             *oracle_user
     validator_type:                     *string
     validator_args:
       expected_output:                  "en_US.UTF-8"
@@ -208,6 +208,7 @@ checks:
     validator_type:                     *min_list
     validator_args:
       min_values:                       [250, 32000, 100, 128]
+      separator:                        "\t"
     report:                             *check
     references:
       sap:                              "2039619"
@@ -253,7 +254,7 @@ checks:
       database_type:                    [*oracle]
     collector_type:                     *command
     collector_args:
-      command:                          "pgrep -c asm_pmon || echo '0'"
+      command:                          "COUNT=$(pgrep -c asm_pmon 2>/dev/null) || true; echo ${COUNT:-0}"
       user:                             *root
     validator_type:                     *range
     validator_args:
