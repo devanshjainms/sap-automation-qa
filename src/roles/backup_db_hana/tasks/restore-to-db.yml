@@ -352,6 +352,26 @@
       when:                         database_high_availability | default(false) | bool
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/hsr-reestablish.yml"
 
+    - name:                         "Post Validation: {{ item.name | default('') }} - Verify HSR cluster healthy (primary and secondary resolved)"
+      when:                         database_high_availability | default(false) | bool
+      become:                       true
+      get_cluster_status_db:
+        db_instance_number:         "{{ db_instance_number }}"
+        operation_step:             "post_failover"
+        database_sid:               "{{ db_sid | lower }}"
+        saphanasr_provider:         "{{ saphanasr_provider | default('SAPHanaSR') }}"
+        hana_clone_resource_name:   "{{ hana_clone_resource_name | default('') }}"
+        hana_primitive_resource_name: "{{ hana_primitive_resource_name | default('') }}"
+        hana_topology:              "{{ hana_topology | default('scale_up') }}"
+      register:                     cluster_status_post_olr
+      until:                        cluster_status_post_olr.primary_node | default('') != '' and
+                                    cluster_status_post_olr.secondary_node | default('') != ''
+      retries:                      "{{ default_retries | default(75) }}"
+      delay:                        "{{ default_delay | default(10) }}"
+      run_once:                     true
+      failed_when:                  cluster_status_post_olr.primary_node | default('') == '' or
+                                    cluster_status_post_olr.secondary_node | default('') == ''
+
     - name:                         "Test Execution: {{ item.name | default('') }} - Compute restore results summary"
       ansible.builtin.set_fact:
         systemdb_all_ok:            "{{ (systemdb_job_statuses.results | default([])
@@ -440,6 +460,7 @@
           hsr_register:             "{{ hsr_register_result | default({}) }}"
           hsr_state:                "{{ hsr_state_result | default({}) }}"
           tenant_db_health:         "{{ tenant_db_health_result | default({}) }}"
+          cluster_status_post_olr:  "{{ cluster_status_post_olr | default({}) }}"
       run_once:                     true
       when:                         database_high_availability | default(false) | bool
 
