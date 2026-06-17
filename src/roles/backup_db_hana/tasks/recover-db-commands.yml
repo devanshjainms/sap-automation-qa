@@ -327,6 +327,12 @@
       when:                             database_high_availability | default(false) | bool
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/includes/hsr-reestablish.yml"
 
+    - name:                             "Post Validation: {{ item.name | default('') }} - Allow secondary replication to settle"
+      when:                             database_high_availability | default(false) | bool
+      ansible.builtin.pause:
+        seconds:                        "{{ hsr_settle_seconds | default(60) | int }}"
+      run_once:                         true
+
     - name:                             "Post Validation: {{ item.name | default('') }} - Verify HSR cluster healthy (primary and secondary resolved)"
       when:                             database_high_availability | default(false) | bool
       become:                           true
