@@ -410,6 +410,25 @@
         wait_sql_delegate_to:       "{{ backup_primary_node }}"
       when:                         backup_tenant_items | length > 0
 
+    - name:                         "Test Execution: {{ item.name | default('') }} - Stop tenant database before recovery"
+      become:                       true
+      become_user:                  "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                    set -o pipefail
+                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                    hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
+                                      "ALTER SYSTEM STOP DATABASE {{ db_item.name | upper }}"
+      args:
+        executable:                 /bin/bash
+      register:                     tenant_stop_result
+      delegate_to:                  "{{ backup_primary_node }}"
+      run_once:                     true
+      failed_when:                  false
+      loop:                         "{{ backup_tenant_items | default([]) }}"
+      loop_control:
+        loop_var:                   db_item
+        label:                      "{{ db_item.name }}"
+
     - name:                         "Test Execution: {{ item.name | default('') }} - Recover tenant DB from backup files"
       become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
@@ -417,12 +436,13 @@
                                     set -o pipefail
                                     source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                     hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
-                                      "RECOVER DATA FOR {{ db_item.name | upper }} USING FILE ('{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/{{ tenant_backup_prefixes.results[idx].stdout }}') CLEAR LOG"
+                                      "RECOVER DATABASE FOR {{ db_item.name | upper }} USING FILE ('{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/{{ tenant_backup_prefixes.results[idx].stdout }}') CLEAR LOG"
       args:
         executable:                 /bin/bash
       register:                     tenant_recover_result
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
+      failed_when:                  false
       loop:                         "{{ backup_tenant_items | default([]) }}"
       loop_control:
         loop_var:                   db_item
@@ -457,6 +477,26 @@
     - name:                         "Test Execution: {{ item.name | default('') }} - HSR - Re-establish replication"
       when:                         database_high_availability | default(false) | bool
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/hsr-reestablish.yml"
+
+    - name:                         "Post Validation: {{ item.name | default('') }} - Verify HSR cluster healthy (primary and secondary resolved)"
+      when:                         database_high_availability | default(false) | bool
+      become:                       true
+      get_cluster_status_db:
+        db_instance_number:         "{{ db_instance_number }}"
+        operation_step:             "post_failover"
+        database_sid:               "{{ db_sid | lower }}"
+        saphanasr_provider:         "{{ saphanasr_provider | default('SAPHanaSR') }}"
+        hana_clone_resource_name:   "{{ hana_clone_resource_name | default('') }}"
+        hana_primitive_resource_name: "{{ hana_primitive_resource_name | default('') }}"
+        hana_topology:              "{{ hana_topology | default('scale_up') }}"
+      register:                     cluster_status_post_fs_restore
+      until:                        cluster_status_post_fs_restore.primary_node | default('') != '' and
+                                    cluster_status_post_fs_restore.secondary_node | default('') != ''
+      retries:                      "{{ default_retries | default(75) }}"
+      delay:                        "{{ default_delay | default(10) }}"
+      run_once:                     true
+      failed_when:                  cluster_status_post_fs_restore.primary_node | default('') == '' or
+                                    cluster_status_post_fs_restore.secondary_node | default('') == ''
 
     - name:                         "Test Execution: {{ item.name | default('') }} - Compute restore results summary"
       ansible.builtin.set_fact:
@@ -553,6 +593,7 @@
           hsr_register:             "{{ hsr_register_result | default({}) }}"
           hsr_state:                "{{ hsr_state_result | default({}) }}"
           tenant_db_health:         "{{ tenant_db_health_result | default({}) }}"
+          cluster_status_post_fs_restore: "{{ cluster_status_post_fs_restore | default({}) }}"
       run_once:                     true
       when:                         database_high_availability | default(false) | bool
 

@@ -327,6 +327,26 @@
       when:                             database_high_availability | default(false) | bool
       ansible.builtin.include_tasks:    "roles/backup_db_hana/tasks/includes/hsr-reestablish.yml"
 
+    - name:                             "Post Validation: {{ item.name | default('') }} - Verify HSR cluster healthy (primary and secondary resolved)"
+      when:                             database_high_availability | default(false) | bool
+      become:                           true
+      get_cluster_status_db:
+        db_instance_number:             "{{ db_instance_number }}"
+        operation_step:                 "post_failover"
+        database_sid:                   "{{ db_sid | lower }}"
+        saphanasr_provider:             "{{ saphanasr_provider | default('SAPHanaSR') }}"
+        hana_clone_resource_name:       "{{ hana_clone_resource_name | default('') }}"
+        hana_primitive_resource_name:   "{{ hana_primitive_resource_name | default('') }}"
+        hana_topology:                  "{{ hana_topology | default('scale_up') }}"
+      register:                         cluster_status_post_commands_restore
+      until:                            cluster_status_post_commands_restore.primary_node | default('') != '' and
+                                        cluster_status_post_commands_restore.secondary_node | default('') != ''
+      retries:                          "{{ default_retries | default(75) }}"
+      delay:                            "{{ default_delay | default(10) }}"
+      run_once:                         true
+      failed_when:                      cluster_status_post_commands_restore.primary_node | default('') == '' or
+                                        cluster_status_post_commands_restore.secondary_node | default('') == ''
+
     - name:                             "Test Execution: {{ item.name | default('') }} - Take cluster out of maintenance (standalone)"
       when:
                                         - database_high_availability | default(false) | bool
@@ -427,6 +447,7 @@
           tenant_recover_results:       "{{ tenant_recover_results.results | default([]) }}"
           tenant_start_results:         "{{ tenant_start_results.results | default([]) }}"
           tenant_db_health:             "{{ tenant_db_health_result | default({}) }}"
+          cluster_status_post_commands_restore: "{{ cluster_status_post_commands_restore | default({}) }}"
       run_once:                         true
       when:                             database_high_availability | default(false) | bool
 
