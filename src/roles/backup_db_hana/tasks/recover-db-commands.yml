@@ -271,6 +271,10 @@
       register:                         tenant_recover_results
       delegate_to:                      "{{ backup_primary_node }}"
       run_once:                         true
+      changed_when:                     tenant_recover_results.rc == 0
+      until:                            tenant_recover_results.rc == 0
+      retries:                          "{{ backup_tenant_recover_retries | default(5) }}"
+      delay:                            "{{ backup_tenant_recover_delay | default(60) }}"
       loop:                             "{{ recover_cmd_tenant_names }}"
       loop_control:
         loop_var:                       tenant_name
