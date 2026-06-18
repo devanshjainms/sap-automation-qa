@@ -340,26 +340,55 @@
         success_msg:                "Found {{ restored_files.files | length }} backup file(s)"
       run_once:                     true
 
-    - name:                         "Test Execution: {{ item.name | default('') }} - Discover SYSTEMDB backup file prefix"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Set ownership of restored files (chown)"
+      become:                       true
+      ansible.builtin.file:
+        path:                       "{{ backup_target_filesystem_path }}"
+        owner:                      "{{ db_sid | lower }}adm"
+        group:                      sapsys
+        recurse:                    true
+      delegate_to:                  "{{ backup_primary_node }}"
+      run_once:                     true
+
+    - name:                         "Test Execution: {{ item.name | default('') }} - Extract SYSTEMDB backup ID from metadata"
       ansible.builtin.shell: |
                                     set -o pipefail
-                                    ls -1 {{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}/Data/*_databackup_0_1 2>/dev/null \
-                                      | head -1 | xargs basename | sed 's/_databackup_0_1$//'
+                                    cat "$(ls -1 {{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}/Data/*_metadata.json | head -1)" \
+                                      | python3 -c "import sys, json; d = json.load(sys.stdin); print(json.loads(d['WorkloadMetadata'])['BackupSet']['BackupId'])"
       args:
         executable:                 /bin/bash
-      register:                     systemdb_backup_prefix
+      register:                     systemdb_backup_id
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       changed_when:                 false
+      when:                         backup_systemdb_items | length > 0
 
-    - name:                         "Test Execution: {{ item.name | default('') }} - Discover tenant backup file prefixes"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Generate SYSTEMDB recovery catalog"
+      become:                       true
+      become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                     set -o pipefail
-                                    ls -1 {{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/*_databackup_0_1 2>/dev/null \
-                                      | head -1 | xargs basename | sed 's/_databackup_0_1$//'
+                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh
+                                    db_dir="{{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}"
+                                    mkdir -p "${db_dir}/Log" "${db_dir}/catalog"
+                                    rm -f "${db_dir}"/Data/*_metadata.json "${db_dir}"/Log/*_metadata.json
+                                    hdbbackupdiag --generate --dataDir "${db_dir}/Data" --logDirs "${db_dir}/Log" -d "${db_dir}/catalog"
       args:
         executable:                 /bin/bash
-      register:                     tenant_backup_prefixes
+      register:                     systemdb_catalog_gen
+      delegate_to:                  "{{ backup_primary_node }}"
+      run_once:                     true
+      changed_when:                 systemdb_catalog_gen.rc == 0
+      when:                         backup_systemdb_items | length > 0
+
+    - name:                         "Test Execution: {{ item.name | default('') }} - Extract tenant backup IDs from metadata"
+      ansible.builtin.shell: |
+                                    set -o pipefail
+                                    cat "$(ls -1 {{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/*_metadata.json | head -1)" \
+                                      | python3 -c "import sys, json; d = json.load(sys.stdin); print(json.loads(d['WorkloadMetadata'])['BackupSet']['BackupId'])"
+      args:
+        executable:                 /bin/bash
+      register:                     tenant_backup_ids
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       changed_when:                 false
@@ -368,12 +397,26 @@
         loop_var:                   db_item
         label:                      "{{ db_item.name }}"
 
-    - name:                         "Test Execution: {{ item.name | default('') }} - Log discovered backup prefixes"
-      ansible.builtin.debug:
-        msg: >-
-          SYSTEMDB prefix: '{{ systemdb_backup_prefix.stdout }}'.
-          Tenant prefixes: {{ tenant_backup_prefixes.results | default([]) | map(attribute='stdout') | list }}
+    - name:                         "Test Execution: {{ item.name | default('') }} - Generate tenant recovery catalogs"
+      become:                       true
+      become_user:                  "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                    set -o pipefail
+                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh
+                                    db_dir="{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}"
+                                    mkdir -p "${db_dir}/Log" "${db_dir}/catalog"
+                                    rm -f "${db_dir}"/Data/*_metadata.json "${db_dir}"/Log/*_metadata.json
+                                    hdbbackupdiag --generate --dataDir "${db_dir}/Data" --logDirs "${db_dir}/Log" -d "${db_dir}/catalog"
+      args:
+        executable:                 /bin/bash
+      register:                     tenant_catalog_gen
+      delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
+      changed_when:                 tenant_catalog_gen.rc == 0
+      loop:                         "{{ backup_tenant_items | default([]) }}"
+      loop_control:
+        loop_var:                   db_item
+        label:                      "{{ db_item.name }}"
 
     - name:                         "Test Execution: {{ item.name | default('') }} - Recover SYSTEMDB from backup files"
       become:                       true
@@ -382,7 +425,7 @@
                                     set -o pipefail
                                     source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                     HDBSettings.sh recoverSys.py \
-                                      --command="RECOVER DATA USING FILE ('{{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}/Data/{{ systemdb_backup_prefix.stdout }}') CLEAR LOG" \
+                                      --command="RECOVER DATA USING BACKUP_ID {{ systemdb_backup_id.stdout }} USING CATALOG PATH ('{{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}/catalog') USING DATA PATH ('{{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}/Data/') CLEAR LOG" \
                                       --timeout={{ backup_recover_timeout | default(3600) }}
       args:
         executable:                 /bin/bash
@@ -436,16 +479,13 @@
                                     set -o pipefail
                                     source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                     hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
-                                      "RECOVER DATA FOR {{ db_item.name | upper }} USING FILE ('{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/{{ tenant_backup_prefixes.results[idx].stdout }}') CLEAR LOG"
+                                      "RECOVER DATA FOR {{ db_item.name | upper }} USING BACKUP_ID {{ tenant_backup_ids.results[idx].stdout }} USING CATALOG PATH ('{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/catalog') USING DATA PATH ('{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/') CLEAR LOG"
       args:
         executable:                 /bin/bash
       register:                     tenant_recover_result
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
       changed_when:                 tenant_recover_result.rc == 0
-      until:                        tenant_recover_result.rc == 0
-      retries:                      "{{ backup_tenant_recover_retries | default(5) }}"
-      delay:                        "{{ backup_tenant_recover_delay | default(60) }}"
       loop:                         "{{ backup_tenant_items | default([]) }}"
       loop_control:
         loop_var:                   db_item
