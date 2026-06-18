@@ -436,36 +436,20 @@
                                     set -o pipefail
                                     source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                     hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
-                                      "RECOVER DATABASE FOR {{ db_item.name | upper }} USING FILE ('{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/{{ tenant_backup_prefixes.results[idx].stdout }}') CLEAR LOG"
+                                      "RECOVER DATA FOR {{ db_item.name | upper }} USING FILE ('{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}/Data/{{ tenant_backup_prefixes.results[idx].stdout }}') CLEAR LOG"
       args:
         executable:                 /bin/bash
       register:                     tenant_recover_result
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
-      failed_when:                  false
+      changed_when:                 tenant_recover_result.rc == 0
+      until:                        tenant_recover_result.rc == 0
+      retries:                      "{{ backup_tenant_recover_retries | default(5) }}"
+      delay:                        "{{ backup_tenant_recover_delay | default(60) }}"
       loop:                         "{{ backup_tenant_items | default([]) }}"
       loop_control:
         loop_var:                   db_item
         index_var:                  idx
-        label:                      "{{ db_item.name }}"
-
-    - name:                         "Test Execution: {{ item.name | default('') }} - Start tenant DB after recovery"
-      become:                       true
-      become_user:                  "{{ db_sid | lower }}adm"
-      ansible.builtin.shell: |
-                                    set -o pipefail
-                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                    hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
-                                      "ALTER SYSTEM START DATABASE {{ db_item.name }}"
-      args:
-        executable:                 /bin/bash
-      register:                     tenant_start_result
-      delegate_to:                  "{{ backup_primary_node }}"
-      run_once:                     true
-      changed_when:                 true
-      loop:                         "{{ backup_tenant_items | default([]) }}"
-      loop_control:
-        loop_var:                   db_item
         label:                      "{{ db_item.name }}"
 
     - name:                         "Test Execution: {{ item.name | default('') }} - Verify all tenant databases are active"
