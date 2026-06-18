@@ -404,66 +404,33 @@
     - name:                         "Test Execution: {{ item.name | default('') }} - HSR - Teardown replication before recovery"
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/hsr-teardown.yml"
 
-    - name:                         "Test Execution: {{ item.name | default('') }} - Stop all tenant databases before SYSTEMDB recovery"
+    - name:                         "Test Execution: {{ item.name | default('') }} - Recover SYSTEMDB from backup files (recoverSys.py)"
       become:                       true
       become_user:                  "{{ db_sid | lower }}adm"
       ansible.builtin.shell: |
                                     set -o pipefail
                                     source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                    hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
-                                      "ALTER SYSTEM STOP DATABASE {{ db_item.name | upper }} IMMEDIATE"
-      args:
-        executable:                 /bin/bash
-      register:                     tenant_prestop_result
-      delegate_to:                  "{{ backup_primary_node }}"
-      run_once:                     true
-      failed_when:                  false
-      loop:                         "{{ backup_tenant_items | default([]) }}"
-      loop_control:
-        loop_var:                   db_item
-        label:                      "{{ db_item.name }}"
-
-    - name:                         "Test Execution: {{ item.name | default('') }} - Verify all tenants are stopped before SYSTEMDB recovery"
-      become:                       true
-      become_user:                  "{{ db_sid | lower }}adm"
-      ansible.builtin.shell: |
-                                    set -o pipefail
-                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                    hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
-                                      "SELECT COUNT(*) FROM SYS.M_DATABASES \
-                                       WHERE DATABASE_NAME != 'SYSTEMDB' AND ACTIVE_STATUS = 'YES'"
-      args:
-        executable:                 /bin/bash
-      register:                     tenant_prestop_verify
-      delegate_to:                  "{{ backup_primary_node }}"
-      run_once:                     true
-      changed_when:                 false
-      retries:                      "{{ backup_tenant_stop_retries | default(10) }}"
-      delay:                        "{{ backup_tenant_stop_delay | default(10) }}"
-      until:                        tenant_prestop_verify.stdout | default('1') | regex_search('[0-9]+') | default('1') | int == 0
-
-    - name:                         "Test Execution: {{ item.name | default('') }} - Recover SYSTEMDB from backup files"
-      become:                       true
-      become_user:                  "{{ db_sid | lower }}adm"
-      ansible.builtin.shell: |
-                                    set -o pipefail
-                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                    hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j \
-                                      "RECOVER DATA USING BACKUP_ID {{ systemdb_backup_id.stdout }} \
+                                    HDBSettings.sh recoverSys.py \
+                                      --command="RECOVER DATA USING BACKUP_ID {{ systemdb_backup_id.stdout }} \
                                        USING CATALOG PATH ('{{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}/catalog') \
                                        USING DATA PATH ('{{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}/Data/') \
-                                       CLEAR LOG"
+                                       CLEAR LOG" \
+                                      --timeout={{ backup_recover_timeout | default(3600) }}
       args:
         executable:                 /bin/bash
       register:                     hana_file_recover_result
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
-      failed_when:                  hana_file_recover_result.rc not in [0, 1, 2]
 
     - name:                         "Test Execution: {{ item.name | default('') }} - Wait for SQL connectivity after SYSTEMDB recovery"
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/wait-for-sql.yml"
       vars:
         wait_sql_delegate_to:       "{{ backup_primary_node }}"
+
+    - name:                         "Test Execution: {{ item.name | default('') }} - Wait for tenant auto-recovery to timeout (120s default)"
+      ansible.builtin.pause:
+        seconds:                    "{{ backup_log_recovery_timeout | default(150) }}"
+      run_once:                     true
 
     - name:                         "Test Execution: {{ item.name | default('') }} - Stop tenant database before recovery"
       become:                       true
@@ -483,6 +450,25 @@
       loop_control:
         loop_var:                   db_item
         label:                      "{{ db_item.name }}"
+
+    - name:                         "Test Execution: {{ item.name | default('') }} - Wait for tenant databases to reach stopped state"
+      become:                       true
+      become_user:                  "{{ db_sid | lower }}adm"
+      ansible.builtin.shell: |
+                                    set -o pipefail
+                                    source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
+                                    hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
+                                      "SELECT COUNT(*) FROM SYS.M_DATABASES \
+                                       WHERE DATABASE_NAME != 'SYSTEMDB' AND ACTIVE_STATUS = 'YES'"
+      args:
+        executable:                 /bin/bash
+      register:                     tenant_stop_verify
+      delegate_to:                  "{{ backup_primary_node }}"
+      run_once:                     true
+      changed_when:                 false
+      retries:                      "{{ backup_tenant_stop_retries | default(30) }}"
+      delay:                        "{{ backup_tenant_stop_delay | default(10) }}"
+      until:                        tenant_stop_verify.stdout | default('1') | regex_search('[0-9]+') | default('1') | int == 0
 
     - name:                         "Test Execution: {{ item.name | default('') }} - Recover tenant DB from backup files"
       become:                       true
