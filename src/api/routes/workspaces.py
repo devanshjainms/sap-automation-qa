@@ -19,11 +19,13 @@ _WORKSPACE_BASE_DIR = "WORKSPACES/SYSTEM"
 _VALID_WORKSPACE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
 
 
-def _validate_workspace_id(workspace_id: str) -> None:
+def _validate_workspace_id(workspace_id: str) -> Path:
     """Validate workspace_id to prevent path traversal attacks.
 
     :param workspace_id: The workspace identifier to validate.
     :type workspace_id: str
+    :returns: Resolved safe path for the workspace directory.
+    :rtype: Path
     :raises HTTPException: If the workspace_id is invalid (400 error).
     """
     if not workspace_id or "\x00" in workspace_id:
@@ -38,6 +40,8 @@ def _validate_workspace_id(workspace_id: str) -> None:
         resolved.relative_to(base_path)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid workspace ID")
+
+    return resolved
 
 
 def set_workspace_loader(loader: Callable[[str], Dict[str, Any]]) -> None:
@@ -146,9 +150,7 @@ def default_workspace_loader(workspace_id: str) -> Dict[str, Any]:
     :rtype: Dict[str, Any]
     :raises HTTPException: If the workspace_id is invalid (400 error).
     """
-    _validate_workspace_id(workspace_id)
-    base_path = Path(_WORKSPACE_BASE_DIR).resolve()
-    workspace_dir = base_path / workspace_id
+    workspace_dir = _validate_workspace_id(workspace_id)
 
     if not workspace_dir.exists():
         return {}

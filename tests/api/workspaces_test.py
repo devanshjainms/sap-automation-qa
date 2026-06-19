@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Generator
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from src.api.routes import workspaces
 from src.api.routes.workspaces import (
@@ -273,7 +274,7 @@ class TestWorkspacesApi:
         assert response.status_code == 404
 
     def test_default_loader_rejects_traversal(self) -> None:
-        """default_workspace_loader raises 400 for path traversal."""
-        with pytest.raises(Exception) as exc_info:
+        """default_workspace_loader raises HTTPException 400 for path traversal."""
+        with pytest.raises(HTTPException) as exc_info:
             default_workspace_loader("..")
         assert exc_info.value.status_code == 400
