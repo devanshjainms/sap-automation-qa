@@ -3,6 +3,7 @@
 
 """Workspaces API routes."""
 
+import os
 import re
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -34,14 +35,12 @@ def _validate_workspace_id(workspace_id: str) -> Path:
     if not _VALID_WORKSPACE_ID_PATTERN.match(workspace_id):
         raise HTTPException(status_code=400, detail="Invalid workspace ID")
 
-    base_path = Path(_WORKSPACE_BASE_DIR).resolve()
-    resolved = (base_path / workspace_id).resolve()
-    try:
-        resolved.relative_to(base_path)
-    except ValueError:
+    base_path = os.path.realpath(_WORKSPACE_BASE_DIR)
+    fullpath = os.path.normpath(os.path.join(base_path, workspace_id))
+    if not fullpath.startswith(base_path + os.sep):
         raise HTTPException(status_code=400, detail="Invalid workspace ID")
 
-    return resolved
+    return Path(fullpath)
 
 
 def set_workspace_loader(loader: Callable[[str], Dict[str, Any]]) -> None:
