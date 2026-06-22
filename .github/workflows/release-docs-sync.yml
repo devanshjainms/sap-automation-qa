@@ -267,7 +267,7 @@ jobs:
           copilot \
             -C "$FORK_DIR" \
             --add-dir "$GITHUB_WORKSPACE" \
-            --agent rpi-agent \
+            --agent hve-core-all:rpi-agent \
             --allow-all \
             --no-ask-user \
             --no-color \
