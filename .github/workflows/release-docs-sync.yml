@@ -22,6 +22,10 @@ on:
         description: "Optional Copilot model override (e.g. claude-sonnet-4.5)"
         required: false
         type: string
+      source_repo:
+        description: "Repo whose releases/refs to analyze (default: Azure/sap-automation-qa)."
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -42,17 +46,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: ${{ github.event_name != 'release' || github.event.release.prerelease == false }}
+    env:
+      SRC_REPO: ${{ inputs.source_repo || 'Azure/sap-automation-qa' }}
+      SRC_DIR: source-repo
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
         with:
           egress-policy: audit
 
-      - name: Checkout sap-automation-qa
+      - name: Checkout workflow repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Checkout source repo to analyze
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          repository: ${{ inputs.source_repo || 'Azure/sap-automation-qa' }}
+          path: source-repo
           fetch-depth: 0
           fetch-tags: true
+          token: ${{ secrets.AZURE_DOCS_PAT }}
 
       - name: Resolve release range
         id: range
@@ -62,9 +75,9 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           IN_BASE: ${{ inputs.base_ref }}
           IN_HEAD: ${{ inputs.head_ref }}
-          SRC_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          cd "${GITHUB_WORKSPACE}/${SRC_DIR}"
 
           # Resolve HEAD ref: release tag, explicit input, or latest published release.
           if [ "$EVENT_NAME" = "release" ] && [ -n "${RELEASE_TAG:-}" ]; then
@@ -115,10 +128,10 @@ jobs:
         env:
           BASE_REF: ${{ steps.range.outputs.base_ref }}
           HEAD_REF: ${{ steps.range.outputs.head_ref }}
-          SRC_REPO: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
         run: |
           set -euo pipefail
+          cd "${GITHUB_WORKSPACE}/${SRC_DIR}"
 
           CTX="${RUNNER_TEMP}/release-context"
           mkdir -p "$CTX"
@@ -162,6 +175,11 @@ jobs:
           echo "changed_count=${CHANGED}" >> "$GITHUB_OUTPUT"
           echo "ctx_dir=${CTX}" >> "$GITHUB_OUTPUT"
           echo "Captured ${CHANGED} changed user-facing file(s)."
+
+          # Detach the source checkout at the head release so the agent reads the
+          # actual released code (not the default branch tip) for deeper context.
+          git checkout -q --detach "$HEAD_REF" 2>/dev/null \
+            || git checkout -q --detach "refs/tags/${HEAD_REF}" 2>/dev/null || true
 
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -253,7 +271,7 @@ jobs:
             --secret-env-vars=COPILOT_GITHUB_TOKEN \
             --log-dir "$LOG_DIR" \
             "${MODEL_ARGS[@]}" \
-            -p "Read and follow the instructions in the file ${GITHUB_WORKSPACE}/.github/prompts/release-docs-sync.md exactly. First read the release context files under ${CONTEXT_REL}/ in the current working directory, then research, plan, implement, and review the SAP automation documentation updates strictly within ${DOCS_PATH}/. Write your impact summary to ${CONTEXT_REL}/impact-summary.md." \
+            -p "Read and follow the instructions in the file ${GITHUB_WORKSPACE}/.github/prompts/release-docs-sync.md exactly. First read the release context files under ${CONTEXT_REL}/ in the current working directory; the analyzed source code (checked out at the head release) is at ${GITHUB_WORKSPACE}/${SRC_DIR}. Then research, plan, implement, and review the SAP automation documentation updates strictly within ${DOCS_PATH}/. Write your impact summary to ${CONTEXT_REL}/impact-summary.md." \
             > "$STDOUT_LOG" 2>&1
           RC=$?
           set -e
@@ -300,7 +318,6 @@ jobs:
           BRANCH: ${{ steps.range.outputs.branch }}
           HEAD_REF: ${{ steps.range.outputs.head_ref }}
           BASE_REF: ${{ steps.range.outputs.base_ref }}
-          SRC_REPO: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
         run: |
           set -euo pipefail
