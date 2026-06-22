@@ -204,10 +204,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Clone the fork using the PAT via an extraheader to avoid embedding
-          # the token in the remote URL.
+          # Authenticate the clone itself (the fork is private). The PAT is supplied
+          # via an inline extraheader so it is not embedded in the remote URL, then
+          # persisted for the upstream fetch and push within this step.
           AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git clone --no-tags "https://github.com/${DOCS_FORK}.git" "$FORK_DIR"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${AUTH}" \
+            clone --no-tags "https://github.com/${DOCS_FORK}.git" "$FORK_DIR"
           cd "$FORK_DIR"
           git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${AUTH}"
           git config user.name "github-actions[bot]"
