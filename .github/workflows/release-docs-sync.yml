@@ -198,29 +198,28 @@ jobs:
           echo "Installed plugins:"
           copilot plugin list
 
-      - name: Sync docs fork with upstream
+      - name: Sync docs fork with upstream and clone
         env:
           GH_TOKEN: ${{ secrets.AZURE_DOCS_PAT }}
         run: |
           set -euo pipefail
 
-          # Authenticate the clone itself (the fork is private). The PAT is supplied
-          # via an inline extraheader so it is not embedded in the remote URL, then
-          # persisted for the upstream fetch and push within this step.
+          if SYNC=$(gh api --method POST "repos/${DOCS_FORK}/merge-upstream" \
+              -f branch=main 2>&1); then
+            echo "Fork main synced (merge_type: $(printf '%s' "$SYNC" \
+              | jq -r '.merge_type // "unknown"' 2>/dev/null || echo unknown))."
+          else
+            echo "::warning::Fork sync via merge-upstream failed; continuing with the fork's current main:"
+            printf '%s\n' "$SYNC"
+          fi
+
           AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${AUTH}" \
-            clone --no-tags "https://github.com/${DOCS_FORK}.git" "$FORK_DIR"
+            clone --no-tags --branch main "https://github.com/${DOCS_FORK}.git" "$FORK_DIR"
           cd "$FORK_DIR"
           git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${AUTH}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # Fast-forward the fork's main from upstream and push it back.
-          git remote add upstream "https://github.com/${DOCS_UPSTREAM}.git"
-          git fetch upstream main
-          git checkout main
-          git merge --ff-only upstream/main
-          git push origin main
 
       - name: Prepare release branch and context
         id: prep
