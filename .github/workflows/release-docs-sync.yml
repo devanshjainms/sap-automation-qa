@@ -1,0 +1,405 @@
+name: Release Documentation Sync
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base ref for the release diff (default: previous published release)"
+        required: false
+        type: string
+      head_ref:
+        description: "Head ref for the release diff (default: latest published release)"
+        required: false
+        type: string
+      dry_run:
+        description: "Dry run: build docs + artifacts but do not push or open a PR"
+        required: false
+        type: boolean
+        default: true
+      model:
+        description: "Optional Copilot model override (e.g. claude-sonnet-4.5)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-docs-sync
+  cancel-in-progress: false
+
+env:
+  DOCS_FORK: devanshjainms/azure-docs-pr
+  DOCS_UPSTREAM: MicrosoftDocs/azure-docs-pr
+  DOCS_PATH: articles/sap/automation
+  FORK_DIR: /tmp/azure-docs-pr
+  CONTEXT_REL: .copilot-tracking/release-context
+
+jobs:
+  sync-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ github.event_name != 'release' || github.event.release.prerelease == false }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout sap-automation-qa
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve release range
+        id: range
+        env:
+          GH_TOKEN: ${{ secrets.AZURE_DOCS_PAT }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          IN_BASE: ${{ inputs.base_ref }}
+          IN_HEAD: ${{ inputs.head_ref }}
+          SRC_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Resolve HEAD ref: release tag, explicit input, or latest published release.
+          if [ "$EVENT_NAME" = "release" ] && [ -n "${RELEASE_TAG:-}" ]; then
+            HEAD_REF="$RELEASE_TAG"
+          elif [ -n "${IN_HEAD:-}" ]; then
+            HEAD_REF="$IN_HEAD"
+          else
+            HEAD_REF=$(gh release view --repo "$SRC_REPO" --json tagName --jq '.tagName')
+          fi
+
+          # Resolve BASE ref: explicit input, else the release published immediately
+          # before HEAD_REF (the "last published release"). HEAD_REF is exported so
+          # the jq filter can read it via env without fragile shell interpolation.
+          if [ -n "${IN_BASE:-}" ]; then
+            BASE_REF="$IN_BASE"
+          else
+            export HEAD_REF
+            BASE_REF=$(gh release list --repo "$SRC_REPO" --limit 100 \
+              --json tagName,publishedAt,isDraft,isPrerelease \
+              --jq '[.[] | select(.isDraft==false and .isPrerelease==false)]
+                    | sort_by(.publishedAt) | reverse
+                    | map(.tagName)
+                    | if (index(env.HEAD_REF)) == null then ""
+                      else (.[(index(env.HEAD_REF)) + 1] // "") end')
+          fi
+
+          if [ -z "${BASE_REF:-}" ]; then
+            echo "::error::Could not resolve a base ref for head '${HEAD_REF:-?}' (head not found among stable releases, or no previous release exists). Provide base_ref input to override."
+            exit 1
+          fi
+
+          # Validate both refs exist locally.
+          git rev-parse -q --verify "refs/tags/${HEAD_REF}" >/dev/null 2>&1 \
+            || git rev-parse -q --verify "$HEAD_REF" >/dev/null 2>&1 \
+            || { echo "::error::head ref '$HEAD_REF' not found"; exit 1; }
+          git rev-parse -q --verify "refs/tags/${BASE_REF}" >/dev/null 2>&1 \
+            || git rev-parse -q --verify "$BASE_REF" >/dev/null 2>&1 \
+            || { echo "::error::base ref '$BASE_REF' not found"; exit 1; }
+
+          {
+            echo "base_ref=${BASE_REF}"
+            echo "head_ref=${HEAD_REF}"
+            echo "branch=docs/release-${HEAD_REF}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Release range: ${BASE_REF}..${HEAD_REF}"
+      - name: Build code-change context
+        id: context
+        env:
+          BASE_REF: ${{ steps.range.outputs.base_ref }}
+          HEAD_REF: ${{ steps.range.outputs.head_ref }}
+          SRC_REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+
+          CTX="${RUNNER_TEMP}/release-context"
+          mkdir -p "$CTX"
+
+          # Restrict the diff to user-facing paths; internal-only churn is filtered
+          # out so the agent focuses on documentation-relevant changes.
+          PATHSPEC=(
+            'src/' 'scripts/' 'vars.yaml' 'docs/'
+            'playbook_*.yml' ':!tests/' ':!**/tests/**'
+          )
+
+          git diff --stat "${BASE_REF}..${HEAD_REF}" -- "${PATHSPEC[@]}" \
+            > "${CTX}/diff-stat.txt" || true
+          git diff "${BASE_REF}..${HEAD_REF}" -- "${PATHSPEC[@]}" \
+            > "${CTX}/code-diff.patch" || true
+          git diff --name-status "${BASE_REF}..${HEAD_REF}" -- "${PATHSPEC[@]}" \
+            > "${CTX}/changed-files.txt" || true
+          git log --no-merges --pretty='- %s (%h)' "${BASE_REF}..${HEAD_REF}" \
+            > "${CTX}/commit-log.txt" || true
+
+          # Extract the CHANGELOG section for the head release tag, if present.
+          if [ -f docs/CHANGELOG.md ]; then
+            awk -v tag="$HEAD_REF" '
+              $0 ~ "^#+ .*" tag { capture=1; print; next }
+              capture && /^#+ / && $0 !~ tag { exit }
+              capture { print }
+            ' docs/CHANGELOG.md > "${CTX}/changelog-excerpt.md" || true
+          fi
+          [ -s "${CTX}/changelog-excerpt.md" ] || \
+            echo "_No CHANGELOG section found for ${HEAD_REF}._" > "${CTX}/changelog-excerpt.md"
+
+          {
+            echo "repo: ${SRC_REPO}"
+            echo "base_ref: ${BASE_REF}"
+            echo "head_ref: ${HEAD_REF}"
+            echo "release_url: ${SERVER_URL}/${SRC_REPO}/releases/tag/${HEAD_REF}"
+            echo "compare_url: ${SERVER_URL}/${SRC_REPO}/compare/${BASE_REF}...${HEAD_REF}"
+          } > "${CTX}/release-meta.txt"
+
+          CHANGED=$(grep -cve '^$' "${CTX}/changed-files.txt" || true)
+          echo "changed_count=${CHANGED}" >> "$GITHUB_OUTPUT"
+          echo "ctx_dir=${CTX}" >> "$GITHUB_OUTPUT"
+          echo "Captured ${CHANGED} changed user-facing file(s)."
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+
+      - name: Install GitHub Copilot CLI + hve-core agents
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.AZURE_DOCS_PAT }}
+        run: |
+          set -euo pipefail
+          npm install -g @github/copilot
+          copilot --version
+          copilot plugin marketplace add microsoft/hve-core
+          copilot plugin install hve-core-all@hve-core
+          echo "Installed plugins:"
+          copilot plugin list
+
+      - name: Sync docs fork with upstream
+        env:
+          GH_TOKEN: ${{ secrets.AZURE_DOCS_PAT }}
+        run: |
+          set -euo pipefail
+
+          # Clone the fork using the PAT via an extraheader to avoid embedding
+          # the token in the remote URL.
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git clone --no-tags "https://github.com/${DOCS_FORK}.git" "$FORK_DIR"
+          cd "$FORK_DIR"
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${AUTH}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Fast-forward the fork's main from upstream and push it back.
+          git remote add upstream "https://github.com/${DOCS_UPSTREAM}.git"
+          git fetch upstream main
+          git checkout main
+          git merge --ff-only upstream/main
+          git push origin main
+
+      - name: Prepare release branch and context
+        id: prep
+        env:
+          BRANCH: ${{ steps.range.outputs.branch }}
+          CTX_DIR: ${{ steps.context.outputs.ctx_dir }}
+        run: |
+          set -euo pipefail
+          cd "$FORK_DIR"
+
+          # Reset the release branch to current main (idempotent re-runs).
+          git checkout -B "$BRANCH" main
+
+          # Copy the release context into the working tree but keep it out of git.
+          mkdir -p "${FORK_DIR}/${CONTEXT_REL}"
+          cp -a "${CTX_DIR}/." "${FORK_DIR}/${CONTEXT_REL}/"
+          grep -qxF '.copilot-tracking/' .git/info/exclude 2>/dev/null \
+            || echo '.copilot-tracking/' >> .git/info/exclude
+
+          # Remove the stored push credential before the autonomous agent runs so a
+          # prompt-injected agent cannot push via cached git credentials. The PR step
+          # re-adds it only when needed.
+          git config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
+
+      - name: Run hve-core RPI agents (headless)
+        id: agent
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.AZURE_DOCS_PAT }}
+          MODEL: ${{ inputs.model }}
+        run: |
+          set -euo pipefail
+
+          # Raw CLI debug logs may contain auth headers; keep them separate and do
+          # NOT upload them. agent-stdout.log (token redacted) is safe to retain.
+          LOG_DIR="${RUNNER_TEMP}/copilot-logs"
+          STDOUT_LOG="${RUNNER_TEMP}/agent-stdout.log"
+          mkdir -p "$LOG_DIR"
+
+          MODEL_ARGS=()
+          [ -n "${MODEL:-}" ] && MODEL_ARGS+=(--model "$MODEL")
+
+          set +e
+          copilot \
+            -C "$FORK_DIR" \
+            --add-dir "$GITHUB_WORKSPACE" \
+            --agent rpi-agent \
+            --allow-all \
+            --no-ask-user \
+            --no-color \
+            --secret-env-vars=COPILOT_GITHUB_TOKEN \
+            --log-dir "$LOG_DIR" \
+            "${MODEL_ARGS[@]}" \
+            -p "Read and follow the instructions in the file ${GITHUB_WORKSPACE}/.github/prompts/release-docs-sync.md exactly. First read the release context files under ${CONTEXT_REL}/ in the current working directory, then research, plan, implement, and review the SAP automation documentation updates strictly within ${DOCS_PATH}/. Write your impact summary to ${CONTEXT_REL}/impact-summary.md." \
+            > "$STDOUT_LOG" 2>&1
+          RC=$?
+          set -e
+
+          echo "agent_rc=${RC}" >> "$GITHUB_OUTPUT"
+          echo "stdout_log=${STDOUT_LOG}" >> "$GITHUB_OUTPUT"
+          tail -n 50 "$STDOUT_LOG" || true
+          if [ "$RC" -ne 0 ]; then
+            echo "::warning::Copilot CLI exited with code ${RC}; continuing to evaluate any produced changes."
+          fi
+
+      - name: Evaluate changes and guardrails
+        id: eval
+        run: |
+          set -euo pipefail
+          cd "$FORK_DIR"
+
+          # Guardrail: the agent must only touch the permitted docs subtree.
+          # Any staged, unstaged, or untracked change elsewhere (excluding the
+          # tracking dir) is a scope violation.
+          STRAY=$(git status --porcelain -- ":!${DOCS_PATH}" ":!.copilot-tracking")
+          if [ -n "$STRAY" ]; then
+            echo "::error::Agent modified files outside ${DOCS_PATH}:"
+            echo "$STRAY"
+            exit 1
+          fi
+
+          # Stage only the permitted docs subtree.
+          git add -A -- "$DOCS_PATH"
+          if git diff --cached --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No documentation changes were produced."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            git diff --cached --name-status -- "$DOCS_PATH"
+            git diff --cached -- "$DOCS_PATH" > "${RUNNER_TEMP}/docs-changes.patch"
+          fi
+
+      - name: Create or update draft PR
+        id: pr
+        if: steps.eval.outputs.has_changes == 'true' && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ secrets.AZURE_DOCS_PAT }}
+          BRANCH: ${{ steps.range.outputs.branch }}
+          HEAD_REF: ${{ steps.range.outputs.head_ref }}
+          BASE_REF: ${{ steps.range.outputs.base_ref }}
+          SRC_REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          cd "$FORK_DIR"
+
+          # Re-add the push credential (removed before the agent run) for this step only.
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${AUTH}"
+
+          git commit -m "docs: SAP automation updates for ${SRC_REPO} ${HEAD_REF}"
+          git push --force-with-lease origin "$BRANCH"
+
+          FORK_OWNER="${DOCS_FORK%%/*}"
+          HEAD_SPEC="${FORK_OWNER}:${BRANCH}"
+
+          BODY_FILE="${RUNNER_TEMP}/pr-body.md"
+          {
+            echo "Automated documentation sync for **${SRC_REPO}** release **${HEAD_REF}**."
+            echo ""
+            echo "- Release: ${SERVER_URL}/${SRC_REPO}/releases/tag/${HEAD_REF}"
+            echo "- Code changes: ${SERVER_URL}/${SRC_REPO}/compare/${BASE_REF}...${HEAD_REF}"
+            echo ""
+            echo "Generated by the microsoft/hve-core RPI agents via the"
+            echo "\`release-docs-sync\` workflow. Review carefully before publishing."
+            echo ""
+            if [ -f "${CONTEXT_REL}/impact-summary.md" ]; then
+              echo "<details><summary>Impact summary</summary>"
+              echo ""
+              cat "${CONTEXT_REL}/impact-summary.md"
+              echo ""
+              echo "</details>"
+            fi
+          } > "$BODY_FILE"
+
+          # Idempotent: update existing PR for this branch, else create a draft.
+          EXISTING=$(gh pr list --repo "$DOCS_UPSTREAM" --head "$BRANCH" \
+            --state open --json number --jq '.[0].number // empty' || true)
+          TITLE="docs: SAP automation updates for ${HEAD_REF}"
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" --repo "$DOCS_UPSTREAM" --title "$TITLE" --body-file "$BODY_FILE"
+            PR_URL=$(gh pr view "$EXISTING" --repo "$DOCS_UPSTREAM" --json url --jq '.url')
+          else
+            PR_URL=$(gh pr create --repo "$DOCS_UPSTREAM" --draft \
+              --base main --head "$HEAD_SPEC" \
+              --title "$TITLE" --body-file "$BODY_FILE")
+          fi
+          echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
+          echo "Draft PR: ${PR_URL}"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: release-docs-sync-${{ steps.range.outputs.head_ref || github.run_id }}
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            ${{ steps.context.outputs.ctx_dir }}
+            ${{ env.FORK_DIR }}/.copilot-tracking/release-context
+            ${{ runner.temp }}/docs-changes.patch
+            ${{ steps.agent.outputs.stdout_log }}
+
+      - name: Job summary
+        if: always()
+        env:
+          BASE_REF: ${{ steps.range.outputs.base_ref }}
+          HEAD_REF: ${{ steps.range.outputs.head_ref }}
+          CHANGED_COUNT: ${{ steps.context.outputs.changed_count }}
+          HAS_CHANGES: ${{ steps.eval.outputs.has_changes }}
+          AGENT_RC: ${{ steps.agent.outputs.agent_rc }}
+          PR_URL: ${{ steps.pr.outputs.pr_url }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Release Documentation Sync"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Release range | \`${BASE_REF:-?}..${HEAD_REF:-?}\` |"
+            echo "| Changed source files | ${CHANGED_COUNT:-0} |"
+            echo "| Agent exit code | ${AGENT_RC:-n/a} |"
+            echo "| Docs changes produced | ${HAS_CHANGES:-false} |"
+            echo "| Dry run | ${DRY_RUN:-false} |"
+            echo "| Draft PR | ${PR_URL:-none} |"
+            echo ""
+            SUMMARY="${FORK_DIR}/${CONTEXT_REL}/impact-summary.md"
+            if [ -f "$SUMMARY" ]; then
+              echo "### Impact Summary"
+              echo ""
+              cat "$SUMMARY"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup credentials
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -d "$FORK_DIR/.git" ]; then
+            git -C "$FORK_DIR" config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
+          fi
+          rm -rf "$FORK_DIR" 2>/dev/null || true
