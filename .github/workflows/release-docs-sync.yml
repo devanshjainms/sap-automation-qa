@@ -215,9 +215,11 @@ jobs:
 
           AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${AUTH}" \
-            clone --no-tags --branch main "https://github.com/${DOCS_FORK}.git" "$FORK_DIR"
+            clone --no-tags --depth 1 --filter=blob:none --sparse \
+            --branch main "https://github.com/${DOCS_FORK}.git" "$FORK_DIR"
           cd "$FORK_DIR"
           git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${AUTH}"
+          git sparse-checkout set "$DOCS_PATH"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
