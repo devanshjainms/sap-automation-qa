@@ -3,10 +3,10 @@
 You are running **non-interactively in CI** to keep the public SAP automation
 documentation in sync with a new release of the `sap-automation-qa` framework.
 
-Use the **Research → Plan → Implement → Review (RPI)** methodology. You are the
-`rpi-agent`: research the release changes first, plan the documentation updates,
-implement them, then self-review. Delegate research and verification to
-subagents where helpful.
+This work is driven as a staged **Research → Plan → Review → Implement → Review**
+pipeline; you are invoked as one specialized agent per stage and exchange state
+through files under `.copilot-tracking/`. Stick to your stage's role and respect
+the scope and conventions below regardless of which stage you are.
 
 ## Context Inputs
 

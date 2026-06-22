@@ -18,8 +18,8 @@ on:
         required: false
         type: boolean
         default: true
-      model:
-        description: "Optional Copilot model override (e.g. claude-sonnet-4.5)"
+      user_instructions:
+        description: "Custom instructions for the docs sync run (injected into the agent prompts)"
         required: false
         type: string
       source_repo:
@@ -40,11 +40,13 @@ env:
   DOCS_PATH: articles/sap/automation
   FORK_DIR: /tmp/azure-docs-pr
   CONTEXT_REL: .copilot-tracking/release-context
+  PLAN_MODEL: claude-opus-4.6
+  IMPL_MODEL: gpt-5.5
 
 jobs:
   sync-docs:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     if: ${{ github.event_name != 'release' || github.event.release.prerelease == false }}
     env:
       SRC_REPO: ${{ inputs.source_repo || 'Azure/sap-automation-qa' }}
@@ -111,10 +113,15 @@ jobs:
             || git rev-parse -q --verify "$BASE_REF" >/dev/null 2>&1 \
             || { echo "::error::base ref '$BASE_REF' not found"; exit 1; }
 
+          SHORT_SHA=$(git rev-parse --short "refs/tags/${HEAD_REF}^{commit}" 2>/dev/null \
+            || git rev-parse --short "${HEAD_REF}^{commit}" 2>/dev/null \
+            || git rev-parse --short "$HEAD_REF")
+          DATE=$(date -u +%Y%m%d)
+
           {
             echo "base_ref=${BASE_REF}"
             echo "head_ref=${HEAD_REF}"
-            echo "branch=docs/release-${HEAD_REF}"
+            echo "branch=docs/release-${HEAD_REF}-${DATE}-${SHORT_SHA}"
           } >> "$GITHUB_OUTPUT"
           echo "Release range: ${BASE_REF}..${HEAD_REF}"
       - name: Build code-change context
@@ -228,43 +235,97 @@ jobs:
 
           git config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
 
-      - name: Run hve-core RPI agents (headless)
+      - name: Run hve-core RPI pipeline (headless)
         id: agent
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.AZURE_DOCS_PAT }}
-          MODEL: ${{ inputs.model }}
+          USER_INSTRUCTIONS: ${{ inputs.user_instructions }}
         run: |
           set -euo pipefail
 
-          LOG_DIR="${RUNNER_TEMP}/copilot-logs"
-          STDOUT_LOG="${RUNNER_TEMP}/agent-stdout.log"
-          mkdir -p "$LOG_DIR"
+          RAW_LOG_DIR="${RUNNER_TEMP}/copilot-raw-logs"
+          STAGE_LOG_DIR="${RUNNER_TEMP}/pipeline-logs"
+          mkdir -p "$RAW_LOG_DIR" "$STAGE_LOG_DIR"
 
-          MODEL_ARGS=()
-          [ -n "${MODEL:-}" ] && MODEL_ARGS+=(--model "$MODEL")
+          PROMPT_FILE="${GITHUB_WORKSPACE}/.github/prompts/release-docs-sync.md"
+          TRACK="${FORK_DIR}/.copilot-tracking"
 
-          set +e
-          copilot \
-            -C "$FORK_DIR" \
-            --add-dir "$GITHUB_WORKSPACE" \
-            --agent hve-core-all:rpi-agent \
-            --allow-all \
-            --no-ask-user \
-            --no-color \
-            --secret-env-vars=COPILOT_GITHUB_TOKEN \
-            --log-dir "$LOG_DIR" \
-            "${MODEL_ARGS[@]}" \
-            -p "Read and follow the instructions in the file ${GITHUB_WORKSPACE}/.github/prompts/release-docs-sync.md exactly. First read the release context files under ${CONTEXT_REL}/ in the current working directory; the analyzed source code (checked out at the head release) is at ${GITHUB_WORKSPACE}/${SRC_DIR}. Then research, plan, implement, and review the SAP automation documentation updates strictly within ${DOCS_PATH}/. Write your impact summary to ${CONTEXT_REL}/impact-summary.md." \
-            > "$STDOUT_LOG" 2>&1
-          RC=$?
-          set -e
-
-          echo "agent_rc=${RC}" >> "$GITHUB_OUTPUT"
-          echo "stdout_log=${STDOUT_LOG}" >> "$GITHUB_OUTPUT"
-          tail -n 50 "$STDOUT_LOG" || true
-          if [ "$RC" -ne 0 ]; then
-            echo "::warning::Copilot CLI exited with code ${RC}; continuing to evaluate any produced changes."
+          EXTRA=""
+          if [ -n "${USER_INSTRUCTIONS:-}" ]; then
+            EXTRA=$'\n\nAdditional user instructions for this run (authoritative):\n'"${USER_INSTRUCTIONS}"
           fi
+
+          run_stage() {
+            local name="$1" agent="$2" model="$3" prompt="$4"
+            local log="${STAGE_LOG_DIR}/stage-${name}.log"
+            local margs=()
+            [ -n "$model" ] && margs+=(--model "$model")
+            echo "::group::Stage ${name} (agent=${agent}, model=${model:-default})"
+            if ! copilot \
+                -C "$FORK_DIR" \
+                --add-dir "$GITHUB_WORKSPACE" \
+                --agent "$agent" \
+                --allow-all \
+                --no-ask-user \
+                --no-color \
+                --secret-env-vars=COPILOT_GITHUB_TOKEN \
+                --log-dir "$RAW_LOG_DIR" \
+                "${margs[@]}" \
+                -p "${prompt}${EXTRA}" > "$log" 2>&1; then
+              echo "::endgroup::"
+              echo "::error::Pipeline stage '${name}' failed:"
+              tail -n 60 "$log" || true
+              return 1
+            fi
+            tail -n 25 "$log" || true
+            echo "::endgroup::"
+          }
+
+          latest_rel() {
+            local f
+            f=$(find "${TRACK}/$1" -maxdepth 1 -type f -name '*.md' -printf '%T@ %p\n' 2>/dev/null \
+                | sort -nr | head -1 | cut -d' ' -f2- || true)
+            [ -n "$f" ] && printf '%s' "${f#"$FORK_DIR"/}" || printf '%s' ".copilot-tracking/$1/"
+          }
+
+          BASE="Follow the overarching instructions in ${PROMPT_FILE}. The working directory is the docs fork; create or edit documentation ONLY under ${DOCS_PATH}/ (and tracking files under .copilot-tracking/). The release context is under ${CONTEXT_REL}/ and the analyzed source code (checked out at the head release) is at ${GITHUB_WORKSPACE}/${SRC_DIR}."
+
+          # 1. Research
+          run_stage research hve-core-all:task-researcher "" \
+            "${BASE} Research which user-visible changes in this release require documentation updates under ${DOCS_PATH}. Produce a research document in .copilot-tracking/research/. Do not edit any docs yet."
+          RESEARCH_REL="$(latest_rel research)"
+
+          # 2. Plan
+          run_stage plan hve-core-all:task-planner "$PLAN_MODEL" \
+            "${BASE} Using the research at ${RESEARCH_REL}, create an implementation plan for the documentation updates strictly within ${DOCS_PATH}. Write plan and details files under .copilot-tracking/plans/ and .copilot-tracking/details/. Do not edit any docs yet."
+          PLAN_REL="$(latest_rel plans)"
+
+          # 3. Validate the plan — task-planner runs its Plan Validator subagent
+          #    (Plan Validator is user-invocable:false, so it is reached via task-planner).
+          run_stage validate-plan hve-core-all:task-planner "$PLAN_MODEL" \
+            "${BASE} Do NOT rewrite the plan. Using the Plan Validator, validate the implementation PLAN at ${PLAN_REL} against the research for completeness and accuracy, and record severity-graded discrepancies in the plan's Planning Log (Discrepancy Log section). Do not edit any docs."
+
+          # 4. Fix the plan
+          run_stage fix-plan hve-core-all:task-planner "$PLAN_MODEL" \
+            "${BASE} Revise the plan at ${PLAN_REL} IN PLACE to resolve the discrepancies recorded in its Planning Log (Discrepancy Log section). Update the existing plan and details files; do not create a new dated plan. Do not edit any docs yet."
+          PLAN_REL="$(latest_rel plans)"
+
+          # 5. Implement
+          run_stage implement hve-core-all:task-implementor "$IMPL_MODEL" \
+            "${BASE} Implement the plan at ${PLAN_REL}, creating/editing docs strictly within ${DOCS_PATH}. Track changes in .copilot-tracking/changes/. Also write a concise impact summary to ${CONTEXT_REL}/impact-summary.md beginning with a line '## Impact: DOCS_NEEDED' or '## Impact: NO_DOCS_NEEDED', followed by the user-visible changes and the docs files created/edited."
+
+          # 6. Review the implementation
+          run_stage review hve-core-all:task-reviewer "" \
+            "${BASE} Review the implemented documentation changes under ${DOCS_PATH} against the plan at ${PLAN_REL} and the research. Write findings to .copilot-tracking/reviews/. Do not modify any docs."
+          IMPL_REVIEW_REL="$(latest_rel reviews)"
+
+          # 7. Fix
+          run_stage fix hve-core-all:task-implementor "$IMPL_MODEL" \
+            "${BASE} Address the review findings at ${IMPL_REVIEW_REL}, updating docs within ${DOCS_PATH} and the impact summary at ${CONTEXT_REL}/impact-summary.md as needed. If there are no actionable findings, make no changes."
+
+          echo "agent_rc=0" >> "$GITHUB_OUTPUT"
+          echo "stage_log_dir=${STAGE_LOG_DIR}" >> "$GITHUB_OUTPUT"
+          echo "Pipeline completed all stages."
 
       - name: Evaluate changes and guardrails
         id: eval
@@ -373,9 +434,9 @@ jobs:
           if-no-files-found: ignore
           path: |
             ${{ steps.context.outputs.ctx_dir }}
-            ${{ env.FORK_DIR }}/.copilot-tracking/release-context
+            ${{ env.FORK_DIR }}/.copilot-tracking
             ${{ runner.temp }}/docs-changes.patch
-            ${{ steps.agent.outputs.stdout_log }}
+            ${{ steps.agent.outputs.stage_log_dir }}
 
       - name: Job summary
         if: always()
@@ -397,7 +458,9 @@ jobs:
             echo "|-------|-------|"
             echo "| Release range | \`${BASE_REF:-?}..${HEAD_REF:-?}\` |"
             echo "| Changed source files | ${CHANGED_COUNT:-0} |"
-            echo "| Agent exit code | ${AGENT_RC:-n/a} |"
+            echo "| Plan model | ${PLAN_MODEL} |"
+            echo "| Implement model | ${IMPL_MODEL} |"
+            echo "| Pipeline completed | ${AGENT_RC:-n/a (failed mid-pipeline)} |"
             echo "| Docs changes produced | ${HAS_CHANGES:-false} |"
             echo "| Dry run | ${DRY_RUN:-false} |"
             echo "| Pushed branch | ${BRANCH_URL:-none} |"
