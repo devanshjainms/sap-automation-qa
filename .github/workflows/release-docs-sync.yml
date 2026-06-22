@@ -78,8 +78,6 @@ jobs:
         run: |
           set -euo pipefail
           cd "${GITHUB_WORKSPACE}/${SRC_DIR}"
-
-          # Resolve HEAD ref: release tag, explicit input, or latest published release.
           if [ "$EVENT_NAME" = "release" ] && [ -n "${RELEASE_TAG:-}" ]; then
             HEAD_REF="$RELEASE_TAG"
           elif [ -n "${IN_HEAD:-}" ]; then
@@ -88,9 +86,6 @@ jobs:
             HEAD_REF=$(gh release view --repo "$SRC_REPO" --json tagName --jq '.tagName')
           fi
 
-          # Resolve BASE ref: explicit input, else the release published immediately
-          # before HEAD_REF (the "last published release"). HEAD_REF is exported so
-          # the jq filter can read it via env without fragile shell interpolation.
           if [ -n "${IN_BASE:-}" ]; then
             BASE_REF="$IN_BASE"
           else
@@ -109,7 +104,6 @@ jobs:
             exit 1
           fi
 
-          # Validate both refs exist locally.
           git rev-parse -q --verify "refs/tags/${HEAD_REF}" >/dev/null 2>&1 \
             || git rev-parse -q --verify "$HEAD_REF" >/dev/null 2>&1 \
             || { echo "::error::head ref '$HEAD_REF' not found"; exit 1; }
@@ -136,8 +130,6 @@ jobs:
           CTX="${RUNNER_TEMP}/release-context"
           mkdir -p "$CTX"
 
-          # Restrict the diff to user-facing paths; internal-only churn is filtered
-          # out so the agent focuses on documentation-relevant changes.
           PATHSPEC=(
             'src/' 'scripts/' 'vars.yaml' 'docs/'
             'playbook_*.yml' ':!tests/' ':!**/tests/**'
@@ -152,7 +144,6 @@ jobs:
           git log --no-merges --pretty='- %s (%h)' "${BASE_REF}..${HEAD_REF}" \
             > "${CTX}/commit-log.txt" || true
 
-          # Extract the CHANGELOG section for the head release tag, if present.
           if [ -f docs/CHANGELOG.md ]; then
             awk -v tag="$HEAD_REF" '
               $0 ~ "^#+ .*" tag { capture=1; print; next }
@@ -176,8 +167,6 @@ jobs:
           echo "ctx_dir=${CTX}" >> "$GITHUB_OUTPUT"
           echo "Captured ${CHANGED} changed user-facing file(s)."
 
-          # Detach the source checkout at the head release so the agent reads the
-          # actual released code (not the default branch tip) for deeper context.
           git checkout -q --detach "$HEAD_REF" 2>/dev/null \
             || git checkout -q --detach "refs/tags/${HEAD_REF}" 2>/dev/null || true
 
@@ -231,19 +220,12 @@ jobs:
         run: |
           set -euo pipefail
           cd "$FORK_DIR"
-
-          # Reset the release branch to current main (idempotent re-runs).
           git checkout -B "$BRANCH" main
-
-          # Copy the release context into the working tree but keep it out of git.
           mkdir -p "${FORK_DIR}/${CONTEXT_REL}"
           cp -a "${CTX_DIR}/." "${FORK_DIR}/${CONTEXT_REL}/"
           grep -qxF '.copilot-tracking/' .git/info/exclude 2>/dev/null \
             || echo '.copilot-tracking/' >> .git/info/exclude
 
-          # Remove the stored push credential before the autonomous agent runs so a
-          # prompt-injected agent cannot push via cached git credentials. The PR step
-          # re-adds it only when needed.
           git config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
 
       - name: Run hve-core RPI agents (headless)
@@ -254,8 +236,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Raw CLI debug logs may contain auth headers; keep them separate and do
-          # NOT upload them. agent-stdout.log (token redacted) is safe to retain.
           LOG_DIR="${RUNNER_TEMP}/copilot-logs"
           STDOUT_LOG="${RUNNER_TEMP}/agent-stdout.log"
           mkdir -p "$LOG_DIR"
@@ -292,9 +272,6 @@ jobs:
           set -euo pipefail
           cd "$FORK_DIR"
 
-          # Guardrail: the agent must only touch the permitted docs subtree.
-          # Any staged, unstaged, or untracked change elsewhere (excluding the
-          # tracking dir) is a scope violation.
           STRAY=$(git status --porcelain -- ":!${DOCS_PATH}" ":!.copilot-tracking")
           if [ -n "$STRAY" ]; then
             echo "::error::Agent modified files outside ${DOCS_PATH}:"
@@ -302,7 +279,6 @@ jobs:
             exit 1
           fi
 
-          # Stage only the permitted docs subtree.
           git add -A -- "$DOCS_PATH"
           if git diff --cached --quiet; then
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
@@ -312,6 +288,31 @@ jobs:
             git diff --cached --name-status -- "$DOCS_PATH"
             git diff --cached -- "$DOCS_PATH" > "${RUNNER_TEMP}/docs-changes.patch"
           fi
+
+      - name: Commit and push branch to fork
+        id: push
+        if: steps.eval.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AZURE_DOCS_PAT }}
+          BRANCH: ${{ steps.range.outputs.branch }}
+          HEAD_REF: ${{ steps.range.outputs.head_ref }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          cd "$FORK_DIR"
+
+          # Re-add the push credential (removed before the agent run) and push the
+          # branch to the fork. This is fork-scoped, so it runs in dry-run too,
+          # letting you review the generated docs as a branch/diff without a PR.
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${AUTH}"
+
+          git commit -m "docs: SAP automation updates for ${SRC_REPO} ${HEAD_REF}"
+          git push --force-with-lease origin "$BRANCH"
+
+          BRANCH_URL="${SERVER_URL}/${DOCS_FORK}/tree/${BRANCH}"
+          echo "branch_url=${BRANCH_URL}" >> "$GITHUB_OUTPUT"
+          echo "Pushed branch to fork: ${BRANCH_URL}"
 
       - name: Create or update draft PR
         id: pr
@@ -324,15 +325,9 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
         run: |
           set -euo pipefail
-          cd "$FORK_DIR"
 
-          # Re-add the push credential (removed before the agent run) for this step only.
-          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${AUTH}"
-
-          git commit -m "docs: SAP automation updates for ${SRC_REPO} ${HEAD_REF}"
-          git push --force-with-lease origin "$BRANCH"
-
+          # The branch was already pushed to the fork in the previous step; here we
+          # only open (or update) the cross-fork draft PR into the MS upstream.
           FORK_OWNER="${DOCS_FORK%%/*}"
           HEAD_SPEC="${FORK_OWNER}:${BRANCH}"
 
@@ -346,16 +341,15 @@ jobs:
             echo "Generated by the microsoft/hve-core RPI agents via the"
             echo "\`release-docs-sync\` workflow. Review carefully before publishing."
             echo ""
-            if [ -f "${CONTEXT_REL}/impact-summary.md" ]; then
+            if [ -f "${FORK_DIR}/${CONTEXT_REL}/impact-summary.md" ]; then
               echo "<details><summary>Impact summary</summary>"
               echo ""
-              cat "${CONTEXT_REL}/impact-summary.md"
+              cat "${FORK_DIR}/${CONTEXT_REL}/impact-summary.md"
               echo ""
               echo "</details>"
             fi
           } > "$BODY_FILE"
 
-          # Idempotent: update existing PR for this branch, else create a draft.
           EXISTING=$(gh pr list --repo "$DOCS_UPSTREAM" --head "$BRANCH" \
             --state open --json number --jq '.[0].number // empty' || true)
           TITLE="docs: SAP automation updates for ${HEAD_REF}"
@@ -391,6 +385,7 @@ jobs:
           CHANGED_COUNT: ${{ steps.context.outputs.changed_count }}
           HAS_CHANGES: ${{ steps.eval.outputs.has_changes }}
           AGENT_RC: ${{ steps.agent.outputs.agent_rc }}
+          BRANCH_URL: ${{ steps.push.outputs.branch_url }}
           PR_URL: ${{ steps.pr.outputs.pr_url }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
@@ -405,6 +400,7 @@ jobs:
             echo "| Agent exit code | ${AGENT_RC:-n/a} |"
             echo "| Docs changes produced | ${HAS_CHANGES:-false} |"
             echo "| Dry run | ${DRY_RUN:-false} |"
+            echo "| Pushed branch | ${BRANCH_URL:-none} |"
             echo "| Draft PR | ${PR_URL:-none} |"
             echo ""
             SUMMARY="${FORK_DIR}/${CONTEXT_REL}/impact-summary.md"
