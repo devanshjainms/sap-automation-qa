@@ -59,6 +59,8 @@ jobs:
 
       - name: Checkout workflow repo
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Checkout source repo to analyze
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -68,6 +70,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           token: ${{ secrets.AZURE_DOCS_PAT }}
+          persist-credentials: false
 
       - name: Resolve release range
         id: range
@@ -263,7 +266,8 @@ jobs:
             echo "::group::Stage ${name} (agent=${agent}, model=${model:-default})"
             if ! copilot \
                 -C "$FORK_DIR" \
-                --add-dir "$GITHUB_WORKSPACE" \
+                --add-dir "${GITHUB_WORKSPACE}/${SRC_DIR}" \
+                --add-dir "${GITHUB_WORKSPACE}/.github/prompts" \
                 --agent "$agent" \
                 --allow-all \
                 --no-ask-user \
@@ -411,19 +415,27 @@ jobs:
             fi
           } > "$BODY_FILE"
 
-          EXISTING=$(gh pr list --repo "$DOCS_UPSTREAM" --head "$BRANCH" \
-            --state open --json number --jq '.[0].number // empty' || true)
           TITLE="docs: SAP automation updates for ${HEAD_REF}"
+          COMPARE_URL="${SERVER_URL}/${DOCS_UPSTREAM}/compare/main...${FORK_OWNER}:${DOCS_FORK##*/}:${BRANCH}?expand=1"
+          EXISTING=$(gh pr list --repo "$DOCS_UPSTREAM" --head "$BRANCH" \
+            --state open --json number --jq '.[0].number // empty' 2>/dev/null || true)
           if [ -n "$EXISTING" ]; then
-            gh pr edit "$EXISTING" --repo "$DOCS_UPSTREAM" --title "$TITLE" --body-file "$BODY_FILE"
-            PR_URL=$(gh pr view "$EXISTING" --repo "$DOCS_UPSTREAM" --json url --jq '.url')
-          else
-            PR_URL=$(gh pr create --repo "$DOCS_UPSTREAM" --draft \
+            if gh pr edit "$EXISTING" --repo "$DOCS_UPSTREAM" --title "$TITLE" --body-file "$BODY_FILE" \
+               && PR_URL=$(gh pr view "$EXISTING" --repo "$DOCS_UPSTREAM" --json url --jq '.url' 2>/dev/null); then
+              :
+            else
+              PR_URL="$COMPARE_URL"
+            fi
+          elif PR_URL=$(gh pr create --repo "$DOCS_UPSTREAM" --draft \
               --base main --head "$HEAD_SPEC" \
-              --title "$TITLE" --body-file "$BODY_FILE")
+              --title "$TITLE" --body-file "$BODY_FILE" 2>/dev/null); then
+            :
+          else
+            echo "::warning::Could not create the PR on ${DOCS_UPSTREAM} with the fork-scoped token. Open it manually via the compare URL below."
+            PR_URL="$COMPARE_URL"
           fi
           echo "pr_url=${PR_URL}" >> "$GITHUB_OUTPUT"
-          echo "Draft PR: ${PR_URL}"
+          echo "PR / compare URL: ${PR_URL}"
 
       - name: Upload artifacts
         if: always()
@@ -464,7 +476,7 @@ jobs:
             echo "| Docs changes produced | ${HAS_CHANGES:-false} |"
             echo "| Dry run | ${DRY_RUN:-false} |"
             echo "| Pushed branch | ${BRANCH_URL:-none} |"
-            echo "| Draft PR | ${PR_URL:-none} |"
+            echo "| Draft PR / compare URL | ${PR_URL:-none} |"
             echo ""
             SUMMARY="${FORK_DIR}/${CONTEXT_REL}/impact-summary.md"
             if [ -f "$SUMMARY" ]; then
