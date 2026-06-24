@@ -190,7 +190,7 @@ jobs:
           COPILOT_GITHUB_TOKEN: ${{ secrets.AZURE_DOCS_PAT }}
         run: |
           set -euo pipefail
-          npm install -g @github/copilot
+          npm install -g @github/copilot@1.0.64 --ignore-scripts
           copilot --version
           copilot plugin marketplace add microsoft/hve-core
           copilot plugin install hve-core-all@hve-core

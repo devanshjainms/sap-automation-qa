@@ -19,6 +19,8 @@ azure-storage-queue
 black
 pylint
 coverage
+pip-audit
+bandit[toml]
 
 # Testing packages
 httpx
