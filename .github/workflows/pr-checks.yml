@@ -99,6 +99,10 @@ jobs:
             exit 1
           fi
 
+      - name: Install dependencies
+        run: |
+          pip install --require-hashes -r requirements.txt
+
       - name: Run pip-audit
         run: |
           pip-audit -r requirements.txt --strict
