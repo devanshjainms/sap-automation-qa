@@ -129,7 +129,7 @@ _setup_local_env() {
     if [[ -f collections/requirements.yml ]]; then
         log "INFO" "Installing Ansible collections..."
         mkdir -p .ansible/collections
-        export ANSIBLE_COLLECTIONS_PATH="$PROJECT_ROOT/.ansible/collections:/opt/ansible/collections:${ANSIBLE_COLLECTIONS_PATH:+${ANSIBLE_COLLECTIONS_PATH}}"
+        export ANSIBLE_COLLECTIONS_PATHS="$PROJECT_ROOT/.ansible/collections:/opt/ansible/collections:${ANSIBLE_COLLECTIONS_PATHS:+${ANSIBLE_COLLECTIONS_PATHS}}"
         if ansible-galaxy collection install -r collections/requirements.yml -p .ansible/collections; then
             log "INFO" "Ansible collections installed successfully."
         else

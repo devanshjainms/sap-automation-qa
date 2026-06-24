@@ -33,7 +33,7 @@ jobs:
                 github.rest.repos.get({ owner, repo }),
               ]);
             } catch (error) {
-              if (error.status === 403) {
+              if (error.status === 403 || error.status === 401) {
                 core.warning(
                   'Traffic stats require a token with push (write) access. ' +
                   'Set the TRAFFIC_TOKEN secret to a Classic PAT with the ' +
