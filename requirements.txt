@@ -560,6 +560,9 @@ cryptography==48.0.1 \
     #   azure-storage-queue
     #   msal
     #   pyjwt
+    #   pyspnego
+    #   requests-credssp
+    #   requests-ntlm
 dill==0.4.1 \
     --hash=sha256:1e1ce33e978ae97fcfcff5638477032b801c46c7c65cf717f95fbc2248f79a9d \
     --hash=sha256:423092df4182177d4d8ba8290c8a5b640c66ab35ec7da59ccfa00f6fa3eea5fa
@@ -1170,6 +1173,12 @@ pylint==4.0.5 \
     --hash=sha256:00f51c9b14a3b3ae08cff6b2cdd43f28165c78b165b628692e428fb1f8dc2cf2 \
     --hash=sha256:8cd6a618df75deb013bd7eb98327a95f02a6fb839205a6bbf5456ef96afb317c
     # via -r requirements.in
+pyspnego==0.12.1 \
+    --hash=sha256:7237cb47985ccf5da512106ddb2731e4f9cefec00991f76c054488eb95fb1a2d \
+    --hash=sha256:ff4fb6df38202a012ea2a0f43091ae9680878443f0ea61c9ea0e2e8152a4b810
+    # via
+    #   requests-credssp
+    #   requests-ntlm
 pytest==9.0.3 \
     --hash=sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9 \
     --hash=sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c
@@ -1252,6 +1261,10 @@ pytz==2026.2 \
     --hash=sha256:04156e608bee23d3792fd45c94ae47fae1036688e75032eea2e3bf0323d1f126 \
     --hash=sha256:0e60b47b29f21574376f218fe21abc009894a2321ea16c6754f3cad6eb7cdd6a
     # via pandas
+pywinrm[credssp]==0.5.0 \
+    --hash=sha256:5428eb1e494af7954546cd4ff15c9ef1a30a75e05b25a39fd606cef22201e9f1 \
+    --hash=sha256:c267046d281de613fc7c8a528cdd261564d9b99bdb7c2926221eff3263b700c8
+    # via -r requirements.in
 pyyaml==6.0.3 \
     --hash=sha256:00c4bdeba853cc34e7dd471f16b4114f4162dc03e6b7afcc2128711f0eca823c \
     --hash=sha256:0150219816b6a1fa26fb4699fb7daa9caf09eb1999f3b70fb6e786805e80375a \
@@ -1349,7 +1362,18 @@ requests==2.33.1 \
     #   azure-kusto-data
     #   msal
     #   msrest
+    #   pywinrm
+    #   requests-credssp
+    #   requests-ntlm
     #   requests-oauthlib
+requests-credssp==2.0.0 \
+    --hash=sha256:229afe2f6e1c9fabef64fc2bdf2a10e794ca6c4a0c00a687d53fbfaf7b8ee71d \
+    --hash=sha256:47c8b250eef663f9b55af179f341e823f1f7f63b8b2b9037063e641a2df4bfa3
+    # via pywinrm
+requests-ntlm==1.3.0 \
+    --hash=sha256:4c7534a7d0e482bb0928531d621be4b2c74ace437e88c5a357ceb7452d25a510 \
+    --hash=sha256:b29cc2462623dffdf9b88c43e180ccb735b4007228a542220e882c58ae56c668
+    # via pywinrm
 requests-oauthlib==2.0.0 \
     --hash=sha256:7dd8a5c40426b779b0868c404bdef9768deccf22749cde15852df527e6269b36 \
     --hash=sha256:b3dffaebd884d8cd778494369603a9e7b58d29111bf6b41bdc2dcd87203af4e9
@@ -1676,6 +1700,10 @@ wcmatch==10.1 \
     --hash=sha256:5848ace7dbb0476e5e55ab63c6bbd529745089343427caa5537f230cc01beb8a \
     --hash=sha256:f11f94208c8c8484a16f4f48638a85d771d9513f4ab3f37595978801cb9465af
     # via ansible-lint
+xmltodict==1.0.4 \
+    --hash=sha256:6d94c9f834dd9e44514162799d344d815a3a4faec913717a9ecbfa5be1bb8e61 \
+    --hash=sha256:a4a00d300b0e1c59fc2bfccb53d7b2e88c32f200df138a0dd2229f842497026a
+    # via pywinrm
 yamllint==1.38.0 \
     --hash=sha256:09e5f29531daab93366bb061e76019d5e91691ef0a40328f04c927387d1d364d \
     --hash=sha256:fc394a5b3be980a4062607b8fdddc0843f4fa394152b6da21722f5d59013c220
