@@ -53,7 +53,7 @@ else
 fi
 
 # Set the environment variables
-export ANSIBLE_COLLECTIONS_PATHS="${cmd_dir}/../.ansible/collections:/opt/ansible/collections:${ANSIBLE_COLLECTIONS_PATHS:+${ANSIBLE_COLLECTIONS_PATHS}}"
+export ANSIBLE_COLLECTIONS_PATH="${cmd_dir}/../.ansible/collections:/opt/ansible/collections:${ANSIBLE_COLLECTIONS_PATH:+${ANSIBLE_COLLECTIONS_PATH}}"
 export ANSIBLE_CONFIG="${cmd_dir}/../src/ansible.cfg"
 export ANSIBLE_MODULE_UTILS="${cmd_dir}/../src/module_utils:${ANSIBLE_MODULE_UTILS:+${ANSIBLE_MODULE_UTILS}}"
 export ANSIBLE_HOST_KEY_CHECKING=False
@@ -185,7 +185,7 @@ parse_arguments() {
     fi
 }
 
-log "INFO" "ANSIBLE_COLLECTIONS_PATHS: $ANSIBLE_COLLECTIONS_PATHS"
+log "INFO" "ANSIBLE_COLLECTIONS_PATH: $ANSIBLE_COLLECTIONS_PATH"
 log "INFO" "ANSIBLE_CONFIG: $ANSIBLE_CONFIG"
 log "INFO" "ANSIBLE_MODULE_UTILS: $ANSIBLE_MODULE_UTILS"
 

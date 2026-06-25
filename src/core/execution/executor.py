@@ -265,11 +265,11 @@ class AnsibleExecutor:
             str(self.playbook_dir.parent / ".ansible" / "collections"),
             "/opt/ansible/collections",
         ]
-        if os.environ.get("ANSIBLE_COLLECTIONS_PATHS"):
-            collection_paths.append(os.environ["ANSIBLE_COLLECTIONS_PATHS"])
+        if os.environ.get("ANSIBLE_COLLECTIONS_PATH"):
+            collection_paths.append(os.environ["ANSIBLE_COLLECTIONS_PATH"])
         env = {
             "ANSIBLE_CONFIG": str(self.ansible_cfg),
-            "ANSIBLE_COLLECTIONS_PATHS": ":".join(collection_paths),
+            "ANSIBLE_COLLECTIONS_PATH": ":".join(collection_paths),
         }
 
         if log_file:

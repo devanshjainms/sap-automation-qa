@@ -54,7 +54,7 @@ ENV VIRTUAL_ENV=/opt/venv
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV HOME=/app
-ENV ANSIBLE_COLLECTIONS_PATHS=/opt/ansible/collections
+ENV ANSIBLE_COLLECTIONS_PATH=/opt/ansible/collections
 
 RUN chown -R appuser:appgroup /opt/venv /app
 
