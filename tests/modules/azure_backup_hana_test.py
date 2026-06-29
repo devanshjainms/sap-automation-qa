@@ -373,7 +373,7 @@ class TestStaticHelpers:
         )
         assert disc._matches_source_vm(container, server_name) == expected
 
-    def test_matches_source_vm_multiple_candidates(self, mocker):
+    def test_matches_source_vm_multiple_candidates(self):
         """With multiple source VMs, an item matching ANY candidate is included.
 
         Covers the HSR case where backups are pinned to whichever node was primary
@@ -381,7 +381,7 @@ class TestStaticHelpers:
         of the current HSR role.
         """
         disc = BackupDiscovery(
-            client=mocker.MagicMock(),
+            client=None,
             vault_name="v",
             vault_resource_group="rg",
             source_vm_names=["sles16hdb04", "sles16hdb03"],

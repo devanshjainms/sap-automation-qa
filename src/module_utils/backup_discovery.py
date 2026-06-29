@@ -35,7 +35,8 @@ class BackupDiscovery:
     :param client: Authenticated Recovery Services Backup client.
     :param vault_name: Name of the Recovery Services vault.
     :param vault_resource_group: Resource group of the vault.
-    :param source_vm_name: Azure VM name to scope results to.
+    :param source_vm_names: Azure VM names to scope results to (matches any; for HSR pass
+        both nodes so discovery succeeds regardless of the current primary).
     :param parameter_definitions: YAML-loaded parameter defs for HTML report generation.
     :param log_fn: Optional callback ``(level, message)``.
     """
