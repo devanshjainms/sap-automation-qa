@@ -50,14 +50,16 @@ class BackupDiscovery:
         client: RecoveryServicesBackupClient,
         vault_name: str,
         vault_resource_group: str,
-        source_vm_name: str = "",
+        source_vm_names: Optional[List[str]] = None,
         parameter_definitions: Optional[List[Dict[str, str]]] = None,
         log_fn: Optional[Callable[[int, str], None]] = None,
     ) -> None:
         self._client = client
         self._vault_name = vault_name
         self._vault_rg = vault_resource_group
-        self._source_vm = (source_vm_name or "").lower().strip()
+        self._source_vms: List[str] = [
+            vm.lower().strip() for vm in (source_vm_names or []) if vm and vm.strip()
+        ]
         self._param_defs: List[Dict[str, str]] = (
             parameter_definitions if parameter_definitions else []
         )
@@ -75,31 +77,27 @@ class BackupDiscovery:
         :returns: ``True`` when no filter is set, the container  matches the source VM,
             or -- for HSR -- the server name shares a significant identifier with the VM name.
         """
-        if not self._source_vm:
+        if not self._source_vms:
             return True
         lower_container = (container_name or "").lower()
-        if self._source_vm in lower_container:
-            return True
-        if self.is_hsr_container(container_name):
-            lower_server = (server_name or "").lower().strip()
-            if not lower_server:
-                return False
-
-            if min(len(self._source_vm), len(lower_server)) >= 5 and (
-                self._source_vm in lower_server or lower_server in self._source_vm
+        is_hsr = self.is_hsr_container(container_name)
+        lower_server = (server_name or "").lower().strip()
+        server_parts = re.split(r"[-_]", lower_server)
+        for source_vm in self._source_vms:
+            if source_vm in lower_container:
+                return True
+            if not is_hsr or not lower_server:
+                continue
+            if min(len(source_vm), len(lower_server)) >= 5 and (
+                source_vm in lower_server or lower_server in source_vm
             ):
                 return True
-
-            parts = re.split(r"[-_]", self._source_vm)
-            for part in parts:
-                if len(part) >= 5 and part in lower_server:
-                    return True
-
-            server_parts = re.split(r"[-_]", lower_server)
-            for part in server_parts:
-                if len(part) >= 5 and part in self._source_vm:
-                    return True
-            return False
+            if any(
+                len(part) >= 5 and part in lower_server for part in re.split(r"[-_]", source_vm)
+            ):
+                return True
+            if any(len(part) >= 5 and part in source_vm for part in server_parts):
+                return True
         return False
 
     @staticmethod
@@ -338,7 +336,7 @@ class BackupDiscovery:
         :returns: Dict with ``protected_items``
         :raises Exception: Propagated from SDK calls.
         """
-        vm_label = f" for VM '{self._source_vm}'" if self._source_vm else ""
+        vm_label = f" for VM(s) '{', '.join(self._source_vms)}'" if self._source_vms else ""
         self._log(
             logging.INFO,
             f"Discovering protected HANA items in vault " f"'{self._vault_name}'{vm_label}",
@@ -460,7 +458,8 @@ class BackupDiscovery:
         if skipped:
             self._log(
                 logging.INFO,
-                f"Skipped {skipped} item(s) not matching " f"source VM '{self._source_vm}'.",
+                f"Skipped {skipped} item(s) not matching "
+                f"source VM(s) '{', '.join(self._source_vms)}'.",
             )
 
         if status_counts.get(TestStatus.ERROR.value, 0):

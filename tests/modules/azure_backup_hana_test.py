@@ -369,9 +369,25 @@ class TestStaticHelpers:
             client=mocker.MagicMock(),
             vault_name="v",
             vault_resource_group="rg",
-            source_vm_name=source_vm,
+            source_vm_names=[source_vm],
         )
         assert disc._matches_source_vm(container, server_name) == expected
+
+    def test_matches_source_vm_multiple_candidates(self, mocker):
+        """With multiple source VMs, an item matching ANY candidate is included.
+
+        Covers the HSR case where backups are pinned to whichever node was primary
+        at registration time: passing both nodes lets discovery succeed regardless
+        of the current HSR role.
+        """
+        disc = BackupDiscovery(
+            client=mocker.MagicMock(),
+            vault_name="v",
+            vault_resource_group="rg",
+            source_vm_names=["sles16hdb04", "sles16hdb03"],
+        )
+        assert disc._matches_source_vm("HanaHSRContainer;h01-hana-hsr-sys", "sles16hdb03") is True
+        assert disc._matches_source_vm("HanaHSRContainer;h01-hana-hsr-sys", "othernode99") is False
 
     @pytest.mark.parametrize(
         "health, protection, has_rp, is_hsr, last_job_status, expected",

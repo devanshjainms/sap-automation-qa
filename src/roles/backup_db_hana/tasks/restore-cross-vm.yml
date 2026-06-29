@@ -23,7 +23,7 @@
         vault_resource_id:              "{{ backup_vault_resource_id }}"
         subscription_id:                "{{ azure_instance_metadata.json.compute.subscriptionId }}"
         msi_client_id:                  "{{ user_assigned_identity_client_id | default('') }}"
-        source_vm_name:                 "{{ azure_instance_metadata.json.compute.name }}"
+        source_vm_names:                "{{ [azure_instance_metadata.json.compute.name] }}"
       register:                         pre_backup_discovery
       run_once:                         true
       failed_when:                      pre_backup_discovery.protected_items | default([]) | length == 0
