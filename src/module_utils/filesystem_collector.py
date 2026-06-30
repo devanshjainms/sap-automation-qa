@@ -69,7 +69,7 @@ class FileSystemCollector(Collector):
             findmnt_info = findmnt_data.get(mountpoint, {})
             vg_name, stripe_size = "", ""
             filesystem_path = df_info["filesystem"]
-            for lv_name, lv_prop in lvm_volume.items():
+            for lv_prop in lvm_volume.values():
                 if lv_prop.get("dm_path") == filesystem_path:
                     vg_name = lv_prop.get("vg_name", "")
                     stripe_size = lv_prop.get("stripe_size", "")
@@ -450,7 +450,7 @@ class FileSystemCollector(Collector):
                 stripes = ""
 
                 if not stripe_size and vg_name and source:
-                    for lv_name, lv_info in lvm_volumes.items():
+                    for lv_info in lvm_volumes.values():
                         if lv_info.get("dm_path") == source:
                             stripe_size = lv_info.get("stripe_size", "")
                             stripes = lv_info.get("stripes", "")
@@ -500,7 +500,7 @@ class FileSystemCollector(Collector):
                                             and ("/" + storage_account_name + "/") in mount_path
                                         )
                                 except ValueError:
-                                    pass
+                                    ip_to_account_match = False
 
                                 if ip_match or fqdn_match or ip_to_account_match:
                                     max_mbps = nfs_share.get("ThroughputMibps", 0)

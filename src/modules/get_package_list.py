@@ -5,6 +5,7 @@
 Custom ansible module for formatting the packages list
 """
 
+import logging
 from typing import Dict, Any, List
 from ansible.module_utils.basic import AnsibleModule
 
@@ -139,8 +140,8 @@ class PackageListFormatter(SapAutomationQA):
                             "arch": arch,
                         }
                     )
-        except Exception:
-            pass
+        except Exception as exc:
+            self.log(logging.DEBUG, f"Package list collection failed: {exc}")
         return result
 
     def format_packages(self) -> Dict[str, Any]:

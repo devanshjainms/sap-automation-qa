@@ -13,9 +13,8 @@ name: "CodeQL"
 
 on:
   push:
-    branches: ["main", "development*", "feature/*", "fix/*"]
+    branches: ["**"]
   pull_request:
-    branches: ["main", "development*"]
   schedule:
     - cron: "0 0 * * 1"
 
@@ -49,6 +48,7 @@ jobs:
         uses: github/codeql-action/init@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4.31.9
         with:
           languages: ${{ matrix.language }}
+          queries: security-extended
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4.31.9

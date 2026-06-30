@@ -487,7 +487,7 @@ class AzureDataParser(Collector):
             result = self._resolve_mount_disks(check, context)
             if result is None:
                 return "N/A"
-            matched_disks, fs_entry, parsed_disks = result
+            matched_disks, _, _ = result
 
             if not matched_disks:
                 return "N/A"

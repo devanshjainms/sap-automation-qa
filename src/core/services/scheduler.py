@@ -89,7 +89,7 @@ class SchedulerService:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                logger.debug("Scheduler background task cancelled during shutdown")
 
         logger.info("SchedulerService stopped")
 

@@ -40,6 +40,7 @@ class RolesTestingBase:
                 f.write(content)
             elif operation == "read":
                 return f.read()
+        return None
 
     def mock_modules(self, temp_dir, module_names):
         """

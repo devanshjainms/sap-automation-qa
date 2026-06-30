@@ -85,6 +85,7 @@ class TestDbHDBOperations(RolesTestingBaseDB):
                 "validate_task": "Validate HANA DB cluster status (post recovery)",
                 "command_task": "dummy (no command)",
             }
+        raise ValueError(f"Unknown task: {task_name}")
 
     @pytest.fixture
     def test_environment(self, ansible_inventory, task_type):

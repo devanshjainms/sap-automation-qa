@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING, Union
+from typing import Any, Optional, Union
 from src.core.observability.context import ObservabilityContextManager
 from src.core.observability.events import (
     ServiceEvent,

@@ -7,7 +7,7 @@ Unit tests for the get_pcmk_properties_scs module.
 
 import xml.etree.ElementTree as ET
 import pytest
-from src.modules.get_pcmk_properties_scs import HAClusterValidator, main
+import src.modules.get_pcmk_properties_scs as module_under_test
 from src.module_utils.enums import OperatingSystemFamily, TestStatus
 
 from tests.modules.pcmk_constants import (
@@ -20,6 +20,9 @@ from tests.modules.pcmk_constants import (
     SCS_DUMMY_OS_COMMAND,
     SCS_DUMMY_CONSTANTS,
 )
+
+HAClusterValidator = module_under_test.HAClusterValidator
+main = module_under_test.main
 
 
 class MockExecuteCommand:
@@ -261,8 +264,6 @@ class TestHAClusterValidator:
 
         def mock_ansible_facts(module):
             return {"os_family": "SUSE"}
-
-        import src.modules.get_pcmk_properties_scs as module_under_test
 
         original_ansible_module = module_under_test.AnsibleModule
         original_ansible_facts = module_under_test.ansible_facts
