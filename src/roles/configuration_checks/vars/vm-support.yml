@@ -423,7 +423,7 @@ SupportedVMs:
   Standard_GS2:                *vm_pattern_non_hana_db
   Standard_GS3:                *vm_pattern_non_hana_db
   Standard_GS4:                *vm_pattern_non_hana_db
-  Standard_GS5:                *vm_pattern_non_hana_db
+  Standard_GS5:                *vm_pattern_hana_premium_log_olap
 
   # E-series VMs
   Standard_E2s_v3:             *vm_pattern_non_hana_db
@@ -555,11 +555,12 @@ SupportedVMs:
   Standard_M32ls:              *vm_pattern_hana_premium_log
   Standard_M32ms_v2:           *vm_pattern_hana_premium_log
   Standard_M32dms_v2:          *vm_pattern_hana_premium_log
-  Standard_M32bds_v3:          *vm_pattern_non_hana_db
-  Standard_M32bs_v3:           *vm_pattern_non_hana_db
+  Standard_M32bds_v3:          *vm_pattern_hana_premium_log_oltp
+  Standard_M32bs_v3:           *vm_pattern_hana_premium_log_oltp
 
-  Standard_M48s_1_v3:          *vm_pattern_non_hana_db
+  Standard_M48s_1_v3:          *vm_pattern_hana_premium_log_oltp
   Standard_M48ds_1_v3:         *vm_pattern_hana_premium_log_oltp
+  Standard_M48ds_v3:           *vm_pattern_hana_premium_log_oltp
   Standard_M48bds_v3:          *vm_pattern_hana_premium_log
   Standard_M48bs_v3:           *vm_pattern_non_hana_db
 
@@ -571,17 +572,17 @@ SupportedVMs:
   Standard_M64ds_v2:           *vm_pattern_hana_premium_log
   Standard_M64dms_v2:          *vm_pattern_hana_premium_log
   Standard_M64bds_v3:          *vm_pattern_hana_premium_log
-  Standard_M64bs_v3:           *vm_pattern_non_hana_db
+  Standard_M64bs_v3:           *vm_pattern_hana_premium_log_oltp
   Standard_M64bds_1_v3:        *vm_pattern_hana_premium_log
 
-  Standard_M96s_1_v3:          *vm_pattern_non_hana_db
-  Standard_M96s_2_v3:          *vm_pattern_non_hana_db
+  Standard_M96s_1_v3:          *vm_pattern_hana_olap_scale_out
+  Standard_M96s_2_v3:          *vm_pattern_hana_premium_log_oltp
   Standard_M96ds_1_v3:         *vm_pattern_hana_olap_scale_out
   Standard_M96ds_2_v3:         *vm_pattern_hana_premium_log_olap
   Standard_M96ds_4_v3:         *vm_pattern_hana_olap_scale_out
   Standard_M96bds_v3:          *vm_pattern_hana_premium_log
   Standard_M96bds_2_v3:        *vm_pattern_hana_premium_log
-  Standard_M96bs_v3:           *vm_pattern_non_hana_db
+  Standard_M96bs_v3:           *vm_pattern_hana_premium_log_oltp
   Standard_M96bds_1_v3:        *vm_pattern_hana_premium_log
 
   Standard_M128s:              *vm_pattern_hana_premium_log
@@ -591,17 +592,18 @@ SupportedVMs:
   Standard_M128dms_v2:         *vm_pattern_hana_premium_log
   Standard_M128s_v2:           *vm_pattern_hana_olap_scale_out
   Standard_M128bds_v3:         *vm_pattern_hana_premium_log
-  Standard_M128bs_v3:          *vm_pattern_non_hana_db
+  Standard_M128bs_v3:          *vm_pattern_hana_premium_log
   Standard_M128bds_3_v3:       *vm_pattern_hana_olap_scale_out
 
-  Standard_M176s_3_v3:         *vm_pattern_non_hana_db
-  Standard_M176s_4_v3:         *vm_pattern_non_hana_db
+  Standard_M176s_2_v3:         *vm_pattern_hana_olap_scale_out
+  Standard_M176s_3_v3:         *vm_pattern_hana_olap_scale_out
+  Standard_M176s_4_v3:         *vm_pattern_hana_olap_scale_out
   Standard_M176ds_3_v3:        *vm_pattern_hana_olap_scale_out
   Standard_M176ds_4_v3:        *vm_pattern_hana_olap_scale_out
   Standard_M176bds_3_v3:       *vm_pattern_hana_so_premium_log
   Standard_M176bs_3_v3:        *vm_pattern_hana_so_premium_log
   Standard_M176bds_v3:         *vm_pattern_hana_so_premium_log
-  Standard_M176bs_v3:          *vm_pattern_non_hana_db
+  Standard_M176bs_v3:          *vm_pattern_hana_premium_log
   Standard_M176bds_4_v3:       *vm_pattern_hana_olap_scale_out
 
   Standard_M208s_v2:           *vm_pattern_hana_premium_log
