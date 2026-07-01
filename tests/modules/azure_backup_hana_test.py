@@ -332,8 +332,10 @@ class TestStaticHelpers:
             ("", "VMAppContainer;Compute;rg;vm", "hanavm01", True),
             (
                 "testx-eus2-sap99-n01_n01dhdb_z1_00a1234",
-                "VMAppContainer;compute;testx-eus2-sap99-n01;"
-                "testx-eus2-sap99-n01_n01dhdb_z1_00a1234",
+                (
+                    "VMAppContainer;compute;testx-eus2-sap99-n01;"
+                    "testx-eus2-sap99-n01_n01dhdb_z1_00a1234"
+                ),
                 "n01dhdb00a1234",
                 True,
             ),

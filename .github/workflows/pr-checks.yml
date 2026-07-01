@@ -2,7 +2,7 @@ name: PR Checks
 
 on:
   push:
-    branches: [main, development-*]
+    branches: ["**"]
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
@@ -52,11 +52,11 @@ jobs:
 
       - name: Run pytest with coverage
         run: |
-          pytest --cov=src/ --cov-fail-under=85 --cov-report=xml tests/
+          python -m pytest --cov=src/ --cov-fail-under=85 --cov-report=xml tests/
 
       - name: Run pylint
         run: |
-          pylint --load-plugins=pylint.extensions.docparams --fail-under=9 --disable=R $(git ls-files '*.py') --rcfile=./pyproject.toml
+          pylint --load-plugins=pylint.extensions.docparams --fail-under=9 --disable=R --enable=inconsistent-return-statements $(git ls-files '*.py') --rcfile=./pyproject.toml
 
       - name: Check code formatting with black
         run: |

@@ -137,7 +137,7 @@ class TestCommandCollector:
         result = collector.collect(check, {})
         assert result == "mock_output"
         check = MockCheck({"command": "ls /root", "user": "root", "shell": True})
-        result = collector.collect(check, {})
+        collector.collect(check, {})
         assert check.command == "ls /root"
 
     def test_collect_exception_handling(self, monkeypatch):

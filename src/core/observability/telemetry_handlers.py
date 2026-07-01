@@ -176,9 +176,11 @@ class _BaseRemoteLogHandler(logging.Handler):
         while not self._shutdown.is_set():
             try:
                 try:
-                    batch.append(self._queue.get(timeout=0.5))
+                    item = self._queue.get(timeout=0.5)
                 except queue.Empty:
-                    pass
+                    item = None
+                if item is not None:
+                    batch.append(item)
 
                 should_flush = len(batch) >= self.batch_size or (
                     batch and time.time() - last_flush >= self.flush_interval
@@ -240,8 +242,8 @@ class _BaseRemoteLogHandler(logging.Handler):
             else:
                 try:
                     entry[key] = str(value)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    entry[key] = f"<unserializable {type(value).__name__}: {type(exc).__name__}>"
         return entry
 
     @abstractmethod
@@ -318,7 +320,7 @@ class LogAnalyticsHandler(_BaseRemoteLogHandler):
         try:
             self._queue.put_nowait(self._format_record(record))
         except queue.Full:
-            pass
+            self.handleError(record)
 
     def _send_batch(self, batch: List[Dict[str, Any]]) -> bool:
         """
@@ -394,7 +396,7 @@ class ADXHandler(_BaseRemoteLogHandler):
         try:
             self._queue.put_nowait(self._format_record(record))
         except queue.Full:
-            pass
+            self.handleError(record)
 
     def _send_batch(self, batch: List[Dict[str, Any]]) -> bool:
         if not batch or not self._config.has_adx:

@@ -57,14 +57,14 @@ logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager for startup/shutdown.
 
     Initializes all services on startup and ensures graceful shutdown.
     Services are stored in app.state for dependency injection.
 
-    :param app: FastAPI application instance.
-    :type app: FastAPI
+    :param application: FastAPI application instance.
+    :type application: FastAPI
     :yields: None
     """
     scheduler_service = None
@@ -95,10 +95,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             job_worker=job_worker,
             check_interval_seconds=SCHEDULER_CHECK_INTERVAL,
         )
-        app.state.job_store = job_store
-        app.state.schedule_store = schedule_store
-        app.state.job_worker = job_worker
-        app.state.scheduler_service = scheduler_service
+        application.state.job_store = job_store
+        application.state.schedule_store = schedule_store
+        application.state.job_worker = job_worker
+        application.state.scheduler_service = scheduler_service
         set_job_store(job_store)
         set_job_worker(job_worker)
         set_schedule_store(schedule_store)

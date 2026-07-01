@@ -4,7 +4,6 @@
 """Tests for Jobs API routes."""
 
 from pathlib import Path
-import pytest
 from pytest_mock import MockerFixture
 from fastapi import FastAPI
 from fastapi.testclient import TestClient

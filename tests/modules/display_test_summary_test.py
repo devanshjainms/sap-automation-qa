@@ -7,10 +7,9 @@ Unit tests for the display_test_summary module.
 
 import json
 import pytest
-from typing import List, Optional
+from typing import Optional
 from src.modules.display_test_summary import (
     TestSummaryDisplay,
-    _HA_CONFIG_TEST_NAME,
     main,
 )
 

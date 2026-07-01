@@ -220,12 +220,12 @@ class AzureLoadBalancer(SapAutomationQA):
         self._create_network_client()
 
         if self.result["status"] == TestStatus.ERROR.value:
-            return self.result
+            return
 
         load_balancers = self.get_load_balancers()
 
         if self.result["status"] == TestStatus.ERROR.value:
-            return self.result
+            return
 
         inbound_rules = ast.literal_eval(self.module_params["inbound_rules"])
         load_balancer_ips = list(

@@ -642,8 +642,10 @@ class HanaClusterStatusChecker(BaseClusterStatusChecker):
                     "-",
                     f"{self.database_sid}adm",
                     "-c",
-                    f"/usr/sap/{self.database_sid.upper()}/HDB{ self.db_instance_number}"
-                    f"/exe/hdbnsutil -sr_state --sapcontrol=1",
+                    (
+                        f"/usr/sap/{self.database_sid.upper()}/HDB{ self.db_instance_number}"
+                        f"/exe/hdbnsutil -sr_state --sapcontrol=1"
+                    ),
                 ]
             )
         except Exception as exc:

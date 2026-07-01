@@ -11,7 +11,7 @@ import json
 import logging
 import os
 from collections import defaultdict
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from ansible.module_utils.basic import AnsibleModule
 
 try:

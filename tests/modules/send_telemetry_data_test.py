@@ -193,7 +193,6 @@ class TestTelemetryDataSender:
         assert (
             len(write_calls) == 4
         ), f"Expected 4 write calls (2 entries × 2), got {len(write_calls)}"
-        import json
 
         json_writes = [call[0][0] for call in write_calls if call[0][0] != "\n"]
         assert len(json_writes) == 2, "Should have 2 JSON entries"

@@ -176,12 +176,18 @@ class TestLogParser:
         :type log_parser_redhat: LogParser
         """
         log_parser_redhat.logs = [
-            '["Jan 01 12:34:56 server1 pacemaker-controld: Notice: '
-            'Resource SAPHana_HDB_00 started"]',
-            '["Jan 01 12:35:00 server2 pacemaker-controld: Notice: '
-            'Resource SAPHana_HDB_01 started"]',
-            '["Jan 01 12:36:00 server3 pacemaker-controld: Notice: '
-            'Resource SAPHana_HDB_02 started"]',
+            (
+                '["Jan 01 12:34:56 server1 pacemaker-controld: Notice: '
+                'Resource SAPHana_HDB_00 started"]'
+            ),
+            (
+                '["Jan 01 12:35:00 server2 pacemaker-controld: Notice: '
+                'Resource SAPHana_HDB_01 started"]'
+            ),
+            (
+                '["Jan 01 12:36:00 server3 pacemaker-controld: Notice: '
+                'Resource SAPHana_HDB_02 started"]'
+            ),
         ]
 
         log_parser_redhat.merge_logs()
@@ -199,12 +205,18 @@ class TestLogParser:
         :type log_parser_suse: LogParser
         """
         log_parser_suse.logs = [
-            '["Jan 01 12:34:56 server1 pacemaker-controld: Notice: '
-            'Resource SAPHana_HDB_00 started"]',
-            '["Jan 01 12:35:00 server2 pacemaker-controld: Notice: '
-            'Resource SAPHana_HDB_01 started"]',
-            '["Jan 01 12:36:00 server3 pacemaker-controld: Notice: '
-            'Resource SAPHana_HDB_02 started"]',
+            (
+                '["Jan 01 12:34:56 server1 pacemaker-controld: Notice: '
+                'Resource SAPHana_HDB_00 started"]'
+            ),
+            (
+                '["Jan 01 12:35:00 server2 pacemaker-controld: Notice: '
+                'Resource SAPHana_HDB_01 started"]'
+            ),
+            (
+                '["Jan 01 12:36:00 server3 pacemaker-controld: Notice: '
+                'Resource SAPHana_HDB_02 started"]'
+            ),
         ]
 
         log_parser_suse.merge_logs()
@@ -238,8 +250,10 @@ class TestLogParser:
         :type log_parser_redhat: LogParser
         """
         log_parser_redhat.logs = [
-            '["Jan 01 12:34:56 server1 pacemaker-controld: Notice: '
-            'Resource SAPHana_HDB_00 started"]',
+            (
+                '["Jan 01 12:34:56 server1 pacemaker-controld: Notice: '
+                'Resource SAPHana_HDB_00 started"]'
+            ),
             "Invalid JSON string",
         ]
 

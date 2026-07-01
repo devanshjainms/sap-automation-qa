@@ -643,16 +643,20 @@ class TestGatherAnfVolumesInfo:
         anf_storage_data = [
             {
                 "ip": "10.0.0.5",
-                "id": "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.NetApp/"
-                "netAppAccounts/account1/capacityPools/pool1/volumes/vol1",
+                "id": (
+                    "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.NetApp/"
+                    "netAppAccounts/account1/capacityPools/pool1/volumes/vol1"
+                ),
                 "serviceLevel": "Premium",
                 "throughputMibps": 1024,
                 "protocolTypes": ["NFSv4.1"],
             },
             {
                 "ip": "10.0.0.6",
-                "id": "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.NetApp/"
-                "netAppAccounts/account1/capacityPools/pool1/volumes/vol2",
+                "id": (
+                    "/subscriptions/sub1/resourceGroups/rg1/providers/Microsoft.NetApp/"
+                    "netAppAccounts/account1/capacityPools/pool1/volumes/vol2"
+                ),
                 "serviceLevel": "Standard",
                 "throughputMibps": 512,
                 "protocolTypes": ["NFSv3"],
@@ -776,7 +780,7 @@ class TestCollectMethod:
             "df_info": "Filesystem 1K-blocks Used Available Use% Mounted",
             "imds_disks_metadata": [{"lun": "0", "name": "disk1"}],
         }
-        result = collector.collect(MockCheck(), context)
+        collector.collect(MockCheck(), context)
         assert any("device_lun_map not found" in log["message"] for log in mock_parent.logs)
         mock_parent.logs.clear()
         mock_parent.errors.clear()
@@ -791,7 +795,7 @@ class TestCollectMethod:
             "df_info": "Filesystem 1K-blocks Used Available Use% Mounted",
             "anf_storage_metadata": [{"ip": "10.0.0.5"}],
         }
-        result = collector.collect(MockCheck(), context_anf)
+        collector.collect(MockCheck(), context_anf)
         assert any("Raw ANF data type" in log["message"] for log in mock_parent.logs)
         mock_parent.logs.clear()
         context_full = {
@@ -803,7 +807,7 @@ class TestCollectMethod:
             "afs_storage_metadata": [],
             "imds_disks_metadata": [],
         }
-        result = collector.collect(MockCheck(), context_full)
+        collector.collect(MockCheck(), context_full)
         logged_messages = [log["message"] for log in mock_parent.logs]
         assert any("findmnt_output" in msg for msg in logged_messages)
         assert any("df_output" in msg for msg in logged_messages)

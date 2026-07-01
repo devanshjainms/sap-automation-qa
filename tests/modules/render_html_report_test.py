@@ -5,7 +5,6 @@
 Unit tests for the render_html_report module.
 """
 
-import os
 import pytest
 from src.modules.render_html_report import (
     HTMLReportRenderer,
