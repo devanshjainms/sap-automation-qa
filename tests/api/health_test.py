@@ -4,7 +4,7 @@
 """Tests for Health API routes."""
 
 from fastapi.testclient import TestClient
-from src.api.routes.health import set_service_status
+from src.api.routes.health import _service_status, set_service_status
 
 
 class TestHealthEndpoints:
@@ -25,11 +25,16 @@ class TestHealthEndpoints:
         """
         Returns service status values set by the application.
         """
-        set_service_status("scheduler", True)
-        response = client.get("/healthz")
+        previous_status = _service_status.copy()
+        try:
+            set_service_status("scheduler", True)
+            response = client.get("/healthz")
 
-        assert response.status_code == 200
-        assert response.json()["services"]["scheduler"] is True
+            assert response.status_code == 200
+            assert response.json()["services"]["scheduler"] is True
+        finally:
+            _service_status.clear()
+            _service_status.update(previous_status)
 
     def test_root_endpoint(self, client: TestClient) -> None:
         """
