@@ -94,6 +94,30 @@ class TestFileSystemFreeze:
             assert result["message"] == "The filesystem mounted on /hana/shared was not found."
             assert result["changed"] is False
 
+    def test_find_filesystem_handles_missing_mounts(self, monkeypatch, filesystem_freeze):
+        """
+        Test filesystem discovery when /proc/mounts cannot be opened.
+
+        :param monkeypatch: Monkeypatch fixture for modifying built-in functions.
+        :type monkeypatch: pytest.MonkeyPatch
+        :param filesystem_freeze: FileSystemFreeze instance.
+        :type filesystem_freeze: FileSystemFreeze
+        """
+
+        def raise_file_not_found(*args, **kwargs):
+            """
+            Raise FileNotFoundError for open calls.
+            """
+            raise FileNotFoundError("missing")
+
+        with monkeypatch.context() as monkey_patch:
+            monkey_patch.setattr("builtins.open", raise_file_not_found)
+            filesystem, mount_point = filesystem_freeze._find_filesystem()
+
+            assert filesystem == ""
+            assert mount_point == ""
+            assert filesystem_freeze.get_result()["status"] == "FAILED"
+
     def test_main_method_anf_provider(self, monkeypatch):
         """
         Test the main method when NFS provider is ANF
