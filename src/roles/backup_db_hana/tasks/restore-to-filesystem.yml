@@ -76,6 +76,7 @@
         subscription_id:             "{{ azure_instance_metadata.json.compute.subscriptionId }}"
         msi_client_id:               "{{ user_assigned_identity_client_id | default('') }}"
         source_vm_names:             "{{ backup_discovery_vm_names }}"
+        restore_source_type:         "{{ 'hsr' if (database_high_availability | default(false) | bool) else 'standalone' }}"
       register:                      pre_backup_discovery
       run_once:                      true
       failed_when:                   pre_backup_discovery.protected_items | default([]) | length == 0

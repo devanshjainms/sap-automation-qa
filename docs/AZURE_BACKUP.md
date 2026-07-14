@@ -50,6 +50,12 @@ The management server's managed identity (system- or user-assigned) requires the
 - At least one HANA database must be **registered and protected** with a backup policy.
 - A recent backup (full or incremental) must have completed successfully so restore points are available.
 
+Before a restore, the framework selects items for the current topology: HSR items for HA
+systems and standalone items for non-HA systems. Items that Azure marks for deferred deletion
+(soft delete) are excluded because Azure Backup blocks restore operations on them. If no other
+eligible item exists, undelete the backup item in the Recovery Services vault and retry after the
+undelete job completes.
+
 For setup guidance, see [Back up SAP HANA databases in Azure VMs](https://learn.microsoft.com/azure/backup/sap-hana-database-instances-backup).
 
 ## Configuration

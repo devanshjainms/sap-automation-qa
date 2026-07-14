@@ -89,6 +89,7 @@
         subscription_id:             "{{ azure_instance_metadata.json.compute.subscriptionId }}"
         msi_client_id:               "{{ user_assigned_identity_client_id | default('') }}"
         source_vm_names:             "{{ backup_discovery_vm_names }}"
+        restore_source_type:         "{{ 'hsr' if (database_high_availability | default(false) | bool) else 'standalone' }}"
       register:                      pre_backup_discovery
       run_once:                      true
       failed_when:                   pre_backup_discovery.protected_items | default([]) | length == 0
@@ -138,10 +139,11 @@
           restore_tenants={{ backup_restore_tenants | default([]) }}
       run_once:                     true
 
-    - name:                         "Pre Validation: {{ item.name | default('') }} - Override status if no backup items found"
+    - name:                         "Pre Validation: {{ item.name | default('') }} - Set restore candidate status"
       ansible.builtin.set_fact:
         pre_validations_status:     "{{ 'FAILED' if (
-                                        backup_source_items | length == 0
+                                        backup_systemdb_items | length == 0
+                                        and backup_tenant_items | length == 0
                                       ) else pre_validations_status | default('PASSED') }}"
       run_once:                     true
 
