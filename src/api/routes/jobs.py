@@ -10,7 +10,14 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from src.api.routes.workspaces import _load_workspaces_from_directory
-from src.core.models.job import Job, JobStatus, CreateJobRequest, CancelJobRequest, JobListResponse
+from src.core.models.job import (
+    CancelJobRequest,
+    CreateJobRequest,
+    Job,
+    JobHistoryQuery,
+    JobListResponse,
+    JobStatus,
+)
 from src.core.storage.job_store import JobStore
 from src.core.execution.worker import JobWorker
 from src.core.execution.executor import TEST_GROUP_PLAYBOOKS
@@ -102,9 +109,11 @@ async def list_jobs(
         jobs = store.get_active(workspace_id=workspace_id)
     else:
         jobs = store.get_history(
-            workspace_id=workspace_id,
-            status=status_filter,
-            limit=limit,
+            JobHistoryQuery(
+                workspace_id=workspace_id,
+                status=status_filter,
+                limit=limit,
+            )
         )
         jobs = store.get_active(workspace_id=workspace_id) + jobs
 

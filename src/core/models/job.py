@@ -3,11 +3,12 @@
 
 """Job execution models."""
 
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional, List
 from uuid import UUID, uuid4
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 
 class JobStatus(str, Enum):
@@ -57,12 +58,13 @@ class Job(BaseModel):
     error: Optional[str] = None
     result: Optional[dict[str, Any]] = None
     log_file: Optional[str] = None
-    events: list[JobEvent] = Field(default_factory=list)
+    events: list[JobEvent] = []
     metadata: dict[str, Any] = Field(default_factory=dict)
     actor: Optional[str] = None
     approval_ref: Optional[str] = None
     incident_ticket: Optional[str] = None
     offline: bool = False
+    _storage_etag: Optional[str] = PrivateAttr(default=None)
 
     def start(self) -> JobEvent:
         """Mark job as started.
@@ -151,6 +153,17 @@ class Job(BaseModel):
             return None
         end_time = self.completed_at or datetime.utcnow()
         return (end_time - self.started_at).total_seconds()
+
+
+@dataclass(frozen=True)
+class JobHistoryQuery:
+    """Filters and pagination for terminal job history."""
+
+    workspace_id: Optional[str] = None
+    schedule_id: Optional[str] = None
+    status: Optional[JobStatus] = None
+    days: int = 7
+    limit: int = 100
 
 
 class JobListResponse(BaseModel):
