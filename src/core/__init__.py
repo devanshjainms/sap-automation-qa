@@ -1,7 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""SAP QA Scheduler - Job scheduling and execution infrastructure.
+"""
+SAP QA Scheduler - Job scheduling and execution infrastructure.
 
 This package provides:
 - Job and Schedule models

@@ -12,7 +12,7 @@ unchanged; protocols use distinct ``…Protocol`` suffixes to avoid collision.
 from __future__ import annotations
 from typing import List, Optional, Protocol, runtime_checkable
 from uuid import UUID
-from src.core.models.job import Job, JobStatus
+from src.core.models.job import Job, JobHistoryQuery
 from src.core.models.schedule import Schedule
 
 
@@ -26,11 +26,7 @@ class JobQueryProtocol(Protocol):
 
     def get_history(
         self,
-        workspace_id: Optional[str] = None,
-        schedule_id: Optional[str] = None,
-        status: Optional[JobStatus] = None,
-        days: int = 7,
-        limit: int = 100,
+        query: Optional[JobHistoryQuery] = None,
     ) -> List[Job]: ...
 
     def get_jobs_for_schedule(

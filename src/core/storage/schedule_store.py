@@ -11,6 +11,7 @@ from typing import List, Optional
 
 from src.core.models.schedule import Schedule
 from src.core.observability import get_logger
+from src.core.storage.staf_store import StafStore
 
 logger = get_logger(__name__)
 
@@ -58,29 +59,32 @@ class ScheduleStore:
     def __init__(
         self,
         db_path: Path | str = "data/scheduler.db",
+        *,
+        db: Optional[StafStore] = None,
     ) -> None:
         """Initialize the schedule store.
 
-        :param db_path: Path to SQLite database file.
+        :param db_path: Path to SQLite database file. Ignored when ``db`` is given.
+        :param db: Optional shared ``StafStore`` connection owner. When omitted, the
+            store creates and owns its own ``StafStore`` at ``db_path``.
         """
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        self._conn = sqlite3.connect(
-            str(self.db_path),
-            isolation_level="DEFERRED",
-            check_same_thread=False,
-        )
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-        self._conn.execute("PRAGMA busy_timeout=5000")
-        self._conn.executescript(_SCHEDULES_SCHEMA)
+        if db is None:
+            db = StafStore(db_path)
+            self._owns_db = True
+        else:
+            self._owns_db = False
+        self._db = db
+        self._conn = db.conn
+        self._lock = db.lock
+        self.db_path = db.db_path
+        db.executescript(_SCHEDULES_SCHEMA)
 
         logger.info(f"Initialized schedule storage at {self.db_path}")
 
     def close(self) -> None:
-        """Close the database connection."""
-        self._conn.close()
+        """Close the database connection if this store owns it."""
+        if self._owns_db:
+            self._db.close()
 
     @staticmethod
     def _schedule_to_row(schedule: Schedule) -> dict:
@@ -130,7 +134,7 @@ class ScheduleStore:
         """
         row = self._schedule_to_row(schedule)
         try:
-            with self._conn:
+            with self._lock, self._conn:
                 self._conn.execute(
                     """INSERT INTO schedules
                        (id, name, description, cron_expression,
@@ -160,12 +164,13 @@ class ScheduleStore:
         :param schedule_id: Schedule ID.
         :returns: Schedule if found.
         """
-        self._conn.row_factory = sqlite3.Row
-        cur = self._conn.execute(
-            "SELECT * FROM schedules WHERE id = ?",
-            (schedule_id,),
-        )
-        row = cur.fetchone()
+        with self._lock:
+            self._conn.row_factory = sqlite3.Row
+            cur = self._conn.execute(
+                "SELECT * FROM schedules WHERE id = ?",
+                (schedule_id,),
+            )
+            row = cur.fetchone()
         return self._row_to_schedule(row) if row else None
 
     def list(self, enabled_only: bool = False) -> List[Schedule]:
@@ -174,12 +179,14 @@ class ScheduleStore:
         :param enabled_only: If True, only return enabled schedules.
         :returns: List of schedules.
         """
-        self._conn.row_factory = sqlite3.Row
-        if enabled_only:
-            cur = self._conn.execute("SELECT * FROM schedules WHERE enabled = 1")
-        else:
-            cur = self._conn.execute("SELECT * FROM schedules")
-        return [self._row_to_schedule(r) for r in cur.fetchall()]
+        with self._lock:
+            self._conn.row_factory = sqlite3.Row
+            if enabled_only:
+                cur = self._conn.execute("SELECT * FROM schedules WHERE enabled = 1")
+            else:
+                cur = self._conn.execute("SELECT * FROM schedules")
+            rows = cur.fetchall()
+        return [self._row_to_schedule(r) for r in rows]
 
     def update(self, schedule: Schedule) -> Schedule:
         """Update an existing schedule.
@@ -190,7 +197,7 @@ class ScheduleStore:
         """
         schedule.updated_at = datetime.now(timezone.utc)
         row = self._schedule_to_row(schedule)
-        with self._conn:
+        with self._lock, self._conn:
             cur = self._conn.execute(
                 """UPDATE schedules SET
                        name             = :name,
@@ -221,7 +228,7 @@ class ScheduleStore:
         :param schedule_id: Schedule ID.
         :returns: True if deleted.
         """
-        with self._conn:
+        with self._lock, self._conn:
             cur = self._conn.execute(
                 "DELETE FROM schedules WHERE id = ?",
                 (schedule_id,),

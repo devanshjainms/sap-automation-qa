@@ -4,7 +4,7 @@
 """Tests for JobStore."""
 
 from pathlib import Path
-from src.core.models.job import Job, JobStatus
+from src.core.models.job import Job, JobHistoryQuery, JobStatus
 from src.core.storage.job_store import JobStore
 
 
@@ -140,7 +140,7 @@ class TestJobStore:
             job.start()
             job.complete({})
             job_store.update(job)
-        assert len(job_store.get_history(workspace_id="WS-A")) == 2
+        assert len(job_store.get_history(JobHistoryQuery(workspace_id="WS-A"))) == 2
 
     def test_get_history_filter_by_schedule(self, job_store: JobStore) -> None:
         """
@@ -152,7 +152,7 @@ class TestJobStore:
             job.start()
             job.complete({})
             job_store.update(job)
-        assert len(job_store.get_history(schedule_id="S1")) == 1
+        assert len(job_store.get_history(JobHistoryQuery(schedule_id="S1"))) == 1
 
     def test_get_history_limit(self, job_store: JobStore) -> None:
         """
@@ -164,7 +164,7 @@ class TestJobStore:
             job.start()
             job.complete({})
             job_store.update(job)
-        assert len(job_store.get_history(limit=3)) == 3
+        assert len(job_store.get_history(JobHistoryQuery(limit=3))) == 3
 
     def test_completed_job_in_history(self, job_store: JobStore) -> None:
         """
