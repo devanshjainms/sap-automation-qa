@@ -92,6 +92,31 @@ class TestAzureStorageContext:
         table_service.close.assert_called_once()
         provider.close.assert_called_once()
 
+    def test_cleanup_failures_do_not_mask_initialization_error(self, mocker: MockerFixture) -> None:
+        """Preserve the initialization error while attempting every cleanup."""
+        mock_provider_cls = mocker.patch("src.core.storage.azure_context.DefaultIdentityProvider")
+        mock_table_cls = mocker.patch("src.core.storage.azure_context.TableServiceClient")
+        mock_blob_cls = mocker.patch("src.core.storage.azure_context.BlobServiceClient")
+        provider = mocker.MagicMock()
+        provider.get_credential.return_value = mocker.MagicMock()
+        provider.close.side_effect = RuntimeError("identity close failed")
+        mock_provider_cls.return_value = provider
+        table_service = mocker.MagicMock()
+        table_service.close.side_effect = RuntimeError("table close failed")
+        mock_table_cls.return_value = table_service
+        mock_blob_cls.side_effect = RuntimeError("blob initialization failed")
+
+        with pytest.raises(RuntimeError, match="blob initialization failed"):
+            create_azure_storage_context(
+                env={
+                    "AZURE_TABLE_ENDPOINT": _TABLE_ENDPOINT,
+                    "AZURE_BLOB_ENDPOINT": _BLOB_ENDPOINT,
+                }
+            )
+
+        table_service.close.assert_called_once()
+        provider.close.assert_called_once()
+
     def test_get_table_client_returns_non_owning_child(self, mocker: MockerFixture) -> None:
         """Return a table client for the given table name and ensure the table is created."""
         mock_table_cls = mocker.patch("src.core.storage.azure_context.TableServiceClient")

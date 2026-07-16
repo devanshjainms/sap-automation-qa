@@ -19,6 +19,21 @@ logger = get_logger(__name__)
 DEFAULT_BLOB_CONTAINER = "workspaces"
 
 
+def _close_after_initialization_failure(resource: object, resource_name: str) -> None:
+    """Close a partially initialized resource without masking the original error.
+
+    :param resource: Resource whose initialization completed before a later failure.
+    :param resource_name: Human-readable resource name for diagnostics.
+    """
+    close = getattr(resource, "close", None)
+    if not callable(close):
+        return
+    try:
+        close()
+    except Exception as exc:
+        logger.warning("Error closing %s after initialization failure: %s", resource_name, exc)
+
+
 class AzureStorageContext:
     """Unified ownership of Azure Storage infrastructure resources."""
 
@@ -126,12 +141,12 @@ def create_azure_storage_context(
             else None
         )
     except Exception:
-        if "table_service" in locals() and table_service is not None:
-            table_service.close()
-        if "blob_service" in locals() and blob_service is not None:
-            blob_service.close()
+        if table_service is not None:
+            _close_after_initialization_failure(table_service, "TableServiceClient")
+        if blob_service is not None:
+            _close_after_initialization_failure(blob_service, "BlobServiceClient")
         if owns_identity:
-            provider.close()
+            _close_after_initialization_failure(provider, "identity provider")
         raise
 
     return AzureStorageContext(

@@ -7,10 +7,11 @@ import inspect
 from datetime import datetime, timedelta, timezone
 from collections.abc import Callable
 from uuid import uuid4
-
 import pytest
 from pytest_mock import MockerFixture, MockType
+from azure.core import MatchConditions
 from azure.core.exceptions import HttpResponseError, ResourceExistsError, ResourceNotFoundError
+from azure.data.tables import TableEntity
 from src.core.exceptions import ConcurrencyConflictError, EntityTooLargeError
 from src.core.models.job import Job, JobEvent, JobEventType, JobHistoryQuery, JobStatus
 from src.core.models.schedule import Schedule
@@ -30,6 +31,7 @@ def _entity_with_etag(
     """Wrap a plain dict entity with a ``.metadata`` attribute like the SDK."""
     wrapped = mock_factory()
     wrapped.__getitem__.side_effect = entity.__getitem__
+    wrapped.__contains__.side_effect = entity.__contains__
     wrapped.get.side_effect = entity.get
     wrapped.metadata = {"etag": etag}
     return wrapped
@@ -41,7 +43,9 @@ class TestAzureTableStore:
     @pytest.fixture
     def mock_table_client(self, mocker: MockerFixture) -> MockType:
         """Provide a MagicMock standing in for an Azure TableClient."""
-        return mocker.MagicMock()
+        client = mocker.MagicMock()
+        client.update_entity.return_value = {}
+        return client
 
     @pytest.fixture
     def job_store(self, mock_table_client: MockType) -> AzureTableJobStore:
@@ -81,7 +85,7 @@ class TestAzureTableStore:
             "workspace_id": "WS-A",
             "notes": "n" * 1024,
         }
-        _validate_entity_size(entity, "job")  # should not raise
+        _validate_entity_size(entity, "job")
 
     def test_requires_endpoint_or_table_client(self) -> None:
         """Raise ValueError when neither endpoint nor table_client is supplied."""
@@ -178,9 +182,12 @@ class TestAzureTableStore:
         self, job_store: AzureTableJobStore, mock_table_client
     ) -> None:
         """Propagate ResourceExistsError without wrapping when creating a duplicate job."""
+        job = Job(workspace_id="WS-A")
+        job.start()
+        job.complete({})
         mock_table_client.create_entity.side_effect = ResourceExistsError("duplicate")
         with pytest.raises(ResourceExistsError):
-            job_store.create(Job(workspace_id="WS-A"))
+            job_store.create(job)
 
     def test_get_returns_none_when_missing(
         self, job_store: AzureTableJobStore, mock_table_client
@@ -307,6 +314,20 @@ class TestAzureTableStore:
         _, kwargs = mock_table_client.update_entity.call_args
         assert kwargs["etag"] == 'W/"etag-123"'
         assert kwargs["match_condition"].name == "IfNotModified"
+
+    def test_job_update_uses_returned_etag(
+        self, job_store: AzureTableJobStore, mock_table_client
+    ) -> None:
+        """Retain the SDK metadata ETag for subsequent updates."""
+        job = Job(workspace_id="WS-A")
+        job._storage_etag = 'W/"etag-1"'
+        mock_table_client.update_entity.return_value = {"etag": 'W/"etag-2"'}
+        job_store.update(job)
+        job_store.update(job)
+
+        assert job._storage_etag == 'W/"etag-2"'
+        assert mock_table_client.update_entity.call_args_list[1].kwargs["etag"] == 'W/"etag-2"'
+        assert "raw_response_hook" not in mock_table_client.update_entity.call_args.kwargs
 
     def test_update_conflict_raises_concurrency_error(
         self, job_store: AzureTableJobStore, mock_table_client
@@ -695,6 +716,22 @@ class TestAzureTableStore:
         assert kwargs["etag"] == 'W/"sched-etag"'
         assert kwargs["match_condition"].name == "IfNotModified"
         assert updated.updated_at > original_updated_at
+        entity = mock_table_client.update_entity.call_args.args[0]
+        assert entity["updated_at"] == updated.updated_at.isoformat()
+
+    def test_schedule_update_uses_returned_etag(
+        self, schedule_store: AzureTableScheduleStore, mock_table_client
+    ) -> None:
+        """Retain the SDK metadata ETag for subsequent updates."""
+        schedule = Schedule(name="x", cron_expression="* * * * *")
+        schedule._storage_etag = 'W/"etag-1"'
+        mock_table_client.update_entity.return_value = {"etag": 'W/"etag-2"'}
+        schedule_store.update(schedule)
+        schedule_store.update(schedule)
+
+        assert schedule._storage_etag == 'W/"etag-2"'
+        assert mock_table_client.update_entity.call_args_list[1].kwargs["etag"] == 'W/"etag-2"'
+        assert "raw_response_hook" not in mock_table_client.update_entity.call_args.kwargs
 
     def test_schedule_update_conflict_raises_concurrency_error(
         self, schedule_store: AzureTableScheduleStore, mock_table_client
@@ -772,9 +809,7 @@ class TestAzureTableStore:
     ) -> None:
         """Reject an oversized schedule entity during update before any write is attempted."""
         schedule = Schedule(name="daily", cron_expression="0 0 * * *", workspace_ids=["WS-A"])
-        mock_table_client.get_entity.return_value = _entity_with_etag(
-            schedule_store._to_entity(schedule), mock_factory=mocker.MagicMock
-        )
+        schedule._storage_etag = 'W/"etag-1"'
         schedule.description = "d" * (65 * 1024)
         with pytest.raises(EntityTooLargeError):
             schedule_store.update(schedule)
@@ -793,10 +828,6 @@ class TestAzureTableStore:
         result = schedule_store.create(schedule)
         mock_table_client.create_entity.assert_called_once()
         assert result is schedule
-
-    # ---------------------------------------------------------------------------
-    # _new_table_resources: service leak on initialization failure
-    # ---------------------------------------------------------------------------
 
     def test_service_closed_on_create_table_failure(self, mocker: MockerFixture) -> None:
         """Close the TableServiceClient when create_table_if_not_exists raises during init."""
@@ -834,10 +865,6 @@ class TestAzureTableStore:
             )
         mock_cred.close.assert_not_called()
 
-    # ---------------------------------------------------------------------------
-    # Workspace lock lifecycle
-    # ---------------------------------------------------------------------------
-
     def test_active_job_create_acquires_lock_before_entity(
         self, job_store: AzureTableJobStore, mock_table_client
     ) -> None:
@@ -845,7 +872,8 @@ class TestAzureTableStore:
         job = Job(workspace_id="WS-LOCK")
         job_store.create(job)
         assert mock_table_client.create_entity.call_count == 2
-        lock = mock_table_client.create_entity.call_args_list[0].args[0]
+        lock = mock_table_client.create_entity.call_args_list[0].kwargs["entity"]
+        assert isinstance(lock, TableEntity)
         assert lock["PartitionKey"] == "workspace-lock"
         assert lock["RowKey"] == "WS-LOCK"
         assert lock["job_id"] == str(job.id)
@@ -866,17 +894,25 @@ class TestAzureTableStore:
         """Delete the workspace-lock entity when the job entity creation fails."""
         job = Job(workspace_id="WS-ROLLBACK")
         mock_table_client.create_entity.side_effect = [
-            None,  # lock succeeds
-            RuntimeError("entity write failed"),  # entity fails
+            None,
+            RuntimeError("entity write failed"),
         ]
-        mock_table_client.get_entity.return_value = {
-            "PartitionKey": "workspace-lock",
-            "RowKey": "WS-ROLLBACK",
-            "job_id": str(job.id),
-        }
+        mock_table_client.get_entity.return_value = _entity_with_etag(
+            {
+                "PartitionKey": "workspace-lock",
+                "RowKey": "WS-ROLLBACK",
+                "job_id": str(job.id),
+            },
+            mock_factory=mock_table_client,
+        )
         with pytest.raises(RuntimeError, match="entity write failed"):
             job_store.create(job)
-        mock_table_client.delete_entity.assert_called_once()
+        mock_table_client.delete_entity.assert_called_once_with(
+            partition_key="workspace-lock",
+            row_key="WS-ROLLBACK",
+            etag='W/"etag-1"',
+            match_condition=MatchConditions.IfNotModified,
+        )
 
     def test_terminal_update_releases_lock(
         self, job_store: AzureTableJobStore, mock_table_client
@@ -886,13 +922,21 @@ class TestAzureTableStore:
         job._storage_etag = 'W/"etag-1"'
         job.start()
         job.complete({})
-        mock_table_client.get_entity.return_value = {
-            "PartitionKey": "workspace-lock",
-            "RowKey": "WS-DONE",
-            "job_id": str(job.id),
-        }
+        mock_table_client.get_entity.return_value = _entity_with_etag(
+            {
+                "PartitionKey": "workspace-lock",
+                "RowKey": "WS-DONE",
+                "job_id": str(job.id),
+            },
+            mock_factory=mock_table_client,
+        )
         job_store.update(job)
-        mock_table_client.delete_entity.assert_called_once_with("workspace-lock", "WS-DONE")
+        mock_table_client.delete_entity.assert_called_once_with(
+            partition_key="workspace-lock",
+            row_key="WS-DONE",
+            etag='W/"etag-1"',
+            match_condition=MatchConditions.IfNotModified,
+        )
 
     def test_release_lock_ignores_missing_lock(
         self, job_store: AzureTableJobStore, mock_table_client
@@ -903,7 +947,7 @@ class TestAzureTableStore:
         job.start()
         job.complete({})
         mock_table_client.get_entity.side_effect = ResourceNotFoundError("no lock")
-        job_store.update(job)  # should not raise
+        job_store.update(job)
 
     def test_release_lock_skips_lock_owned_by_different_job(
         self, job_store: AzureTableJobStore, mock_table_client
@@ -916,7 +960,65 @@ class TestAzureTableStore:
         mock_table_client.get_entity.return_value = {
             "PartitionKey": "workspace-lock",
             "RowKey": "WS-OTHER",
-            "job_id": str(uuid4()),  # different job
+            "job_id": str(uuid4()),
         }
         job_store.update(job)
+        mock_table_client.delete_entity.assert_not_called()
+
+    def test_create_reclaims_lock_for_missing_job(
+        self, job_store: AzureTableJobStore, mock_table_client, mocker: MockerFixture
+    ) -> None:
+        """Reclaim a stale lock when its referenced job no longer exists."""
+        job = Job(workspace_id="WS-STALE")
+        stale_lock = _entity_with_etag(
+            {
+                "PartitionKey": "workspace-lock",
+                "RowKey": job.workspace_id,
+                "job_id": str(uuid4()),
+            },
+            mock_factory=mocker.MagicMock,
+        )
+        mock_table_client.create_entity.side_effect = [
+            ResourceExistsError("locked"),
+            None,
+            None,
+        ]
+        mock_table_client.get_entity.side_effect = [
+            stale_lock,
+            ResourceNotFoundError("job missing"),
+        ]
+
+        job_store.create(job)
+
+        mock_table_client.delete_entity.assert_called_once_with(
+            partition_key="workspace-lock",
+            row_key=job.workspace_id,
+            etag='W/"etag-1"',
+            match_condition=MatchConditions.IfNotModified,
+        )
+
+    def test_create_preserves_lock_for_active_job(
+        self, job_store: AzureTableJobStore, mock_table_client, mocker: MockerFixture
+    ) -> None:
+        """Reject lock reclamation while the referenced job remains active."""
+        job = Job(workspace_id="WS-ACTIVE")
+        existing_job = Job(workspace_id=job.workspace_id)
+        stale_lock = _entity_with_etag(
+            {
+                "PartitionKey": "workspace-lock",
+                "RowKey": job.workspace_id,
+                "job_id": str(existing_job.id),
+            },
+            mock_factory=mocker.MagicMock,
+        )
+        existing_entity = _entity_with_etag(
+            job_store._to_entity(existing_job),
+            mock_factory=mocker.MagicMock,
+        )
+        mock_table_client.create_entity.side_effect = ResourceExistsError("locked")
+        mock_table_client.get_entity.side_effect = [stale_lock, existing_entity]
+
+        with pytest.raises(ResourceExistsError, match="locked"):
+            job_store.create(job)
+
         mock_table_client.delete_entity.assert_not_called()

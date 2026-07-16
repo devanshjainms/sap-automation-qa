@@ -13,7 +13,7 @@ from uuid import UUID
 from azure.core import MatchConditions
 from azure.core.credentials import TokenCredential
 from azure.core.exceptions import HttpResponseError, ResourceExistsError, ResourceNotFoundError
-from azure.data.tables import TableClient, TableServiceClient, UpdateMode
+from azure.data.tables import TableClient, TableEntity, TableServiceClient, UpdateMode
 from src.core.exceptions import ConcurrencyConflictError, EntityTooLargeError
 from src.core.models.job import Job, JobHistoryQuery, JobStatus
 from src.core.models.schedule import Schedule
@@ -301,13 +301,7 @@ class AzureTableJobStore:
         entity = self._to_entity(job)
         lock_acquired = not job.is_terminal
         if lock_acquired:
-            lock_entity = {
-                "PartitionKey": _WORKSPACE_LOCK_PARTITION_KEY,
-                "RowKey": job.workspace_id,
-                "job_id": str(job.id),
-                "created_at": _dt_to_str(job.created_at),
-            }
-            self._client.create_entity(lock_entity)
+            self._acquire_workspace_lock(job)
         try:
             response = self._client.create_entity(entity)
         except Exception:
@@ -318,15 +312,81 @@ class AzureTableJobStore:
         logger.info(f"Created job {job.id} for workspace {job.workspace_id}")
         return job
 
+    def _acquire_workspace_lock(self, job: Job) -> None:
+        """Acquire a workspace lock, reclaiming a provably stale lock.
+
+        :param job: Job requiring exclusive workspace execution.
+        :raises ResourceExistsError: If another active job owns the lock.
+        """
+        lock_entity = TableEntity(
+            {
+                "PartitionKey": _WORKSPACE_LOCK_PARTITION_KEY,
+                "RowKey": job.workspace_id,
+                "job_id": str(job.id),
+                "created_at": _dt_to_str(job.created_at),
+            }
+        )
+        try:
+            self._client.create_entity(entity=lock_entity)
+            return
+        except ResourceExistsError as conflict:
+            try:
+                existing_lock = self._client.get_entity(
+                    partition_key=_WORKSPACE_LOCK_PARTITION_KEY,
+                    row_key=job.workspace_id,
+                )
+            except ResourceNotFoundError:
+                self._client.create_entity(entity=lock_entity)
+                return
+
+            existing_job_id = existing_lock.get("job_id")
+            existing_job = self.get(existing_job_id) if existing_job_id else None
+            if existing_job is not None and not existing_job.is_terminal:
+                raise conflict
+
+            lock_etag = _extract_etag(existing_lock)
+            if lock_etag is None:
+                raise conflict
+            try:
+                self._client.delete_entity(
+                    partition_key=_WORKSPACE_LOCK_PARTITION_KEY,
+                    row_key=job.workspace_id,
+                    etag=lock_etag,
+                    match_condition=MatchConditions.IfNotModified,
+                )
+            except (HttpResponseError, ResourceNotFoundError) as cleanup_error:
+                logger.warning(
+                    "Failed to reclaim stale workspace lock for %s: %s",
+                    job.workspace_id,
+                    cleanup_error,
+                )
+                raise conflict from cleanup_error
+            self._client.create_entity(entity=lock_entity)
+
     def _release_workspace_lock(self, job: Job) -> None:
         """Release the lock owned by a job after rollback or terminal update."""
         try:
-            lock = self._client.get_entity(_WORKSPACE_LOCK_PARTITION_KEY, job.workspace_id)
+            lock = self._client.get_entity(
+                partition_key=_WORKSPACE_LOCK_PARTITION_KEY,
+                row_key=job.workspace_id,
+            )
         except ResourceNotFoundError:
             return
         if lock.get("job_id") != str(job.id):
             return
-        self._client.delete_entity(_WORKSPACE_LOCK_PARTITION_KEY, job.workspace_id)
+        lock_etag = _extract_etag(lock)
+        if lock_etag is None:
+            logger.warning("Workspace lock for %s has no ETag; release skipped", job.workspace_id)
+            return
+        try:
+            self._client.delete_entity(
+                partition_key=_WORKSPACE_LOCK_PARTITION_KEY,
+                row_key=job.workspace_id,
+                etag=lock_etag,
+                match_condition=MatchConditions.IfNotModified,
+            )
+        except (HttpResponseError, ResourceNotFoundError) as exc:
+            logger.warning("Failed to release workspace lock for %s: %s", job.workspace_id, exc)
 
     def get(self, job_id: UUID | str) -> Optional[Job]:
         """Get a job by ID.
@@ -335,7 +395,10 @@ class AzureTableJobStore:
         :returns: Job if found, None otherwise.
         """
         try:
-            entity = self._client.get_entity(_PARTITION_KEY, str(job_id))
+            entity = self._client.get_entity(
+                partition_key=_PARTITION_KEY,
+                row_key=str(job_id),
+            )
         except ResourceNotFoundError:
             return None
         return self._to_job(entity)
@@ -352,13 +415,16 @@ class AzureTableJobStore:
         etag = job._storage_etag
         if etag is None:
             try:
-                self._client.get_entity(_PARTITION_KEY, str(job.id))
+                self._client.get_entity(
+                    partition_key=_PARTITION_KEY,
+                    row_key=str(job.id),
+                )
             except ResourceNotFoundError:
                 return
             raise ConcurrencyConflictError(f"Job {job.id} has no expected storage version")
         try:
             response = self._client.update_entity(
-                entity,
+                entity=entity,
                 mode=UpdateMode.REPLACE,
                 etag=etag,
                 match_condition=MatchConditions.IfNotModified,
@@ -367,8 +433,8 @@ class AzureTableJobStore:
             if exc.status_code == 412:
                 raise ConcurrencyConflictError(f"Job {job.id} was modified concurrently") from exc
             raise
-        updated_etag = _extract_etag(response)
-        job._storage_etag = updated_etag
+        response_etag = response.get("etag")
+        job._storage_etag = response_etag if isinstance(response_etag, str) else etag
         if job.is_terminal:
             self._release_workspace_lock(job)
         logger.debug(f"Updated job {job.id} (status={job.status})")
@@ -638,7 +704,6 @@ class AzureTableScheduleStore:
         :raises ConcurrencyConflictError: If the schedule was modified by
             another writer between the existence check and this update.
         """
-        entity = self._to_entity(schedule)
         etag = schedule._storage_etag
         if etag is None:
             try:
@@ -649,6 +714,7 @@ class AzureTableScheduleStore:
                 f"Schedule {schedule.id} has no expected storage version"
             )
         schedule.updated_at = datetime.now(timezone.utc)
+        entity = self._to_entity(schedule)
         try:
             response = self._client.update_entity(
                 entity,
@@ -662,8 +728,8 @@ class AzureTableScheduleStore:
                     f"Schedule {schedule.id} was modified concurrently"
                 ) from exc
             raise
-        updated_etag = _extract_etag(response)
-        schedule._storage_etag = updated_etag
+        response_etag = response.get("etag")
+        schedule._storage_etag = response_etag if isinstance(response_etag, str) else etag
         logger.info(f"Updated schedule '{schedule.name}' (ID: {schedule.id})")
         return schedule
 

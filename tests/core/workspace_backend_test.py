@@ -182,11 +182,6 @@ class FakeContainerClient:
         return FakeBlobClient(blob_name, self._blobs[blob_name], current_etag)
 
 
-# ---------------------------------------------------------------------------
-# Validation helpers
-# ---------------------------------------------------------------------------
-
-
 class TestWorkspaceBackend:
     """Verify workspace validation, filesystem backend, blob backend, and factory selection."""
 
@@ -217,8 +212,6 @@ class TestWorkspaceBackend:
 
     def test_validate_workspace_id_rejects_path_traversal(self) -> None:
         """Raise WorkspaceValidationError for IDs containing path traversal components."""
-        # On Windows os.sep is '\\', so "a..b" doesn't split into ".."
-        # Use an ID that contains ".." as a path component on any platform.
         import os
 
         traversal_id = f"a{os.sep}..{os.sep}b" if os.sep != "/" else "a/../b"
@@ -258,10 +251,6 @@ class TestWorkspaceBackend:
 
         assert extract_environment("DEV-EUS2-SAP01") == "DEV"
         assert extract_environment("PROD") == ""
-
-    # ---------------------------------------------------------------------------
-    # Filesystem backend
-    # ---------------------------------------------------------------------------
 
     def test_backend_name(self, fs_backend: FilesystemWorkspaceBackend) -> None:
         """Verify the filesystem backend reports its name as 'filesystem'."""
@@ -384,7 +373,7 @@ class TestWorkspaceBackend:
 
     def test_close_is_noop(self, fs_backend: FilesystemWorkspaceBackend) -> None:
         """Verify the filesystem backend close method does not raise."""
-        fs_backend.close()  # should not raise
+        fs_backend.close()
 
     def test_list_workspaces_handles_case_collision(
         self, ws_base: Path, fs_backend: FilesystemWorkspaceBackend
@@ -393,8 +382,6 @@ class TestWorkspaceBackend:
         import os
 
         if os.name == "nt":
-            # Windows FS is case-insensitive; DevWS and devws point to the
-            # same directory, so no collision is detected.  Skip.
             pytest.skip("Case-insensitive filesystem merges these directories")
         _create_ws(ws_base, "DevWS", params="sap_sid: A\n")
         _create_ws(ws_base, "devws", params="sap_sid: B\n")
@@ -418,10 +405,6 @@ class TestWorkspaceBackend:
         non_existent = data_dir / "no-such-dir"
         backend = FilesystemWorkspaceBackend(workspaces_base=non_existent)
         assert backend.list_workspaces() == []
-
-    # ---------------------------------------------------------------------------
-    # Blob backend
-    # ---------------------------------------------------------------------------
 
     def _make_backend(
         self,
@@ -747,10 +730,6 @@ class TestWorkspaceBackend:
         with pytest.raises(WorkspaceConfigError, match="byte limit"):
             backend._read_blob_bounded("WS-01/hosts.yaml")
 
-    # ---------------------------------------------------------------------------
-    # Backend factory
-    # ---------------------------------------------------------------------------
-
     def test_selects_filesystem_when_no_blob_endpoint(self, ws_base: Path) -> None:
         """Select filesystem backend when no AZURE_BLOB_ENDPOINT is configured."""
         backend = create_workspace_backend(env={}, workspaces_base=ws_base)
@@ -811,10 +790,6 @@ class TestWorkspaceBackend:
         )
         azure_context.get_container_client.assert_called_once_with("custom-container")
 
-    # ---------------------------------------------------------------------------
-    # Workspace value objects
-    # ---------------------------------------------------------------------------
-
     def test_config_extra_vars_are_deeply_immutable(self) -> None:
         """Verify WorkspaceConfig extra_vars are deeply frozen after construction."""
         source = {"nodes": [{"name": "node1"}]}
@@ -841,6 +816,18 @@ class TestWorkspaceBackend:
         mutable["nodes"][0]["name"] = "node2"
         assert mutable == {"nodes": [{"name": "node2"}]}
         assert config.extra_vars["nodes"][0]["name"] == "node1"
+
+    def test_frozen_vars_preserve_nested_mapping_keys(self) -> None:
+        """Preserve non-string nested keys while freezing and thawing variables."""
+        config = WorkspaceConfig(
+            workspace_id="TEST-WS",
+            inventory_path="hosts.yaml",
+            extra_vars={"priorities": {1: "primary", 2: "secondary"}},
+        )
+
+        mutable = mutable_workspace_vars(config.extra_vars)
+
+        assert mutable["priorities"] == {1: "primary", 2: "secondary"}
 
     def test_materialized_workspace_extra_vars_are_frozen(self) -> None:
         """Verify MaterializedWorkspace extra_vars raise TypeError on mutation attempt."""
