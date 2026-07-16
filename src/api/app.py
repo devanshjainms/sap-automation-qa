@@ -1,9 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""
-FastAPI application for SAP QA Scheduler.
-"""
+"""FastAPI application for SAP QA Scheduler."""
 
 import logging
 import os
@@ -11,6 +9,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import AsyncGenerator
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.core.observability import (

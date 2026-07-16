@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator
 from uuid import uuid4
+
 import pytest
 from pytest_mock import MockerFixture
 from src.core.execution.worker import JobWorker
