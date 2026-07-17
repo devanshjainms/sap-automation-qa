@@ -3,110 +3,98 @@
 
 """Workspaces API routes."""
 
-import os
-import re
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
-import yaml
+from typing import List
 from fastapi import APIRouter, HTTPException
-from src.core.observability import get_logger
-from src.core.models.workspace import WorkspaceInfo, WorkspaceListResponse
+from src.core.contracts.workspace import WorkspaceReader
+from src.core.exceptions import (
+    WorkspaceBackendError,
+    WorkspaceConfigError,
+    WorkspaceNotFoundError,
+    WorkspaceValidationError,
+)
+from src.core.models.workspace import WorkspaceInfo, WorkspaceListResponse, WorkspaceSummary
+from src.core.storage.workspace import validate_workspace_id
 
-logger = get_logger(__name__)
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
-_workspace_loader: Optional[Callable[[str], Dict[str, Any]]] = None
-
-_WORKSPACE_BASE_DIR = "WORKSPACES/SYSTEM"
-_VALID_WORKSPACE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
+_workspace_backend: WorkspaceReader | None = None
 
 
-def _validate_workspace_id(workspace_id: str) -> Path:
-    """Validate workspace_id to prevent path traversal attacks.
+def set_workspace_backend(backend: WorkspaceReader | None) -> None:
+    """Set the workspace backend for route operations.
 
-    :param workspace_id: The workspace identifier to validate.
+    :param backend: Workspace reader to inject, or ``None`` to clear it.
+    :type backend: WorkspaceReader | None
+    """
+    global _workspace_backend
+    _workspace_backend = backend
+
+
+def get_workspace_reader() -> WorkspaceReader:
+    """Return the configured workspace reader.
+
+    :return: Configured workspace reader.
+    :rtype: WorkspaceReader
+    :raises HTTPException: If the workspace backend has not been initialized.
+    """
+    if _workspace_backend is None:
+        raise HTTPException(status_code=503, detail="Workspace backend not initialized")
+    return _workspace_backend
+
+
+def _validate_workspace_id_http(workspace_id: str) -> str:
+    """Validate a workspace identifier for an HTTP request.
+
+    :param workspace_id: Workspace identifier to validate.
     :type workspace_id: str
-    :returns: Resolved safe path for the workspace directory.
-    :rtype: Path
-    :raises HTTPException: If the workspace_id is invalid (400 error).
+    :return: Validated workspace identifier.
+    :rtype: str
+    :raises HTTPException: If the workspace identifier is invalid.
     """
-    if not workspace_id or "\x00" in workspace_id:
-        raise HTTPException(status_code=400, detail="Invalid workspace ID")
-
-    if not _VALID_WORKSPACE_ID_PATTERN.match(workspace_id):
-        raise HTTPException(status_code=400, detail="Invalid workspace ID")
-
-    base_path = os.path.realpath(_WORKSPACE_BASE_DIR)
-    fullpath = os.path.normpath(os.path.join(base_path, workspace_id))
-    if not fullpath.startswith(base_path + os.sep):
-        raise HTTPException(status_code=400, detail="Invalid workspace ID")
-
-    return Path(fullpath)
+    try:
+        return validate_workspace_id(workspace_id)
+    except WorkspaceValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-def set_workspace_loader(loader: Callable[[str], Dict[str, Any]]) -> None:
-    """Set the workspace loader function.
+def _to_workspace_info(summary: WorkspaceSummary) -> WorkspaceInfo:
+    """Convert a workspace summary to the API model.
 
-    :param loader: Callable that loads workspace config by ID.
-    :type loader: Callable[[str], Dict[str, Any]]
+    :param summary: Workspace summary returned by the backend.
+    :type summary: WorkspaceSummary
+    :return: Workspace information for the API response.
+    :rtype: WorkspaceInfo
     """
-    global _workspace_loader
-    _workspace_loader = loader
+    return WorkspaceInfo(
+        id=summary.workspace_id,
+        name=summary.name,
+        environment=summary.environment,
+        path=summary.path,
+    )
 
 
-def _load_workspaces_from_directory(base_dir: str = "WORKSPACES/SYSTEM") -> List[WorkspaceInfo]:
-    """Load workspaces from WORKSPACES/SYSTEM directory structure.
+def _load_workspaces_from_directory() -> List[WorkspaceInfo]:
+    """Load workspaces through the injected backend.
 
-    :param base_dir: Base directory containing workspace subdirectories.
-    :type base_dir: str
-    :returns: List of discovered workspace information.
+    The name is retained for sibling route modules that already import it.
+
+    :return: Workspace information returned by the configured backend.
     :rtype: List[WorkspaceInfo]
     """
-    workspaces = []
-    base_path = Path(base_dir)
-
-    if not base_path.exists():
-        logger.warning(f"Workspaces directory not found: {base_dir}")
-        return workspaces
-
-    for workspace_dir in base_path.iterdir():
-        if not workspace_dir.is_dir() or workspace_dir.name.startswith("."):
-            continue
-        hosts_file = workspace_dir / "hosts.yaml"
-        params_file = workspace_dir / "sap-parameters.yaml"
-
-        if not hosts_file.exists() and not params_file.exists():
-            continue
-
-        sap_sid = ""
-
-        if params_file.exists():
-            try:
-                with open(params_file) as f:
-                    params = yaml.safe_load(f) or {}
-                sap_sid = params.get("sap_sid", "")
-            except Exception as e:
-                logger.warning(f"Failed to load sap-parameters for {workspace_dir.name}: {e}")
-
-        workspaces.append(
-            WorkspaceInfo(
-                id=workspace_dir.name,
-                name=sap_sid or workspace_dir.name,
-                environment=workspace_dir.name.split("-")[0] if "-" in workspace_dir.name else "",
-                path=str(workspace_dir),
-            )
-        )
-
-    return workspaces
+    return [_to_workspace_info(summary) for summary in get_workspace_reader().list_workspaces()]
 
 
 @router.get("", response_model=WorkspaceListResponse)
 async def list_workspaces() -> WorkspaceListResponse:
     """List all available workspaces.
 
-    :returns: Response containing list of workspaces and total count.
+    :return: Available workspaces and their total count.
     :rtype: WorkspaceListResponse
+    :raises HTTPException: If the backend is unavailable or not initialized.
     """
-    workspaces = _load_workspaces_from_directory()
+    try:
+        workspaces = _load_workspaces_from_directory()
+    except WorkspaceBackendError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return WorkspaceListResponse(workspaces=workspaces, total=len(workspaces))
 
 
@@ -114,66 +102,29 @@ async def list_workspaces() -> WorkspaceListResponse:
 async def get_workspace(workspace_id: str) -> WorkspaceInfo:
     """Get a specific workspace.
 
-    :param workspace_id: ID of the workspace to retrieve.
+    :param workspace_id: Identifier of the workspace to retrieve.
     :type workspace_id: str
-    :returns: Workspace information.
+    :return: Requested workspace information.
     :rtype: WorkspaceInfo
-    :raises HTTPException: If workspace not found (404) or invalid ID (400).
+    :raises HTTPException: If validation fails, the workspace does not exist,
+        its configuration is invalid, or the backend is unavailable.
     """
-    _validate_workspace_id(workspace_id)
-    workspaces = _load_workspaces_from_directory()
+    validated_workspace_id = _validate_workspace_id_http(workspace_id)
 
-    for ws in workspaces:
-        if ws.id == workspace_id:
-            return ws
+    try:
+        config = get_workspace_reader().get_workspace_config(validated_workspace_id)
+    except WorkspaceValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except WorkspaceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except WorkspaceConfigError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except WorkspaceBackendError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    if _workspace_loader:
-        result = _workspace_loader(workspace_id)
-        if result:
-            return WorkspaceInfo(
-                id=workspace_id,
-                name=result.get("name", workspace_id),
-                environment=result.get("environment", ""),
-                path=result.get("path", ""),
-            )
-
-    raise HTTPException(status_code=404, detail=f"Workspace {workspace_id} not found")
-
-
-def default_workspace_loader(workspace_id: str) -> Dict[str, Any]:
-    """Default workspace config loader.
-
-    :param workspace_id: ID of the workspace to load.
-    :type workspace_id: str
-    :returns: Workspace configuration dictionary.
-    :rtype: Dict[str, Any]
-    :raises HTTPException: If the workspace_id is invalid (400 error).
-    """
-    workspace_dir = _validate_workspace_id(workspace_id)
-
-    if not workspace_dir.exists():
-        return {}
-
-    hosts_file = workspace_dir / "hosts.yaml"
-    params_file = workspace_dir / "sap-parameters.yaml"
-
-    if not hosts_file.exists():
-        return {}
-
-    config: Dict[str, Any] = {
-        "inventory_path": str(hosts_file),
-    }
-
-    if params_file.exists():
-        try:
-            with open(params_file) as f:
-                params = yaml.safe_load(f) or {}
-            config["sap_sid"] = params.get("sap_sid", "")
-            config["db_sid"] = params.get("db_sid", "")
-            config["database_high_availability"] = params.get("database_high_availability", False)
-            config["scs_high_availability"] = params.get("scs_high_availability", False)
-            config["extra_vars"] = params
-        except Exception as e:
-            logger.warning(f"Failed to load sap-parameters for {workspace_id}: {e}")
-
-    return config
+    return WorkspaceInfo(
+        id=config.workspace_id,
+        name=config.sap_sid or config.workspace_id,
+        environment=(config.workspace_id.split("-")[0] if "-" in config.workspace_id else ""),
+        path=config.path,
+    )
