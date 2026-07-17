@@ -11,6 +11,7 @@ from src.core.contracts.workspace import WorkspaceMaterializer
 from src.core.execution.exceptions import CredentialProvisionError, WorkspaceLockError
 from src.core.execution.executor import ExecutorProtocol
 from src.core.execution.ssh_provider import SshCredentialProvider
+from src.core.execution.test_catalog import resolve_offline_test_ids
 from src.core.models.job import Job, JobEvent, JobEventType, JobStatus
 from src.core.models.workspace import MaterializedWorkspace, mutable_workspace_vars
 from src.core.observability import ExecutionScope, create_execution_event, get_logger
@@ -246,10 +247,13 @@ class JobWorker:
                         )
 
                 results = []
+                test_group = job.test_group or "ConfigurationChecks"
                 test_ids = job.test_ids or []
                 if not job.test_group and not test_ids:
                     raise ValueError("No tests specified for execution")
-                if not test_ids:
+                if job.offline:
+                    test_ids = list(resolve_offline_test_ids(test_group, test_ids))
+                elif not test_ids:
                     test_ids = [""]
 
                 self._log_dir.mkdir(parents=True, exist_ok=True)
@@ -266,7 +270,7 @@ class JobWorker:
                             self.executor.run_test,
                             workspace_id=job.workspace_id,
                             test_id=test_id,
-                            test_group=job.test_group or "ConfigurationChecks",
+                            test_group=test_group,
                             inventory_path=inventory_path,
                             extra_vars=extra_vars,
                             log_file=log_path,

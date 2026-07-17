@@ -22,7 +22,7 @@ from src.core.models.job import (
 from src.core.execution.worker import JobWorker
 from src.core.execution.capability_classification import get_capability
 from src.core.execution.exceptions import WorkspaceLockError
-from src.core.execution.test_catalog import TEST_GROUP_PLAYBOOKS
+from src.core.execution.test_catalog import TEST_GROUP_PLAYBOOKS, resolve_offline_test_ids
 from src.core.observability import get_logger
 
 logger = get_logger(__name__)
@@ -168,11 +168,13 @@ async def create_job(request: CreateJobRequest) -> Job:
             ),
         )
 
+    test_ids = request.test_ids
     if request.offline:
         if not request.test_group:
             raise HTTPException(status_code=400, detail="offline=true requires a test_group")
         try:
             get_capability(request.test_group).for_dispatch(offline=True)
+            test_ids = list(resolve_offline_test_ids(request.test_group, request.test_ids))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -181,7 +183,7 @@ async def create_job(request: CreateJobRequest) -> Job:
             Job(
                 workspace_id=request.workspace_id,
                 test_group=request.test_group,
-                test_ids=request.test_ids,
+                test_ids=test_ids,
                 actor=request.actor,
                 approval_ref=request.approval_ref,
                 incident_ticket=request.incident_ticket,

@@ -145,6 +145,38 @@ class TestJobsApi:
         assert response.status_code == 201
         assert response.json()["offline"] is True
 
+    def test_create_job_defaults_offline_test_id(self, client: TestClient) -> None:
+        """Resolve an omitted offline test list to the authoritative catalog."""
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "workspace_id": "NEW-WORKSPACE",
+                "test_group": "DatabaseHighAvailability",
+                "offline": True,
+            },
+        )
+
+        assert response.status_code == 201
+        assert response.json()["test_ids"] == ["ha-config-offline"]
+
+    def test_create_job_rejects_online_test_id_in_offline_mode(
+        self,
+        client: TestClient,
+    ) -> None:
+        """Reject a test ID that the offline playbook cannot execute."""
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "workspace_id": "NEW-WORKSPACE",
+                "test_group": "DatabaseHighAvailability",
+                "test_ids": ["primary-node-crash"],
+                "offline": True,
+            },
+        )
+
+        assert response.status_code == 400
+        assert "invalid test_ids" in response.json()["detail"]
+
     def test_cancel_running_job(self, client: TestClient, sample_running_job: Job) -> None:
         """
         Cancels a running job.

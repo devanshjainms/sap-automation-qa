@@ -14,7 +14,11 @@ from pathlib import Path
 from dataclasses import asdict
 from typing import Any, Optional, Protocol
 from src.module_utils.filter_tests import TestFilter
-from src.core.execution.test_catalog import OFFLINE_PLAYBOOK, TEST_GROUP_PLAYBOOKS
+from src.core.execution.test_catalog import (
+    OFFLINE_PLAYBOOK,
+    TEST_GROUP_PLAYBOOKS,
+    resolve_offline_test_ids,
+)
 from src.core.observability import get_logger
 from src.core.models.telemetry import TelemetryConfig
 from src.core.observability.telemetry_handlers import (
@@ -217,6 +221,7 @@ class AnsibleExecutor:
         if offline:
             try:
                 get_capability(test_group).for_dispatch(offline=True)
+                resolve_offline_test_ids(test_group, [test_id])
             except ValueError as exc:
                 return {
                     "status": "failed",

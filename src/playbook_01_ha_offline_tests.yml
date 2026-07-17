@@ -11,40 +11,6 @@
   name:                                "Setup deployer for HA Testing Framework"
   vars_files:                          "./vars/input-api.yaml"
   tasks:
-    - name:                            "Init: Install Required Python Azure Packages"
-      ansible.builtin.pip:
-        name:
-          - azure-identity
-          - azure-kusto-data
-          - azure-kusto-ingest
-          - azure-mgmt-compute
-          - azure-mgmt-network
-          - azure-storage-blob
-          - azure-storage-queue
-          - pandas
-
-    - name:                            "Init: Authenticate to Azure Using Managed Identity"
-      block:
-        - name:                        "Init: Authenticate With Username (az cli >= 2.61)"
-          ansible.builtin.command:
-            cmd:                        >-
-                                        az login --identity
-                                        {% if user_assigned_identity_client_id | default('', true) | length > 0
-                                        and user_assigned_identity_client_id != '00000000-0000-0000-0000-000000000000' %}
-                                        --username {{ user_assigned_identity_client_id }}
-                                        {% endif %}
-          changed_when:                 false
-      rescue:
-        - name:                        "Init: Authenticate With Client ID (az cli < 2.61)"
-          ansible.builtin.command:
-            cmd:                        >-
-                                        az login --identity
-                                        {% if user_assigned_identity_client_id | default('', true) | length > 0
-                                        and user_assigned_identity_client_id != '00000000-0000-0000-0000-000000000000' %}
-                                        --client-id {{ user_assigned_identity_client_id }}
-                                        {% endif %}
-          changed_when:                 false
-
     - name:                            "Orchestration: Determine HANA Topology From Inventory"
       ansible.builtin.set_fact:
         hana_topology:                 "{{ 'scale_out_hsr' if (database_scale_out | default(database_HANA_use_scaleout_scenario | default(false)) | bool) else 'scale_up' }}"
@@ -66,6 +32,7 @@
         test_cases:                    "{{ test_groups
                                             | selectattr('name', 'equalto', test_group_name)
                                             | map(attribute='test_cases') | list | flatten(levels=1)
+                                            | selectattr('enabled', 'equalto', true)
                                             | selectattr('task_name', 'contains', 'offline') | list }}"
       run_once:                        true
 

@@ -9,7 +9,7 @@ looked up here, never inferred or defaulted, before any MCP Tool is bound
 to a `test_group`.
 """
 
-from src.core.execution.test_catalog import TEST_GROUP_PLAYBOOKS
+from src.core.execution.test_catalog import OFFLINE_TEST_IDS_BY_GROUP, TEST_GROUP_PLAYBOOKS
 from src.core.models.capability import GroupCapability
 
 TEST_GROUP_CAPABILITIES: dict[str, GroupCapability] = {
@@ -27,7 +27,7 @@ TEST_GROUP_CAPABILITIES: dict[str, GroupCapability] = {
         destructive=True,
         idempotent=False,
         open_world=False,
-        offline_eligible=True,
+        offline_eligible="DatabaseHighAvailability" in OFFLINE_TEST_IDS_BY_GROUP,
     ),
     "CentralServicesHighAvailability": GroupCapability(
         test_group="CentralServicesHighAvailability",
@@ -35,7 +35,7 @@ TEST_GROUP_CAPABILITIES: dict[str, GroupCapability] = {
         destructive=True,
         idempotent=False,
         open_world=False,
-        offline_eligible=True,
+        offline_eligible="CentralServicesHighAvailability" in OFFLINE_TEST_IDS_BY_GROUP,
     ),
     "AzureBackupDatabase": GroupCapability(
         test_group="AzureBackupDatabase",

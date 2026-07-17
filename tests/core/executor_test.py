@@ -43,6 +43,8 @@ class TestAnsibleExecutor:
         (playbook_dir / "ansible.cfg").write_text("")
         playbook = playbook_dir / "playbook_00_configuration_checks.yml"
         playbook.write_text("---\n- hosts: all\n")
+        offline_playbook = playbook_dir / "playbook_01_ha_offline_tests.yml"
+        offline_playbook.write_text("---\n- hosts: localhost\n")
         return AnsibleExecutor(playbook_dir=playbook_dir)
 
     @pytest.fixture
@@ -78,6 +80,48 @@ class TestAnsibleExecutor:
         Verify exit code 0 description.
         """
         assert "code 0" in _describe_exit_code(0)
+
+    def test_offline_dispatch_uses_local_playbook(
+        self,
+        mocker: MockerFixture,
+        executor: AnsibleExecutor,
+    ) -> None:
+        """Use the offline playbook and local Ansible connection."""
+        popen = mocker.patch("src.core.execution.executor.subprocess.Popen")
+        popen.return_value = _make_mock_popen(mocker)
+
+        result = executor.run_test(
+            workspace_id="WS",
+            test_id="ha-config-offline",
+            test_group="DatabaseHighAvailability",
+            inventory_path="/fake/hosts",
+            offline=True,
+        )
+
+        assert result["status"] == "success"
+        command = popen.call_args.args[0]
+        assert command[1].endswith("playbook_01_ha_offline_tests.yml")
+        assert "--connection=local" in command
+
+    def test_offline_dispatch_rejects_online_test_id(
+        self,
+        mocker: MockerFixture,
+        executor: AnsibleExecutor,
+    ) -> None:
+        """Reject an online-only test before starting Ansible."""
+        popen = mocker.patch("src.core.execution.executor.subprocess.Popen")
+
+        result = executor.run_test(
+            workspace_id="WS",
+            test_id="primary-node-crash",
+            test_group="DatabaseHighAvailability",
+            inventory_path="/fake/hosts",
+            offline=True,
+        )
+
+        assert result["status"] == "failed"
+        assert "invalid test_ids" in result["error"]
+        popen.assert_not_called()
 
     def test_normal_failure_exit_code(self) -> None:
         """
