@@ -86,7 +86,7 @@ def _make_record(
         applies_to=AppliesTo(),
         provides=(),
         risk=KnowledgeRisk.READ_ONLY,
-        execution_ref=f"configuration-check:{record_id}",
+        execution_ref=f"configuration-check:{record_id.replace('.', '-')}",
         source_ref=f"{rel_path}#{anchor}",
         source_hash=source_hash,
     )
@@ -661,6 +661,22 @@ class TestKnowledgeIndex:
         assert record.source_ref
         assert str(record.source_hash).startswith("sha256:")
 
+    def test_get_rejects_incompatible_record_schema(self, built_index: Path) -> None:
+        """Reject a row whose schema version differs from the model contract."""
+        conn = sqlite3.connect(str(built_index))
+        try:
+            record_id = conn.execute("SELECT id FROM knowledge_records LIMIT 1").fetchone()[0]
+            conn.execute(
+                "UPDATE knowledge_records SET schema_version = ? WHERE id = ?",
+                ("99.0", record_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        with pytest.raises(IndexCorruptError, match="schema_version"):
+            KnowledgeIndex(built_index).get_by_id(record_id)
+
     def test_get_record_no_executable_content(self, built_index: Path) -> None:
         """Retrieved records contain no executable content.
 
@@ -964,11 +980,24 @@ class TestKnowledgeIndex:
         with pytest.raises(BuildValidationError, match="empty"):
             build_index([], tmp_path / "index.db", source_root=tmp_path)
 
-    def test_non_opaque_execution_ref_rejected(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "execution_ref",
+        [
+            "sudo /bin/bash -c 'echo hello'",
+            "configuration-check:test>output",
+            "configuration-check:test&next",
+            "configuration-check:test\nnext",
+            "configuration-check:${test}",
+            "unknown:test",
+        ],
+    )
+    def test_non_opaque_execution_ref_rejected(self, tmp_path: Path, execution_ref: str) -> None:
         """An execution_ref with shell content causes BuildValidationError.
 
         :param tmp_path: Pytest temporary directory.
         :type tmp_path: pathlib.Path
+        :param execution_ref: Unsupported or executable reference value.
+        :type execution_ref: str
         """
         source_root = tmp_path / "sources"
         source_hash = _write_source_file(source_root, "src/file.yml", b"content")
@@ -980,7 +1009,7 @@ class TestKnowledgeIndex:
             applies_to=AppliesTo(),
             provides=(),
             risk=KnowledgeRisk.READ_ONLY,
-            execution_ref="sudo /bin/bash -c 'echo hello'",
+            execution_ref=execution_ref,
             source_ref="src/file.yml#check1",
             source_hash=source_hash,
         )

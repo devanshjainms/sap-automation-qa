@@ -8,12 +8,19 @@ Deterministic SQLite FTS5 index builder for the STAF knowledge base.
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import tempfile
 from pathlib import Path
 from typing import List, Optional
 from src.core.exceptions import BuildValidationError
 from src.core.models.knowledge import SCHEMA_VERSION, KnowledgeRecord
+
+_HA_GROUP_PATTERN = r"(?:HA_DB_HANA|HA_SCS|BACKUP_DB_HANA)"
+_EXECUTION_REF_PATTERNS = (
+    re.compile(r"^configuration-check:[A-Za-z0-9][A-Za-z0-9-]*$"),
+    re.compile(rf"^ha-test:{_HA_GROUP_PATTERN}/[a-z0-9]+(?:-[a-z0-9]+)*$"),
+)
 
 _RECORDS_TABLE_DDL = """\
 CREATE TABLE knowledge_records (
@@ -226,16 +233,14 @@ def _validate_opaque_execution_ref(record: KnowledgeRecord) -> None:
 
     :param record: Record to validate.
     :type record: KnowledgeRecord
-    :raises BuildValidationError: If execution_ref contains shell syntax.
+    :raises BuildValidationError: If execution_ref is outside the supported
+        opaque-reference grammars.
     """
     ref = record.execution_ref
-    shell_indicators = ["|", "&&", "||", ";", "`", "$(", "sudo ", "/bin/", "/usr/"]
-    for indicator in shell_indicators:
-        if indicator in ref:
-            raise BuildValidationError(
-                f"Record '{record.id}' execution_ref contains non-opaque "
-                f"content (found '{indicator}'): '{ref}'"
-            )
+    if not any(pattern.fullmatch(ref) for pattern in _EXECUTION_REF_PATTERNS):
+        raise BuildValidationError(
+            f"Record '{record.id}' execution_ref contains non-opaque content: '{ref}'"
+        )
 
 
 def _compute_manifest(records: List[KnowledgeRecord]) -> dict:

@@ -228,6 +228,23 @@ def _parse_test_identity(
             f"(group={group_name!r}, task_name={task_name!r})"
         )
 
+    name = name.strip()
+    task_name = task_name.strip()
+    description = description.strip()
+    blank_fields = [
+        field
+        for field, value in (
+            ("name", name),
+            ("task_name", task_name),
+            ("description", description),
+        )
+        if not value
+    ]
+    if blank_fields:
+        raise HAExtractionError(
+            f"{source_path}: test case in group '{group_name}' missing required field(s): "
+            f"{blank_fields}"
+        )
     if not _SLUG_RE.match(task_name):
         raise HAExtractionError(
             f"{source_path}: test case in group '{group_name}' has invalid task_name "

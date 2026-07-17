@@ -245,6 +245,33 @@ class TestKnowledgeHAExtractors:
         with pytest.raises(HAExtractionError, match="missing required 'mcp' metadata"):
             extract_ha_tests(source_path=f)
 
+    @pytest.mark.parametrize("field", ["name", "description"])
+    def test_whitespace_identity_field_raises(self, tmp_path: Path, field: str) -> None:
+        """Reject identity fields that become empty after trimming."""
+        values = {
+            "name": "Valid name",
+            "task_name": "valid-task",
+            "description": "Valid description",
+        }
+        values[field] = "   "
+        content = textwrap.dedent(f"""\
+            test_groups:
+              - name: HA_DB_HANA
+                test_cases:
+                  - name: "{values['name']}"
+                    task_name: {values['task_name']}
+                    description: "{values['description']}"
+                    enabled: true
+                    mcp:
+                      risk: read-only
+                      provides: [configuration]
+        """)
+        source = tmp_path / "blank_identity.yaml"
+        source.write_text(content)
+
+        with pytest.raises(HAExtractionError, match="missing required field"):
+            extract_ha_tests(source_path=source)
+
     def test_invalid_risk_value(self, tmp_path: Path) -> None:
         """Raise on invalid mcp.risk value."""
         content = textwrap.dedent("""\

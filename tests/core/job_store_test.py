@@ -7,6 +7,25 @@ from pathlib import Path
 from src.core.models.job import Job, JobHistoryQuery, JobStatus
 from src.core.storage.job_store import JobStore
 
+_LEGACY_JOBS_SCHEMA = """
+CREATE TABLE jobs (
+    id           TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    schedule_id  TEXT,
+    test_group   TEXT,
+    test_ids     TEXT NOT NULL DEFAULT '[]',
+    status       TEXT NOT NULL DEFAULT 'pending',
+    created_at   TEXT NOT NULL,
+    started_at   TEXT,
+    completed_at TEXT,
+    error        TEXT,
+    result       TEXT,
+    log_file     TEXT,
+    events       TEXT NOT NULL DEFAULT '[]',
+    metadata     TEXT NOT NULL DEFAULT '{}'
+);
+"""
+
 
 class TestJobStore:
     """Unit tests for JobStore CRUD operations and history management."""
@@ -255,12 +274,11 @@ class TestJobStoreP1WP003:
         inserting a row, then opening it with the new JobStore which runs migration.
         """
         import sqlite3
-        from src.core.storage.job_store import _JOBS_SCHEMA, _dt_to_iso
         from datetime import datetime, timezone
 
         db_path = temp_dir / "legacy.db"
         conn = sqlite3.connect(str(db_path))
-        conn.executescript(_JOBS_SCHEMA)
+        conn.executescript(_LEGACY_JOBS_SCHEMA)
         # Insert a row using only the old columns (no actor/approval_ref/incident_ticket/offline)
         job_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         conn.execute(
@@ -277,7 +295,7 @@ class TestJobStoreP1WP003:
                 "ConfigurationChecks",
                 "[]",
                 "pending",
-                _dt_to_iso(datetime.now(timezone.utc)),
+                datetime.now(timezone.utc).isoformat(),
                 None,
                 None,
                 None,
@@ -342,24 +360,7 @@ class TestJobStoreP1WP003:
 
         # Create a legacy DB with only the old schema
         conn = sqlite3.connect(str(db_path))
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS jobs (
-                id           TEXT PRIMARY KEY,
-                workspace_id TEXT NOT NULL,
-                schedule_id  TEXT,
-                test_group   TEXT,
-                test_ids     TEXT NOT NULL DEFAULT '[]',
-                status       TEXT NOT NULL DEFAULT 'pending',
-                created_at   TEXT NOT NULL,
-                started_at   TEXT,
-                completed_at TEXT,
-                error        TEXT,
-                result       TEXT,
-                log_file     TEXT,
-                events       TEXT NOT NULL DEFAULT '[]',
-                metadata     TEXT NOT NULL DEFAULT '{}'
-            );
-            """)
+        conn.executescript(_LEGACY_JOBS_SCHEMA)
         conn.commit()
         conn.close()
 

@@ -136,7 +136,7 @@ class TestWorkspaceBackend:
         assert validate_workspace_id("DEV-EUS2-SAP01") == "DEV-EUS2-SAP01"
 
     def test_validate_workspace_id_rejects_invalid_values(self) -> None:
-        for workspace_id in ("", "../etc", "foo/bar", ".hidden"):
+        for workspace_id in ("", "../etc", "foo/bar", ".hidden", "bad\x00name", "A" * 129):
             with pytest.raises(WorkspaceValidationError):
                 validate_workspace_id(workspace_id)
 

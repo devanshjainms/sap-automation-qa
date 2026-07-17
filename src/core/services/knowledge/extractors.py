@@ -9,6 +9,7 @@ authoritative configuration-check YAML definitions
 
 import hashlib
 import os
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 import yaml
@@ -17,6 +18,7 @@ from src.core.exceptions import ConfigurationCheckExtractionError
 from src.core.models.knowledge import AppliesTo, KnowledgeKind, KnowledgeRecord, KnowledgeRisk
 
 CONFIGURATION_CHECK_NAMESPACE = "configuration-check"
+_RAW_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*$")
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_CONFIGURATION_CHECKS_DIR = (
     REPO_ROOT / "src" / "roles" / "configuration_checks" / "tasks" / "files"
@@ -161,6 +163,24 @@ def _build_record(
     if not isinstance(raw_id, str) or not isinstance(name, str) or not isinstance(description, str):
         raise ConfigurationCheckExtractionError(
             f"{yaml_path}: check 'id', 'name' and 'description' must be strings (id={raw_id!r})"
+        )
+
+    raw_id = raw_id.strip()
+    name = name.strip()
+    description = description.strip()
+    blank_fields = [
+        field_name
+        for field_name, value in (("id", raw_id), ("name", name), ("description", description))
+        if not value
+    ]
+    if blank_fields:
+        raise ConfigurationCheckExtractionError(
+            f"{yaml_path}: check {raw_id!r} is missing required field(s): {blank_fields}"
+        )
+    if not _RAW_ID_RE.fullmatch(raw_id):
+        raise ConfigurationCheckExtractionError(
+            f"{yaml_path}: check has invalid id {raw_id!r} "
+            "(must be alphanumeric with internal hyphens)"
         )
 
     applies_to = _build_applies_to(entry.get("applicability"), yaml_path, raw_id)

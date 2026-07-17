@@ -289,6 +289,7 @@ class KnowledgeIndex:
 
             try:
                 return KnowledgeRecord(
+                    schema_version=row["schema_version"],
                     id=row["id"],
                     kind=KnowledgeKind(row["kind"]),
                     name=row["name"],

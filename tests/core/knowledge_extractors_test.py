@@ -341,8 +341,19 @@ class TestKnowledgeExtractors:
             'checks:\n  - id: "X-0001"\n    description: "d"\n',
             'checks:\n  - id: "X-0001"\n    name: "n"\n',
             'checks:\n  - id: ""\n    name: "n"\n    description: "d"\n',
+            'checks:\n  - id: "   "\n    name: "n"\n    description: "d"\n',
+            'checks:\n  - id: "X-0001"\n    name: "   "\n    description: "d"\n',
+            'checks:\n  - id: "X-0001"\n    name: "n"\n    description: "   "\n',
         ],
-        ids=["missing-id", "missing-name", "missing-description", "empty-id"],
+        ids=[
+            "missing-id",
+            "missing-name",
+            "missing-description",
+            "empty-id",
+            "whitespace-id",
+            "whitespace-name",
+            "whitespace-description",
+        ],
     )
     def test_missing_required_field_raises(self, tmp_path: Path, content: str) -> None:
         """
@@ -373,6 +384,16 @@ class TestKnowledgeExtractors:
             'checks:\n  - id: 1\n    name: "n"\n    description: "d"\n',
         )
         with pytest.raises(ConfigurationCheckExtractionError, match="must be strings"):
+            extract_configuration_checks(tmp_path)
+
+    def test_malformed_id_raises_extraction_error(self, tmp_path: Path) -> None:
+        """Reject an ID outside the opaque configuration-check grammar."""
+        self._write(
+            tmp_path,
+            "a.yml",
+            'checks:\n  - id: "X 0001"\n    name: "n"\n    description: "d"\n',
+        )
+        with pytest.raises(ConfigurationCheckExtractionError, match="invalid id"):
             extract_configuration_checks(tmp_path)
 
     def test_malformed_applicability_not_a_mapping_raises(self, tmp_path: Path) -> None:
