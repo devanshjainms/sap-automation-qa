@@ -13,6 +13,7 @@ from src.core.exceptions import (
     WorkspaceValidationError,
 )
 from src.core.models.workspace import WorkspaceInfo, WorkspaceListResponse, WorkspaceSummary
+from src.core.storage.workspace import validate_workspace_id
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 _workspace_backend: WorkspaceReader | None = None
@@ -49,8 +50,6 @@ def _validate_workspace_id_http(workspace_id: str) -> str:
     :rtype: str
     :raises HTTPException: If the workspace identifier is invalid.
     """
-    from src.core.storage.workspace import validate_workspace_id
-
     try:
         return validate_workspace_id(workspace_id)
     except WorkspaceValidationError as exc:
@@ -94,8 +93,6 @@ async def list_workspaces() -> WorkspaceListResponse:
     """
     try:
         workspaces = _load_workspaces_from_directory()
-    except HTTPException:
-        raise
     except WorkspaceBackendError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return WorkspaceListResponse(workspaces=workspaces, total=len(workspaces))

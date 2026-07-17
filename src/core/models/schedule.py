@@ -5,11 +5,8 @@
 
 from datetime import datetime, timezone
 from typing import List, Optional
-from dataclasses import dataclass
 from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
-from src.core.services.scheduler import SchedulerService
-from src.core.contracts.storage import ScheduleCrudProtocol
 
 
 def _utcnow() -> datetime:
@@ -71,11 +68,3 @@ class ScheduleListResponse(BaseModel):
 
     schedules: List[Schedule]
     total: int
-
-
-@dataclass
-class ScheduleRouteState:
-    """Injected dependencies used by schedule routes."""
-
-    store: Optional[ScheduleCrudProtocol] = None
-    scheduler_service: Optional[SchedulerService] = None

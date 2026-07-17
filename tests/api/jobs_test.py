@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 from src.api.routes import jobs
 from src.core.models.job import Job
 from src.core.storage.job_store import JobStore
-from src.core.models.workspace import WorkspaceInfo
 
 
 class TestJobsApi:
@@ -116,6 +115,35 @@ class TestJobsApi:
         )
         assert response.status_code == 201
         assert client.get(f"/api/v1/jobs/{response.json()['id']}").status_code in (200, 404)
+
+    def test_create_job_rejects_ineligible_offline_group(self, client: TestClient) -> None:
+        """Reject offline execution for a group without an offline playbook."""
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "workspace_id": "NEW-WORKSPACE",
+                "test_group": "ConfigurationChecks",
+                "offline": True,
+            },
+        )
+
+        assert response.status_code == 400
+        assert "no offline mode" in response.json()["detail"]
+
+    def test_create_job_accepts_eligible_offline_group(self, client: TestClient) -> None:
+        """Submit an offline job for an offline-capable HA group."""
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "workspace_id": "NEW-WORKSPACE",
+                "test_group": "DatabaseHighAvailability",
+                "test_ids": ["ha-config-offline"],
+                "offline": True,
+            },
+        )
+
+        assert response.status_code == 201
+        assert response.json()["offline"] is True
 
     def test_cancel_running_job(self, client: TestClient, sample_running_job: Job) -> None:
         """
@@ -234,38 +262,30 @@ class TestJobsApi:
         """
         app = FastAPI()
         app.include_router(jobs.router, prefix="/api/v1")
-        saved_store = jobs._job_store
+        saved_store = jobs.get_job_store()
         try:
-            jobs._job_store = None
+            jobs.set_job_store(None)
             with TestClient(app) as c:
                 response = c.get("/api/v1/jobs")
                 assert response.status_code == 503
                 assert "not initialized" in response.json()["detail"]
         finally:
-            jobs._job_store = saved_store
+            jobs.set_job_store(saved_store)
 
     def test_get_job_worker_uninitialized(self, mocker: MockerFixture) -> None:
         """
-        Returns 503 when job worker is not initialized and then the exception it as 400.
+        Returns 503 when the job worker is not initialized.
         """
-        mock_workspaces = [
-            WorkspaceInfo(id="WS", name="WS", environment="test", path="/test/WS"),
-        ]
-        mocker.patch(
-            "src.api.routes.workspaces._load_workspaces_from_directory",
-            return_value=mock_workspaces,
-        )
         mocker.patch(
             "src.api.routes.jobs._load_workspaces_from_directory",
-            return_value=mock_workspaces,
+            return_value=[mocker.MagicMock(id="WS")],
         )
 
         app = FastAPI()
         app.include_router(jobs.router, prefix="/api/v1")
-        saved_worker = jobs._job_worker
-        saved_store = jobs._job_store
+        saved_worker = jobs.get_job_worker()
         try:
-            jobs._job_worker = None
+            jobs.set_job_worker(None)
             with TestClient(app) as c:
                 response = c.post(
                     "/api/v1/jobs",
@@ -274,11 +294,10 @@ class TestJobsApi:
                         "test_group": "ConfigurationChecks",
                     },
                 )
-                assert response.status_code == 400
+                assert response.status_code == 503
                 assert "not initialized" in response.json()["detail"]
         finally:
-            jobs._job_worker = saved_worker
-            jobs._job_store = saved_store
+            jobs.set_job_worker(saved_worker)
 
     def test_get_job_events_success(
         self,

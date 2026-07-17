@@ -20,6 +20,8 @@ from src.core.models.job import (
     JobStatus,
 )
 from src.core.execution.worker import JobWorker
+from src.core.execution.capability_classification import get_capability
+from src.core.execution.exceptions import WorkspaceLockError
 from src.core.execution.test_catalog import TEST_GROUP_PLAYBOOKS
 from src.core.observability import get_logger
 
@@ -29,21 +31,21 @@ _job_store: Optional[JobQueryProtocol] = None
 _job_worker: Optional[JobWorker] = None
 
 
-def set_job_store(store: JobQueryProtocol) -> None:
+def set_job_store(store: Optional[JobQueryProtocol]) -> None:
     """Set the job store instance.
 
-    :param store: Any implementation satisfying ``JobQueryProtocol``.
-    :type store: JobQueryProtocol
+    :param store: Job query implementation, or ``None`` to clear it.
+    :type store: Optional[JobQueryProtocol]
     """
     global _job_store
     _job_store = store
 
 
-def set_job_worker(worker: JobWorker) -> None:
+def set_job_worker(worker: Optional[JobWorker]) -> None:
     """Set the job worker instance.
 
-    :param worker: JobWorker instance for executing jobs.
-    :type worker: JobWorker
+    :param worker: Job worker for executing jobs, or ``None`` to clear it.
+    :type worker: Optional[JobWorker]
     """
     global _job_worker
     _job_worker = worker
@@ -99,11 +101,11 @@ async def list_jobs(
     if status:
         try:
             status_filter = JobStatus(status)
-        except ValueError:
+        except ValueError as exc:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid status '{status}'. Valid values: {[s.value for s in JobStatus]}",
-            )
+            ) from exc
 
     if active_only:
         jobs = store.get_active(workspace_id=workspace_id)
@@ -148,7 +150,8 @@ async def create_job(request: CreateJobRequest) -> Job:
     :type request: CreateJobRequest
     :returns: The created and submitted job.
     :rtype: Job
-    :raises HTTPException: 404 if workspace not found, 400 on invalid test_group.
+    :raises HTTPException: 404 if workspace not found, 400 on invalid test_group
+        or ineligible offline execution, and 409 if the workspace is active.
     """
     if request.workspace_id not in {ws.id for ws in _load_workspaces_from_directory()}:
         raise HTTPException(
@@ -165,6 +168,14 @@ async def create_job(request: CreateJobRequest) -> Job:
             ),
         )
 
+    if request.offline:
+        if not request.test_group:
+            raise HTTPException(status_code=400, detail="offline=true requires a test_group")
+        try:
+            get_capability(request.test_group).for_dispatch(offline=True)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     try:
         submitted = await get_job_worker().submit_job(
             Job(
@@ -179,9 +190,8 @@ async def create_job(request: CreateJobRequest) -> Job:
         )
         logger.info(f"Created job {submitted.id} for workspace {request.workspace_id}")
         return submitted
-    except Exception as e:
-        logger.error(f"Failed to create job: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+    except WorkspaceLockError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/{job_id}/cancel")
@@ -269,7 +279,7 @@ async def get_job_log(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to read log: {exc}",
-        )
+        ) from exc
 
     if tail is not None:
         lines = content.splitlines()

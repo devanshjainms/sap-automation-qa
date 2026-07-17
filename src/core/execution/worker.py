@@ -273,6 +273,7 @@ class JobWorker:
                             job_id=str(job.id),
                             private_key_path=private_key_path,
                             ssh_password=ssh_password,
+                            offline=job.offline,
                         )
                         if result.get("status") == "failed":
                             results.append(

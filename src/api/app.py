@@ -1,7 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""FastAPI application for SAP QA Scheduler."""
+"""
+FastAPI application for SAP QA Scheduler.
+"""
 
 import logging
 import os
@@ -11,6 +13,12 @@ from pathlib import Path
 from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from src.core.observability import (
+    ObservabilityMiddleware,
+    get_logger,
+    initialize_logging,
+    load_telemetry_config,
+)
 from src.api.routes.health import (
     router as health_router,
     set_service_status,
@@ -35,12 +43,6 @@ from src.core.contracts.workspace import WorkspaceBackendProtocol
 from src.core.execution.executor import AnsibleExecutor
 from src.core.execution.worker import JobWorker
 from src.core.models.storage import StorageContext
-from src.core.observability import (
-    ObservabilityMiddleware,
-    get_logger,
-    initialize_logging,
-    load_telemetry_config,
-)
 from src.core.services.scheduler import SchedulerService
 from src.core.storage.azure_context import AzureStorageContext, create_azure_storage_context
 from src.core.storage.factory import create_storage_context
@@ -161,6 +163,10 @@ async def _shutdown_runtime_services(services: _RuntimeServices) -> None:
     set_storage_backend(None)
     set_workspace_backend(None)
     set_workspace_reader(None)
+    set_job_store(None)
+    set_job_worker(None)
+    set_schedule_store(None)
+    set_scheduler_service(None)
 
 
 @asynccontextmanager

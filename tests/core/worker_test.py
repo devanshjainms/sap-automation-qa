@@ -77,6 +77,7 @@ class TestJobWorker:
         job = Job(workspace_id="WS-01", test_group="test", test_ids=["test_1"])
         await worker.submit_job(job)
         retrieved = await _wait_for_terminal(job_store, str(job.id))
+        await worker.shutdown(timeout=1)
         assert retrieved.started_at is not None
         assert executor.run_test.called
         backend.cleanup.assert_called_once()

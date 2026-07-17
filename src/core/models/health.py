@@ -5,7 +5,7 @@
 
 from typing import Dict, Optional
 from dataclasses import dataclass, field
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class HealthResponse(BaseModel):
@@ -14,7 +14,7 @@ class HealthResponse(BaseModel):
     status: str
     timestamp: str
     version: str
-    services: Dict[str, bool] = {}
+    services: Dict[str, bool] = Field(default_factory=dict)
     storage_backend: Optional[str] = None
     workspace_backend: Optional[str] = None
 

@@ -4,6 +4,7 @@
 """Schedules API routes."""
 
 from datetime import datetime, timezone
+from typing import Optional
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter, HTTPException, Query
 from src.api.routes.jobs import get_job_store
@@ -14,34 +15,34 @@ from src.core.models.schedule import (
     CreateScheduleRequest,
     UpdateScheduleRequest,
     ScheduleListResponse,
-    ScheduleRouteState,
 )
 from src.core.services.scheduler import SchedulerService
 from src.core.observability import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/schedules", tags=["schedules"])
+_schedule_store: Optional[ScheduleCrudProtocol] = None
+_scheduler_service: Optional[SchedulerService] = None
 
 
-_route_state = ScheduleRouteState()
-
-
-def set_schedule_store(store: ScheduleCrudProtocol) -> None:
+def set_schedule_store(store: Optional[ScheduleCrudProtocol]) -> None:
     """Set the schedule store instance.
 
-    :param store: ScheduleStore instance for persistence.
-    :type store: ScheduleStore
+    :param store: Schedule store for persistence, or ``None`` to clear it.
+    :type store: Optional[ScheduleCrudProtocol]
     """
-    _route_state.store = store
+    global _schedule_store
+    _schedule_store = store
 
 
-def set_scheduler_service(service: SchedulerService) -> None:
+def set_scheduler_service(service: Optional[SchedulerService]) -> None:
     """Set the scheduler service instance.
 
-    :param service: SchedulerService instance for scheduling.
-    :type service: SchedulerService
+    :param service: Scheduler service, or ``None`` to clear it.
+    :type service: Optional[SchedulerService]
     """
-    _route_state.scheduler_service = service
+    global _scheduler_service
+    _scheduler_service = service
 
 
 def get_schedule_store() -> ScheduleCrudProtocol:
@@ -51,9 +52,9 @@ def get_schedule_store() -> ScheduleCrudProtocol:
     :rtype: ScheduleStore
     :raises HTTPException: If store not initialized (503 error).
     """
-    if _route_state.store is None:
+    if _schedule_store is None:
         raise HTTPException(status_code=503, detail="Schedule store not initialized")
-    return _route_state.store
+    return _schedule_store
 
 
 @router.post("", response_model=Schedule, status_code=201)
@@ -212,11 +213,11 @@ async def trigger_schedule(schedule_id: str) -> dict:
     :rtype: dict
     :raises HTTPException: If schedule not found (404) or service unavailable (503).
     """
-    if not _route_state.scheduler_service:
+    if not _scheduler_service:
         raise HTTPException(status_code=503, detail="Scheduler service not available")
 
     try:
-        job_ids = await _route_state.scheduler_service.trigger_now(schedule_id)
+        job_ids = await _scheduler_service.trigger_now(schedule_id)
         return {
             "status": "triggered",
             "schedule_id": schedule_id,
