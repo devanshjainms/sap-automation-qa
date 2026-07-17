@@ -221,7 +221,7 @@ class AnsibleExecutor:
         if offline:
             try:
                 get_capability(test_group).for_dispatch(offline=True)
-                resolve_offline_test_ids(test_group, [test_id])
+                resolve_offline_test_ids(test_group, [test_id] if test_id else [])
             except ValueError as exc:
                 return {
                     "status": "failed",

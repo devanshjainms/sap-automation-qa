@@ -430,4 +430,8 @@ deploy/.env
 
 .copilot-tracking/*
 
+# Plan files
 docs/projects/*
+docs/adr/*
+
+_mcp_inspect/*

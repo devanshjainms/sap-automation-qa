@@ -47,6 +47,25 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created
     ON jobs(created_at);
 """
 
+_JOB_COLUMN_MIGRATIONS = {
+    "actor": "ALTER TABLE jobs ADD COLUMN actor TEXT",
+    "approval_ref": "ALTER TABLE jobs ADD COLUMN approval_ref TEXT",
+    "incident_ticket": "ALTER TABLE jobs ADD COLUMN incident_ticket TEXT",
+    "offline": "ALTER TABLE jobs ADD COLUMN offline INTEGER NOT NULL DEFAULT 0",
+}
+
+
+def _migrate_job_schema(db: StafStore) -> None:
+    """Add columns introduced after the initial jobs schema.
+
+    :param db: Shared SQLite connection owner.
+    """
+    with db.lock, db.conn:
+        columns = {row[1] for row in db.conn.execute("PRAGMA table_info(jobs)").fetchall()}
+        for column, statement in _JOB_COLUMN_MIGRATIONS.items():
+            if column not in columns:
+                db.conn.execute(statement)
+
 
 def _dt_to_iso(dt: Optional[datetime]) -> Optional[str]:
     """Convert datetime to ISO-8601 string for SQLite storage.
@@ -90,6 +109,7 @@ class JobStore:
         self._lock = db.lock
         self.db_path = db.db_path
         db.executescript(_JOBS_SCHEMA)
+        _migrate_job_schema(db)
         logger.info(f"Initialized job storage at {self.db_path}")
 
     def close(self) -> None:

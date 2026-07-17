@@ -36,7 +36,9 @@ def resolve_offline_test_ids(
     """
     available = OFFLINE_TEST_IDS_BY_GROUP.get(test_group)
     if not available:
-        raise ValueError(f"'{test_group}' has no offline mode")
+        raise ValueError(
+            f"'{test_group}' has no offline mode and is not eligible for offline execution"
+        )
 
     if not requested_test_ids:
         return tuple(sorted(available))

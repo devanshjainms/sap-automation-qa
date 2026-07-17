@@ -38,6 +38,9 @@ test_groups:
           including Corosync settings, Pacemaker resources, SBD device configuration,
           and HANA system replication setup.
         enabled:                    true
+        mcp:
+          risk:                     read-only
+          provides:                 [ha-configuration-status, cluster-parameter-validation]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -49,6 +52,9 @@ test_groups:
           and HANA system replication setup. This test is run in an offline mode where the CIB files are
           already available in the offline_validation directory.
         enabled:                    true
+        mcp:
+          risk:                     read-only
+          provides:                 [ha-configuration-status, cluster-parameter-validation]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -58,6 +64,9 @@ test_groups:
           The Azure LB configuration test validates Azure Load Balancer setup including health probe
           configuration, backend pool settings, load balancing rules, and frontend IP configuration.
         enabled:                    true
+        mcp:
+          risk:                     read-only
+          provides:                 [load-balancer-configuration-status]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -70,6 +79,9 @@ test_groups:
           stability throughout the transition, and validates complete data synchronization after
           migration.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, cluster-stability]
         applicability:
           topology:                 [scale_up]
 
@@ -81,6 +93,9 @@ test_groups:
           the process, then verifies automatic failover to the secondary node, monitors system
           replication status, and confirms service recovery without data loss.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, data-consistency]
         applicability:
           topology:                 [scale_up]
 
@@ -93,6 +108,9 @@ test_groups:
           proper failover execution when nodes become isolated, and ensures cluster stability and data
           consistency after network connectivity is restored.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [split-brain-prevention, failover-validation]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -105,6 +123,9 @@ test_groups:
           proper failover execution, ensures data consistency, and validates service restoration after
           recovery.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, data-consistency]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -116,6 +137,9 @@ test_groups:
           triggering automatic failover to the secondary node. The test verifies proper promotion of
           secondary to primary, ensures data consistency, and validates complete cluster recovery.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, cluster-recovery]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -127,6 +151,9 @@ test_groups:
           primary and secondary master roles remain stable while the worker node failure is absorbed by
           the cluster.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [cluster-stability, worker-resilience]
         applicability:
           topology:                 [scale_out_hsr]
 
@@ -138,6 +165,9 @@ test_groups:
           tests the cluster's ability to handle unexpected primary node failures, validates proper
           failover execution, and verifies data consistency after recovery.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, data-consistency]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -148,6 +178,9 @@ test_groups:
           primary site of a scale-out HSR cluster. The test verifies that the primary and secondary
           master roles remain stable while the worker node failure is handled and the cluster recovers.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [cluster-stability, worker-resilience]
         applicability:
           topology:                 [scale_out_hsr]
 
@@ -159,6 +192,9 @@ test_groups:
           node maintains normal operation while the secondary node undergoes recovery, ensuring cluster
           stability and proper data synchronization after the recovery process completes.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [cluster-stability, data-consistency]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -170,6 +206,9 @@ test_groups:
           primary role, validates isolation handling for the secondary site, and confirms cluster
           recovery after network connectivity is restored.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [split-brain-prevention, cluster-recovery]
         applicability:
           topology:                 [scale_out_hsr]
 
@@ -182,6 +221,9 @@ test_groups:
           primary site retains the primary role and that the cluster recovers while site-level roles
           remain stable.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [cluster-stability, worker-resilience]
         applicability:
           topology:                 [scale_out_hsr]
 
@@ -193,6 +235,9 @@ test_groups:
           procedures. The test validates that the primary node maintains operation, verifies cluster
           stability, and ensures system replication resumes correctly after the secondary node recovers.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [cluster-stability, data-consistency]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -203,6 +248,9 @@ test_groups:
           the secondary site of a scale-out HSR cluster. The test verifies that the primary site
           remains primary and that the cluster returns to a stable replicated state after recovery.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [cluster-stability, worker-resilience]
         applicability:
           topology:                 [scale_out_hsr]
 
@@ -214,6 +262,9 @@ test_groups:
           node running HANA database, which triggers automatic failover to the secondary node. The test
           verifies proper cluster reaction, resource migration, and data consistency after recovery.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, data-consistency]
         applicability:
           topology:                 [scale_up]
 
@@ -224,6 +275,9 @@ test_groups:
           node. Tests proper fence detection, node isolation, and automated failover to ensure cluster
           integrity during hardware or communication failures.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [fencing-validation, failover-validation]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -235,6 +289,9 @@ test_groups:
           verifying the cluster's ability to handle secondary failures, tests automatic recovery
           mechanisms, and ensures system replication resumes properly after service restoration.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [cluster-stability, cluster-recovery]
         applicability:
           topology:                 [scale_up, scale_out_hsr]
 
@@ -245,6 +302,9 @@ test_groups:
           worker node in the primary site of a scale-out HSR cluster. The test verifies that site-level
           master roles remain stable while the worker failure is absorbed by the cluster.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [cluster-stability, worker-resilience]
         applicability:
           topology:                 [scale_out_hsr]
 
@@ -256,6 +316,9 @@ test_groups:
           primary site retains the primary role and that the cluster returns to a stable replicated
           state after recovery.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [cluster-stability, worker-resilience]
         applicability:
           topology:                 [scale_out_hsr]
 
@@ -268,6 +331,9 @@ test_groups:
           /hana/shared; blocking access causes the monitor to fail and triggers
           a HANA resource failover to the secondary site.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, storage-resilience]
         applicability:
           topology:                 [scale_out_hsr]
 
@@ -280,6 +346,9 @@ test_groups:
           including Corosync settings, Pacemaker resources, SBD device configuration, and SCS system
           replication setup.
         enabled:                    true
+        mcp:
+          risk:                     read-only
+          provides:                 [ha-configuration-status, cluster-parameter-validation]
 
       - name:                       "HA Parameters Validation Offline"
         task_name:                  ha-config-offline
@@ -289,6 +358,9 @@ test_groups:
           replication setup. This test is run in an offline mode where the CIB files are
           already available in the offline_validation directory.
         enabled:                    true
+        mcp:
+          risk:                     read-only
+          provides:                 [ha-configuration-status, cluster-parameter-validation]
 
       - name:                       Azure Load Balancer Validation
         task_name:                  azure-lb
@@ -296,6 +368,9 @@ test_groups:
           The Azure LB configuration test validates Azure Load Balancer setup including health probe
           configuration, backend pool settings, load balancing rules, and frontend IP configuration.
         enabled:                    true
+        mcp:
+          risk:                     read-only
+          provides:                 [load-balancer-configuration-status]
 
       - name:                       "SAPControl Config Validation"
         task_name:                  sapcontrol-config
@@ -305,6 +380,9 @@ test_groups:
           HACheckFailoverConfig, and HACheckConfig, capturing their outputs and statuses to
           ensure proper configuration and functionality.
         enabled:                    true
+        mcp:
+          risk:                     read-only
+          provides:                 [scs-configuration-status, sapcontrol-validation]
 
       - name:                       "Manual ASCS Migration"
         task_name:                  ascs-migration
@@ -312,6 +390,9 @@ test_groups:
           The Resource Migration test validates planned failover scenarios by controlling resource
           movement between SCS nodes, ensuring proper role changes.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, cluster-stability]
 
       - name:                       "ASCS Node Crash"
         task_name:                  ascs-node-crash
@@ -321,6 +402,9 @@ test_groups:
           automatic failover to the ERS node, monitors system replication status, and confirms
           service recovery.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, cluster-recovery]
 
       - name:                       "Block Network Communication"
         task_name:                  block-network
@@ -331,6 +415,9 @@ test_groups:
           nodes become isolated, and ensures cluster stability after network connectivity is
           restored.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [split-brain-prevention, failover-validation]
 
       - name:                       "Kill Message Server Process"
         task_name:                  kill-message-server
@@ -340,6 +427,9 @@ test_groups:
           cluster reaction, automatic failover to the ERS node, and ensures service continuity
           after the process failure.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, process-resilience]
 
       - name:                       "Kill Enqueue Server Process"
         task_name:                  kill-enqueue-server
@@ -348,6 +438,9 @@ test_groups:
           the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, process-resilience]
 
       - name:                       "Kill Enqueue Replication Server Process"
         task_name:                  kill-enqueue-replication
@@ -356,6 +449,9 @@ test_groups:
           the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, process-resilience]
 
       - name:                       "Kill sapstartsrv Process for ASCS"
         task_name:                  kill-sapstartsrv-process
@@ -364,6 +460,9 @@ test_groups:
           the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, process-resilience]
 
       - name:                       "Manual Restart of ASCS Instance"
         task_name:                  manual-restart
@@ -372,6 +471,9 @@ test_groups:
           the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [cluster-recovery, process-resilience]
 
       - name:                       "HAFailoverToNode Test"
         task_name:                  ha-failover-to-node
@@ -380,6 +482,9 @@ test_groups:
           the ASCS node by forcefully terminating it using the kill -9 signal. It validates proper
           cluster behavior, automatic failover execution.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [failover-validation, cluster-stability]
 
   - name:                           BACKUP_DB_HANA
     test_cases:
@@ -390,6 +495,9 @@ test_groups:
           databases in the Recovery Services vault, verifying their backup configuration status and
           health, and checking the last restore point for each protected item.
         enabled:                    true
+        mcp:
+          risk:                     read-only
+          provides:                 [backup-configuration-status, recovery-point-validation]
 
       - name:                       Original Location Restore (OLR)
         task_name:                  restore-to-db
@@ -402,6 +510,9 @@ test_groups:
           primary node with overwrite (OLR is not supported for HSR containers),
           re-establishes HSR replication, and takes the cluster out of maintenance mode.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [backup-restore-validation, data-consistency]
 
       - name:                       Restore Backup to FileSystem
         task_name:                  restore-to-filesystem
@@ -411,6 +522,9 @@ test_groups:
           then performs a HANA DB recovery from the backup files and validates the database
           is operational.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [backup-restore-validation, filesystem-restore]
 
       - name:                       Recover DB using Database Commands
         task_name:                  recover-db-commands
@@ -419,6 +533,9 @@ test_groups:
           Queries the backup catalog, stops the HANA instance, performs recovery using
           recoverSys.py, restarts the instance, and validates database consistency.
         enabled:                    true
+        mcp:
+          risk:                     destructive
+          provides:                 [backup-restore-validation, database-recovery]
 
       # ALR Test disabled by-default since it requires additional config and resources to run
       - name:                       Alternate Location Restore (ALR)
@@ -431,6 +548,9 @@ test_groups:
           target HANA instance is running with consistent databases after all
           tenant restores complete.
         enabled:                    false
+        mcp:
+          risk:                     destructive
+          provides:                 [backup-restore-validation, cross-vm-restore]
 
 # Default values for HANA DB HA Test Cases
 sap_sid:                            "HDB"

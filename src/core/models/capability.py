@@ -49,5 +49,7 @@ class GroupCapability:
         if not offline:
             return self
         if not self.offline_eligible:
-            raise ValueError(f"'{self.test_group}' has no offline mode")
+            raise ValueError(
+                f"'{self.test_group}' has no offline mode and is not eligible for offline execution"
+            )
         return replace(self, read_only=True, destructive=False, idempotent=True)

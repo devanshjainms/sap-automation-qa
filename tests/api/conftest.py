@@ -10,7 +10,6 @@ from uuid import uuid4
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from src.api.routes import jobs, schedules
 from src.api.routes.workspaces import set_workspace_backend
 from src.core.execution.worker import JobWorker

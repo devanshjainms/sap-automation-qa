@@ -39,7 +39,10 @@ class FilesystemWorkspaceBackend:
         return "filesystem"
 
     def list_workspaces(self) -> list[WorkspaceSummary]:
-        """List workspaces from the filesystem directory."""
+        """List workspaces from the filesystem directory.
+
+        :returns: Valid workspaces under the configured base directory.
+        """
         workspaces: list[WorkspaceSummary] = []
         if not self._base.exists():
             return workspaces
@@ -98,7 +101,11 @@ class FilesystemWorkspaceBackend:
         return workspaces
 
     def get_workspace_config(self, workspace_id: str) -> WorkspaceConfig:
-        """Read workspace configuration from the filesystem."""
+        """Read workspace configuration from the filesystem.
+
+        :param workspace_id: Workspace identifier.
+        :returns: Parsed workspace configuration.
+        """
         validate_workspace_id(workspace_id)
         workspace_dir = self._get_workspace_dir(workspace_id)
         hosts_file = self._resolve_workspace_file(workspace_dir / "hosts.yaml")
@@ -128,7 +135,12 @@ class FilesystemWorkspaceBackend:
         )
 
     def materialize(self, workspace_id: str, job_id: str) -> MaterializedWorkspace:
-        """Return existing workspace path for job execution."""
+        """Return existing workspace path for job execution.
+
+        :param workspace_id: Workspace identifier.
+        :param job_id: Job UUID associated with the execution.
+        :returns: Non-owned materialized workspace reference.
+        """
         try:
             UUID(job_id)
         except ValueError as exc:

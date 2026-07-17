@@ -12,7 +12,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 from azure.core import MatchConditions
 from azure.core.exceptions import ResourceModifiedError, ResourceNotFoundError
-from azure.storage.blob import ContainerClient
+from src.core.contracts.storage import ContainerClientProtocol
 from src.core.exceptions import (
     ETagMismatchError,
     WorkspaceBackendError,
@@ -42,7 +42,12 @@ logger = get_logger(__name__)
 class BlobWorkspaceBackend:
     """Azure Blob Storage-based workspace backend."""
 
-    def __init__(self, *, container_client: ContainerClient, data_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        container_client: ContainerClientProtocol,
+        data_dir: Path | None = None,
+    ) -> None:
         """Initialize blob workspace backend with a non-owning container client."""
         self._container_client = container_client
         self._data_dir = data_dir or Path("data")
@@ -58,7 +63,10 @@ class BlobWorkspaceBackend:
         return "blob"
 
     def list_workspaces(self) -> list[WorkspaceSummary]:
-        """List workspaces by discovering committed workspace manifests."""
+        """List workspaces by discovering committed workspace manifests.
+
+        :returns: Valid committed workspaces.
+        """
         workspaces: list[WorkspaceSummary] = []
         seen_lower: dict[str, str] = {}
 
@@ -100,7 +108,11 @@ class BlobWorkspaceBackend:
         return workspaces
 
     def get_workspace_config(self, workspace_id: str) -> WorkspaceConfig:
-        """Read workspace configuration from blob storage."""
+        """Read workspace configuration from blob storage.
+
+        :param workspace_id: Workspace identifier.
+        :returns: Parsed workspace configuration.
+        """
         validate_workspace_id(workspace_id)
         manifest, hosts_content, params_content = self._load_consistent_workspace_pair(workspace_id)
         del manifest
@@ -118,7 +130,12 @@ class BlobWorkspaceBackend:
         )
 
     def materialize(self, workspace_id: str, job_id: str) -> MaterializedWorkspace:
-        """Materialize a workspace revision into an isolated local directory."""
+        """Materialize a workspace revision into an isolated local directory.
+
+        :param workspace_id: Workspace identifier.
+        :param job_id: Job UUID that owns the materialized directory.
+        :returns: Materialized workspace paths and execution variables.
+        """
         validate_workspace_id(workspace_id)
         try:
             parsed_job_id = UUID(job_id)

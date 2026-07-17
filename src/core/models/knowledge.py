@@ -75,6 +75,18 @@ class SearchResult(BaseModel):
     rank: float = Field(description="FTS5 rank score; lower is a better match")
 
 
+class KnowledgeSearchFilters(BaseModel):
+    """Optional structured filters for a knowledge search."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: str | None = None
+    risk: str | None = None
+    component: str | None = None
+    os_family: str | None = None
+    topology: str | None = None
+
+
 class SearchResponse(BaseModel):
     """Generated-knowledge search response."""
 

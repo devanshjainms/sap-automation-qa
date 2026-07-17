@@ -13,7 +13,8 @@ from uuid import UUID
 from azure.core import MatchConditions
 from azure.core.credentials import TokenCredential
 from azure.core.exceptions import HttpResponseError, ResourceExistsError, ResourceNotFoundError
-from azure.data.tables import TableClient, TableEntity, TableServiceClient, UpdateMode
+from azure.data.tables import TableEntity, TableServiceClient, UpdateMode
+from src.core.contracts.storage import TableClientProtocol
 from src.core.exceptions import ConcurrencyConflictError, EntityTooLargeError
 from src.core.models.job import Job, JobHistoryQuery, JobStatus
 from src.core.models.schedule import Schedule
@@ -131,7 +132,7 @@ def _extract_etag(value: Any) -> Optional[str]:
 
 def _new_table_resources(
     endpoint: str, table_name: str, credential: TokenCredential
-) -> tuple[TableServiceClient, TableClient]:
+) -> tuple[TableServiceClient, TableClientProtocol]:
     """
     Build owning service resources and a table client.
 
@@ -163,7 +164,7 @@ class AzureTableJobStore:
         endpoint: Optional[str] = None,
         table_name: str = "Jobs",
         *,
-        table_client: Optional[TableClient] = None,
+        table_client: Optional[TableClientProtocol] = None,
         credential: Optional[TokenCredential] = None,
     ) -> None:
         """Initialize the job store.
@@ -543,7 +544,7 @@ class AzureTableScheduleStore:
         endpoint: Optional[str] = None,
         table_name: str = "Schedules",
         *,
-        table_client: Optional[TableClient] = None,
+        table_client: Optional[TableClientProtocol] = None,
         credential: Optional[TokenCredential] = None,
     ) -> None:
         """Initialize the schedule store.

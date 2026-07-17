@@ -10,7 +10,7 @@ unchanged; protocols use distinct ``…Protocol`` suffixes to avoid collision.
 """
 
 from __future__ import annotations
-from typing import List, Optional, Protocol, runtime_checkable
+from typing import List, Optional, Protocol, runtime_checkable, Iterable, Any, Mapping, Dict
 from uuid import UUID
 from src.core.models.job import Job, JobHistoryQuery
 from src.core.models.schedule import Schedule
@@ -95,3 +95,62 @@ class ScheduleStoreProtocol(ScheduleCrudProtocol, ScheduleRuntimeProtocol, Proto
     """
 
     def close(self) -> None: ...
+
+
+class ContainerClientProtocol(Protocol):
+    """Azure Blob container operations required by the workspace backend."""
+
+    def list_blobs(self, **kwargs: Any) -> Iterable[Any]:
+        """List blobs matching optional filters."""
+        raise NotImplementedError
+
+    def walk_blobs(self, **kwargs: Any) -> Iterable[Any]:
+        """Walk virtual directory prefixes."""
+        raise NotImplementedError
+
+    def get_blob_client(self, blob: str) -> Any:
+        """Return a client for one blob."""
+        raise NotImplementedError
+
+
+class TableClientProtocol(Protocol):
+    """Azure Table client operations required by STAF stores."""
+
+    def create_entity(self, entity: Mapping[str, Any]) -> Any:
+        """Create one table entity."""
+        raise NotImplementedError
+
+    def get_entity(self, partition_key: str, row_key: str) -> Any:
+        """Read one table entity."""
+        raise NotImplementedError
+
+    def update_entity(
+        self,
+        entity: Mapping[str, Any],
+        *,
+        mode: Any = None,
+        etag: Any = None,
+        match_condition: Any = None,
+    ) -> Any:
+        """Update one table entity."""
+        raise NotImplementedError
+
+    def delete_entity(
+        self,
+        partition_key: str,
+        row_key: str,
+        *,
+        etag: Any = None,
+        match_condition: Any = None,
+    ) -> None:
+        """Delete one table entity."""
+        raise NotImplementedError
+
+    def query_entities(
+        self,
+        query_filter: str,
+        *,
+        parameters: Optional[Dict[str, Any]] = None,
+    ) -> Iterable[Any]:
+        """Query table entities."""
+        raise NotImplementedError

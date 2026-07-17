@@ -46,7 +46,13 @@ def validate_workspace_id(workspace_id: str) -> str:
 
 
 def extract_environment(workspace_id: str) -> str:
-    """Extract environment prefix from workspace ID."""
+    """Extract environment prefix from workspace ID.
+
+    :param workspace_id: Workspace identifier
+    :type workspace_id: str
+    :return: Prefix before the first hyphen, or an empty string
+    :rtype: str
+    """
     return workspace_id.split("-")[0] if "-" in workspace_id else ""
 
 
@@ -72,10 +78,18 @@ def _load_yaml_mapping(
 
 
 def parse_sap_parameters(content: bytes) -> dict[str, Any]:
-    """Parse sap-parameters.yaml content with strict mapping validation."""
+    """Parse sap-parameters.yaml content with strict mapping validation.
+
+    :param content: Raw YAML bytes.
+    :returns: Parsed parameter mapping.
+    """
     return _load_yaml_mapping(content, "sap-parameters.yaml", require_non_empty=False)
 
 
 def parse_hosts_yaml(content: bytes) -> dict[str, Any]:
-    """Parse hosts.yaml content with strict non-empty mapping validation."""
+    """Parse hosts.yaml content with strict non-empty mapping validation.
+
+    :param content: Raw YAML bytes.
+    :returns: Parsed inventory mapping.
+    """
     return _load_yaml_mapping(content, "hosts.yaml", require_non_empty=True)
