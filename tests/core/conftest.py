@@ -6,16 +6,43 @@
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Generator
+from typing import Any, Generator
 from uuid import uuid4
 import pytest
 from pytest_mock import MockerFixture
+from src.core.execution.worker import JobWorker
 from src.core.models.job import Job
 from src.core.models.schedule import Schedule
+from src.core.models.workspace import MaterializedWorkspace
+from src.core.services.scheduler import SchedulerService
 from src.core.storage.job_store import JobStore
 from src.core.storage.schedule_store import ScheduleStore
-from src.core.execution.worker import JobWorker
-from src.core.services.scheduler import SchedulerService
+
+
+class FakeWorkspaceBackend:
+    """Simple workspace backend for worker tests."""
+
+    backend_name = "filesystem"
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    def materialize(self, workspace_id: str, job_id: str) -> MaterializedWorkspace:
+        workspace_dir = self.root / workspace_id
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        inventory = workspace_dir / "hosts.yaml"
+        inventory.write_text("all:\n  hosts:\n    node1:\n", encoding="utf-8")
+        return MaterializedWorkspace(
+            workspace_id=workspace_id,
+            job_id=job_id,
+            local_path=workspace_dir,
+            inventory_path=str(inventory),
+            extra_vars={"sap_sid": "X00"},
+            owned=False,
+        )
+
+    def cleanup(self, materialized: MaterializedWorkspace) -> None:
+        return None
 
 
 @pytest.fixture
@@ -160,12 +187,8 @@ def mock_executor(mocker: MockerFixture) -> Any:
     :rtype: Any
     """
     executor = mocker.MagicMock()
-    executor.execute = mocker.AsyncMock(
-        return_value={"status": "success", "tests_passed": 3, "tests_failed": 0}
-    )
-    executor.terminate_process = mocker.MagicMock(
-        return_value=False,
-    )
+    executor.run_test = mocker.MagicMock(return_value={"status": "success"})
+    executor.terminate_process = mocker.MagicMock(return_value=False)
     return executor
 
 
@@ -180,43 +203,24 @@ def failing_executor(mocker: MockerFixture) -> Any:
     :rtype: Any
     """
     executor = mocker.MagicMock()
-    executor.execute = mocker.AsyncMock(side_effect=RuntimeError("Executor failure"))
-    executor.terminate_process = mocker.MagicMock(
-        return_value=False,
-    )
+    executor.run_test = mocker.MagicMock(side_effect=RuntimeError("Executor failure"))
+    executor.terminate_process = mocker.MagicMock(return_value=False)
     return executor
 
 
 @pytest.fixture
-def workspace_loader() -> Callable[[str], dict[str, Any]]:
+def workspace_backend(temp_dir: Path) -> FakeWorkspaceBackend:
+    """Create a filesystem workspace backend for worker tests.
+
+    :param temp_dir: Temporary directory path.
+    :returns: Workspace backend rooted in the temporary directory.
     """
-    Fixture for loading workspace configuration.
-
-    :return: Workspace configuration dictionary
-    :rtype: dict[str, Any]
-    """
-
-    def loader(workspace_id: str) -> dict[str, Any]:
-        """
-        Load workspace configuration for the given workspace ID.
-
-        :param workspace_id: Workspace ID
-        :type workspace_id: str
-        :return: Workspace configuration dictionary
-        :rtype: dict[str, Any]
-        """
-        return {
-            "inventory_path": f"WORKSPACES/SYSTEM/{workspace_id}/hosts.yaml",
-            "sap_sid": "X00",
-            "database_high_availability": True,
-        }
-
-    return loader
+    return FakeWorkspaceBackend(temp_dir / "workspaces")
 
 
 @pytest.fixture
 def job_worker(
-    job_store: JobStore, mock_executor: Any, workspace_loader: Any, temp_dir: Path
+    job_store: JobStore, mock_executor: Any, workspace_backend: Any, temp_dir: Path
 ) -> JobWorker:
     """
     Fixture for creating a JobWorker instance.
@@ -225,8 +229,8 @@ def job_worker(
     :type job_store: JobStore
     :param mock_executor: Mock executor instance
     :type mock_executor: Any
-    :param workspace_loader: Workspace loader callable
-    :type workspace_loader: Any
+    :param workspace_backend: Workspace backend instance.
+    :type workspace_backend: Any
     :param temp_dir: Temporary directory path
     :type temp_dir: Path
     :return: JobWorker instance
@@ -235,8 +239,8 @@ def job_worker(
     return JobWorker(
         job_store=job_store,
         executor=mock_executor,
-        workspace_config_loader=workspace_loader,
-        workspaces_base=temp_dir,
+        workspace_backend=workspace_backend,
+        log_dir=temp_dir / "job-logs",
     )
 
 

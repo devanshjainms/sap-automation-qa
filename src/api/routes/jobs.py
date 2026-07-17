@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from src.api.routes.workspaces import _load_workspaces_from_directory
+from src.core.contracts.storage import JobQueryProtocol
 from src.core.models.job import (
     CancelJobRequest,
     CreateJobRequest,
@@ -18,22 +19,21 @@ from src.core.models.job import (
     JobListResponse,
     JobStatus,
 )
-from src.core.storage.job_store import JobStore
 from src.core.execution.worker import JobWorker
-from src.core.execution.executor import TEST_GROUP_PLAYBOOKS
+from src.core.execution.test_catalog import TEST_GROUP_PLAYBOOKS
 from src.core.observability import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/jobs", tags=["jobs"])
-_job_store: Optional[JobStore] = None
+_job_store: Optional[JobQueryProtocol] = None
 _job_worker: Optional[JobWorker] = None
 
 
-def set_job_store(store: JobStore) -> None:
+def set_job_store(store: JobQueryProtocol) -> None:
     """Set the job store instance.
 
-    :param store: JobStore instance for persistence.
-    :type store: JobStore
+    :param store: Any implementation satisfying ``JobQueryProtocol``.
+    :type store: JobQueryProtocol
     """
     global _job_store
     _job_store = store
@@ -49,11 +49,11 @@ def set_job_worker(worker: JobWorker) -> None:
     _job_worker = worker
 
 
-def get_job_store() -> JobStore:
+def get_job_store() -> JobQueryProtocol:
     """Get the job store instance.
 
-    :returns: The configured JobStore instance.
-    :rtype: JobStore
+    :returns: The configured job store.
+    :rtype: JobQueryProtocol
     :raises HTTPException: If store not initialized (503 error).
     """
     if _job_store is None:
@@ -171,6 +171,10 @@ async def create_job(request: CreateJobRequest) -> Job:
                 workspace_id=request.workspace_id,
                 test_group=request.test_group,
                 test_ids=request.test_ids,
+                actor=request.actor,
+                approval_ref=request.approval_ref,
+                incident_ticket=request.incident_ticket,
+                offline=request.offline,
             )
         )
         logger.info(f"Created job {submitted.id} for workspace {request.workspace_id}")
@@ -202,7 +206,14 @@ async def cancel_job(job_id: str, request: CancelJobRequest) -> dict:
 
 @router.get("/{job_id}/events")
 async def get_job_events(job_id: str) -> dict:
-    """Get events for a job."""
+    """Get the events recorded for a job.
+
+    :param job_id: Identifier of the job.
+    :type job_id: str
+    :return: Job identifier and serialized event records.
+    :rtype: dict
+    :raises HTTPException: If the job does not exist.
+    """
     job = get_job_store().get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
@@ -225,8 +236,11 @@ async def get_job_log(
     """Return the Ansible process log for a job.
 
     :param job_id: ID of the job.
+    :type job_id: str
     :param tail: Optional: return only the last N lines.
+    :type tail: Optional[int]
     :returns: Plain-text log content.
+    :rtype: PlainTextResponse
     :raises HTTPException: 404 if job or log file not found.
     """
     job = get_job_store().get(job_id)

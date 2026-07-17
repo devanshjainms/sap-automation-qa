@@ -10,7 +10,7 @@ from src.api.routes.schedules import (
     set_schedule_store,
     set_scheduler_service,
 )
-from src.api.routes.workspaces import router as workspaces_router, set_workspace_loader
+from src.api.routes.workspaces import router as workspaces_router, set_workspace_backend
 
 __all__ = [
     "health_router",
@@ -21,5 +21,5 @@ __all__ = [
     "set_job_worker",
     "set_schedule_store",
     "set_scheduler_service",
-    "set_workspace_loader",
+    "set_workspace_backend",
 ]

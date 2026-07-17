@@ -6,18 +6,15 @@
 import asyncio
 import time
 from pathlib import Path
-from typing import Any, AsyncGenerator, Callable
-from src.core.models.job import Job, JobEvent, JobEventType, JobStatus
-from src.core.storage.job_store import JobStore
+from typing import Any, AsyncGenerator
+from src.core.contracts.workspace import WorkspaceMaterializer
+from src.core.execution.exceptions import CredentialProvisionError, WorkspaceLockError
 from src.core.execution.executor import ExecutorProtocol
-from src.core.execution.exceptions import WorkspaceLockError
 from src.core.execution.ssh_provider import SshCredentialProvider
-from src.core.execution.exceptions import CredentialProvisionError
-from src.core.observability import (
-    get_logger,
-    ExecutionScope,
-    create_execution_event,
-)
+from src.core.models.job import Job, JobEvent, JobEventType, JobStatus
+from src.core.models.workspace import MaterializedWorkspace, mutable_workspace_vars
+from src.core.observability import ExecutionScope, create_execution_event, get_logger
+from src.core.contracts.storage import JobLifecycleProtocol
 
 logger = get_logger(__name__)
 
@@ -27,73 +24,75 @@ class JobWorker:
 
     def __init__(
         self,
-        job_store: JobStore,
+        job_store: JobLifecycleProtocol,
         executor: ExecutorProtocol,
-        workspace_config_loader: Callable[[str], dict[str, Any]],
-        workspaces_base: Path | str = "WORKSPACES/SYSTEM",
+        workspace_backend: WorkspaceMaterializer,
+        log_dir: Path,
         ssh_provider: SshCredentialProvider | None = None,
     ) -> None:
         """Initialize the job worker.
 
-        :param job_store: Job store for persistence
-        :param executor: Test executor implementation
-        :param workspace_config_loader: Function to load workspace config by ID
-        :param workspaces_base: Base path for workspace directories
-        :param ssh_provider: Optional SSH credential provider for KV
+        :param job_store: Storage backend for job lifecycle operations.
+        :type job_store: JobLifecycleProtocol
+        :param executor: Executor used to run tests and terminate processes.
+        :type executor: ExecutorProtocol
+        :param workspace_backend: Backend used to materialize and clean up workspaces.
+        :type workspace_backend: WorkspaceMaterializer
+        :param log_dir: Directory in which job logs are stored.
+        :type log_dir: Path
+        :param ssh_provider: Optional provider used to provision SSH credentials.
+        :type ssh_provider: SshCredentialProvider | None
         """
         self.job_store = job_store
         self.executor = executor
-        self.workspace_config_loader = workspace_config_loader
-        self.workspaces_base = Path(workspaces_base)
+        self.workspace_backend = workspace_backend
+        self._log_dir = log_dir
         self.ssh_provider = ssh_provider or SshCredentialProvider()
         self._running_jobs: dict[str, asyncio.Task] = {}
         self._event_queues: dict[str, asyncio.Queue[JobEvent]] = {}
-
         logger.info("JobWorker initialized")
 
     def recover_crashed_jobs(self) -> int:
-        """
-        Recover jobs left in non-terminal state after a crash.
+        """Recover jobs left in a non-terminal state after a crash.
 
-        :returns: Number of recovered jobs.
+        :return: Number of orphaned jobs marked as failed.
+        :rtype: int
         """
         recovered = 0
         for job in self.job_store.get_active():
-            if job.status in (
-                JobStatus.RUNNING,
-                JobStatus.PENDING,
-            ):
+            if job.status in (JobStatus.RUNNING, JobStatus.PENDING):
                 previous_status = job.status
-                job.fail(f"Recovered after restart " f"(was {previous_status})")
+                job.fail(f"Recovered after restart (was {previous_status})")
                 self.job_store.update(job)
                 recovered += 1
 
         if recovered:
-            logger.info(f"Startup recovery: {recovered} " f"orphaned job(s) marked as failed")
+            logger.info("Startup recovery: %s orphaned job(s) marked as failed", recovered)
         return recovered
 
     async def submit_job(self, job: Job) -> Job:
-        """Submit a job for async execution.
+        """Submit a job for asynchronous execution.
 
-        :param job: Job to execute
-        :returns: The submitted job
-        :raises WorkspaceLockError: If workspace already has an active job
+        :param job: Job to persist and execute.
+        :type job: Job
+        :return: Submitted job instance.
+        :rtype: Job
+        :raises WorkspaceLockError: If another job is active for the workspace.
         """
         active_job = self.job_store.get_active_for_workspace(job.workspace_id)
         if active_job and active_job.id != job.id:
-            logger.warning(f"Workspace {job.workspace_id} already has active job {active_job.id}")
+            logger.warning(
+                "Workspace %s already has active job %s", job.workspace_id, active_job.id
+            )
             raise WorkspaceLockError(
-                workspace_id=job.workspace_id,
-                active_job_id=str(active_job.id),
+                workspace_id=job.workspace_id, active_job_id=str(active_job.id)
             )
 
         self.job_store.create(job)
-
         self._event_queues[str(job.id)] = asyncio.Queue()
         task = asyncio.create_task(self._execute_job(job))
         self._running_jobs[str(job.id)] = task
-
-        logger.info(f"Submitted job {job.id} for workspace {job.workspace_id}")
+        logger.info("Submitted job %s for workspace %s", job.id, job.workspace_id)
         return job
 
     async def get_job_events(
@@ -101,11 +100,14 @@ class JobWorker:
         job_id: str,
         timeout: float = 60.0,
     ) -> AsyncGenerator[JobEvent, None]:
-        """Stream job events.
+        """Stream events emitted by a job until completion or timeout.
 
-        :param job_id: Job ID to stream events for
-        :param timeout: Timeout for waiting on events
-        :yields: Job events
+        :param job_id: Identifier of the job whose events should be streamed.
+        :type job_id: str
+        :param timeout: Maximum seconds to wait for each event.
+        :type timeout: float
+        :yield: Next event emitted by the job.
+        :rtype: AsyncGenerator[JobEvent, None]
         """
         queue = self._event_queues.get(job_id)
         if not queue:
@@ -115,7 +117,6 @@ class JobWorker:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=timeout)
                 yield event
-
                 if event.event_type in (
                     JobEventType.COMPLETED,
                     JobEventType.FAILED,
@@ -128,9 +129,12 @@ class JobWorker:
     async def cancel_job(self, job_id: str, reason: str = "Cancelled by user") -> bool:
         """Cancel a running job.
 
-        :param job_id: Job ID to cancel
-        :param reason: Cancellation reason
-        :returns: True if cancelled successfully
+        :param job_id: Identifier of the job to cancel.
+        :type job_id: str
+        :param reason: Reason recorded for the cancellation.
+        :type reason: str
+        :return: ``True`` if a running task was cancelled; otherwise ``False``.
+        :rtype: bool
         """
         task = self._running_jobs.get(job_id)
         if not task:
@@ -144,47 +148,42 @@ class JobWorker:
             job.cancel(reason)
             self.job_store.update(job)
 
-        logger.info(f"Cancelled job {job_id}: {reason}")
+        logger.info("Cancelled job %s: %s", job_id, reason)
         return True
 
     async def shutdown(self, timeout: float = 30.0) -> None:
-        """Gracefully shutdown the worker, cancelling all running jobs.
+        """Shut down the worker gracefully and cancel all running jobs.
 
-        :param timeout: Maximum time to wait for jobs to complete.
+        :param timeout: Maximum seconds to wait for cancelled tasks to finish.
         :type timeout: float
         """
         if not self._running_jobs:
             logger.info("JobWorker shutdown: no running jobs")
             return
 
-        logger.info(f"JobWorker shutdown: cancelling {len(self._running_jobs)} running jobs")
+        logger.info("JobWorker shutdown: cancelling %s running jobs", len(self._running_jobs))
         for job_id, task in self._running_jobs.items():
             if not task.done():
                 self.executor.terminate_process(job_id)
                 task.cancel()
-                logger.info(f"Cancelled running job {job_id}")
-        if self._running_jobs:
-            tasks = list(self._running_jobs.values())
-            try:
-                await asyncio.wait_for(
-                    asyncio.gather(*tasks, return_exceptions=True),
-                    timeout=timeout,
-                )
-            except asyncio.TimeoutError:
-                logger.warning(f"JobWorker shutdown: timed out after {timeout}s")
+                logger.info("Cancelled running job %s", job_id)
+
+        tasks = list(self._running_jobs.values())
+        try:
+            await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning("JobWorker shutdown: timed out after %ss", timeout)
 
         self._running_jobs.clear()
         self._event_queues.clear()
         logger.info("JobWorker shutdown complete")
 
     async def _emit_event(self, job_id: str, event: JobEvent) -> None:
-        """Emit an event to the job's queue.
+        """Emit an event to a job's queue when the queue exists.
 
-        Adds an event to the async queue for streaming to subscribers.
-
-        :param job_id: ID of the job to emit event for.
+        :param job_id: Identifier of the job receiving the event.
         :type job_id: str
-        :param event: Event to emit.
+        :param event: Event to enqueue.
         :type event: JobEvent
         """
         queue = self._event_queues.get(job_id)
@@ -192,17 +191,16 @@ class JobWorker:
             await queue.put(event)
 
     async def _execute_job(self, job: Job) -> None:
-        """Execute a job in the background.
+        """Execute a job in the background and persist its lifecycle changes.
 
-        :param job: Job to execute
+        :param job: Job to execute.
+        :type job: Job
         """
         start_time = time.perf_counter()
         ssh_credential = None
+        materialized: MaterializedWorkspace | None = None
 
-        with ExecutionScope(
-            execution_id=str(job.id),
-            workspace_id=job.workspace_id,
-        ):
+        with ExecutionScope(execution_id=str(job.id), workspace_id=job.workspace_id):
             try:
                 event = job.start()
                 self.job_store.update(job)
@@ -217,44 +215,45 @@ class JobWorker:
                     )
                 )
 
-                workspace_config = self.workspace_config_loader(job.workspace_id)
-                if not workspace_config:
-                    raise ValueError(f"Workspace {job.workspace_id} not found")
-
-                inventory_path = workspace_config.get("inventory_path", "")
+                materialized = await asyncio.to_thread(
+                    self.workspace_backend.materialize,
+                    job.workspace_id,
+                    str(job.id),
+                )
+                inventory_path = materialized.inventory_path
                 if not inventory_path:
                     raise ValueError(f"No inventory path for workspace {job.workspace_id}")
 
-                extra_vars = workspace_config.get("extra_vars") or {}
-                workspace_dir = (self.workspaces_base / job.workspace_id).resolve()
+                workspace_dir = materialized.local_path
+                extra_vars = mutable_workspace_vars(materialized.extra_vars)
                 extra_vars["_workspace_directory"] = str(workspace_dir)
-                ssh_credential = await asyncio.to_thread(
-                    self._provision_ssh_credential,
-                    workspace_id=job.workspace_id,
-                    extra_vars=extra_vars,
-                )
+
                 private_key_path = None
                 ssh_password = None
-                if ssh_credential:
-                    private_key_path = ssh_credential.private_key_path
-                    ssh_password = ssh_credential.ssh_password
-                    logger.info(
-                        "SSH credential provisioned for workspace " "%s (type=%s)",
-                        job.workspace_id,
-                        ssh_credential.auth_type.value,
+                if not job.offline:
+                    ssh_credential = await asyncio.to_thread(
+                        self._provision_ssh_credential,
+                        workspace_id=job.workspace_id,
+                        extra_vars=extra_vars,
                     )
+                    if ssh_credential:
+                        private_key_path = ssh_credential.private_key_path
+                        ssh_password = ssh_credential.ssh_password
+                        logger.info(
+                            "SSH credential provisioned for workspace %s (type=%s)",
+                            job.workspace_id,
+                            ssh_credential.auth_type.value,
+                        )
 
                 results = []
                 test_ids = job.test_ids or []
-
                 if not job.test_group and not test_ids:
                     raise ValueError("No tests specified for execution")
-
                 if not test_ids:
                     test_ids = [""]
-                log_dir = self.workspaces_base / job.workspace_id / "logs"
-                log_dir.mkdir(parents=True, exist_ok=True)
-                log_path = log_dir / f"{job.id}.log"
+
+                self._log_dir.mkdir(parents=True, exist_ok=True)
+                log_path = self._log_dir / f"{job.id}.log"
                 log_path.write_text("", encoding="utf-8")
                 job.log_file = str(log_path)
                 self.job_store.update(job)
@@ -262,7 +261,6 @@ class JobWorker:
                 for test_id in test_ids:
                     if job.status == JobStatus.CANCELLED:
                         break
-
                     try:
                         result = await asyncio.to_thread(
                             self.executor.run_test,
@@ -276,7 +274,6 @@ class JobWorker:
                             private_key_path=private_key_path,
                             ssh_password=ssh_password,
                         )
-
                         if result.get("status") == "failed":
                             results.append(
                                 {
@@ -287,41 +284,39 @@ class JobWorker:
                             )
                         else:
                             results.append(
-                                {
-                                    "test_id": test_id,
-                                    "status": "success",
-                                    "result": result,
-                                }
+                                {"test_id": test_id, "status": "success", "result": result}
                             )
-
                     except asyncio.CancelledError:
                         raise
-                    except Exception as e:
-                        results.append({"test_id": test_id, "status": "failed", "error": str(e)})
+                    except Exception as exc:
+                        results.append({"test_id": test_id, "status": "failed", "error": str(exc)})
 
                 if job.status != JobStatus.CANCELLED:
-                    all_success = all(r.get("status") == "success" for r in results)
+                    all_success = all(result.get("status") == "success" for result in results)
                     summary = {
                         "results": results,
                         "status": "success" if all_success else "partial",
                         "tests_run": len(results),
-                        "tests_passed": sum(1 for r in results if r.get("status") == "success"),
-                        "tests_failed": sum(1 for r in results if r.get("status") == "failed"),
+                        "tests_passed": sum(
+                            1 for result in results if result.get("status") == "success"
+                        ),
+                        "tests_failed": sum(
+                            1 for result in results if result.get("status") == "failed"
+                        ),
                     }
-
                     if all_success:
                         event = job.complete(summary, f"All {len(results)} tests completed")
                     else:
-                        passed = summary["tests_passed"]
-                        failed = summary["tests_failed"]
                         event = job.complete(
-                            summary, f"Completed: {passed} passed, {failed} failed"
+                            summary,
+                            (
+                                f"Completed: {summary['tests_passed']} passed, "
+                                f"{summary['tests_failed']} failed"
+                            ),
                         )
 
                     self.job_store.update(job)
                     await self._emit_event(str(job.id), event)
-
-                    duration_ms = (time.perf_counter() - start_time) * 1000
                     logger.event(
                         create_execution_event(
                             "job_complete",
@@ -330,74 +325,77 @@ class JobWorker:
                             test_group=job.test_group,
                             tests_passed=summary["tests_passed"],
                             tests_failed=summary["tests_failed"],
-                            duration_ms=duration_ms,
+                            duration_ms=(time.perf_counter() - start_time) * 1000,
                         )
                     )
-
             except asyncio.CancelledError:
-                duration_ms = (time.perf_counter() - start_time) * 1000
                 logger.event(
                     create_execution_event(
                         "job_cancel",
                         job_id=str(job.id),
                         workspace_id=job.workspace_id,
                         reason="User cancelled",
-                        duration_ms=duration_ms,
+                        duration_ms=(time.perf_counter() - start_time) * 1000,
                     )
                 )
                 event = job.cancel("Job cancelled")
                 self.job_store.update(job)
                 await self._emit_event(str(job.id), event)
-
-            except Exception as e:
-                duration_ms = (time.perf_counter() - start_time) * 1000
+            except Exception as exc:
                 logger.event(
                     create_execution_event(
                         "job_fail",
                         job_id=str(job.id),
                         workspace_id=job.workspace_id,
-                        error=str(e),
-                        duration_ms=duration_ms,
+                        error=str(exc),
+                        duration_ms=(time.perf_counter() - start_time) * 1000,
                     )
                 )
-                event = job.fail(str(e))
+                event = job.fail(str(exc))
                 self.job_store.update(job)
                 await self._emit_event(str(job.id), event)
-
             finally:
+                if materialized is not None:
+                    try:
+                        await asyncio.to_thread(self.workspace_backend.cleanup, materialized)
+                    except Exception as cleanup_err:
+                        logger.warning(
+                            "Workspace cleanup failed for job %s workspace %s: %s",
+                            job.id,
+                            materialized.workspace_id,
+                            cleanup_err,
+                            exc_info=True,
+                        )
                 if ssh_credential:
                     ssh_credential.cleanup()
-                if str(job.id) in self._running_jobs:
-                    del self._running_jobs[str(job.id)]
-                if str(job.id) in self._event_queues:
-                    del self._event_queues[str(job.id)]
+                self._running_jobs.pop(str(job.id), None)
+                self._event_queues.pop(str(job.id), None)
 
-    def _provision_ssh_credential(
-        self,
-        workspace_id: str,
-        extra_vars: dict[str, Any],
-    ) -> Any:
+    def _provision_ssh_credential(self, workspace_id: str, extra_vars: dict[str, Any]) -> Any:
         """Provision SSH credentials for a workspace.
 
-        :param workspace_id: Workspace identifier.
-        :param extra_vars: Variables from sap-parameters.yaml.
-        :returns: An :class:`SshCredential` or ``None``.
+        :param workspace_id: Identifier of the workspace requiring credentials.
+        :type workspace_id: str
+        :param extra_vars: Mutable workspace variables used for provisioning.
+        :type extra_vars: dict[str, Any]
+        :return: Provisioned SSH credential, or ``None`` when provisioning fails.
+        :rtype: Any
         """
         try:
-            return self.ssh_provider.provision(
-                workspace_id=workspace_id,
-                extra_vars=extra_vars,
-            )
+            return self.ssh_provider.provision(workspace_id=workspace_id, extra_vars=extra_vars)
         except CredentialProvisionError:
             logger.warning(
-                "SSH credential provisioning failed for "
-                "workspace %s — Ansible will attempt "
-                "default SSH auth",
+                "SSH credential provisioning failed for workspace %s — "
+                "Ansible will attempt default SSH auth",
                 workspace_id,
                 exc_info=True,
             )
             return None
 
     def get_running_job_ids(self) -> list[str]:
-        """Get IDs of currently running jobs."""
+        """Get the identifiers of currently running jobs.
+
+        :return: Identifiers of currently running jobs.
+        :rtype: list[str]
+        """
         return list(self._running_jobs.keys())

@@ -4,35 +4,35 @@
 """Schedules API routes."""
 
 from datetime import datetime, timezone
-from typing import Optional
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter, HTTPException, Query
 from src.api.routes.jobs import get_job_store
+from src.core.contracts.storage import ScheduleCrudProtocol
 from src.core.execution.executor import TEST_GROUP_PLAYBOOKS
 from src.core.models.schedule import (
     Schedule,
     CreateScheduleRequest,
     UpdateScheduleRequest,
     ScheduleListResponse,
+    ScheduleRouteState,
 )
-from src.core.storage.schedule_store import ScheduleStore
 from src.core.services.scheduler import SchedulerService
 from src.core.observability import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/schedules", tags=["schedules"])
-_schedule_store: Optional[ScheduleStore] = None
-_scheduler_service: Optional[SchedulerService] = None
 
 
-def set_schedule_store(store: ScheduleStore) -> None:
+_route_state = ScheduleRouteState()
+
+
+def set_schedule_store(store: ScheduleCrudProtocol) -> None:
     """Set the schedule store instance.
 
     :param store: ScheduleStore instance for persistence.
     :type store: ScheduleStore
     """
-    global _schedule_store
-    _schedule_store = store
+    _route_state.store = store
 
 
 def set_scheduler_service(service: SchedulerService) -> None:
@@ -41,34 +41,38 @@ def set_scheduler_service(service: SchedulerService) -> None:
     :param service: SchedulerService instance for scheduling.
     :type service: SchedulerService
     """
-    global _scheduler_service
-    _scheduler_service = service
+    _route_state.scheduler_service = service
 
 
-def get_schedule_store() -> ScheduleStore:
+def get_schedule_store() -> ScheduleCrudProtocol:
     """Get the schedule store instance.
 
     :returns: The configured ScheduleStore instance.
     :rtype: ScheduleStore
     :raises HTTPException: If store not initialized (503 error).
     """
-    if _schedule_store is None:
+    if _route_state.store is None:
         raise HTTPException(status_code=503, detail="Schedule store not initialized")
-    return _schedule_store
+    return _route_state.store
 
 
 @router.post("", response_model=Schedule, status_code=201)
 async def create_schedule(request: CreateScheduleRequest) -> Schedule:
-    """Create a new schedule."""
+    """Create a new schedule.
+
+    :param request: Validated schedule creation request.
+    :returns: Persisted schedule.
+    :raises HTTPException: If cron, workspace, or test-group validation fails.
+    """
     store = get_schedule_store()
 
     try:
         CronTrigger.from_crontab(request.cron_expression)
-    except Exception as e:
+    except Exception as exc:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid cron expression '{request.cron_expression}': {str(e)}",
-        )
+            detail=f"Invalid cron expression '{request.cron_expression}': {str(exc)}",
+        ) from exc
     if not request.workspace_ids:
         raise HTTPException(status_code=400, detail="At least one workspace_id is required")
 
@@ -104,7 +108,11 @@ async def create_schedule(request: CreateScheduleRequest) -> Schedule:
 async def list_schedules(
     enabled_only: bool = Query(False, description="Only show enabled schedules"),
 ) -> ScheduleListResponse:
-    """List all schedules."""
+    """List all schedules.
+
+    :param enabled_only: Whether to return only enabled schedules.
+    :returns: Schedule collection and total count.
+    """
     store = get_schedule_store()
     schedules = store.list(enabled_only=enabled_only)
 
@@ -113,7 +121,12 @@ async def list_schedules(
 
 @router.get("/{schedule_id}", response_model=Schedule)
 async def get_schedule(schedule_id: str) -> Schedule:
-    """Get a specific schedule."""
+    """Get a specific schedule.
+
+    :param schedule_id: Schedule identifier to retrieve.
+    :returns: Persisted schedule.
+    :raises HTTPException: If the schedule does not exist.
+    """
     store = get_schedule_store()
     schedule = store.get(schedule_id)
 
@@ -125,7 +138,13 @@ async def get_schedule(schedule_id: str) -> Schedule:
 
 @router.patch("/{schedule_id}", response_model=Schedule)
 async def update_schedule(schedule_id: str, request: UpdateScheduleRequest) -> Schedule:
-    """Update an existing schedule."""
+    """Update an existing schedule.
+
+    :param schedule_id: Schedule identifier to update.
+    :param request: Validated schedule update request.
+    :returns: Updated schedule.
+    :raises HTTPException: If the schedule or update values are invalid.
+    """
     store = get_schedule_store()
     schedule = store.get(schedule_id)
     if not schedule:
@@ -145,11 +164,11 @@ async def update_schedule(schedule_id: str, request: UpdateScheduleRequest) -> S
     if "cron_expression" in update_data:
         try:
             CronTrigger.from_crontab(update_data["cron_expression"])
-        except Exception as e:
+        except Exception as exc:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid cron expression: {str(e)}",
-            )
+                detail=f"Invalid cron expression: {str(exc)}",
+            ) from exc
     scheduling_changed = any(k in update_data for k in ("cron_expression", "timezone", "enabled"))
     for field, value in update_data.items():
         setattr(schedule, field, value)
@@ -193,23 +212,23 @@ async def trigger_schedule(schedule_id: str) -> dict:
     :rtype: dict
     :raises HTTPException: If schedule not found (404) or service unavailable (503).
     """
-    if not _scheduler_service:
+    if not _route_state.scheduler_service:
         raise HTTPException(status_code=503, detail="Scheduler service not available")
 
     try:
-        job_ids = await _scheduler_service.trigger_now(schedule_id)
+        job_ids = await _route_state.scheduler_service.trigger_now(schedule_id)
         return {
             "status": "triggered",
             "schedule_id": schedule_id,
             "job_ids": job_ids,
         }
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except PermissionError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to trigger schedule {schedule_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(f"Failed to trigger schedule {schedule_id}: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/{schedule_id}/jobs")
