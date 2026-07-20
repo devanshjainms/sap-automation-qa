@@ -27,8 +27,7 @@ from src.api.routes.health import (
 )
 from src.api.routes.jobs import (
     router as jobs_router,
-    set_job_store,
-    set_job_worker,
+    set_job_service,
 )
 from src.api.routes.schedules import (
     router as schedules_router,
@@ -43,6 +42,7 @@ from src.core.contracts.workspace import WorkspaceBackendProtocol
 from src.core.execution.executor import AnsibleExecutor
 from src.core.execution.worker import JobWorker
 from src.core.models.storage import StorageContext
+from src.core.services.job_service import JobApplicationService
 from src.core.services.scheduler import SchedulerService
 from src.core.storage.azure_context import AzureStorageContext, create_azure_storage_context
 from src.core.storage.factory import create_storage_context
@@ -70,7 +70,8 @@ class _RuntimeServices:
     azure_context: AzureStorageContext | None
     storage_context: StorageContext
     workspace_backend: WorkspaceBackendProtocol
-    job_worker: JobWorker
+    execution_worker: JobWorker
+    job_service: JobApplicationService
     scheduler_service: SchedulerService
 
 
@@ -103,7 +104,8 @@ def _create_runtime_services(application: FastAPI) -> _RuntimeServices:
             workspaces_base=WORKSPACES_BASE,
             data_dir=DATA_DIR,
         )
-        job_worker = JobWorker(
+
+        execution_worker = JobWorker(
             job_store=storage_context.job_store,
             executor=AnsibleExecutor(
                 playbook_dir=PLAYBOOK_DIR,
@@ -112,9 +114,16 @@ def _create_runtime_services(application: FastAPI) -> _RuntimeServices:
             workspace_backend=workspace_backend,
             log_dir=DATA_DIR / "job-logs",
         )
+
+        job_service = JobApplicationService(
+            job_store=storage_context.job_store,
+            workspace_reader=workspace_backend,
+            execution_port=execution_worker,
+        )
+
         scheduler_service = SchedulerService(
             schedule_store=storage_context.schedule_store,
-            job_worker=job_worker,
+            job_submitter=job_service,
             check_interval_seconds=SCHEDULER_CHECK_INTERVAL,
         )
     except Exception:
@@ -126,21 +135,22 @@ def _create_runtime_services(application: FastAPI) -> _RuntimeServices:
     set_storage_backend(storage_context.backend)
     set_workspace_reader(workspace_backend)
     set_workspace_backend(workspace_backend.backend_name)
-    set_job_store(storage_context.job_store)
-    set_job_worker(job_worker)
+    set_job_service(job_service)
     set_schedule_store(storage_context.schedule_store)
     set_scheduler_service(scheduler_service)
 
     application.state.job_store = storage_context.job_store
     application.state.schedule_store = storage_context.schedule_store
-    application.state.job_worker = job_worker
+    application.state.execution_worker = execution_worker
+    application.state.job_service = job_service
     application.state.scheduler_service = scheduler_service
 
     return _RuntimeServices(
         azure_context=azure_context,
         storage_context=storage_context,
         workspace_backend=workspace_backend,
-        job_worker=job_worker,
+        execution_worker=execution_worker,
+        job_service=job_service,
         scheduler_service=scheduler_service,
     )
 
@@ -152,7 +162,7 @@ async def _shutdown_runtime_services(services: _RuntimeServices) -> None:
     except Exception as exc:
         logger.warning("Error stopping scheduler: %s", exc, exc_info=True)
     try:
-        await services.job_worker.shutdown()
+        await services.execution_worker.shutdown()
     except Exception as exc:
         logger.warning("Error shutting down worker: %s", exc, exc_info=True)
 
@@ -163,8 +173,7 @@ async def _shutdown_runtime_services(services: _RuntimeServices) -> None:
     set_storage_backend(None)
     set_workspace_backend(None)
     set_workspace_reader(None)
-    set_job_store(None)
-    set_job_worker(None)
+    set_job_service(None)
     set_schedule_store(None)
     set_scheduler_service(None)
 
@@ -181,7 +190,7 @@ async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Initializing SAP QA Scheduler...")
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         services = _create_runtime_services(application)
-        services.job_worker.recover_crashed_jobs()
+        services.execution_worker.recover_crashed_jobs()
         await services.scheduler_service.start()
         set_service_status("scheduler", True)
         logger.info("SAP QA Scheduler initialized successfully")

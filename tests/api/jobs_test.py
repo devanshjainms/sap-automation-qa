@@ -288,48 +288,19 @@ class TestJobsApi:
         assert len(response.text.strip().splitlines()) == 3
         assert "line 19" in response.text.strip().splitlines()[-1]
 
-    def test_get_job_store_uninitialized(self) -> None:
-        """
-        Returns 503 when job store is not initialized.
-        """
+    def test_service_uninitialized_returns_503(self) -> None:
+        """Returns 503 when job service is not initialized."""
         app = FastAPI()
         app.include_router(jobs.router, prefix="/api/v1")
-        saved_store = jobs.get_job_store()
+        saved_service = jobs._job_service
         try:
-            jobs.set_job_store(None)
+            jobs.set_job_service(None)
             with TestClient(app) as c:
                 response = c.get("/api/v1/jobs")
                 assert response.status_code == 503
                 assert "not initialized" in response.json()["detail"]
         finally:
-            jobs.set_job_store(saved_store)
-
-    def test_get_job_worker_uninitialized(self, mocker: MockerFixture) -> None:
-        """
-        Returns 503 when the job worker is not initialized.
-        """
-        mocker.patch(
-            "src.api.routes.jobs._load_workspaces_from_directory",
-            return_value=[mocker.MagicMock(id="WS")],
-        )
-
-        app = FastAPI()
-        app.include_router(jobs.router, prefix="/api/v1")
-        saved_worker = jobs.get_job_worker()
-        try:
-            jobs.set_job_worker(None)
-            with TestClient(app) as c:
-                response = c.post(
-                    "/api/v1/jobs",
-                    json={
-                        "workspace_id": "WS",
-                        "test_group": "ConfigurationChecks",
-                    },
-                )
-                assert response.status_code == 503
-                assert "not initialized" in response.json()["detail"]
-        finally:
-            jobs.set_job_worker(saved_worker)
+            jobs.set_job_service(saved_service)
 
     def test_get_job_events_success(
         self,

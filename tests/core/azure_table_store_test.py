@@ -99,7 +99,7 @@ class TestAzureTableStore:
 
     def test_constructs_from_endpoint_with_credential(self, mocker: MockerFixture) -> None:
         """Construct a job store from endpoint and credential, creating the table if needed."""
-        mock_svc_cls = mocker.patch("src.core.storage.azure_table_store.TableServiceClient")
+        mock_svc_cls = mocker.patch("src.core.storage.azure_table_utils.TableServiceClient")
         mock_svc = mocker.MagicMock()
         mock_client = mocker.MagicMock()
         mock_svc.get_table_client.return_value = mock_client
@@ -128,7 +128,7 @@ class TestAzureTableStore:
 
     def test_close_closes_owned_service_exactly_once(self, mocker: MockerFixture) -> None:
         """Close the owned TableServiceClient exactly once on repeated close calls."""
-        mock_svc_cls = mocker.patch("src.core.storage.azure_table_store.TableServiceClient")
+        mock_svc_cls = mocker.patch("src.core.storage.azure_table_utils.TableServiceClient")
         mock_svc = mocker.MagicMock()
         mock_client = mocker.MagicMock()
         mock_svc.get_table_client.return_value = mock_client
@@ -154,7 +154,7 @@ class TestAzureTableStore:
 
     def test_get_table_client_failure_closes_service(self, mocker: MockerFixture) -> None:
         """Close the service when get_table_client raises during store construction."""
-        mock_svc_cls = mocker.patch("src.core.storage.azure_table_store.TableServiceClient")
+        mock_svc_cls = mocker.patch("src.core.storage.azure_table_utils.TableServiceClient")
         mock_service = mocker.MagicMock()
         mock_service.get_table_client.side_effect = RuntimeError("client failure")
         mock_svc_cls.return_value = mock_service
@@ -538,7 +538,7 @@ class TestAzureTableStore:
 
     def test_constructs_from_endpoint_with_custom_table_name(self, mocker: MockerFixture) -> None:
         """Construct a schedule store with a custom table name from endpoint and credential."""
-        mock_svc_cls = mocker.patch("src.core.storage.azure_table_store.TableServiceClient")
+        mock_svc_cls = mocker.patch("src.core.storage.azure_table_utils.TableServiceClient")
         mock_svc = mocker.MagicMock()
         mock_client = mocker.MagicMock()
         mock_svc.get_table_client.return_value = mock_client
@@ -556,7 +556,7 @@ class TestAzureTableStore:
 
     def test_schedule_close_closes_owned_service_exactly_once(self, mocker: MockerFixture) -> None:
         """Close the owned schedule service exactly once on repeated close calls."""
-        mock_svc_cls = mocker.patch("src.core.storage.azure_table_store.TableServiceClient")
+        mock_svc_cls = mocker.patch("src.core.storage.azure_table_utils.TableServiceClient")
         mock_svc = mocker.MagicMock()
         mock_client = mocker.MagicMock()
         mock_svc.get_table_client.return_value = mock_client
@@ -831,7 +831,7 @@ class TestAzureTableStore:
 
     def test_service_closed_on_create_table_failure(self, mocker: MockerFixture) -> None:
         """Close the TableServiceClient when create_table_if_not_exists raises during init."""
-        mock_svc_cls = mocker.patch("src.core.storage.azure_table_store.TableServiceClient")
+        mock_svc_cls = mocker.patch("src.core.storage.azure_table_utils.TableServiceClient")
         mock_svc = mocker.MagicMock()
         mock_svc.create_table_if_not_exists.side_effect = HttpResponseError(message="403 Forbidden")
         mock_svc_cls.return_value = mock_svc
@@ -849,7 +849,7 @@ class TestAzureTableStore:
 
     def test_credential_not_closed_on_create_table_failure(self, mocker: MockerFixture) -> None:
         """Leave the credential open when table creation fails during _new_table_resources."""
-        mock_svc_cls = mocker.patch("src.core.storage.azure_table_store.TableServiceClient")
+        mock_svc_cls = mocker.patch("src.core.storage.azure_table_utils.TableServiceClient")
         mock_svc = mocker.MagicMock()
         mock_svc.create_table_if_not_exists.side_effect = RuntimeError("boom")
         mock_svc_cls.return_value = mock_svc
@@ -1001,6 +1001,8 @@ class TestAzureTableStore:
         self, job_store: AzureTableJobStore, mock_table_client, mocker: MockerFixture
     ) -> None:
         """Reject lock reclamation while the referenced job remains active."""
+        from src.core.execution.exceptions import WorkspaceLockError
+
         job = Job(workspace_id="WS-ACTIVE")
         existing_job = Job(workspace_id=job.workspace_id)
         stale_lock = _entity_with_etag(
@@ -1016,9 +1018,11 @@ class TestAzureTableStore:
             mock_factory=mocker.MagicMock,
         )
         mock_table_client.create_entity.side_effect = ResourceExistsError("locked")
-        mock_table_client.get_entity.side_effect = [stale_lock, existing_entity]
+        # _acquire_workspace_lock calls: get_entity(lock), get_entity(job)
+        # then _find_active_lock_job_id calls: get_entity(lock)
+        mock_table_client.get_entity.side_effect = [stale_lock, existing_entity, stale_lock]
 
-        with pytest.raises(ResourceExistsError, match="locked"):
+        with pytest.raises(WorkspaceLockError):
             job_store.create(job)
 
         mock_table_client.delete_entity.assert_not_called()

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter, HTTPException, Query
-from src.api.routes.jobs import get_job_store
+from src.api.routes.jobs import get_job_service
 from src.core.contracts.storage import ScheduleCrudProtocol
 from src.core.execution.executor import TEST_GROUP_PLAYBOOKS
 from src.core.models.schedule import (
@@ -250,7 +250,7 @@ async def get_schedule_jobs(
     schedule = get_schedule_store().get(schedule_id)
     if not schedule:
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
-    jobs = get_job_store().get_jobs_for_schedule(schedule_id, limit=limit)
+    jobs = get_job_service().get_jobs_for_schedule(schedule_id, limit=limit)
     return {
         "schedule_id": schedule_id,
         "jobs": [j.model_dump(mode="json") for j in jobs],

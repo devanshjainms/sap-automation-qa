@@ -46,7 +46,7 @@ class TestSchedulerService:
 
     @pytest.mark.asyncio
     async def test_triggers_due_schedule(
-        self, schedule_store: ScheduleStore, mock_job_worker: Any
+        self, schedule_store: ScheduleStore, mock_job_submitter: Any
     ) -> None:
         """
         Verify scheduler triggers jobs for due schedules.
@@ -63,17 +63,17 @@ class TestSchedulerService:
         )
         service = SchedulerService(
             schedule_store=schedule_store,
-            job_worker=mock_job_worker,
+            job_submitter=mock_job_submitter,
             check_interval_seconds=1,
         )
         await service.start()
         await asyncio.sleep(0.3)
         await service.stop()
-        mock_job_worker.submit_job.assert_called()
+        mock_job_submitter.submit_job.assert_called()
 
     @pytest.mark.asyncio
     async def test_skips_disabled_schedule(
-        self, schedule_store: ScheduleStore, mock_job_worker: Any
+        self, schedule_store: ScheduleStore, mock_job_submitter: Any
     ) -> None:
         """
         Verify scheduler skips disabled schedules.
@@ -90,17 +90,17 @@ class TestSchedulerService:
         )
         service = SchedulerService(
             schedule_store=schedule_store,
-            job_worker=mock_job_worker,
+            job_submitter=mock_job_submitter,
             check_interval_seconds=1,
         )
         await service.start()
         await asyncio.sleep(0.3)
         await service.stop()
-        mock_job_worker.submit_job.assert_not_called()
+        mock_job_submitter.submit_job.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_skips_future_schedule(
-        self, schedule_store: ScheduleStore, mock_job_worker: Any
+        self, schedule_store: ScheduleStore, mock_job_submitter: Any
     ) -> None:
         """
         Verify scheduler skips schedules with future next_run_time.
@@ -117,17 +117,17 @@ class TestSchedulerService:
         )
         service = SchedulerService(
             schedule_store=schedule_store,
-            job_worker=mock_job_worker,
+            job_submitter=mock_job_submitter,
             check_interval_seconds=1,
         )
         await service.start()
         await asyncio.sleep(0.3)
         await service.stop()
-        mock_job_worker.submit_job.assert_not_called()
+        mock_job_submitter.submit_job.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_updates_next_run(
-        self, schedule_store: ScheduleStore, mock_job_worker: Any
+        self, schedule_store: ScheduleStore, mock_job_submitter: Any
     ) -> None:
         """
         Verify scheduler updates next_run_time after trigger.
@@ -145,7 +145,7 @@ class TestSchedulerService:
         assert old_next is not None
         service = SchedulerService(
             schedule_store=schedule_store,
-            job_worker=mock_job_worker,
+            job_submitter=mock_job_submitter,
             check_interval_seconds=1,
         )
         await service.start()
@@ -173,11 +173,11 @@ class TestSchedulerService:
                 next_run_time=datetime.now(timezone.utc) - timedelta(seconds=10),
             )
         )
-        worker = mocker.MagicMock()
-        worker.submit_job = mocker.AsyncMock(side_effect=Exception("Submit failed"))
+        submitter = mocker.MagicMock()
+        submitter.submit_job = mocker.AsyncMock(side_effect=Exception("Submit failed"))
         service = SchedulerService(
             schedule_store=schedule_store,
-            job_worker=worker,
+            job_submitter=submitter,
             check_interval_seconds=1,
         )
         await service.start()
@@ -186,37 +186,39 @@ class TestSchedulerService:
 
     @pytest.mark.asyncio
     async def test_empty_schedules(
-        self, schedule_store: ScheduleStore, mock_job_worker: Any
+        self, schedule_store: ScheduleStore, mock_job_submitter: Any
     ) -> None:
         """
         Verify scheduler handles empty schedule store.
         """
         service = SchedulerService(
             schedule_store=schedule_store,
-            job_worker=mock_job_worker,
+            job_submitter=mock_job_submitter,
             check_interval_seconds=1,
         )
         await service.start()
         await asyncio.sleep(0.2)
         await service.stop()
-        mock_job_worker.submit_job.assert_not_called()
+        mock_job_submitter.submit_job.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_check_interval_stored(
-        self, schedule_store: ScheduleStore, mock_job_worker: Any
+        self, schedule_store: ScheduleStore, mock_job_submitter: Any
     ) -> None:
         """
         Verify check_interval_seconds is stored correctly.
         """
         service = SchedulerService(
             schedule_store=schedule_store,
-            job_worker=mock_job_worker,
+            job_submitter=mock_job_submitter,
             check_interval_seconds=10,
         )
         assert service._check_interval == 10
 
     @pytest.mark.asyncio
-    async def test_trigger_now(self, schedule_store: ScheduleStore, mock_job_worker: Any) -> None:
+    async def test_trigger_now(
+        self, schedule_store: ScheduleStore, mock_job_submitter: Any
+    ) -> None:
         """
         Verify trigger_now() immediately triggers schedule.
         """
@@ -230,23 +232,23 @@ class TestSchedulerService:
         schedule_store.create(schedule)
         service = SchedulerService(
             schedule_store=schedule_store,
-            job_worker=mock_job_worker,
+            job_submitter=mock_job_submitter,
             check_interval_seconds=60,
         )
         job_ids = await service.trigger_now(schedule.id)
-        mock_job_worker.submit_job.assert_called()
+        mock_job_submitter.submit_job.assert_called()
         assert isinstance(job_ids, list)
 
     @pytest.mark.asyncio
     async def test_trigger_now_not_found(
-        self, schedule_store: ScheduleStore, mock_job_worker: Any
+        self, schedule_store: ScheduleStore, mock_job_submitter: Any
     ) -> None:
         """
         Verify trigger_now() raises ValueError for unknown schedule.
         """
         service = SchedulerService(
             schedule_store=schedule_store,
-            job_worker=mock_job_worker,
+            job_submitter=mock_job_submitter,
             check_interval_seconds=60,
         )
         with pytest.raises(ValueError, match="not found"):
@@ -254,7 +256,7 @@ class TestSchedulerService:
 
     @pytest.mark.asyncio
     async def test_trigger_now_disabled(
-        self, schedule_store: ScheduleStore, mock_job_worker: Any
+        self, schedule_store: ScheduleStore, mock_job_submitter: Any
     ) -> None:
         """
         Verify trigger_now() raises PermissionError for disabled schedule.
@@ -269,7 +271,7 @@ class TestSchedulerService:
         schedule_store.create(schedule)
         service = SchedulerService(
             schedule_store=schedule_store,
-            job_worker=mock_job_worker,
+            job_submitter=mock_job_submitter,
             check_interval_seconds=60,
         )
         with pytest.raises(PermissionError, match="disabled"):

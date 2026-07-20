@@ -105,8 +105,11 @@ class TestJobStore:
         """
         job_store.create(Job(workspace_id="WS-A"))
         job_store.create(Job(workspace_id="WS-B"))
-        job_store.create(Job(workspace_id="WS-A"))
-        assert len(job_store.get_active(workspace_id="WS-A")) == 2
+        done = Job(workspace_id="WS-A")
+        done.start()
+        done.complete({})
+        job_store.create(done)
+        assert len(job_store.get_active(workspace_id="WS-A")) == 1
         assert len(job_store.get_active(workspace_id="WS-B")) == 1
 
     def test_get_active_for_workspace(self, job_store: JobStore, sample_running_job: Job) -> None:
@@ -378,3 +381,72 @@ class TestJobStoreP1WP003:
         assert "approval_ref" in columns
         assert "incident_ticket" in columns
         assert "offline" in columns
+
+    def test_legacy_distributed_coordination_columns_are_readable(self, temp_dir: Path) -> None:
+        """A pre-Rollback-Package-B database with the removed distributed
+        coordination columns (``execution_owner_id``, ``lease_expires_at``,
+        ``cancellation_requested``, ``cancellation_reason``) is still
+        readable — no destructive migration is required, and ``Job`` simply
+        ignores the extra columns.
+        """
+        import sqlite3
+        from datetime import datetime, timezone
+
+        legacy_schema_with_distributed_columns = _LEGACY_JOBS_SCHEMA.replace(
+            "metadata     TEXT NOT NULL DEFAULT '{}'\n);",
+            (
+                "metadata     TEXT NOT NULL DEFAULT '{}',\n"
+                "    execution_owner_id TEXT,\n"
+                "    lease_expires_at TEXT,\n"
+                "    cancellation_requested INTEGER NOT NULL DEFAULT 0,\n"
+                "    cancellation_reason TEXT\n"
+                ");"
+            ),
+        )
+        db_path = temp_dir / "legacy_distributed.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.executescript(legacy_schema_with_distributed_columns)
+        job_id = "11111111-2222-3333-4444-555555555555"
+        conn.execute(
+            """INSERT INTO jobs
+               (id, workspace_id, schedule_id, test_group,
+                test_ids, status, created_at, started_at,
+                completed_at, error, result, log_file,
+                events, metadata,
+                execution_owner_id, lease_expires_at,
+                cancellation_requested, cancellation_reason)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                job_id,
+                "WS-LEGACY-DISTRIBUTED",
+                None,
+                "ConfigurationChecks",
+                "[]",
+                "running",
+                datetime.now(timezone.utc).isoformat(),
+                datetime.now(timezone.utc).isoformat(),
+                None,
+                None,
+                None,
+                None,
+                "[]",
+                "{}",
+                "old-worker-host-01",
+                datetime.now(timezone.utc).isoformat(),
+                1,
+                "stop requested",
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        store = JobStore(db_path=db_path)
+        retrieved = store.get(job_id)
+        assert retrieved is not None
+        assert retrieved.workspace_id == "WS-LEGACY-DISTRIBUTED"
+        assert retrieved.status == JobStatus.RUNNING
+        assert not hasattr(retrieved, "execution_owner_id")
+        assert not hasattr(retrieved, "lease_expires_at")
+        assert not hasattr(retrieved, "cancellation_requested")
+        assert not hasattr(retrieved, "cancellation_reason")
+        store.close()

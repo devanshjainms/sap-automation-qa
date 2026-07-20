@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 from uuid import UUID
+from src.core.execution.exceptions import WorkspaceLockError
 from src.core.models.job import Job, JobHistoryQuery, JobStatus
 from src.core.observability import get_logger
 from src.core.storage.staf_store import StafStore
@@ -37,6 +38,13 @@ CREATE TABLE IF NOT EXISTS jobs (
     offline      INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS workspace_locks (
+    workspace_id TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_workspace
     ON jobs(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_status
@@ -45,6 +53,8 @@ CREATE INDEX IF NOT EXISTS idx_jobs_schedule
     ON jobs(schedule_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_created
     ON jobs(created_at);
+CREATE INDEX IF NOT EXISTS idx_workspace_locks_job
+    ON workspace_locks(job_id);
 """
 
 _JOB_COLUMN_MIGRATIONS = {
@@ -65,6 +75,30 @@ def _migrate_job_schema(db: StafStore) -> None:
         for column, statement in _JOB_COLUMN_MIGRATIONS.items():
             if column not in columns:
                 db.conn.execute(statement)
+        db.conn.execute("""
+            CREATE TABLE IF NOT EXISTS workspace_locks (
+                workspace_id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
+            )
+            """)
+        db.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_workspace_locks_job ON workspace_locks(job_id)"
+        )
+        db.conn.execute(
+            """
+            INSERT OR IGNORE INTO workspace_locks (workspace_id, job_id, created_at)
+            SELECT workspace_id, id, created_at
+            FROM jobs
+            WHERE status NOT IN (?, ?, ?)
+            """,
+            (
+                JobStatus.COMPLETED.value,
+                JobStatus.FAILED.value,
+                JobStatus.CANCELLED.value,
+            ),
+        )
 
 
 def _dt_to_iso(dt: Optional[datetime]) -> Optional[str]:
@@ -166,6 +200,7 @@ class JobStore:
 
         :param job: Job to create.
         :returns: Created job.
+        :raises WorkspaceLockError: If the workspace already has an active job.
         """
         row = self._job_to_row(job)
         with self._lock, self._conn:
@@ -185,6 +220,26 @@ class JobStore:
                 """,
                 row,
             )
+            if not job.is_terminal:
+                try:
+                    self._conn.execute(
+                        """
+                       INSERT INTO workspace_locks (workspace_id, job_id, created_at)
+                       VALUES (?, ?, ?)
+                       """,
+                        (job.workspace_id, str(job.id), row["created_at"]),
+                    )
+                except sqlite3.IntegrityError as exc:
+                    self._conn.execute("DELETE FROM jobs WHERE id = ?", (str(job.id),))
+                    lock_row = self._conn.execute(
+                        "SELECT job_id FROM workspace_locks WHERE workspace_id = ?",
+                        (job.workspace_id,),
+                    ).fetchone()
+                    active_job_id = lock_row[0] if lock_row else "unknown"
+                    raise WorkspaceLockError(
+                        workspace_id=job.workspace_id,
+                        active_job_id=active_job_id,
+                    ) from exc
         logger.info(f"Created job {job.id} for workspace {job.workspace_id}")
         return job
 
@@ -229,6 +284,11 @@ class JobStore:
                 """,
                 row,
             )
+            if job.is_terminal:
+                self._conn.execute(
+                    "DELETE FROM workspace_locks WHERE workspace_id = ? AND job_id = ?",
+                    (job.workspace_id, str(job.id)),
+                )
         if cur.rowcount:
             logger.debug(f"Updated job {job.id} (status={job.status})")
 

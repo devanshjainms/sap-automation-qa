@@ -173,6 +173,20 @@ class JobListResponse(BaseModel):
     total: int
 
 
+class CancelJobResponse(BaseModel):
+    """Response confirming job cancellation."""
+
+    status: str
+    job_id: str
+
+
+class JobEventsResponse(BaseModel):
+    """Response containing persisted events for a job."""
+
+    job_id: str
+    events: list[JobEvent]
+
+
 class CreateJobRequest(BaseModel):
     """Request to create a new job."""
 

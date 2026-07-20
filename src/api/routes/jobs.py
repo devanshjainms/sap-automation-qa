@@ -1,78 +1,49 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""
-Jobs API routes
-"""
+"""Jobs API routes — thin adapter over ``JobApplicationService`` (P1-WP-005B)."""
 
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from src.api.routes.workspaces import _load_workspaces_from_directory
-from src.core.contracts.storage import JobQueryProtocol
+from src.core.execution.exceptions import WorkspaceLockError
 from src.core.models.job import (
     CancelJobRequest,
+    CancelJobResponse,
     CreateJobRequest,
     Job,
-    JobHistoryQuery,
+    JobEventsResponse,
     JobListResponse,
-    JobStatus,
 )
-from src.core.execution.worker import JobWorker
-from src.core.execution.capability_classification import get_capability
-from src.core.execution.exceptions import WorkspaceLockError
-from src.core.execution.test_catalog import TEST_GROUP_PLAYBOOKS, resolve_offline_test_ids
 from src.core.observability import get_logger
+from src.core.services.job_service import JobApplicationService
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/jobs", tags=["jobs"])
-_job_store: Optional[JobQueryProtocol] = None
-_job_worker: Optional[JobWorker] = None
+_job_service: Optional[JobApplicationService] = None
 
 
-def set_job_store(store: Optional[JobQueryProtocol]) -> None:
-    """Set the job store instance.
+def set_job_service(service: Optional[JobApplicationService]) -> None:
+    """Set the job application service instance.
 
-    :param store: Job query implementation, or ``None`` to clear it.
-    :type store: Optional[JobQueryProtocol]
+    :param service: Application service, or ``None`` to clear it.
+    :type service: Optional[JobApplicationService]
     """
-    global _job_store
-    _job_store = store
+    global _job_service
+    _job_service = service
 
 
-def set_job_worker(worker: Optional[JobWorker]) -> None:
-    """Set the job worker instance.
+def get_job_service() -> JobApplicationService:
+    """Get the job application service instance.
 
-    :param worker: Job worker for executing jobs, or ``None`` to clear it.
-    :type worker: Optional[JobWorker]
+    :returns: The configured service.
+    :rtype: JobApplicationService
+    :raises HTTPException: If service not initialized (503 error).
     """
-    global _job_worker
-    _job_worker = worker
-
-
-def get_job_store() -> JobQueryProtocol:
-    """Get the job store instance.
-
-    :returns: The configured job store.
-    :rtype: JobQueryProtocol
-    :raises HTTPException: If store not initialized (503 error).
-    """
-    if _job_store is None:
-        raise HTTPException(status_code=503, detail="Job store not initialized")
-    return _job_store
-
-
-def get_job_worker() -> JobWorker:
-    """Get the job worker instance.
-
-    :returns: The configured JobWorker instance.
-    :rtype: JobWorker
-    :raises HTTPException: If worker not initialized (503 error).
-    """
-    if _job_worker is None:
-        raise HTTPException(status_code=503, detail="Job worker not initialized")
-    return _job_worker
+    if _job_service is None:
+        raise HTTPException(status_code=503, detail="Job service not initialized")
+    return _job_service
 
 
 @router.get("", response_model=JobListResponse)
@@ -95,34 +66,16 @@ async def list_jobs(
     :returns: Response containing list of jobs and total count.
     :rtype: JobListResponse
     """
-    store = get_job_store()
-
-    status_filter = None
-    if status:
-        try:
-            status_filter = JobStatus(status)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid status '{status}'. Valid values: {[s.value for s in JobStatus]}",
-            ) from exc
-
-    if active_only:
-        jobs = store.get_active(workspace_id=workspace_id)
-    else:
-        jobs = store.get_history(
-            JobHistoryQuery(
-                workspace_id=workspace_id,
-                status=status_filter,
-                limit=limit,
-            )
+    svc = get_job_service()
+    try:
+        return svc.list_jobs(
+            workspace_id=workspace_id,
+            status=status,
+            active_only=active_only,
+            limit=limit,
         )
-        jobs = store.get_active(workspace_id=workspace_id) + jobs
-
-    if limit:
-        jobs = jobs[:limit]
-
-    return JobListResponse(jobs=jobs, total=len(jobs))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{job_id}", response_model=Job)
@@ -135,10 +88,9 @@ async def get_job(job_id: str) -> Job:
     :rtype: Job
     :raises HTTPException: If job not found (404 error).
     """
-    job = get_job_store().get(job_id)
+    job = get_job_service().get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-
     return job
 
 
@@ -153,87 +105,52 @@ async def create_job(request: CreateJobRequest) -> Job:
     :raises HTTPException: 404 if workspace not found, 400 on invalid test_group
         or ineligible offline execution, and 409 if the workspace is active.
     """
-    if request.workspace_id not in {ws.id for ws in _load_workspaces_from_directory()}:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Workspace '{request.workspace_id}' not found",
-        )
-
-    if request.test_group and request.test_group not in TEST_GROUP_PLAYBOOKS:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Unknown test_group '{request.test_group}'. "
-                f"Valid values: {sorted(TEST_GROUP_PLAYBOOKS)}"
-            ),
-        )
-
-    test_ids = request.test_ids
-    if request.offline:
-        if not request.test_group:
-            raise HTTPException(status_code=400, detail="offline=true requires a test_group")
-        try:
-            get_capability(request.test_group).for_dispatch(offline=True)
-            test_ids = list(resolve_offline_test_ids(request.test_group, request.test_ids))
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
+    svc = get_job_service()
     try:
-        submitted = await get_job_worker().submit_job(
-            Job(
-                workspace_id=request.workspace_id,
-                test_group=request.test_group,
-                test_ids=test_ids,
-                actor=request.actor,
-                approval_ref=request.approval_ref,
-                incident_ticket=request.incident_ticket,
-                offline=request.offline,
-            )
-        )
-        logger.info(f"Created job {submitted.id} for workspace {request.workspace_id}")
-        return submitted
+        return await svc.submit_job(request)
+    except ValueError as exc:
+        detail = str(exc)
+        code = 404 if "not found" in detail else 400
+        raise HTTPException(status_code=code, detail=detail) from exc
     except WorkspaceLockError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@router.post("/{job_id}/cancel")
-async def cancel_job(job_id: str, request: CancelJobRequest) -> dict:
+@router.post("/{job_id}/cancel", response_model=CancelJobResponse)
+async def cancel_job(job_id: str, request: CancelJobRequest) -> CancelJobResponse:
     """Cancel a running job.
 
     :param job_id: ID of the job to cancel.
     :type job_id: str
     :param request: Cancellation request with optional reason.
     :type request: CancelJobRequest
-    :returns: Status dict with cancellation confirmation.
-    :rtype: dict
+    :returns: Cancellation confirmation.
+    :rtype: CancelJobResponse
     :raises HTTPException: If job not found or not running (404 error).
     """
-
-    success = await get_job_worker().cancel_job(job_id, request.reason)
+    success = await get_job_service().cancel_job(job_id, request.reason)
     if not success:
-        raise HTTPException(status_code=404, detail=f"Job {job_id} not found or not running")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job {job_id} not found or not running",
+        )
+    return CancelJobResponse(status="cancelled", job_id=job_id)
 
-    return {"status": "cancelled", "job_id": job_id}
 
-
-@router.get("/{job_id}/events")
-async def get_job_events(job_id: str) -> dict:
+@router.get("/{job_id}/events", response_model=JobEventsResponse)
+async def get_job_events(job_id: str) -> JobEventsResponse:
     """Get the events recorded for a job.
 
     :param job_id: Identifier of the job.
     :type job_id: str
-    :return: Job identifier and serialized event records.
-    :rtype: dict
+    :return: Job identifier and persisted event records.
+    :rtype: JobEventsResponse
     :raises HTTPException: If the job does not exist.
     """
-    job = get_job_store().get(job_id)
-    if not job:
+    events = get_job_service().get_job_events(job_id)
+    if events is None:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
-
-    return {
-        "job_id": job_id,
-        "events": [e.model_dump(mode="json") for e in job.events],
-    }
+    return JobEventsResponse(job_id=job_id, events=events)
 
 
 @router.get("/{job_id}/log")
@@ -255,7 +172,7 @@ async def get_job_log(
     :rtype: PlainTextResponse
     :raises HTTPException: 404 if job or log file not found.
     """
-    job = get_job_store().get(job_id)
+    job = get_job_service().get_job(job_id)
     if not job:
         raise HTTPException(
             status_code=404,

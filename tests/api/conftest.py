@@ -12,10 +12,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from src.api.routes import jobs, schedules
 from src.api.routes.workspaces import set_workspace_backend
-from src.core.execution.worker import JobWorker
 from src.core.models.job import Job
 from src.core.models.schedule import Schedule
 from src.core.models.workspace import MaterializedWorkspace, WorkspaceConfig, WorkspaceSummary
+from src.core.services.job_service import JobApplicationService
 from src.core.storage.job_store import JobStore
 from src.core.storage.schedule_store import ScheduleStore
 from src.api.routes.health import router as health_router
@@ -182,46 +182,66 @@ def workspace_backend(temp_dir: Path) -> ApiWorkspaceBackend:
     return ApiWorkspaceBackend(temp_dir / "api-workspaces")
 
 
-@pytest.fixture
-def mock_executor(mocker: Any) -> Any:
-    """Create a mock executor that returns successful test results.
+class FakeExecutionPort:
+    """In-process test double for the mandatory ``JobExecutionPort``.
 
-    :param mocker: Pytest mock fixture.
-    :type mocker: Any
-    :return: Configured mock executor.
-    :rtype: Any
+    Mirrors the single-owner ``JobWorker`` contract without spawning real
+    subprocesses: :meth:`submit` is a no-op recording nothing beyond what the
+    job store already persisted, and :meth:`cancel` marks a non-terminal job
+    ``CANCELLED`` directly in the store.
     """
-    executor = mocker.MagicMock()
-    executor.run_test = mocker.MagicMock(return_value={"status": "success"})
-    executor.terminate_process = mocker.MagicMock(return_value=False)
-    return executor
+
+    def __init__(self, job_store: JobStore) -> None:
+        """Initialize the fake port.
+
+        :param job_store: Job store used to persist cancellation outcomes.
+        :type job_store: JobStore
+        """
+        self._job_store = job_store
+
+    def submit(self, job: Job) -> None:
+        """Accept a submitted job without performing real execution.
+
+        :param job: Persisted PENDING job handed off for execution.
+        :type job: Job
+        """
+
+    def cancel(self, job_id: str, reason: str = "Cancelled by user") -> bool:
+        """Cancel a non-terminal job.
+
+        :param job_id: Identifier of the job to cancel.
+        :type job_id: str
+        :param reason: Human-readable cancellation reason.
+        :type reason: str
+        :return: ``True`` if an active job was cancelled.
+        :rtype: bool
+        """
+        job = self._job_store.get(job_id)
+        if job is None or job.is_terminal:
+            return False
+        job.cancel(reason)
+        self._job_store.update(job)
+        return True
 
 
 @pytest.fixture
-def job_worker(
+def job_service(
     job_store: JobStore,
     workspace_backend: ApiWorkspaceBackend,
-    mock_executor: Any,
-    temp_dir: Path,
-) -> JobWorker:
-    """Create a job worker for API tests.
+) -> JobApplicationService:
+    """Create a JobApplicationService for API tests.
 
     :param job_store: Temporary job store.
     :type job_store: JobStore
     :param workspace_backend: Test workspace backend.
     :type workspace_backend: ApiWorkspaceBackend
-    :param mock_executor: Mock test executor.
-    :type mock_executor: Any
-    :param temp_dir: Temporary directory path.
-    :type temp_dir: Path
-    :return: Configured job worker.
-    :rtype: JobWorker
+    :return: Configured job application service.
+    :rtype: JobApplicationService
     """
-    return JobWorker(
+    return JobApplicationService(
         job_store=job_store,
-        executor=mock_executor,
-        workspace_backend=workspace_backend,
-        log_dir=temp_dir / "job-logs",
+        workspace_reader=workspace_backend,
+        execution_port=FakeExecutionPort(job_store),
     )
 
 
@@ -229,7 +249,7 @@ def job_worker(
 def client(
     job_store: JobStore,
     schedule_store: ScheduleStore,
-    job_worker: JobWorker,
+    job_service: JobApplicationService,
     workspace_backend: ApiWorkspaceBackend,
 ) -> Generator[TestClient, None, None]:
     """Create an API test client with route dependencies configured.
@@ -238,8 +258,8 @@ def client(
     :type job_store: JobStore
     :param schedule_store: Temporary schedule store.
     :type schedule_store: ScheduleStore
-    :param job_worker: Configured test job worker.
-    :type job_worker: JobWorker
+    :param job_service: Configured job application service.
+    :type job_service: JobApplicationService
     :param workspace_backend: Test workspace backend.
     :type workspace_backend: ApiWorkspaceBackend
     :yield: Configured FastAPI test client.
@@ -248,9 +268,8 @@ def client(
     app = create_test_app()
     app.state.job_store = job_store
     app.state.schedule_store = schedule_store
-    app.state.job_worker = job_worker
-    jobs.set_job_store(job_store)
-    jobs.set_job_worker(job_worker)
+    app.state.job_service = job_service
+    jobs.set_job_service(job_service)
     schedules.set_schedule_store(schedule_store)
     set_workspace_backend(workspace_backend)
     with TestClient(app) as test_client:

@@ -13,12 +13,22 @@ from uuid import UUID
 from azure.core import MatchConditions
 from azure.core.credentials import TokenCredential
 from azure.core.exceptions import HttpResponseError, ResourceExistsError, ResourceNotFoundError
-from azure.data.tables import TableEntity, TableServiceClient, UpdateMode
+from azure.data.tables import TableEntity, UpdateMode
 from src.core.contracts.storage import TableClientProtocol
-from src.core.exceptions import ConcurrencyConflictError, EntityTooLargeError
+from src.core.exceptions import ConcurrencyConflictError
+from src.core.execution.exceptions import WorkspaceLockError
 from src.core.models.job import Job, JobHistoryQuery, JobStatus
 from src.core.models.schedule import Schedule
 from src.core.observability import get_logger
+from src.core.storage.azure_table_utils import (
+    close_resource as _close_quietly,
+    create_table_resources as _new_table_resources,
+    datetime_to_string as _dt_to_str,
+    extract_etag as _extract_etag,
+    require_field as _require,
+    string_to_datetime as _str_to_dt,
+    validate_entity_size as _validate_entity_size,
+)
 
 logger = get_logger(__name__)
 
@@ -29,128 +39,6 @@ _JOB_TERMINAL_STATUSES = (
     JobStatus.FAILED.value,
     JobStatus.CANCELLED.value,
 )
-
-
-_MAX_STRING_PROPERTY_BYTES = 64 * 1024
-_MAX_ENTITY_BYTES = 1024 * 1024
-
-
-def _validate_entity_size(entity: Dict[str, Any], entity_kind: str) -> None:
-    """Reject a table entity that violates Azure Table Storage size limits.
-
-    This is a client-side safety net, not a byte-exact reimplementation of
-    the service's internal accounting. Azure Table string properties are
-    UTF-16, so string limits and the approximate entity total use UTF-16 bytes.
-
-    :param entity: Entity that would be written.
-    :param entity_kind: Human-readable entity kind, used in error messages.
-    :raises EntityTooLargeError: If any string property exceeds 64 KiB, or
-        the entity's total approximate size exceeds 1 MiB.
-    """
-    row_key = entity.get("RowKey", "<unknown>")
-    total = 0
-    for key, value in entity.items():
-        total += len(key.encode("utf-16-le"))
-        if isinstance(value, str):
-            size = len(value.encode("utf-16-le"))
-            if size > _MAX_STRING_PROPERTY_BYTES:
-                raise EntityTooLargeError(
-                    f"{entity_kind} {row_key}: property '{key}' is {size} bytes, "
-                    f"exceeding the Azure Table Storage 64 KiB string property limit"
-                )
-            total += size
-        elif value is not None:
-            total += len(str(value).encode("utf-16-le"))
-    if total > _MAX_ENTITY_BYTES:
-        raise EntityTooLargeError(
-            f"{entity_kind} {row_key}: entity is approximately {total} bytes, "
-            f"exceeding the Azure Table Storage 1 MiB entity size limit"
-        )
-
-
-def _dt_to_str(dt: Optional[datetime]) -> str:
-    """Convert a datetime to an ISO-8601 string for table storage.
-
-    :param dt: Datetime to convert.
-    :returns: ISO string, or ``""`` when ``dt`` is None.
-    """
-    if dt is None:
-        return ""
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.isoformat()
-
-
-def _str_to_dt(value: Optional[str]) -> Optional[datetime]:
-    """Convert an ISO-8601 string back to a datetime.
-
-    :param value: ISO string, possibly empty or None.
-    :returns: Parsed datetime, or None when ``value`` is empty/None.
-    """
-    return datetime.fromisoformat(value) if value else None
-
-
-def _require(entity: Dict[str, Any], field: str, entity_kind: str) -> Any:
-    """Fetch a required field from a table entity, rejecting malformed entities.
-
-    :param entity: Raw table entity.
-    :param field: Required field name.
-    :param entity_kind: Human-readable entity kind, used in the error message.
-    :returns: The field's value.
-    :raises ValueError: If the field is missing, rather than silently
-        defaulting to success-shaped data.
-    """
-    if field not in entity:
-        row_key = entity.get("RowKey", "<unknown>")
-        raise ValueError(
-            f"Malformed {entity_kind} entity {row_key}: missing required field '{field}'"
-        )
-    return entity[field]
-
-
-def _close_quietly(obj: Any) -> None:
-    """Call ``close()`` on ``obj`` if it exists and is callable.
-
-    :param obj: Object to close, or None.
-    """
-    if obj is None:
-        return
-    close = getattr(obj, "close", None)
-    if callable(close):
-        close()
-
-
-def _extract_etag(value: Any) -> Optional[str]:
-    """Extract a concrete ETag from an Azure response or table entity."""
-    metadata = getattr(value, "metadata", None)
-    etag = metadata.get("etag") if metadata is not None else None
-    if not isinstance(etag, str) and hasattr(value, "get"):
-        candidate = value.get("etag")
-        etag = candidate if isinstance(candidate, str) else None
-    return etag
-
-
-def _new_table_resources(
-    endpoint: str, table_name: str, credential: TokenCredential
-) -> tuple[TableServiceClient, TableClientProtocol]:
-    """
-    Build owning service resources and a table client.
-
-    :param endpoint: Azure Table Storage endpoint URL.
-    :param table_name: Table to create (if missing) and connect to.
-    :param credential: Azure ``TokenCredential`` provided by the identity
-        provider. The caller retains ownership.
-    :returns: The owning ``TableServiceClient`` and a ``TableClient`` for
-        ``table_name``.
-    """
-    service = TableServiceClient(endpoint=endpoint, credential=credential)
-    try:
-        service.create_table_if_not_exists(table_name)
-        client = service.get_table_client(table_name)
-    except Exception:
-        _close_quietly(service)
-        raise
-    return service, client
 
 
 class AzureTableJobStore:
@@ -247,7 +135,8 @@ class AzureTableJobStore:
 
     @staticmethod
     def _to_job(entity: Dict[str, Any]) -> Job:
-        """Deserialize a table entity to a Job.
+        """
+        Deserialize a table entity to a Job.
 
         :raises ValueError: If the entity is missing a required field or
             contains unparsable JSON (malformed entity).
@@ -295,14 +184,21 @@ class AzureTableJobStore:
 
         :param job: Job to create.
         :returns: Created job.
+        :raises WorkspaceLockError: If the workspace already has an active job.
         :raises azure.core.exceptions.ResourceExistsError: If a job with the
-            same ID already exists. Left unwrapped, mirroring the local
-            store's unwrapped ``sqlite3.IntegrityError`` on duplicate insert.
+            same ID already exists (duplicate-job-ID semantics preserved).
         """
         entity = self._to_entity(job)
         lock_acquired = not job.is_terminal
         if lock_acquired:
-            self._acquire_workspace_lock(job)
+            try:
+                self._acquire_workspace_lock(job)
+            except ResourceExistsError as exc:
+                active_job_id = self._find_active_lock_job_id(job.workspace_id)
+                raise WorkspaceLockError(
+                    workspace_id=job.workspace_id,
+                    active_job_id=active_job_id or "unknown",
+                ) from exc
         try:
             response = self._client.create_entity(entity)
         except Exception:
@@ -312,6 +208,17 @@ class AzureTableJobStore:
         job._storage_etag = _extract_etag(response)
         logger.info(f"Created job {job.id} for workspace {job.workspace_id}")
         return job
+
+    def _find_active_lock_job_id(self, workspace_id: str) -> Optional[str]:
+        """Find the job ID holding an active workspace lock."""
+        try:
+            lock = self._client.get_entity(
+                partition_key=_WORKSPACE_LOCK_PARTITION_KEY,
+                row_key=workspace_id,
+            )
+            return lock.get("job_id")
+        except ResourceNotFoundError:
+            return None
 
     def _acquire_workspace_lock(self, job: Job) -> None:
         """Acquire a workspace lock, reclaiming a provably stale lock.

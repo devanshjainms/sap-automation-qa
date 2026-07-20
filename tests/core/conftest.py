@@ -194,12 +194,11 @@ def mock_executor(mocker: MockerFixture) -> Any:
 
 @pytest.fixture
 def failing_executor(mocker: MockerFixture) -> Any:
-    """
-    Fixture for creating a failing executor instance.
+    """Create a failing executor instance.
 
-    :param mocker: Mocker fixture
+    :param mocker: Mocker fixture.
     :type mocker: MockerFixture
-    :return: Failing executor instance
+    :return: Failing executor instance.
     :rtype: Any
     """
     executor = mocker.MagicMock()
@@ -219,21 +218,20 @@ def workspace_backend(temp_dir: Path) -> FakeWorkspaceBackend:
 
 
 @pytest.fixture
-def job_worker(
+def execution_worker(
     job_store: JobStore, mock_executor: Any, workspace_backend: Any, temp_dir: Path
 ) -> JobWorker:
-    """
-    Fixture for creating a JobWorker instance.
+    """Create a JobWorker instance for tests.
 
-    :param job_store: Job store instance
+    :param job_store: Job store instance.
     :type job_store: JobStore
-    :param mock_executor: Mock executor instance
+    :param mock_executor: Mock executor instance.
     :type mock_executor: Any
     :param workspace_backend: Workspace backend instance.
     :type workspace_backend: Any
-    :param temp_dir: Temporary directory path
+    :param temp_dir: Temporary directory path.
     :type temp_dir: Path
-    :return: JobWorker instance
+    :return: JobWorker instance.
     :rtype: JobWorker
     """
     return JobWorker(
@@ -245,46 +243,48 @@ def job_worker(
 
 
 @pytest.fixture
-def mock_job_worker(mocker: MockerFixture) -> Any:
-    """
-    Fixture for job worker
+def mock_job_submitter(mocker: MockerFixture) -> Any:
+    """Create a mock job submitter satisfying JobSubmissionProtocol.
 
-    :param mocker: Mocker
+    :param mocker: Mocker.
     :type mocker: MockerFixture
-    :return: Mocked Job Worker
+    :return: Mocked job submitter.
     :rtype: Any
     """
-    worker = mocker.MagicMock()
+    submitter = mocker.MagicMock()
 
-    async def mock_submit(job: Job) -> Job:
+    async def mock_submit(request: Any) -> Job:
         """Mock submit job method.
 
-        :param job: Job instance to submit
-        :type job: Job
-        :return: Submitted job instance
+        :param request: Job creation request.
+        :type request: Any
+        :return: Submitted job instance.
         :rtype: Job
         """
-        job.start()
+        job = Job(
+            workspace_id=request.workspace_id,
+            test_group=request.test_group,
+            test_ids=request.test_ids,
+        )
         return job
 
-    worker.submit_job = mocker.AsyncMock(side_effect=mock_submit)
-    return worker
+    submitter.submit_job = mocker.AsyncMock(side_effect=mock_submit)
+    return submitter
 
 
 @pytest.fixture
-def scheduler_service(schedule_store: ScheduleStore, mock_job_worker: Any) -> SchedulerService:
-    """
-    Fixture for creating a SchedulerService instance.
+def scheduler_service(schedule_store: ScheduleStore, mock_job_submitter: Any) -> SchedulerService:
+    """Create a SchedulerService instance for tests.
 
-    :param schedule_store: Schedule store instance
+    :param schedule_store: Schedule store instance.
     :type schedule_store: ScheduleStore
-    :param mock_job_worker: Mock job worker instance
-    :type mock_job_worker: Any
-    :return: Scheduler service instance
+    :param mock_job_submitter: Mock job submitter instance.
+    :type mock_job_submitter: Any
+    :return: Scheduler service instance.
     :rtype: SchedulerService
     """
     return SchedulerService(
         schedule_store=schedule_store,
-        job_worker=mock_job_worker,
+        job_submitter=mock_job_submitter,
         check_interval_seconds=1,
     )

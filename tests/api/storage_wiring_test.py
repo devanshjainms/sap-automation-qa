@@ -19,7 +19,7 @@ class _RuntimeMocks:
     azure_context: MockType
     storage_context: MockType
     workspace_backend: MockType
-    job_worker: MockType
+    execution_worker: MockType
     scheduler_service: MockType
     storage_factory: MockType
     worker_factory: MockType
@@ -64,7 +64,7 @@ def _configure_runtime(
         azure_context=azure_context,
         storage_context=storage_context,
         workspace_backend=workspace,
-        job_worker=worker,
+        execution_worker=worker,
         scheduler_service=scheduler,
         storage_factory=storage_factory,
         worker_factory=worker_factory,
@@ -120,7 +120,7 @@ class TestApplicationStorageWiring:
             pass
 
         runtime.scheduler_service.stop.assert_awaited_once()
-        runtime.job_worker.shutdown.assert_awaited_once()
+        runtime.execution_worker.shutdown.assert_awaited_once()
         runtime.workspace_backend.close.assert_called_once()
         runtime.storage_context.close.assert_called_once()
         runtime.azure_context.close.assert_called_once()

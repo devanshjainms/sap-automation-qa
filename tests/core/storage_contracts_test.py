@@ -1,9 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-"""
-Behavioral contract tests for storage protocols (P1-WP-002D / TEST-014).
-"""
+"""Behavioral contract tests for storage protocols (P1-WP-002D / TEST-014)."""
 
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Mapping, Optional
@@ -144,6 +142,8 @@ class FakeTableClient:
         for key, val in params.items():
             if key.startswith("t") and key[1:].isdigit():
                 terminal_statuses.add(val)
+            if key.startswith("terminal") and key[len("terminal") :].isdigit():
+                terminal_statuses.add(val)
 
         for entity in self._entities.values():
             if entity.get("PartitionKey") != pk:
@@ -153,6 +153,8 @@ class FakeTableClient:
             if "sid" in params and entity.get("schedule_id") != params["sid"]:
                 continue
             if "enabled eq true" in query_filter and not entity.get("enabled"):
+                continue
+            if "status eq @status" in query_filter and entity.get("status") != params["status"]:
                 continue
             if terminal_statuses and "status eq @t" in query_filter:
                 if entity.get("status") not in terminal_statuses:
@@ -419,7 +421,7 @@ class TestStorageContracts:
 
     def test_workspace_lock_blocks_second_job_and_releases_on_terminal_update(self) -> None:
         """Conditional lock creation preserves one active job per workspace."""
-        from azure.core.exceptions import ResourceExistsError
+        from src.core.execution.exceptions import WorkspaceLockError
 
         client = FakeTableClient()
         store = AzureTableJobStore(table_client=client)
@@ -427,7 +429,7 @@ class TestStorageContracts:
         second = _make_job(workspace_id="WS-LOCK")
         store.create(first)
 
-        with pytest.raises(ResourceExistsError):
+        with pytest.raises(WorkspaceLockError):
             store.create(second)
 
         first.start()

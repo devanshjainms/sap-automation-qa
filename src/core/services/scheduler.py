@@ -8,9 +8,9 @@ from datetime import datetime, timezone
 from typing import Optional
 from apscheduler.triggers.cron import CronTrigger
 from src.core.contracts.storage import ScheduleRuntimeProtocol
-from src.core.models.job import Job
+from src.core.models.job import CreateJobRequest
 from src.core.models.schedule import Schedule
-from src.core.execution.worker import JobWorker
+from src.core.contracts.job_submission import JobSubmissionProtocol
 from src.core.observability import get_logger, create_service_event
 
 logger = get_logger(__name__)
@@ -26,17 +26,17 @@ class SchedulerService:
     def __init__(
         self,
         schedule_store: ScheduleRuntimeProtocol,
-        job_worker: JobWorker,
+        job_submitter: JobSubmissionProtocol,
         check_interval_seconds: int = 60,
     ) -> None:
         """Initialize the scheduler service.
 
-        :param schedule_store: Store for loading schedules
-        :param job_worker: Worker for submitting jobs
-        :param check_interval_seconds: Interval between schedule checks
+        :param schedule_store: Store for loading schedules.
+        :param job_submitter: Submission service satisfying JobSubmissionProtocol.
+        :param check_interval_seconds: Interval between schedule checks.
         """
         self._schedule_store = schedule_store
-        self._job_worker = job_worker
+        self._job_submitter = job_submitter
         self._check_interval = check_interval_seconds
         self._running = False
         self._task: Optional[asyncio.Task] = None
@@ -187,19 +187,13 @@ class SchedulerService:
 
             for workspace_id in schedule.workspace_ids:
                 try:
-                    job = Job(
+                    request = CreateJobRequest(
                         workspace_id=workspace_id,
-                        schedule_id=schedule.id,
                         test_group=schedule.test_group,
                         test_ids=schedule.test_ids,
-                        metadata={
-                            "scheduled": True,
-                            "schedule_name": schedule.name,
-                            "schedule_id": schedule.id,
-                        },
                     )
 
-                    submitted_job = await self._job_worker.submit_job(job)
+                    submitted_job = await self._job_submitter.submit_job(request)
                     job_ids.append(str(submitted_job.id))
                     logger.info(
                         f"Triggered job {submitted_job.id} for "
