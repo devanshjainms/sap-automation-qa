@@ -131,9 +131,7 @@ class TestKillEnqueueReplicationServer(RolesTestingBaseSCS):
         assert consolidation_host == pre_status.get("ascs_node")
         assert consolidated_facts.get("test_execution_status") == "PASSED"
         assert consolidated_facts.get("test_execution_hostname") == pre_status.get("ers_node")
-        assert "ENSA Version:" in consolidated_facts.get(
-            "test_case_message_from_test_case", ""
-        )
+        assert "ENSA Version:" in consolidated_facts.get("test_case_message_from_test_case", "")
         assert "Post Validations Result" in consolidated_facts.get(
             "test_case_details_from_test_case", {}
         )
