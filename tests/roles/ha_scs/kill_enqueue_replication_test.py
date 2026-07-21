@@ -105,11 +105,16 @@ class TestKillEnqueueReplicationServer(RolesTestingBaseSCS):
         cleanup_executed = False
         post_status = {}
         pre_status = {}
+        consolidated_facts = {}
+        consolidation_host = ""
 
         for event in ok_events:
             task = event.get("event_data", {}).get("task")
-            if task and "Kill Enqueue Replication Server Process" in task:
-                kill_executed = True
+            if task and "Consolidate ERS Results" in task:
+                consolidation_host = event.get("event_data", {}).get("host", "")
+                consolidated_facts = (
+                    event.get("event_data", {}).get("res", {}).get("ansible_facts", {})
+                )
             elif task and "Test Execution:" in task and "Validate SCS cluster status" in task:
                 validate_executed = True
                 post_status = event.get("event_data", {}).get("res")
@@ -117,9 +122,21 @@ class TestKillEnqueueReplicationServer(RolesTestingBaseSCS):
                 cleanup_executed = True
             elif task and "Pre Validation:" in task and "Validate SCS" in task:
                 pre_status = event.get("event_data", {}).get("res")
+            elif task and "Kill Enqueue Replication Server Process" in task:
+                kill_executed = True
 
         assert post_status.get("ascs_node") == pre_status.get("ascs_node")
         assert post_status.get("ers_node") == pre_status.get("ers_node")
+
+        assert consolidation_host == pre_status.get("ascs_node")
+        assert consolidated_facts.get("test_execution_status") == "PASSED"
+        assert consolidated_facts.get("test_execution_hostname") == pre_status.get("ers_node")
+        assert "ENSA Version:" in consolidated_facts.get(
+            "test_case_message_from_test_case", ""
+        )
+        assert "Post Validations Result" in consolidated_facts.get(
+            "test_case_details_from_test_case", {}
+        )
 
         assert kill_executed, "Kill enqueue replication server process task was not executed"
         assert validate_executed, "SCS cluster status validation task was not executed"

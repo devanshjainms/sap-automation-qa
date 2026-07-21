@@ -429,3 +429,5 @@ deploy/.env
 .github/workflows/sync*
 
 .copilot-tracking/*
+
+docs/projects/*

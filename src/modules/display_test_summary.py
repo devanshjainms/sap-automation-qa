@@ -302,7 +302,7 @@ class TestSummaryDisplay(SapAutomationQA):
             has_parameters = False
 
             for entry in tc_entries:
-                entry_status = entry.get("TestCaseStatus", TestStatus.SUCCESS.value)
+                entry_status = entry.get("TestCaseStatus")
                 if entry_status == TestStatus.ERROR.value:
                     tc_status = TestStatus.ERROR.value
                     has_failure = True
@@ -310,11 +310,11 @@ class TestSummaryDisplay(SapAutomationQA):
                     if tc_status != TestStatus.ERROR.value:
                         tc_status = TestStatus.WARNING.value
                     has_warning = True
-                elif entry_status not in {
+                elif entry_status not in (
                     TestStatus.SUCCESS.value,
                     TestStatus.INFO.value,
                     "SKIPPED",
-                }:
+                ):
                     tc_status = TestStatus.ERROR.value
                     has_failure = True
 
@@ -340,16 +340,16 @@ class TestSummaryDisplay(SapAutomationQA):
 
             if not has_parameters:
                 for entry in tc_entries:
-                    host_status = entry.get("TestCaseStatus", TestStatus.SUCCESS.value)
+                    host_status = entry.get("TestCaseStatus")
                     if host_status == TestStatus.SUCCESS.value:
                         passed += 1
                     elif host_status == TestStatus.ERROR.value:
                         failed += 1
-                    elif host_status not in {
+                    elif host_status not in (
                         TestStatus.INFO.value,
                         TestStatus.WARNING.value,
                         "SKIPPED",
-                    }:
+                    ):
                         failed += 1
                     elif host_status == TestStatus.WARNING.value:
                         warned += 1

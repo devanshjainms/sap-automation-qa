@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.3
+Release Date: 07-21-2026
+1. Configuration Checks Bug Fix - Fixed the parameter overrides issue in configuration checks main module, ensuring each os family has its own set of parameter overrides and preventing cross-family parameter contamination.
+2. Kill Enqueue Replication Server test execution - Fixed the issue of test execution status not being set correctly in the kill enqueue replication server test, ensuring accurate reporting of test results. 
+
 ## 1.1.2
 Release Date: 06-30-2026
 
