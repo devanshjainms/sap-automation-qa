@@ -310,6 +310,13 @@ class TestSummaryDisplay(SapAutomationQA):
                     if tc_status != TestStatus.ERROR.value:
                         tc_status = TestStatus.WARNING.value
                     has_warning = True
+                elif entry_status not in {
+                    TestStatus.SUCCESS.value,
+                    TestStatus.INFO.value,
+                    "SKIPPED",
+                }:
+                    tc_status = TestStatus.ERROR.value
+                    has_failure = True
 
                 details = entry.get("TestCaseDetails", {})
                 if not isinstance(details, dict):
@@ -337,6 +344,12 @@ class TestSummaryDisplay(SapAutomationQA):
                     if host_status == TestStatus.SUCCESS.value:
                         passed += 1
                     elif host_status == TestStatus.ERROR.value:
+                        failed += 1
+                    elif host_status not in {
+                        TestStatus.INFO.value,
+                        TestStatus.WARNING.value,
+                        "SKIPPED",
+                    }:
                         failed += 1
                     elif host_status == TestStatus.WARNING.value:
                         warned += 1

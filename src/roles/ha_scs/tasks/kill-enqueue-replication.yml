@@ -101,6 +101,16 @@
                                         "Test Execution: Cleanup resources": "{{ cleanup_failed_resource_test_execution }}",
                                         "Post Validations Result": "{{ cluster_status_test_execution }}",
                                         }
+
+    - name:                             "Post Validation: {{ item.name | default('') }} - Consolidate ERS Results"
+      when:                             ansible_hostname == cluster_status_pre.ascs_node
+      ansible.builtin.set_fact:
+        test_execution_start:           "{{ hostvars[cluster_status_pre.ers_node].test_execution_start | default('') }}"
+        test_execution_end:             "{{ hostvars[cluster_status_pre.ers_node].test_execution_end | default('') }}"
+        test_execution_hostname:        "{{ hostvars[cluster_status_pre.ers_node].test_execution_hostname | default(cluster_status_pre.ers_node) }}"
+        test_execution_status:          "{{ hostvars[cluster_status_pre.ers_node].test_execution_status | default('FAILED', true) }}"
+        test_case_message_from_test_case: "{{ hostvars[cluster_status_pre.ers_node].test_case_message_from_test_case | default('Test execution status not set - possible execution failure', true) }}"
+        test_case_details_from_test_case: "{{ hostvars[cluster_status_pre.ers_node].test_case_details_from_test_case | default({}) }}"
 # /*---------------------------------------------------------------------------
 # |                          Post Validations                                 |
 # +--------------------------------------------------------------------------*/

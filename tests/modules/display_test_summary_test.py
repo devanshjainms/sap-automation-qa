@@ -229,6 +229,24 @@ class TestTestSummaryDisplay:
         result = display.get_result()
         assert result["overall_status"] == "WARNING"
 
+    def test_empty_status_is_failed(self, display, _write_log):
+        """A malformed empty status must not be reported as passed."""
+        _write_log(
+            [
+                _make_log_entry(
+                    test_name="Kill Enqueue Replication Server Process",
+                    status="",
+                )
+            ]
+        )
+
+        display.generate_summary()
+        result = display.get_result()
+
+        assert result["overall_status"] == "FAILED"
+        assert result["test_cases"][0]["status"] == "FAILED"
+        assert result["test_cases"][0]["failed"] == 1
+
     def test_missing_log(self, display):
         """Missing log file handled gracefully."""
         display.generate_summary()
