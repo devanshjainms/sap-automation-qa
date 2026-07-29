@@ -9,8 +9,8 @@ license: MIT
 
 # Workspace Creator
 
-Creates new SAP workspace configurations for STAF testing. Generates `sap-parameters.yaml`
-and `hosts.yaml` from templates based on user-provided system details.
+Creates new SAP workspace configurations for STAF testing. Prefer the shared Azure discovery
+generator for a wholly missing AFA HANA HA workspace; use templates only as a manual fallback.
 
 ## Locate Framework
 
@@ -28,7 +28,31 @@ fi
 cd "$STAF_DIR"
 ```
 
-> **⚠️ This skill is guidance only. Do NOT modify any source code, scripts, or framework files. Only help the user by creating workspace configuration files (sap-parameters.yaml, hosts.yaml) under WORKSPACES/SYSTEM/.**
+> **⚠️ This skill is guidance only. Do NOT modify source code, scripts, or framework files. It may create configuration files only under `WORKSPACES/SYSTEM/`.**
+
+## Preferred: Azure VM discovery
+
+For a missing HA workspace, first use the shared generator. It discovers facts through
+read-only Azure VM Run Command and produces only the proven AFA path:
+
+```bash
+python3 src/core/generate_workspace_config.py \
+  --workspace-id DEV-WEEU-SAP01-X00 \
+  --resource-group <resource-group> \
+  --scs-vm <scs-seed-vm> \
+  --db-vm <db-seed-vm> \
+  --ssh-key <local-private-key> \
+  --dry-run
+```
+
+Review the redacted preview. After the user explicitly approves it, rerun the same command
+with `--yes` and without `--dry-run`. The generator validates before publishing and never
+overwrites or repairs existing configuration. For Key Vault authentication, replace
+`--ssh-key` with both `--key-vault-id` and `--secret-id`.
+
+If discovery reports SBD, mixed/unknown fencing, unsupported topology, or unavailable Azure
+Run Command access, explain the error and use the manual template workflow below. Do not
+duplicate Azure queries, topology parsing, or YAML rendering in this skill.
 
 ## When to Use
 

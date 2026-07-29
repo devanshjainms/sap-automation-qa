@@ -37,6 +37,8 @@ Parameter Overrides (override vars.yaml values at runtime):
                               CentralServicesHighAvailability, AzureBackupDatabase)
   --auth-type=TYPE           Authentication type: SSHKEY or VMPASSWORD
   --workspaces-dir=DIR       Workspaces directory (default: WORKSPACES)
+  --generate-workspace-config     Generate a wholly missing workspace through guided Azure VM discovery
+  --no-generate-workspace-config  Do not offer guided workspace generation
 
   Telemetry parameters:
   --telemetry-destination=DEST  Telemetry destination (azureloganalytics or azuredataexplorer)
@@ -64,6 +66,9 @@ Examples:
   $script_name --test-groups=HA_DB_HANA --test-cases=[ha-config,primary-node-crash] -vv
   $script_name --test-groups=HA_DB_HANA --test-cases=[ha-config,primary-node-crash] --extra-vars='{"key":"value"}'
   $script_name --test-groups=HA_DB_HANA --test-cases=[ha-config] --offline
+
+  # Create a missing HA workspace interactively, then continue the requested test
+  $script_name --system-config=DEV-WEEU-SAP01-X00 --auth-type=SSHKEY --generate-workspace-config
 
   # Azure Backup Tests
   $script_name --test-groups=BACKUP_DB_HANA --test-cases=[backup-setup-verification]

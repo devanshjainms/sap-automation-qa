@@ -77,6 +77,7 @@ parse_arguments() {
     CLI_SAP_FUNCTIONAL_TEST_TYPE=""
     CLI_AUTHENTICATION_TYPE=""
     CLI_WORKSPACES_DIR=""
+    CLI_GENERATE_WORKSPACE_CONFIG="auto"
 
     CLI_ANSIBLE_OVERRIDES=()
 
@@ -133,6 +134,12 @@ parse_arguments() {
             --workspaces-dir=*)
                 CLI_WORKSPACES_DIR="${arg#*=}"
                 ;;
+            --generate-workspace-config)
+                CLI_GENERATE_WORKSPACE_CONFIG="true"
+                ;;
+            --no-generate-workspace-config)
+                CLI_GENERATE_WORKSPACE_CONFIG="false"
+                ;;
             --telemetry-destination=*)
                 CLI_ANSIBLE_OVERRIDES+=("telemetry_data_destination=${arg#*=}")
                 ;;
@@ -183,6 +190,44 @@ parse_arguments() {
         show_sap_automation_qa_usage "$0"
         exit 1
     fi
+}
+
+# Offer initial workspace generation only for a wholly missing workspace in a TTY.
+# Existing and partial workspaces remain fail-closed and are never repaired or overwritten.
+generate_missing_workspace_config() {
+    local system_config_folder=$1
+    local sid=$2
+    local has_inventory="false"
+    local has_parameters="false"
+
+    if [[ -f "$system_config_folder/hosts.yaml" || -f "$system_config_folder/${sid}_hosts.yaml" ]]; then
+        has_inventory="true"
+    fi
+    if [[ -f "$system_config_folder/sap-parameters.yaml" ]]; then
+        has_parameters="true"
+    fi
+    if [[ "$has_inventory" == "true" && "$has_parameters" == "true" ]]; then
+        return
+    fi
+    if [[ "$has_inventory" == "true" || "$has_parameters" == "true" ]]; then
+        log "ERROR" "Workspace configuration is partial; generation only creates a new workspace and will not repair or overwrite existing files."
+        exit 1
+    fi
+    if [[ "$CLI_GENERATE_WORKSPACE_CONFIG" == "false" ]]; then
+        return
+    fi
+    if [[ ! -t 0 ]]; then
+        if [[ "$CLI_GENERATE_WORKSPACE_CONFIG" == "true" ]]; then
+            log "ERROR" "Workspace generation requires an interactive terminal. Run src/core/generate_workspace_config.py with explicit options and --yes."
+            exit 1
+        fi
+        return
+    fi
+
+    log "INFO" "Workspace configuration is missing. Starting the guided Azure VM discovery flow."
+    python3 "$cmd_dir/../src/core/generate_workspace_config.py" \
+        --workspace-root "${cmd_dir}/../$WORKSPACES_DIR/SYSTEM" \
+        --workspace-id "$SYSTEM_CONFIG_NAME"
 }
 
 log "INFO" "ANSIBLE_COLLECTIONS_PATH: $ANSIBLE_COLLECTIONS_PATH"
@@ -674,6 +719,7 @@ main() {
     # Check if the SYSTEM_HOSTS and SYSTEM_PARAMS directory exists inside WORKSPACES/SYSTEM folder
     SYSTEM_CONFIG_FOLDER="${cmd_dir}/../$WORKSPACES_DIR/SYSTEM/$SYSTEM_CONFIG_NAME"
     SID=$(echo "$SYSTEM_CONFIG_NAME" | awk -F'-' '{print $NF}')
+    generate_missing_workspace_config "$SYSTEM_CONFIG_FOLDER" "$SID"
     
     if [[ -f "$SYSTEM_CONFIG_FOLDER/hosts.yaml" ]]; then
         SYSTEM_HOSTS="$SYSTEM_CONFIG_FOLDER/hosts.yaml"

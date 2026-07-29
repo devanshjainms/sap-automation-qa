@@ -471,10 +471,10 @@ class WorkspaceConfigGenerator:
     def _db_details(facts: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         """Validate one complete HANA topology from each database member."""
         hana = [fact.get("hana") for fact in facts]
-        if not all(isinstance(item, dict) for item in hana):
+        normalized_hana = [item for item in hana if isinstance(item, dict)]
+        if len(normalized_hana) != len(facts):
             raise WorkspaceConfigError("Database facts are missing HANA replication data")
-        first = hana[0]
-        assert isinstance(first, dict)
+        first = normalized_hana[0]
         sid, instance = first.get("sid"), first.get("instance_number")
         scale_out = first.get("scale_out")
         if (
@@ -484,11 +484,13 @@ class WorkspaceConfigGenerator:
         ):
             raise WorkspaceConfigError("Database HANA facts are incomplete")
         if any(
-            item.get("sid") != sid or item.get("instance_number") != instance for item in hana[1:]
+            item.get("sid") != sid or item.get("instance_number") != instance
+            for item in normalized_hana[1:]
         ):
             raise WorkspaceConfigError("Database members disagree on HANA SID or instance number")
         if not all(
-            isinstance(item.get("virtual_host"), str) and item["virtual_host"] for item in hana
+            isinstance(item.get("virtual_host"), str) and item["virtual_host"]
+            for item in normalized_hana
         ):
             raise WorkspaceConfigError("Database HANA facts are missing a virtual host")
         return {"sid": sid, "instance_number": instance, "scale_out": scale_out, "facts": facts}
@@ -571,8 +573,15 @@ class WorkspaceConfigGenerator:
                 identity.get("vm_name"),
                 identity.get("admin_user"),
             )
-            if not all(
-                isinstance(value, str) and value for value in (hostname, address, vm_name, user)
+            if (
+                not isinstance(hostname, str)
+                or not hostname
+                or not isinstance(address, str)
+                or not address
+                or not isinstance(vm_name, str)
+                or not vm_name
+                or not isinstance(user, str)
+                or not user
             ):
                 raise WorkspaceConfigError("Host identity facts are incomplete")
             return {
