@@ -7,11 +7,12 @@
 
 import json
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from src.core.exceptions import WorkspaceConfigError
+from src.core.exceptions import WorkspaceConfigError, WorkspaceValidationError
 from src.core.workspace_config import (
     CredentialMaterial,
     GenerateRequest,
@@ -303,3 +304,437 @@ def test_parse_run_command_accepts_one_compact_fact(generator: WorkspaceConfigGe
     }
 
     assert generator._parse_run_command(json.dumps(envelope), "scs01") == facts
+
+
+RESOURCE_ID = "/subscriptions/a/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/{0}"
+
+
+def _inventory(names: list[str]) -> list[dict[str, object]]:
+    """Create an Azure VM inventory whose computer names match cluster members.
+
+    :param names: Guest host names present in the resource group.
+    :returns: Azure CLI VM inventory entries.
+    """
+    return [
+        {
+            "id": RESOURCE_ID.format(name),
+            "name": name,
+            "osProfile": {"computerName": name, "adminUsername": "azureadm"},
+        }
+        for name in names
+    ]
+
+
+def _run_command_envelope(facts: dict[str, object]) -> str:
+    """Wrap collector facts in an Azure Run Command response envelope.
+
+    :param facts: Normalized collector facts.
+    :returns: Serialized Run Command response.
+    """
+    return json.dumps(
+        {
+            "value": [
+                {
+                    "code": "ComponentStatus/StdOut/succeeded",
+                    "message": json.dumps(facts, separators=(",", ":")),
+                }
+            ]
+        }
+    )
+
+
+@pytest.fixture
+def discovered_facts(clusters: dict[str, list[dict[str, object]]]) -> dict[str, dict[str, object]]:
+    """Index complete cluster facts by guest host name and declare both members.
+
+    :param clusters: Complete normalized cluster facts.
+    :returns: Collector facts keyed by guest host name.
+    """
+    indexed: dict[str, dict[str, object]] = {}
+    for tier_facts in clusters.values():
+        members = [str(fact["identity"]["hostname"]) for fact in tier_facts]  # type: ignore[index]
+        for fact in tier_facts:
+            fact["cluster"]["members"] = members  # type: ignore[index]
+            indexed[str(fact["identity"]["hostname"])] = fact  # type: ignore[index]
+    return indexed
+
+
+@pytest.fixture
+def azure_generator(
+    tmp_path: Path, discovered_facts: dict[str, dict[str, object]]
+) -> WorkspaceConfigGenerator:
+    """Create a generator backed by a scripted Azure CLI and validator runner.
+
+    :param tmp_path: Pytest temporary directory.
+    :param discovered_facts: Collector facts keyed by guest host name.
+    :returns: Generator that discovers a complete two-node AFA topology.
+    """
+
+    def run(command: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        """Answer each scripted Azure CLI and validator invocation.
+
+        :param command: Executed command line.
+        :param _kwargs: Ignored subprocess options.
+        :returns: Successful process result for the recognized command.
+        """
+
+        def result(stdout: str) -> subprocess.CompletedProcess[str]:
+            """Build a successful completed process.
+
+            :param stdout: Standard output for the caller to parse.
+            :returns: Successful process result.
+            """
+            return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+        if command[0] != "az":
+            return result("")
+        if command[1:3] == ["vm", "list"]:
+            return result(json.dumps(_inventory(sorted(discovered_facts))))
+        name = command[command.index("--name") + 1]
+        if command[1:3] == ["vm", "show"]:
+            return result(
+                json.dumps(
+                    {
+                        "id": RESOURCE_ID.format(name),
+                        "osProfile": {"adminUsername": "azureadm"},
+                    }
+                )
+            )
+        if command[1:3] == ["vm", "run-command"]:
+            return result(_run_command_envelope(discovered_facts[name]))
+        return result(
+            json.dumps({"primaryEndpoints": {"file": "https://sapfiles.file.core.windows.net/"}})
+        )
+
+    return WorkspaceConfigGenerator(tmp_path, run=run)
+
+
+def test_generate_publishes_a_discovered_workspace(
+    azure_generator: WorkspaceConfigGenerator, generate_request: GenerateRequest
+) -> None:
+    """Discover both clusters from Azure and publish a complete workspace.
+
+    :param azure_generator: Generator backed by a scripted Azure CLI.
+    :param generate_request: Valid generation request.
+    """
+    generated = azure_generator.generate(generate_request)
+
+    assert set(generated.hosts) == {"SH7_DB", "SH7_SCS", "SH7_ERS"}
+    assert (generated.workspace_path / "sap-parameters.yaml").is_file()
+    assert (generated.workspace_path / "hosts.yaml").is_file()
+    assert "SAP SID: SH7" in generated.preview()
+
+
+def test_generate_dry_run_leaves_the_workspace_absent(
+    azure_generator: WorkspaceConfigGenerator, generate_request: GenerateRequest
+) -> None:
+    """Discover the topology without writing anything during a dry run.
+
+    :param azure_generator: Generator backed by a scripted Azure CLI.
+    :param generate_request: Valid generation request.
+    """
+    generated = azure_generator.generate(replace(generate_request, dry_run=True))
+
+    assert not generated.workspace_path.exists()
+
+
+def test_generate_rejects_an_already_configured_workspace(
+    azure_generator: WorkspaceConfigGenerator, generate_request: GenerateRequest
+) -> None:
+    """Refuse to touch a workspace that already contains user configuration.
+
+    :param azure_generator: Generator backed by a scripted Azure CLI.
+    :param generate_request: Valid generation request.
+    """
+    workspace = generate_request.workspace_root / generate_request.workspace_id
+    workspace.mkdir(parents=True)
+    (workspace / "sap-parameters.yaml").write_text("user-owned", encoding="utf-8")
+
+    with pytest.raises(WorkspaceConfigError, match="already contains configuration"):
+        azure_generator.generate(generate_request)
+
+
+def test_request_rejects_a_workspace_identifier_that_escapes_the_root(
+    generate_request: GenerateRequest,
+) -> None:
+    """Reject a traversing workspace identifier before any discovery starts.
+
+    :param generate_request: Valid generation request.
+    """
+    with pytest.raises(WorkspaceValidationError):
+        replace(generate_request, workspace_id="../escaped")
+
+
+def test_generate_rejects_a_guest_identity_that_differs_from_azure(
+    tmp_path: Path,
+    generate_request: GenerateRequest,
+    discovered_facts: dict[str, dict[str, object]],
+) -> None:
+    """Reject a seed VM whose guest IMDS identity is not the nominated resource.
+
+    :param tmp_path: Pytest temporary directory.
+    :param generate_request: Valid generation request.
+    :param discovered_facts: Collector facts keyed by guest host name.
+    """
+    identity = discovered_facts["scs01"]["identity"]
+    identity["resource_id"] = RESOURCE_ID.format("impostor")  # type: ignore[index]
+
+    def run(command: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        """Return inventory, VM metadata, and collector facts for the seed VM.
+
+        :param command: Executed command line.
+        :param _kwargs: Ignored subprocess options.
+        :returns: Successful process result.
+        """
+        if command[1:3] == ["vm", "list"]:
+            stdout = json.dumps(_inventory(sorted(discovered_facts)))
+        elif command[1:3] == ["vm", "show"]:
+            name = command[command.index("--name") + 1]
+            stdout = json.dumps(
+                {"id": RESOURCE_ID.format(name), "osProfile": {"adminUsername": "azureadm"}}
+            )
+        else:
+            name = command[command.index("--name") + 1]
+            stdout = _run_command_envelope(discovered_facts[name])
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
+
+    with pytest.raises(WorkspaceConfigError, match="does not match Azure VM identity"):
+        WorkspaceConfigGenerator(tmp_path, run=run).generate(generate_request)
+
+
+def test_az_reports_a_failed_azure_cli_invocation(tmp_path: Path) -> None:
+    """Surface Azure CLI failure detail instead of continuing with empty output.
+
+    :param tmp_path: Pytest temporary directory.
+    """
+
+    def run(command: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        """Return a failed Azure CLI result.
+
+        :param command: Executed command line.
+        :param _kwargs: Ignored subprocess options.
+        :returns: Failed process result.
+        """
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr="not logged in")
+
+    with pytest.raises(WorkspaceConfigError, match="not logged in"):
+        WorkspaceConfigGenerator(tmp_path, run=run)._list_vms("rg")
+
+
+def test_az_reports_an_unavailable_azure_cli(tmp_path: Path) -> None:
+    """Report a missing Azure CLI rather than raising an unhandled OS error.
+
+    :param tmp_path: Pytest temporary directory.
+    """
+
+    def run(_command: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        """Simulate an Azure CLI that is not installed.
+
+        :raises OSError: Always, to simulate a missing executable.
+        """
+        raise OSError("az not found")
+
+    with pytest.raises(WorkspaceConfigError, match="Azure CLI invocation failed"):
+        WorkspaceConfigGenerator(tmp_path, run=run)._list_vms("rg")
+
+
+def test_list_vms_rejects_inventory_that_is_not_json(tmp_path: Path) -> None:
+    """Reject an Azure VM inventory response that cannot be parsed.
+
+    :param tmp_path: Pytest temporary directory.
+    """
+
+    def run(command: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        """Return unparsable inventory output.
+
+        :param command: Executed command line.
+        :param _kwargs: Ignored subprocess options.
+        :returns: Successful process result with invalid JSON.
+        """
+        return subprocess.CompletedProcess(command, 0, stdout="not-json", stderr="")
+
+    with pytest.raises(WorkspaceConfigError, match="not valid JSON"):
+        WorkspaceConfigGenerator(tmp_path, run=run)._list_vms("rg")
+
+
+def test_find_vm_candidate_rejects_an_ambiguous_computer_name(
+    generator: WorkspaceConfigGenerator,
+) -> None:
+    """Reject cluster members that resolve to more than one Azure VM.
+
+    :param generator: Isolated generator.
+    """
+    inventory = _inventory(["scs01"]) + _inventory(["scs01"])
+
+    with pytest.raises(WorkspaceConfigError, match="found 2"):
+        generator._find_vm_candidate(inventory, "scs01")
+
+
+def test_find_vm_candidate_rejects_an_unknown_computer_name(
+    generator: WorkspaceConfigGenerator,
+) -> None:
+    """Reject a cluster member that has no Azure VM in the resource group.
+
+    :param generator: Isolated generator.
+    """
+    with pytest.raises(WorkspaceConfigError, match="found 0"):
+        generator._find_vm_candidate(_inventory(["scs01"]), "scs99")
+
+
+def test_parse_run_command_reports_a_failed_collector_run(
+    generator: WorkspaceConfigGenerator,
+) -> None:
+    """Surface Run Command failures instead of treating them as empty facts.
+
+    :param generator: Isolated generator.
+    """
+    envelope = {"value": [{"code": "ComponentStatus/StdErr/failed", "message": "denied"}]}
+
+    with pytest.raises(WorkspaceConfigError, match="Run Command failed"):
+        generator._parse_run_command(json.dumps(envelope), "scs01")
+
+
+def test_parse_run_command_rejects_an_unsupported_collector_schema(
+    generator: WorkspaceConfigGenerator,
+) -> None:
+    """Reject collector output produced by an unrecognized schema version.
+
+    :param generator: Isolated generator.
+    """
+    envelope = {
+        "value": [
+            {
+                "code": "ComponentStatus/StdOut/succeeded",
+                "message": json.dumps({"schema_version": 99}),
+            }
+        ]
+    }
+
+    with pytest.raises(WorkspaceConfigError, match="unsupported schema"):
+        generator._parse_run_command(json.dumps(envelope), "scs01")
+
+
+def test_recover_interrupted_publication_removes_matching_partial_files(
+    generator: WorkspaceConfigGenerator, tmp_path: Path
+) -> None:
+    """Remove generator-owned partial files whose digests match a stale marker.
+
+    :param generator: Isolated generator.
+    :param tmp_path: Pytest temporary directory.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    partial = workspace / "hosts.yaml"
+    partial.write_text("partial", encoding="utf-8")
+    (workspace / ".workspace-config-generation.json").write_text(
+        json.dumps({"files": {"hosts.yaml": generator._sha256(partial)}}), encoding="utf-8"
+    )
+
+    generator._recover_interrupted_publication(workspace)
+
+    assert not partial.exists()
+    assert not (workspace / ".workspace-config-generation.json").exists()
+
+
+def test_recover_interrupted_publication_keeps_unrecognized_files(
+    generator: WorkspaceConfigGenerator, tmp_path: Path
+) -> None:
+    """Refuse automatic recovery when a partial file no longer matches its digest.
+
+    :param generator: Isolated generator.
+    :param tmp_path: Pytest temporary directory.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "hosts.yaml").write_text("edited-by-user", encoding="utf-8")
+    (workspace / ".workspace-config-generation.json").write_text(
+        json.dumps({"files": {"hosts.yaml": "0" * 64}}), encoding="utf-8"
+    )
+
+    with pytest.raises(WorkspaceConfigError, match="repair manually"):
+        generator._recover_interrupted_publication(workspace)
+
+
+def test_recover_interrupted_publication_rejects_unsafe_marker_entries(
+    generator: WorkspaceConfigGenerator, tmp_path: Path
+) -> None:
+    """Reject a transaction marker that names files the generator does not own.
+
+    :param generator: Isolated generator.
+    :param tmp_path: Pytest temporary directory.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / ".workspace-config-generation.json").write_text(
+        json.dumps({"files": {"../escape.yaml": "0" * 64}}), encoding="utf-8"
+    )
+
+    with pytest.raises(WorkspaceConfigError, match="unsafe file name"):
+        generator._recover_interrupted_publication(workspace)
+
+
+def test_recover_interrupted_publication_rejects_an_unreadable_marker(
+    generator: WorkspaceConfigGenerator, tmp_path: Path
+) -> None:
+    """Reject a transaction marker that cannot be parsed as generator state.
+
+    :param generator: Isolated generator.
+    :param tmp_path: Pytest temporary directory.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / ".workspace-config-generation.json").write_text("not-json", encoding="utf-8")
+
+    with pytest.raises(WorkspaceConfigError, match="unreadable generation transaction marker"):
+        generator._recover_interrupted_publication(workspace)
+
+
+def test_validate_staged_reports_validator_output(
+    tmp_path: Path,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Report validator diagnostics instead of publishing an invalid workspace.
+
+    :param tmp_path: Pytest temporary directory.
+    :param generate_request: Valid generation request.
+    :param clusters: Complete normalized cluster facts.
+    """
+
+    def run(command: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        """Return Azure Files metadata but a failing validator result.
+
+        :param command: Executed command line.
+        :param _kwargs: Ignored subprocess options.
+        :returns: Process result for the recognized command.
+        """
+        if command[0] == "az":
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps(
+                    {"primaryEndpoints": {"file": "https://sapfiles.file.core.windows.net/"}}
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(command, 1, stdout="missing required key", stderr="")
+
+    failing = WorkspaceConfigGenerator(tmp_path, run=run)
+    workspace = generate_request.workspace_root / generate_request.workspace_id
+    generated = failing._render(workspace, clusters, generate_request)
+    workspace.parent.mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(WorkspaceConfigError, match="failed validation"):
+        failing._validate_staged(workspace, generated, generate_request)
+
+
+def test_stage_credential_rejects_a_missing_source(
+    generator: WorkspaceConfigGenerator, tmp_path: Path
+) -> None:
+    """Reject a credential selection that does not point at a readable file.
+
+    :param generator: Isolated generator.
+    :param tmp_path: Pytest temporary directory.
+    """
+    with pytest.raises(WorkspaceConfigError, match="Credential source does not exist"):
+        generator._stage_credential(tmp_path, CredentialMaterial(tmp_path / "absent", "ssh_key"))
