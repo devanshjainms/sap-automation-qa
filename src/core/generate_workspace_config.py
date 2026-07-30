@@ -39,7 +39,7 @@ def _prompt(
     """
     if value:
         return value
-    if not allow_prompt or not sys.stdin.isatty():
+    if not allow_prompt:
         raise WorkspaceConfigError(f"{label} is required outside an interactive terminal")
     try:
         prompted = input_func(f"{label}: ").strip()
@@ -57,6 +57,7 @@ def _credential(
 
     :param args: Parsed command-line options.
     :param input_func: Input function used for interactive prompts.
+    :param allow_prompt: Whether this invocation may request missing values.
     :returns: Local credential material or a Key Vault reference pair.
     :raises WorkspaceConfigError: If credential selections conflict or are incomplete.
     """
@@ -76,7 +77,7 @@ def _credential(
         return CredentialMaterial(Path(path), destination), "", ""
     if args.key_vault_id or args.secret_id:
         return None, args.key_vault_id or "", args.secret_id or ""
-    if not allow_prompt or not sys.stdin.isatty():
+    if not allow_prompt:
         raise WorkspaceConfigError(
             "Choose --ssh-key, --password-file, or --key-vault-id with --secret-id"
         )
@@ -115,7 +116,10 @@ def _credential(
 
 
 def _parser() -> argparse.ArgumentParser:
-    """Build the command-line parser for the shared workspace generator."""
+    """Build the command-line parser for the shared workspace generator.
+
+    :returns: Parser describing every supported command-line option.
+    """
     parser = argparse.ArgumentParser(
         description="Generate an initial AFA HANA HA workspace from nominated Azure VMs."
     )
