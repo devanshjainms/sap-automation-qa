@@ -338,6 +338,34 @@ def test_render_rejects_ambiguous_mixed_fencing_agents(
         )
 
 
+def test_render_rejects_an_unrecognized_fencing_agent(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse a tier that reports a fencing agent outside the classified families.
+
+    The collector reports every ``stonith`` primitive rather than only the agents
+    it recognizes, so an unclassified agent must surface here instead of being
+    silently discarded and leaving the remaining agents to imply a clean verdict.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain an unclassified agent.
+    """
+    clusters["scs"][0]["cluster"]["fencing_agents"] = [  # type: ignore[index]
+        "fence_azure_arm",
+        "fence_vmware_soap",
+    ]
+
+    with pytest.raises(WorkspaceConfigError, match="ambiguous"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
+
+
 def test_render_rejects_missing_database_virtual_host(
     generator: WorkspaceConfigGenerator,
     generate_request: GenerateRequest,

@@ -883,8 +883,8 @@ for line in members:
 member_names=sorted(set(member_names))[:16]
 fencing=[];fence_devices=[]
 for node in root.findall(".//primitive"):
-    kind=node.attrib.get("type","")
-    if kind not in ("fence_azure_arm","external/sbd","fence_sbd"):continue
+    if node.attrib.get("class")!="stonith":continue
+    kind=node.attrib.get("type","")[:64]
     fencing.append(kind)
     for pair in node.findall(".//nvpair"):
         if pair.attrib.get("name") in ("devices","sbd_device"):
