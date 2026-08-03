@@ -254,12 +254,17 @@ def main(
     try:
         request = _build_request(args, input_func, not args.yes)
         generator = generator_factory(REPOSITORY_ROOT)
-        if not args.dry_run and not args.yes:
-            print(generator.generate(replace(request, dry_run=True)).preview())
-            if input_func("Generate this workspace? [y/N]: ").strip().lower() not in {"y", "yes"}:
-                print("Workspace generation cancelled.")
-                return 0
-        generated = generator.generate(request)
+        generated = generator.generate(replace(request, dry_run=True))
+        if not args.dry_run:
+            if not args.yes:
+                print(generated.preview())
+                if input_func("Generate this workspace? [y/N]: ").strip().lower() not in {
+                    "y",
+                    "yes",
+                }:
+                    print("Workspace generation cancelled.")
+                    return 0
+            generator.publish(generated, request)
         print(generated.preview())
         if args.dry_run:
             print("Dry run completed; no files were written.")

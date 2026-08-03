@@ -40,6 +40,8 @@ class _RecordingGenerator:
         :param _repository_root: Unused repository root supplied by the adapter.
         """
         self.requests: list[GenerateRequest] = []
+        self.published: list[tuple[GeneratedWorkspace, GenerateRequest]] = []
+        self.previewed: list[GeneratedWorkspace] = []
 
     def generate(self, request: GenerateRequest) -> GeneratedWorkspace:
         """Return a fixed workspace for the recorded request.
@@ -48,7 +50,7 @@ class _RecordingGenerator:
         :returns: A generated workspace with a deterministic preview.
         """
         self.requests.append(request)
-        return GeneratedWorkspace(
+        generated = GeneratedWorkspace(
             workspace_path=request.workspace_root / request.workspace_id,
             sap_parameters={
                 "sap_sid": "SH7",
@@ -59,6 +61,20 @@ class _RecordingGenerator:
             },
             hosts={},
         )
+        self.previewed.append(generated)
+        return generated
+
+    def publish(
+        self, generated: GeneratedWorkspace, request: GenerateRequest
+    ) -> GeneratedWorkspace:
+        """Record a publication of an already-discovered workspace.
+
+        :param generated: Documents produced by the earlier discovery pass.
+        :param request: Request that produced ``generated``.
+        :returns: The generated workspace unchanged.
+        """
+        self.published.append((generated, request))
+        return generated
 
 
 def _run(
@@ -99,7 +115,9 @@ def test_key_vault_arguments_produce_a_request_without_local_credentials() -> No
     request = generator.requests[0]
     assert request.credential is None
     assert (request.key_vault_id, request.secret_id) == ("kv", "secret")
-    assert request.dry_run is False
+    assert request.dry_run is True
+    assert len(generator.requests) == 1
+    assert generator.published[0][1].dry_run is False
 
 
 def test_dry_run_previews_without_requesting_confirmation() -> None:
@@ -119,11 +137,14 @@ def test_declined_confirmation_leaves_the_workspace_untouched() -> None:
 
 
 def test_accepted_confirmation_generates_after_the_preview() -> None:
-    """Generate the workspace only after an explicit operator confirmation."""
+    """Publish the reviewed discovery result rather than rediscovering it."""
     status, generator = _run(BASE_ARGUMENTS + ["--ssh-key", "key"], responses=["y"])
 
     assert status == 0
-    assert [request.dry_run for request in generator.requests] == [True, False]
+    assert [request.dry_run for request in generator.requests] == [True]
+    published_workspace, published_request = generator.published[0]
+    assert published_workspace is generator.previewed[0]
+    assert published_request.dry_run is False
 
 
 def test_interactive_prompts_collect_every_missing_value() -> None:

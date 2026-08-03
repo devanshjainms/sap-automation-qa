@@ -634,6 +634,39 @@ def test_generate_publishes_a_discovered_workspace(
     assert "SAP SID: SH7" in generated.preview()
 
 
+def test_publish_writes_the_reviewed_documents(
+    azure_generator: WorkspaceConfigGenerator, generate_request: GenerateRequest
+) -> None:
+    """Publish the exact documents a dry run produced, without rediscovering.
+
+    :param azure_generator: Generator backed by a scripted Azure CLI.
+    :param generate_request: Valid generation request.
+    """
+    previewed = azure_generator.generate(replace(generate_request, dry_run=True))
+    assert not previewed.workspace_path.exists()
+
+    published = azure_generator.publish(previewed, generate_request)
+
+    assert published is previewed
+    assert (previewed.workspace_path / "sap-parameters.yaml").is_file()
+    assert (previewed.workspace_path / "hosts.yaml").is_file()
+
+
+def test_publish_rejects_a_mismatched_workspace(
+    azure_generator: WorkspaceConfigGenerator, generate_request: GenerateRequest
+) -> None:
+    """Refuse to publish documents discovered for a different workspace.
+
+    :param azure_generator: Generator backed by a scripted Azure CLI.
+    :param generate_request: Valid generation request.
+    """
+    previewed = azure_generator.generate(replace(generate_request, dry_run=True))
+    other = replace(generate_request, workspace_id="DEV-EUS2-SAP01-XX9")
+
+    with pytest.raises(WorkspaceConfigError, match="does not match the requested workspace"):
+        azure_generator.publish(previewed, other)
+
+
 def test_generate_dry_run_leaves_the_workspace_absent(
     azure_generator: WorkspaceConfigGenerator, generate_request: GenerateRequest
 ) -> None:

@@ -141,6 +141,28 @@ class WorkspaceConfigGenerator:
 
         return generated
 
+    def publish(
+        self, generated: GeneratedWorkspace, request: GenerateRequest
+    ) -> GeneratedWorkspace:
+        """Validate and publish documents that were already discovered and reviewed.
+
+        Publishing the exact object returned by a dry run guarantees the operator
+        approved the topology that reaches disk, and avoids a second discovery.
+
+        :param generated: Documents produced by an earlier discovery pass.
+        :param request: The request that produced ``generated``.
+        :returns: The same generated workspace, now published.
+        :raises WorkspaceConfigError: If validation or publication is unsafe.
+        """
+        workspace = self._workspace_path(request)
+        if workspace != generated.workspace_path:
+            raise WorkspaceConfigError("Generated workspace does not match the requested workspace")
+        self._recover_interrupted_publication(workspace)
+        self._assert_initial_workspace(workspace)
+        self._validate_staged(workspace, generated, request)
+        self._publish(workspace, generated, request.credential)
+        return generated
+
     def _workspace_path(self, request: GenerateRequest) -> Path:
         """Resolve the requested workspace without allowing path traversal."""
         root = request.workspace_root.resolve()
