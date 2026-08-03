@@ -366,6 +366,34 @@ def test_render_rejects_an_unrecognized_fencing_agent(
         )
 
 
+def test_render_rejects_disagreeing_scale_out_topology(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse a database tier whose members report a different HANA topology.
+
+    Scale-out is written straight into ``database_scale_out``, so accepting the
+    first member's value while another member disagrees would publish a topology
+    that half the cluster contradicts.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain conflicting scale-out.
+    """
+    first = clusters["db"][0]["hana"]
+    second = clusters["db"][1]["hana"]
+    assert isinstance(first, dict) and isinstance(second, dict)
+    second["scale_out"] = not first["scale_out"]
+
+    with pytest.raises(WorkspaceConfigError, match="scale-out topology"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
+
+
 def test_render_rejects_missing_database_virtual_host(
     generator: WorkspaceConfigGenerator,
     generate_request: GenerateRequest,

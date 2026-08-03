@@ -121,7 +121,8 @@ class WorkspaceConfigGenerator:
         :raises WorkspaceConfigError: If discovery, validation, or publication is unsafe.
         """
         workspace = self._workspace_path(request)
-        self._recover_interrupted_publication(workspace)
+        if not request.dry_run:
+            self._recover_interrupted_publication(workspace)
         self._assert_initial_workspace(workspace)
 
         vm_inventory = self._list_vms(request.resource_group)
@@ -541,6 +542,8 @@ class WorkspaceConfigGenerator:
             for item in normalized_hana[1:]
         ):
             raise WorkspaceConfigError("Database members disagree on HANA SID or instance number")
+        if any(item.get("scale_out") != scale_out for item in normalized_hana[1:]):
+            raise WorkspaceConfigError("Database members disagree on the HANA scale-out topology")
         if not all(
             isinstance(item.get("virtual_host"), str) and item["virtual_host"]
             for item in normalized_hana
@@ -718,16 +721,21 @@ class WorkspaceConfigGenerator:
             environment = os.environ.copy()
             environment["STAF_SKIP_SSH"] = "1"
             environment["PYTHONIOENCODING"] = "utf-8"
-            completed = self._run(
-                [sys.executable, str(validator), str(staged)],
-                check=False,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                env=environment,
-                timeout=60,
-            )
+            try:
+                completed = self._run(
+                    [sys.executable, str(validator), str(staged)],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    env=environment,
+                    timeout=60,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise WorkspaceConfigError(
+                    f"Generated workspace could not be validated: {exc}"
+                ) from exc
             if completed.returncode != 0:
                 detail = completed.stdout.strip() or completed.stderr.strip() or "validator failed"
                 raise WorkspaceConfigError(f"Generated workspace failed validation: {detail}")
