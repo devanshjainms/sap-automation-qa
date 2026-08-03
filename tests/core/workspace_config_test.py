@@ -26,6 +26,7 @@ def _fact(
     address: str,
     *,
     fencing_agents: list[str] | None = None,
+    fencing_devices: list[str] | None = None,
     instances: list[dict[str, str]] | None = None,
     hana: dict[str, object] | None = None,
 ) -> dict[str, object]:
@@ -35,12 +36,13 @@ def _fact(
     :param resource_id: Exact IMDS resource identifier.
     :param address: Guest private address.
     :param fencing_agents: Normalized fencing resource-agent types.
+    :param fencing_devices: Backing block devices for SBD fencing agents.
     :param instances: Semantic SCS/ERS resource facts.
     :param hana: Normalized HANA facts.
     :returns: Collector fact document.
     """
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "identity": {
             "resource_id": resource_id,
             "hostname": hostname,
@@ -51,10 +53,14 @@ def _fact(
         "cluster": {
             "members": [hostname],
             "fencing_agents": fencing_agents or ["fence_azure_arm"],
+            "fencing_devices": fencing_devices or [],
             "sap_instances": instances or [],
         },
         "hana": hana,
-        "storage": {"nfs_sources": ["sapfiles.file.core.windows.net:/sapmnt"]},
+        "storage": {
+            "nfs_sources": ["127.0.0.1:/sapfiles/sapmnt/sapmntSH7"],
+            "sapmnt_source": "127.0.0.1:/sapfiles/sapmnt/sapmntSH7",
+        },
     }
 
 
@@ -110,8 +116,20 @@ def clusters() -> dict[str, list[dict[str, object]]]:
     :returns: Normalized cluster facts.
     """
     instances = [
-        {"sid": "SH7", "role": "ASCS", "instance_number": "01", "vip": "sh7ascs"},
-        {"sid": "SH7", "role": "ERS", "instance_number": "02", "vip": "sh7ers"},
+        {
+            "sid": "SH7",
+            "role": "ASCS",
+            "instance_number": "01",
+            "virtual_host": "sh7ascs",
+            "vip": "10.0.0.10",
+        },
+        {
+            "sid": "SH7",
+            "role": "ERS",
+            "instance_number": "02",
+            "virtual_host": "sh7ers",
+            "vip": "10.0.0.11",
+        },
     ]
     return {
         "scs": [
@@ -182,20 +200,137 @@ def test_render_accepts_complete_afa_topology(
     assert set(generated.hosts) == {"SH7_DB", "SH7_SCS", "SH7_ERS"}
 
 
-def test_render_rejects_sbd_without_proven_backing_type(
+def _set_fencing(
+    clusters: dict[str, list[dict[str, object]]],
+    tier: str,
+    agents: list[str],
+    devices: list[str],
+) -> None:
+    """Apply identical fencing evidence to every member of one cluster tier.
+
+    :param clusters: Normalized cluster facts.
+    :param tier: Cluster tier key to modify.
+    :param agents: Normalized fencing resource-agent types.
+    :param devices: Backing block devices for SBD fencing agents.
+    """
+    for fact in clusters[tier]:
+        cluster = fact["cluster"]
+        assert isinstance(cluster, dict)
+        cluster["fencing_agents"] = agents
+        cluster["fencing_devices"] = devices
+
+
+def test_render_classifies_azure_shared_disk_sbd_as_asd(
     generator: WorkspaceConfigGenerator,
     generate_request: GenerateRequest,
     clusters: dict[str, list[dict[str, object]]],
 ) -> None:
-    """Refuse SBD evidence rather than guessing ASD or iSCSI classification.
+    """Classify SBD backed by Azure shared disks as the ASD cluster type.
 
     :param generator: Isolated generator.
     :param generate_request: Valid generation request.
-    :param clusters: Cluster facts modified to contain SBD evidence.
+    :param clusters: Cluster facts modified to contain Azure shared-disk SBD.
+    """
+    devices = ["/dev/disk/azure/data/by-lun/5"]
+    _set_fencing(clusters, "scs", ["fence_sbd"], devices)
+    _set_fencing(clusters, "db", ["fence_sbd"], devices)
+
+    generated = generator._render(
+        generate_request.workspace_root / generate_request.workspace_id,
+        clusters,
+        generate_request,
+    )
+
+    assert generated.sap_parameters["scs_cluster_type"] == "ASD"
+    assert generated.sap_parameters["database_cluster_type"] == "ASD"
+
+
+def test_render_classifies_non_azure_disk_sbd_as_iscsi(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Classify SBD backed by non-Azure block devices as the iSCSI cluster type.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain iSCSI-backed SBD.
+    """
+    devices = ["/dev/disk/by-id/scsi-360014059", "/dev/disk/by-id/scsi-360014060"]
+    _set_fencing(clusters, "scs", ["external/sbd"], devices)
+    _set_fencing(clusters, "db", ["external/sbd"], devices)
+
+    generated = generator._render(
+        generate_request.workspace_root / generate_request.workspace_id,
+        clusters,
+        generate_request,
+    )
+
+    assert generated.sap_parameters["scs_cluster_type"] == "ISCSI"
+    assert generated.sap_parameters["database_cluster_type"] == "ISCSI"
+
+
+def test_render_rejects_sbd_without_any_backing_device(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse SBD evidence that proves no backing device rather than guessing.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain deviceless SBD.
+    """
+    _set_fencing(clusters, "scs", ["external/sbd"], [])
+
+    with pytest.raises(WorkspaceConfigError, match="SBD"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
+
+
+def test_render_rejects_mixed_azure_and_non_azure_sbd_devices(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse SBD backed by a mixture the framework has no single label for.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain mixed SBD devices.
+    """
+    _set_fencing(
+        clusters,
+        "scs",
+        ["fence_sbd"],
+        ["/dev/disk/azure/data/by-lun/5", "/dev/disk/by-id/scsi-360014059"],
+    )
+
+    with pytest.raises(WorkspaceConfigError, match="SBD"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
+
+
+def test_render_rejects_ambiguous_mixed_fencing_agents(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse a tier whose members disagree on the fencing mechanism in use.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain conflicting fencing.
     """
     clusters["scs"][0]["cluster"]["fencing_agents"] = ["external/sbd"]  # type: ignore[index]
 
-    with pytest.raises(WorkspaceConfigError, match="SBD fencing"):
+    with pytest.raises(WorkspaceConfigError, match="ambiguous"):
         generator._render(
             generate_request.workspace_root / generate_request.workspace_id,
             clusters,
@@ -231,10 +366,12 @@ def test_parse_run_command_rejects_oversized_collector_output(
 
     :param generator: Isolated generator.
     """
-    envelope = {"value": [{"code": "ComponentStatus/StdOut/succeeded", "message": "x" * 4097}]}
+    envelope = _run_command_envelope(
+        json.dumps({"schema_version": 2, "padding": "x" * 4200}, separators=(",", ":"))
+    )
 
     with pytest.raises(WorkspaceConfigError, match="exceeds 4096"):
-        generator._parse_run_command(json.dumps(envelope), "scs01")
+        generator._parse_run_command(envelope, "scs01")
 
 
 def test_publish_never_overwrites_existing_configuration(
@@ -325,22 +462,37 @@ def _inventory(names: list[str]) -> list[dict[str, object]]:
     ]
 
 
-def _run_command_envelope(facts: dict[str, object]) -> str:
-    """Wrap collector facts in an Azure Run Command response envelope.
+def _run_command_envelope(payload: str) -> str:
+    """Wrap collector output in the exact Azure Run Command response envelope.
 
-    :param facts: Normalized collector facts.
+    Azure returns a single provisioning-state entry whose message embeds both
+    streams, so the fixture reproduces that shape rather than a per-stream entry.
+
+    :param payload: Raw standard-output text produced by the collector.
     :returns: Serialized Run Command response.
     """
     return json.dumps(
         {
             "value": [
                 {
-                    "code": "ComponentStatus/StdOut/succeeded",
-                    "message": json.dumps(facts, separators=(",", ":")),
+                    "code": "ProvisioningState/succeeded",
+                    "displayStatus": "Provisioning succeeded",
+                    "level": "Info",
+                    "message": f"Enable succeeded: \n[stdout]\n{payload}\n\n[stderr]\n",
+                    "time": None,
                 }
             ]
         }
     )
+
+
+def _facts_envelope(facts: dict[str, object]) -> str:
+    """Wrap collector facts in the exact Azure Run Command response envelope.
+
+    :param facts: Normalized collector facts.
+    :returns: Serialized Run Command response.
+    """
+    return _run_command_envelope(json.dumps(facts, separators=(",", ":")))
 
 
 @pytest.fixture
@@ -401,7 +553,7 @@ def azure_generator(
                 )
             )
         if command[1:3] == ["vm", "run-command"]:
-            return result(_run_command_envelope(discovered_facts[name]))
+            return result(_facts_envelope(discovered_facts[name]))
         return result(
             json.dumps({"primaryEndpoints": {"file": "https://sapfiles.file.core.windows.net/"}})
         )
@@ -495,7 +647,7 @@ def test_generate_rejects_a_guest_identity_that_differs_from_azure(
             )
         else:
             name = command[command.index("--name") + 1]
-            stdout = _run_command_envelope(discovered_facts[name])
+            stdout = _facts_envelope(discovered_facts[name])
         return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
 
     with pytest.raises(WorkspaceConfigError, match="does not match Azure VM identity"):
@@ -738,3 +890,101 @@ def test_stage_credential_rejects_a_missing_source(
     """
     with pytest.raises(WorkspaceConfigError, match="Credential source does not exist"):
         generator._stage_credential(tmp_path, CredentialMaterial(tmp_path / "absent", "ssh_key"))
+
+
+def test_nfs_provider_accepts_a_sovereign_cloud_files_endpoint(
+    tmp_path: Path,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Accept Azure Files accounts whose endpoint suffix is not the public cloud.
+
+    :param tmp_path: Pytest temporary directory.
+    :param clusters: Normalized cluster facts.
+    """
+
+    def run(command: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        """Return sovereign-cloud Azure Files metadata.
+
+        :param command: Azure CLI argument vector.
+        :returns: Successful Azure CLI process result.
+        """
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(
+                {"primaryEndpoints": {"file": "https://sapfiles.file.core.usgovcloudapi.net/"}}
+            ),
+            stderr="",
+        )
+
+    generator = WorkspaceConfigGenerator(tmp_path, run=run)
+
+    assert generator._nfs_provider(clusters["scs"] + clusters["db"], "rg") == "AFS"
+
+
+def test_nfs_provider_rejects_an_account_that_does_not_match_the_mount(
+    tmp_path: Path,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse metadata whose account does not match the discovered mount path.
+
+    :param tmp_path: Pytest temporary directory.
+    :param clusters: Normalized cluster facts.
+    """
+
+    def run(command: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        """Return metadata for an unrelated storage account.
+
+        :param command: Azure CLI argument vector.
+        :returns: Successful Azure CLI process result.
+        """
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(
+                {"primaryEndpoints": {"file": "https://other.file.core.windows.net/"}}
+            ),
+            stderr="",
+        )
+
+    generator = WorkspaceConfigGenerator(tmp_path, run=run)
+
+    with pytest.raises(WorkspaceConfigError, match="expected Azure Files account"):
+        generator._nfs_provider(clusters["scs"], "rg")
+
+
+def test_parse_run_command_surfaces_guest_standard_error(
+    generator: WorkspaceConfigGenerator,
+) -> None:
+    """Report guest diagnostics when the collector emitted no fact document.
+
+    :param generator: Isolated generator.
+    """
+    message = "Enable succeeded: \n[stdout]\n\n[stderr]\nTypeError: unexpected keyword\n"
+    envelope = json.dumps({"value": [{"code": "ProvisioningState/succeeded", "message": message}]})
+
+    with pytest.raises(WorkspaceConfigError, match="TypeError: unexpected keyword"):
+        generator._parse_run_command(envelope, "scs01")
+
+
+def test_render_uses_the_virtual_host_name_rather_than_the_cluster_address(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Publish the SAP virtual host name that the framework resolves for SCS and ERS.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Normalized cluster facts.
+    """
+    generated = generator._render(
+        generate_request.workspace_root / generate_request.workspace_id,
+        clusters,
+        generate_request,
+    )
+
+    scs = generated.hosts["SH7_SCS"]["hosts"]
+    ers = generated.hosts["SH7_ERS"]["hosts"]
+    assert [host["virtual_host"] for host in scs.values()] == ["sh7ascs"]
+    assert [host["virtual_host"] for host in ers.values()] == ["sh7ers"]

@@ -15,6 +15,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
+from urllib.parse import urlparse
 
 import yaml
 
@@ -26,7 +27,7 @@ from src.core.storage.workspace.validation import (
     validate_workspace_id,
 )
 
-COLLECTOR_SCHEMA_VERSION = 1
+COLLECTOR_SCHEMA_VERSION = 2
 MAX_RUN_COMMAND_OUTPUT = 4096
 TRANSACTION_MARKER = ".workspace-config-generation.json"
 
@@ -335,20 +336,14 @@ class WorkspaceConfigGenerator:
                 continue
             if "error" in code.lower() or "failed" in code.lower():
                 raise WorkspaceConfigError(f"Run Command failed for {vm_name}: {message}")
-            if "componentstatus/stdout" in code.lower():
-                messages.append(message)
+            if "stderr" in code.lower():
+                continue
+            messages.append(message)
         if len(messages) != 1:
             raise WorkspaceConfigError(
-                f"Run Command for {vm_name} must return exactly one compact stdout document"
+                f"Run Command for {vm_name} must return exactly one result message"
             )
-        document = next(
-            (
-                line.strip()
-                for line in reversed(messages[0].splitlines())
-                if line.lstrip().startswith("{")
-            ),
-            messages[0].strip(),
-        )
+        document = self._collector_document(messages[0], vm_name)
         encoded = document.encode("utf-8")
         if len(encoded) > MAX_RUN_COMMAND_OUTPUT:
             raise WorkspaceConfigError(f"Run Command output for {vm_name} exceeds 4096 bytes")
@@ -360,6 +355,35 @@ class WorkspaceConfigGenerator:
             raise WorkspaceConfigError(f"Collector output for {vm_name} has an unsupported schema")
         self._identity_resource_id(facts)
         return facts
+
+    @staticmethod
+    def _collector_document(message: str, vm_name: str) -> str:
+        """Extract the compact fact document from an Azure Run Command result message.
+
+        Azure wraps shell output as ``Enable succeeded: \\n[stdout]\\n...\\n[stderr]\\n...``.
+        Guest diagnostics on stderr are surfaced only when no fact document was produced.
+
+        :param message: Raw Run Command result message.
+        :param vm_name: Azure VM name used for diagnostics.
+        :returns: The compact JSON fact document emitted by the collector.
+        :raises WorkspaceConfigError: When the message carries no fact document.
+        """
+        stdout, stderr = message, ""
+        if "[stdout]" in message:
+            _, _, remainder = message.partition("[stdout]")
+            stdout, _, stderr = remainder.partition("[stderr]")
+        document = next(
+            (
+                line.strip()
+                for line in reversed(stdout.splitlines())
+                if line.lstrip().startswith("{")
+            ),
+            "",
+        )
+        if not document:
+            detail = stderr.strip() or stdout.strip() or "no collector output"
+            raise WorkspaceConfigError(f"Collector produced no facts on {vm_name}: {detail[:400]}")
+        return document
 
     @staticmethod
     def _identity_resource_id(facts: Mapping[str, Any]) -> str:
@@ -398,8 +422,8 @@ class WorkspaceConfigGenerator:
             raise WorkspaceConfigError(
                 "Only two-node SCS and HA HANA clusters are supported initially"
             )
-        self._require_afa(scs_facts, "SCS")
-        self._require_afa(db_facts, "database")
+        scs_cluster_type = self._cluster_type(scs_facts, "SCS")
+        database_cluster_type = self._cluster_type(db_facts, "database")
         scs = self._scs_details(scs_facts)
         db = self._db_details(db_facts)
         nfs_provider = self._nfs_provider(scs_facts + db_facts, request.resource_group)
@@ -407,14 +431,14 @@ class WorkspaceConfigGenerator:
         parameters: dict[str, Any] = {
             "sap_sid": scs["sid"],
             "scs_high_availability": True,
-            "scs_cluster_type": "AFA",
+            "scs_cluster_type": scs_cluster_type,
             "scs_instance_number": scs["ascs"]["instance_number"],
             "ers_instance_number": scs["ers"]["instance_number"],
             "db_sid": db["sid"],
             "db_instance_number": db["instance_number"],
             "platform": "HANA",
             "database_high_availability": True,
-            "database_cluster_type": "AFA",
+            "database_cluster_type": database_cluster_type,
             "database_scale_out": db["scale_out"],
             "NFS_provider": nfs_provider,
         }
@@ -426,20 +450,44 @@ class WorkspaceConfigGenerator:
         return GeneratedWorkspace(workspace, parameters, hosts)
 
     @staticmethod
-    def _require_afa(facts: Sequence[Mapping[str, Any]], tier: str) -> None:
-        """Require one AFA fence agent and no SBD evidence for every cluster fact."""
+    def _cluster_type(facts: Sequence[Mapping[str, Any]], tier: str) -> str:
+        """Classify a cluster's fencing mechanism from unambiguous Pacemaker evidence.
+
+        ``fence_azure_arm`` is AFA. SBD is classified by its backing block devices:
+        Azure Shared Disk paths are ASD and any other device is an iSCSI target.
+
+        :param facts: Normalized facts from every discovered member of one tier.
+        :param tier: Tier name used for diagnostics.
+        :returns: ``AFA``, ``ASD``, or ``ISCSI``.
+        :raises WorkspaceConfigError: When fencing evidence is missing or ambiguous.
+        """
+        agent_set: set[str] = set()
+        devices: set[str] = set()
         for fact in facts:
             cluster = fact.get("cluster")
             agents = cluster.get("fencing_agents") if isinstance(cluster, dict) else None
             if not isinstance(agents, list) or not all(isinstance(agent, str) for agent in agents):
                 raise WorkspaceConfigError(f"{tier} fencing evidence is missing")
-            agent_set = set(agents)
-            if "external/sbd" in agent_set or "fence_sbd" in agent_set:
+            agent_set.update(agents)
+            found = cluster.get("fencing_devices") if isinstance(cluster, dict) else None
+            if isinstance(found, list):
+                devices.update(device for device in found if isinstance(device, str) and device)
+        if agent_set == {"fence_azure_arm"}:
+            return "AFA"
+        if agent_set and agent_set <= {"external/sbd", "fence_sbd"}:
+            if not devices:
                 raise WorkspaceConfigError(
-                    f"{tier} SBD fencing is not generated until ASD/iSCSI evidence is proven"
+                    f"{tier} SBD fencing exposes no backing devices to classify"
                 )
-            if agent_set != {"fence_azure_arm"}:
-                raise WorkspaceConfigError(f"{tier} fencing is ambiguous: {sorted(agent_set)}")
+            azure_disks = {device for device in devices if device.startswith("/dev/disk/azure/")}
+            if len(azure_disks) == len(devices):
+                return "ASD"
+            if not azure_disks:
+                return "ISCSI"
+            raise WorkspaceConfigError(
+                f"{tier} SBD mixes Azure Shared Disk and iSCSI devices: {sorted(devices)}"
+            )
+        raise WorkspaceConfigError(f"{tier} fencing is ambiguous: {sorted(agent_set)}")
 
     @staticmethod
     def _scs_details(facts: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -460,12 +508,17 @@ class WorkspaceConfigGenerator:
         for item in (ascs[0], ers[0]):
             if not all(
                 isinstance(item.get(field), str) and item[field]
-                for field in ("instance_number", "vip")
+                for field in ("instance_number", "virtual_host", "vip")
             ):
                 raise WorkspaceConfigError(
                     "SCS facts are missing an instance number or virtual host"
                 )
-        return {"sid": sid, "ascs": ascs[0], "ers": ers[0], "facts": facts}
+        return {
+            "sid": sid,
+            "ascs": ascs[0],
+            "ers": ers[0],
+            "facts": sorted(facts, key=lambda fact: str(fact["identity"]["hostname"])),
+        }
 
     @staticmethod
     def _db_details(facts: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -496,7 +549,11 @@ class WorkspaceConfigGenerator:
         return {"sid": sid, "instance_number": instance, "scale_out": scale_out, "facts": facts}
 
     def _nfs_provider(self, facts: Sequence[Mapping[str, Any]], resource_group: str) -> str:
-        """Resolve NFS mount evidence to exact Azure resource metadata.
+        """Resolve the shared SAP mount to exact Azure resource metadata.
+
+        Azure Files NFS mounts always carry the storage account as the first path
+        segment, so the account is resolved from the path rather than from the
+        mount host, which SDAF deployments may front with a local proxy address.
 
         :param facts: Normalized facts from all discovered HA members.
         :param resource_group: Resource group used to resolve Azure Files metadata.
@@ -504,48 +561,64 @@ class WorkspaceConfigGenerator:
         :raises WorkspaceConfigError: If storage cannot be classified without inference.
         """
         sources = {
-            source
+            storage["sapmnt_source"]
             for fact in facts
             if isinstance((storage := fact.get("storage")), dict)
-            for source in storage.get("nfs_sources", [])
-            if isinstance(source, str) and source
+            and isinstance(storage.get("sapmnt_source"), str)
+            and storage["sapmnt_source"]
         }
-        if len(sources) != 1:
-            raise WorkspaceConfigError("Expected one shared NFS mount source across all HA members")
-        source = next(iter(sources))
-        host = source.partition(":")[0].lower()
-        suffix = ".file.core.windows.net"
-        if not host.endswith(suffix) or host == suffix:
+        if not sources:
+            raise WorkspaceConfigError("No shared SAP mount was discovered on any HA member")
+        accounts = {source.partition(":")[2].strip("/").split("/")[0].lower() for source in sources}
+        if len(accounts) != 1 or not next(iter(accounts)):
             raise WorkspaceConfigError(
-                "Only Azure Files mounts are generated until Azure NetApp Files "
-                "resource resolution is proven"
+                f"HA members disagree on the shared SAP mount: {sorted(sources)}"
             )
-        account_name = host[: -len(suffix)]
-        completed = self._az(
-            "storage",
-            "account",
-            "show",
-            "--resource-group",
-            resource_group,
-            "--name",
-            account_name,
-            "--output",
-            "json",
+        account_name = next(iter(accounts))
+        account = self._storage_account(account_name, resource_group)
+        endpoint = (
+            account.get("primaryEndpoints", {}).get("file")
+            if isinstance(account.get("primaryEndpoints"), dict)
+            else None
         )
+        host = urlparse(endpoint).hostname if isinstance(endpoint, str) else None
+        if not host or not host.lower().startswith(f"{account_name}.file."):
+            raise WorkspaceConfigError(
+                "Shared SAP mount does not resolve to the expected Azure Files account"
+            )
+        return "AFS"
+
+    def _storage_account(self, account_name: str, resource_group: str) -> dict[str, Any]:
+        """Read Azure Files account metadata, tolerating a shared-storage resource group.
+
+        :param account_name: Storage account hosting the shared SAP mount.
+        :param resource_group: Resource group containing the seed VMs.
+        :returns: Azure storage account metadata.
+        :raises WorkspaceConfigError: When the account metadata is not a JSON object.
+        """
+        try:
+            completed = self._az(
+                "storage",
+                "account",
+                "show",
+                "--resource-group",
+                resource_group,
+                "--name",
+                account_name,
+                "--output",
+                "json",
+            )
+        except WorkspaceConfigError:
+            completed = self._az(
+                "storage", "account", "show", "--name", account_name, "--output", "json"
+            )
         try:
             account = json.loads(completed.stdout)
         except json.JSONDecodeError as exc:
             raise WorkspaceConfigError("Azure Files metadata was not valid JSON") from exc
-        endpoint = (
-            account.get("primaryEndpoints", {}).get("file")
-            if isinstance(account, dict) and isinstance(account.get("primaryEndpoints"), dict)
-            else None
-        )
-        if endpoint != f"https://{host}/":
-            raise WorkspaceConfigError(
-                "NFS mount does not resolve to the expected Azure Files account"
-            )
-        return "AFS"
+        if not isinstance(account, dict):
+            raise WorkspaceConfigError("Azure Files metadata was not an object")
+        return account
 
     @staticmethod
     def _hosts(
@@ -610,7 +683,7 @@ class WorkspaceConfigGenerator:
             f"{sid}_SCS": {
                 "hosts": {
                     str(scs_facts[0]["identity"]["hostname"]): host_variables(
-                        scs_facts[0], str(scs["ascs"]["vip"])
+                        scs_facts[0], str(scs["ascs"]["virtual_host"])
                     )
                 },
                 "vars": {"node_tier": "scs", "supported_tiers": ["scs"]},
@@ -618,7 +691,7 @@ class WorkspaceConfigGenerator:
             f"{sid}_ERS": {
                 "hosts": {
                     str(scs_facts[1]["identity"]["hostname"]): host_variables(
-                        scs_facts[1], str(scs["ers"]["vip"])
+                        scs_facts[1], str(scs["ers"]["virtual_host"])
                     )
                 },
                 "vars": {"node_tier": "ers", "supported_tiers": ["ers"]},
@@ -644,11 +717,14 @@ class WorkspaceConfigGenerator:
             )
             environment = os.environ.copy()
             environment["STAF_SKIP_SSH"] = "1"
+            environment["PYTHONIOENCODING"] = "utf-8"
             completed = self._run(
                 [sys.executable, str(validator), str(staged)],
                 check=False,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 env=environment,
                 timeout=60,
             )
@@ -782,7 +858,7 @@ def _unique_instances(instances: Sequence[dict[str, Any]], role: str) -> list[di
 COMPACT_COLLECTOR = r"""python3 - <<'PY'
 import glob,json,os,re,socket,subprocess,urllib.request,xml.etree.ElementTree as ET
 def run(*args):
-    try:return subprocess.check_output(args,stderr=subprocess.DEVNULL,text=True,timeout=15)
+    try:return subprocess.check_output(args,stderr=subprocess.DEVNULL,universal_newlines=True,timeout=15)
     except (OSError,subprocess.CalledProcessError,subprocess.TimeoutExpired):return ""
 def imds(path):
     req=urllib.request.Request("http://169.254.169.254/metadata/instance/"+path+"?api-version=2021-02-01",headers={"Metadata":"true"})
@@ -800,8 +876,20 @@ compute=imds("compute"); network=imds("network/interface")
 cib=run("cibadmin","--query") or run("pcs","status","xml")
 root=ET.fromstring(cib) if cib else ET.Element("cib")
 members=run("crm_node","-l").splitlines()
-member_names=[line.split()[-1][:255] for line in members if line.strip() and len(line.split())>1][:16]
-fencing=[node.attrib.get("type","") for node in root.findall(".//primitive") if node.attrib.get("type") in ("fence_azure_arm","external/sbd","fence_sbd")][:4]
+member_names=[]
+for line in members:
+    parts=line.split()
+    if len(parts)>1 and parts[0].isdigit():member_names.append(parts[1][:255])
+member_names=sorted(set(member_names))[:16]
+fencing=[];fence_devices=[]
+for node in root.findall(".//primitive"):
+    kind=node.attrib.get("type","")
+    if kind not in ("fence_azure_arm","external/sbd","fence_sbd"):continue
+    fencing.append(kind)
+    for pair in node.findall(".//nvpair"):
+        if pair.attrib.get("name") in ("devices","sbd_device"):
+            fence_devices+=[part[:255] for part in re.split(r"[;,\s]+",pair.attrib.get("value","")) if part]
+fencing=sorted(set(fencing))[:4];fence_devices=sorted(set(fence_devices))[:4]
 instances=[]
 for group in root.findall(".//group"):
     vip=""
@@ -810,8 +898,8 @@ for group in root.findall(".//group"):
         if value is not None:vip=value.attrib.get("value","")
     for primitive in group.findall(".//primitive[@type='SAPInstance']"):
         attrs={node.attrib.get("name"):node.attrib.get("value") for node in primitive.findall(".//nvpair")}
-        match=re.match(r"([A-Z0-9]{3})_(ASCS|ERS)(\d\d)",attrs.get("InstanceName",""))
-        if match:instances.append({"sid":match.group(1),"role":match.group(2),"instance_number":match.group(3),"vip":vip[:255]})
+        match=re.match(r"([A-Z0-9]{3})_(ASCS|ERS)(\d\d)_(\S+)",attrs.get("InstanceName",""))
+        if match:instances.append({"sid":match.group(1),"role":match.group(2),"instance_number":match.group(3),"virtual_host":match.group(4)[:255],"vip":vip[:255]})
 hana={}
 paths=glob.glob("/usr/sap/*/HDB[0-9][0-9]")
 if len(paths)==1:
@@ -819,13 +907,17 @@ if len(paths)==1:
     state=run("su","-",sid.lower()+"adm","-c","hdbnsutil -sr_state")
     if "online: true" in state.lower():
         hana={"sid":sid,"instance_number":number,"virtual_host":profile_value(sid,"SAPGLOBALHOST"),"scale_out":len(member_names)>2}
-sources=[]
+sources=[];sapmnt=""
 try:
     mounts=json.loads(run("findmnt","--json","--types","nfs,nfs4")).get("filesystems",[])
+    for item in mounts:
+        source=item.get("source","")[:512];target=item.get("target","")
+        if not source:continue
+        if re.match(r"^/(sapmnt|hana/shared)(/|$)",target or ""):sapmnt=sapmnt or source
     sources=sorted({item.get("source","")[:512] for item in mounts if item.get("source")})[:4]
 except (ValueError,TypeError):pass
 ips=[item["ipv4"]["ipAddress"][0]["privateIpAddress"] for item in network if item.get("ipv4",{}).get("ipAddress")]
-facts={"schema_version":1,"identity":{"resource_id":compute["resourceId"],"hostname":socket.gethostname()[:255],"private_ip":ips[0] if ips else ""},"cluster":{"members":member_names,"fencing_agents":fencing,"sap_instances":instances[:4]},"hana":hana,"storage":{"nfs_sources":sources}}
+facts={"schema_version":2,"identity":{"resource_id":compute["resourceId"],"hostname":socket.gethostname()[:255],"private_ip":ips[0] if ips else ""},"cluster":{"members":member_names,"fencing_agents":fencing,"fencing_devices":fence_devices,"sap_instances":instances[:4]},"hana":hana,"storage":{"nfs_sources":sources,"sapmnt_source":sapmnt}}
 encoded=json.dumps(facts,separators=(",",":"))
-print(encoded if len(encoded.encode())<=4096 else json.dumps({"schema_version":1,"error":"collector output exceeds limit"}))
+print(encoded if len(encoded.encode())<=4096 else json.dumps({"schema_version":2,"error":"collector output exceeds limit"}))
 PY"""
