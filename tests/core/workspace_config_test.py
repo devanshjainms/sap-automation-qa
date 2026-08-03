@@ -789,6 +789,28 @@ def test_find_vm_candidate_rejects_an_unknown_computer_name(
         generator._find_vm_candidate(_inventory(["scs01"]), "scs99")
 
 
+def test_collect_cluster_facts_rejects_a_split_membership_view(
+    generator: WorkspaceConfigGenerator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reject a peer whose reported membership disagrees with the seed node.
+
+    :param generator: Isolated generator.
+    :param monkeypatch: Pytest attribute patcher.
+    """
+    seed = {
+        "identity": {"resource_id": RESOURCE_ID.format("scs01"), "hostname": "scs01"},
+        "cluster": {"members": ["scs01", "scs02"]},
+    }
+    peer = {
+        "identity": {"resource_id": RESOURCE_ID.format("scs02"), "hostname": "scs02"},
+        "cluster": {"members": ["scs02", "scs03"]},
+    }
+    monkeypatch.setattr(WorkspaceConfigGenerator, "_collect_vm", lambda self, group, name: peer)
+
+    with pytest.raises(WorkspaceConfigError, match="different scs membership"):
+        generator._collect_cluster_facts("rg", _inventory(["scs01", "scs02"]), {"scs": seed})
+
+
 def test_parse_run_command_reports_a_failed_collector_run(
     generator: WorkspaceConfigGenerator,
 ) -> None:
@@ -835,12 +857,44 @@ def test_recover_interrupted_publication_removes_matching_partial_files(
     partial = workspace / "hosts.yaml"
     partial.write_text("partial", encoding="utf-8")
     (workspace / ".workspace-config-generation.json").write_text(
-        json.dumps({"files": {"hosts.yaml": generator._sha256(partial)}}), encoding="utf-8"
+        json.dumps(
+            {
+                "files": {
+                    "hosts.yaml": generator._sha256(partial),
+                    "sap-parameters.yaml": "0" * 64,
+                }
+            }
+        ),
+        encoding="utf-8",
     )
 
     generator._recover_interrupted_publication(workspace)
 
     assert not partial.exists()
+    assert not (workspace / ".workspace-config-generation.json").exists()
+
+
+def test_recover_interrupted_publication_keeps_a_completed_workspace(
+    generator: WorkspaceConfigGenerator, tmp_path: Path
+) -> None:
+    """Drop the marker without deleting files when every published file is intact.
+
+    :param generator: Isolated generator.
+    :param tmp_path: Pytest temporary directory.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    published = {"hosts.yaml": "hosts", "sap-parameters.yaml": "parameters"}
+    for name, content in published.items():
+        (workspace / name).write_text(content, encoding="utf-8")
+    (workspace / ".workspace-config-generation.json").write_text(
+        json.dumps({"files": {name: generator._sha256(workspace / name) for name in published}}),
+        encoding="utf-8",
+    )
+
+    generator._recover_interrupted_publication(workspace)
+
+    assert all((workspace / name).exists() for name in published)
     assert not (workspace / ".workspace-config-generation.json").exists()
 
 

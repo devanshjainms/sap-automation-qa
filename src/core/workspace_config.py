@@ -201,6 +201,7 @@ class WorkspaceConfigGenerator:
         collected: dict[str, list[dict[str, Any]]] = {}
         for tier, seed in seed_facts.items():
             member_names = self._required_string_list(seed, "cluster", "members")
+            expected_members = {name.lower() for name in member_names}
             facts = [seed]
             seed_resource_id = self._identity_resource_id(seed)
             for member_name in member_names:
@@ -212,6 +213,16 @@ class WorkspaceConfigGenerator:
                     raise WorkspaceConfigError(
                         f"Guest IMDS identity for {candidate['name']} does not match "
                         "Azure VM identity"
+                    )
+                peer_members = {
+                    name.lower()
+                    for name in self._required_string_list(member_facts, "cluster", "members")
+                }
+                if peer_members != expected_members:
+                    raise WorkspaceConfigError(
+                        f"Cluster member {candidate['name']} reports a different "
+                        f"{tier} membership than the seed node; resolve the split "
+                        "cluster view before generating a workspace"
                     )
                 facts.append(member_facts)
             collected[tier] = facts
@@ -799,7 +810,12 @@ class WorkspaceConfigGenerator:
         os.chmod(destination, 0o600)
 
     def _recover_interrupted_publication(self, workspace: Path) -> None:
-        """Clean only generator-owned partial files whose hashes match a stale marker."""
+        """Finish or roll back a publication that a previous run left marked.
+
+        A publication that completed every ``os.replace`` but crashed before the
+        marker was removed leaves a workspace that is whole. That state is
+        completed by dropping the marker, never by deleting the files.
+        """
         marker = workspace / TRANSACTION_MARKER
         if not marker.exists():
             return
@@ -830,6 +846,12 @@ class WorkspaceConfigGenerator:
                     "Workspace has an interrupted generation with non-matching files; "
                     "repair manually"
                 )
+        if all(
+            (workspace / name).exists() and self._sha256(workspace / name) == digest
+            for name, digest in files.items()
+        ):
+            marker.unlink()
+            return
         for name in files:
             (workspace / name).unlink(missing_ok=True)
         marker.unlink()
