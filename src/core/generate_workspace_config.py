@@ -50,38 +50,58 @@ def _prompt(
     return prompted
 
 
-def _credential(
-    args: argparse.Namespace, input_func: Callable[[str], str], allow_prompt: bool
-) -> tuple[CredentialMaterial | None, str, str]:
-    """Create the explicit credential selection required by the generator.
+_AUTH_DESTINATIONS = {"SSHKEY": "ssh_key", "VMPASSWORD": "password"}
 
-    :param args: Parsed command-line options.
+
+def _prompt_known_auth(
+    destination: str,
+    auth_type: str,
+    input_func: Callable[[str], str],
+    allow_prompt: bool,
+) -> tuple[CredentialMaterial | None, str, str]:
+    """Prompt for a credential source when the authentication type is already known.
+
+    :param destination: Required workspace credential artifact name.
+    :param auth_type: Authentication type driving the artifact selection.
     :param input_func: Input function used for interactive prompts.
     :param allow_prompt: Whether this invocation may request missing values.
     :returns: Local credential material or a Key Vault reference pair.
-    :raises WorkspaceConfigError: If credential selections conflict or are incomplete.
+    :raises WorkspaceConfigError: If the operator selection is unusable.
     """
-    local_credentials = [
-        (args.ssh_key, "ssh_key"),
-        (args.password_file, "password"),
-    ]
-    configured = [(path, name) for path, name in local_credentials if path]
-    if configured and (args.key_vault_id or args.secret_id):
-        raise WorkspaceConfigError(
-            "Select either --ssh-key/--password-file or --key-vault-id with --secret-id"
+    label = "SSH key path" if destination == "ssh_key" else "Password file path"
+    try:
+        choice = (
+            input_func(f"{auth_type} credential source [f]ile or key [v]ault: ").strip().lower()
         )
-    if len(configured) > 1:
-        raise WorkspaceConfigError("Select only one local credential artifact")
-    if configured:
-        path, destination = configured[0]
-        return CredentialMaterial(Path(path), destination), "", ""
-    if args.key_vault_id or args.secret_id:
-        return None, args.key_vault_id or "", args.secret_id or ""
-    if not allow_prompt:
+    except EOFError as exc:
         raise WorkspaceConfigError(
             "Choose --ssh-key, --password-file, or --key-vault-id with --secret-id"
+        ) from exc
+    if choice == "f":
+        return (
+            CredentialMaterial(Path(_prompt(None, label, input_func, allow_prompt)), destination),
+            "",
+            "",
         )
+    if choice == "v":
+        return (
+            None,
+            _prompt(None, "Key Vault resource ID", input_func, allow_prompt),
+            _prompt(None, "Key Vault secret ID", input_func, allow_prompt),
+        )
+    raise WorkspaceConfigError("Credential source must be file or key vault")
 
+
+def _prompt_any_auth(
+    input_func: Callable[[str], str], allow_prompt: bool
+) -> tuple[CredentialMaterial | None, str, str]:
+    """Prompt for a credential source when no authentication type was supplied.
+
+    :param input_func: Input function used for interactive prompts.
+    :param allow_prompt: Whether this invocation may request missing values.
+    :returns: Local credential material or a Key Vault reference pair.
+    :raises WorkspaceConfigError: If the operator selection is unusable.
+    """
     try:
         choice = (
             input_func("Credential source [k]ey, [p]assword file, or key [v]ault: ").strip().lower()
@@ -115,6 +135,47 @@ def _credential(
     raise WorkspaceConfigError("Credential source must be key, password file, or key vault")
 
 
+def _credential(
+    args: argparse.Namespace, input_func: Callable[[str], str], allow_prompt: bool
+) -> tuple[CredentialMaterial | None, str, str]:
+    """Create the explicit credential selection required by the generator.
+
+    :param args: Parsed command-line options.
+    :param input_func: Input function used for interactive prompts.
+    :param allow_prompt: Whether this invocation may request missing values.
+    :returns: Local credential material or a Key Vault reference pair.
+    :raises WorkspaceConfigError: If credential selections conflict or are incomplete.
+    """
+    expected = _AUTH_DESTINATIONS.get(getattr(args, "auth_type", None) or "")
+    local_credentials = [
+        (args.ssh_key, "ssh_key"),
+        (args.password_file, "password"),
+    ]
+    configured = [(path, name) for path, name in local_credentials if path]
+    if configured and (args.key_vault_id or args.secret_id):
+        raise WorkspaceConfigError(
+            "Select either --ssh-key/--password-file or --key-vault-id with --secret-id"
+        )
+    if len(configured) > 1:
+        raise WorkspaceConfigError("Select only one local credential artifact")
+    if configured:
+        path, destination = configured[0]
+        if expected is not None and destination != expected:
+            raise WorkspaceConfigError(
+                f"--auth-type {args.auth_type} requires the {expected} credential artifact"
+            )
+        return CredentialMaterial(Path(path), destination), "", ""
+    if args.key_vault_id or args.secret_id:
+        return None, args.key_vault_id or "", args.secret_id or ""
+    if not allow_prompt:
+        raise WorkspaceConfigError(
+            "Choose --ssh-key, --password-file, or --key-vault-id with --secret-id"
+        )
+    if expected is not None:
+        return _prompt_known_auth(expected, args.auth_type, input_func, allow_prompt)
+    return _prompt_any_auth(input_func, allow_prompt)
+
+
 def _parser() -> argparse.ArgumentParser:
     """Build the command-line parser for the shared workspace generator.
 
@@ -137,6 +198,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--password-file", help="Local password file to copy into the workspace.")
     parser.add_argument("--key-vault-id", help="Explicit Key Vault resource ID.")
     parser.add_argument("--secret-id", help="Explicit Key Vault secret ID.")
+    parser.add_argument(
+        "--auth-type",
+        choices=("SSHKEY", "VMPASSWORD"),
+        help="Authentication type the generated workspace must serve.",
+    )
     parser.add_argument(
         "--dry-run", action="store_true", help="Discover and preview without writing."
     )

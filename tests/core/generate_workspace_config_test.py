@@ -212,3 +212,61 @@ def test_generator_noninteractive_mode_requires_explicit_credential_source() -> 
 
     assert result.returncode == 1
     assert "Choose --ssh-key" in result.stderr
+
+
+def test_auth_type_rejects_a_mismatched_local_credential_artifact() -> None:
+    """Reject an SSHKEY run that nominates a password file as its credential."""
+    status, generator = _run(
+        BASE_ARGUMENTS + ["--auth-type", "SSHKEY", "--password-file", "pw", "--yes"]
+    )
+
+    assert status == 1
+    assert generator.requests == []
+
+
+def test_auth_type_accepts_the_matching_local_credential_artifact() -> None:
+    """Accept a VMPASSWORD run that nominates a password file as its credential."""
+    status, generator = _run(
+        BASE_ARGUMENTS + ["--auth-type", "VMPASSWORD", "--password-file", "pw", "--yes"]
+    )
+
+    assert status == 0
+    credential = generator.requests[0].credential
+    assert credential is not None
+    assert credential.destination_name == "password"
+
+
+def test_auth_type_prompt_skips_the_artifact_question_for_a_password_run() -> None:
+    """Route an interactive VMPASSWORD run straight to the password artifact."""
+    status, generator = _run(
+        BASE_ARGUMENTS + ["--auth-type", "VMPASSWORD", "--dry-run"],
+        responses=["f", "pw"],
+    )
+
+    assert status == 0
+    credential = generator.requests[0].credential
+    assert credential is not None
+    assert credential.destination_name == "password"
+
+
+def test_auth_type_prompt_still_allows_key_vault_selection() -> None:
+    """Allow an SSHKEY run to choose Key Vault instead of a local artifact."""
+    status, generator = _run(
+        BASE_ARGUMENTS + ["--auth-type", "SSHKEY", "--dry-run"],
+        responses=["v", "kv", "secret"],
+    )
+
+    assert status == 0
+    request = generator.requests[0]
+    assert request.credential is None
+    assert (request.key_vault_id, request.secret_id) == ("kv", "secret")
+
+
+def test_auth_type_prompt_rejects_an_unknown_credential_source() -> None:
+    """Reject an unusable credential-source reply when the auth type is known."""
+    status, generator = _run(
+        BASE_ARGUMENTS + ["--auth-type", "SSHKEY", "--dry-run"], responses=["x"]
+    )
+
+    assert status == 1
+    assert generator.requests == []

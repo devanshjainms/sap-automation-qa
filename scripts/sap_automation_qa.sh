@@ -224,10 +224,30 @@ generate_missing_workspace_config() {
         return
     fi
 
-    log "INFO" "Workspace configuration is missing. Starting the guided Azure VM discovery flow."
-    python3 "$cmd_dir/../src/core/generate_workspace_config.py" \
+    if [[ "$CLI_GENERATE_WORKSPACE_CONFIG" != "true" ]]; then
+        log "WARNING" "Workspace configuration '$SYSTEM_CONFIG_NAME' does not exist."
+        local create_reply=""
+        read -r -p "Create it now by discovering facts from your SCS and DB VMs? [y/N]: " create_reply
+        if [[ ! "$create_reply" =~ ^([yY]|[yY][eE][sS])$ ]]; then
+            log "ERROR" "Workspace configuration is required to run the requested test."
+            exit 1
+        fi
+    fi
+
+    log "INFO" "Starting the guided Azure VM discovery flow for '$SYSTEM_CONFIG_NAME'."
+    if ! python3 "$cmd_dir/../src/core/generate_workspace_config.py" \
         --workspace-root "${cmd_dir}/../$WORKSPACES_DIR/SYSTEM" \
-        --workspace-id "$SYSTEM_CONFIG_NAME"
+        --workspace-id "$SYSTEM_CONFIG_NAME" \
+        --auth-type "$AUTHENTICATION_TYPE"; then
+        log "ERROR" "Workspace generation failed; the requested test was not started."
+        exit 1
+    fi
+
+    if [[ ! -f "$system_config_folder/sap-parameters.yaml" ]]; then
+        log "ERROR" "Workspace generation did not produce a configuration; the requested test was not started."
+        exit 1
+    fi
+    log "INFO" "Workspace configuration created. Continuing with the requested test run."
 }
 
 log "INFO" "ANSIBLE_COLLECTIONS_PATH: $ANSIBLE_COLLECTIONS_PATH"
