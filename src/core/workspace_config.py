@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 import shutil
 import subprocess
 import sys
@@ -30,6 +31,7 @@ from src.core.storage.workspace.validation import (
 COLLECTOR_SCHEMA_VERSION = 2
 MAX_RUN_COMMAND_OUTPUT = 4096
 TRANSACTION_MARKER = ".workspace-config-generation.json"
+ACTIVE_MARKER_SECONDS = 1800
 
 
 @dataclass(frozen=True)
@@ -768,12 +770,22 @@ class WorkspaceConfigGenerator:
             marker = workspace / TRANSACTION_MARKER
             try:
                 with marker.open("x", encoding="utf-8") as handle:
-                    json.dump({"files": hashes}, handle, sort_keys=True)
+                    json.dump(
+                        {
+                            "files": hashes,
+                            "pid": os.getpid(),
+                            "started": time.time(),
+                        },
+                        handle,
+                        sort_keys=True,
+                    )
                 for name in files:
                     destination = workspace / name
-                    if destination.exists():
-                        raise WorkspaceConfigError(f"Refusing to replace existing {name}")
-                    os.replace(staged / name, destination)
+                    try:
+                        os.link(staged / name, destination)
+                    except FileExistsError as exc:
+                        raise WorkspaceConfigError(f"Refusing to replace existing {name}") from exc
+                    (staged / name).unlink()
             finally:
                 if marker.exists() and all(
                     (workspace / name).exists() and self._sha256(workspace / name) == digest
@@ -830,6 +842,12 @@ class WorkspaceConfigGenerator:
             isinstance(name, str) and isinstance(digest, str) for name, digest in files.items()
         ):
             raise WorkspaceConfigError("Workspace has an invalid generation transaction marker")
+        started = marker_data.get("started")
+        if isinstance(started, (int, float)) and 0 <= time.time() - started < ACTIVE_MARKER_SECONDS:
+            raise WorkspaceConfigError(
+                "Another workspace generation appears to be in progress; wait for it "
+                "to finish or remove the transaction marker if it is stale"
+            )
         for name, digest in files.items():
             if Path(name).name != name or name not in {
                 "sap-parameters.yaml",

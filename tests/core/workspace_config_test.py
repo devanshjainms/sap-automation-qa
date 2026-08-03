@@ -7,6 +7,7 @@
 
 import json
 import subprocess
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -872,6 +873,37 @@ def test_recover_interrupted_publication_removes_matching_partial_files(
 
     assert not partial.exists()
     assert not (workspace / ".workspace-config-generation.json").exists()
+
+
+def test_recover_interrupted_publication_rejects_an_active_marker(
+    generator: WorkspaceConfigGenerator, tmp_path: Path
+) -> None:
+    """Refuse to roll back a marker that another run appears to still own.
+
+    :param generator: Isolated generator.
+    :param tmp_path: Pytest temporary directory.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    partial = workspace / "hosts.yaml"
+    partial.write_text("partial", encoding="utf-8")
+    (workspace / ".workspace-config-generation.json").write_text(
+        json.dumps(
+            {
+                "files": {
+                    "hosts.yaml": generator._sha256(partial),
+                    "sap-parameters.yaml": "0" * 64,
+                },
+                "started": time.time(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(WorkspaceConfigError, match="already in progress|in progress"):
+        generator._recover_interrupted_publication(workspace)
+
+    assert partial.exists()
 
 
 def test_recover_interrupted_publication_keeps_a_completed_workspace(
