@@ -6,6 +6,7 @@
 # pylint: disable=redefined-outer-name,unused-import
 
 import json
+import re
 import subprocess
 import time
 from dataclasses import replace
@@ -14,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from src.core.exceptions import WorkspaceConfigError, WorkspaceValidationError
+from src.core.workspace_collector import COMPACT_COLLECTOR
 from src.core.workspace_config import (
     CredentialMaterial,
     GenerateRequest,
@@ -164,6 +166,54 @@ def test_render_rejects_mixed_azure_and_non_azure_sbd_devices(
     )
 
     with pytest.raises(WorkspaceConfigError, match="SBD"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
+
+
+def test_render_rejects_sbd_members_that_disagree_on_devices(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse SBD evidence when one member cannot see a peer's backing devices.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain disagreeing SBD devices.
+    """
+    _set_fencing(clusters, "scs", ["external/sbd"], ["/dev/disk/azure/data/by-lun/5"])
+    cluster = clusters["scs"][1]["cluster"]
+    assert isinstance(cluster, dict)
+    cluster["fencing_devices"] = ["/dev/disk/by-id/scsi-360014059"]
+
+    with pytest.raises(WorkspaceConfigError, match="disagree on their backing devices"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
+
+
+def test_render_rejects_an_sbd_member_that_reports_no_devices(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse SBD when one member proves no devices, rather than trusting its peer.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts where one SBD member reports no devices.
+    """
+    _set_fencing(clusters, "scs", ["external/sbd"], ["/dev/disk/azure/data/by-lun/5"])
+    cluster = clusters["scs"][1]["cluster"]
+    assert isinstance(cluster, dict)
+    cluster["fencing_devices"] = []
+
+    with pytest.raises(WorkspaceConfigError, match="disagree on their backing devices"):
         generator._render(
             generate_request.workspace_root / generate_request.workspace_id,
             clusters,
@@ -519,3 +569,39 @@ def test_parse_run_command_accepts_one_compact_fact(generator: WorkspaceConfigGe
     }
 
     assert generator._parse_run_command(json.dumps(envelope), "scs01") == facts
+
+
+def test_collector_reads_sbd_devices_from_the_guest_sbd_configuration() -> None:
+    """Prove the collector sources SBD devices from /etc/sysconfig/sbd, not only the CIB.
+
+    A SUSE ``external/sbd`` STONITH primitive carries no device parameter - the
+    repository's own fixture in ``tests/modules/pcmk_constants.py`` only sets
+    ``pcmk_delay_max`` - so the configured devices must come from the guest.
+    """
+    assert "/etc/sysconfig/sbd" in COMPACT_COLLECTOR
+
+    pattern = re.search(r"re\.findall\(r'(.+?)',sbd_conf\)", COMPACT_COLLECTOR)
+    assert pattern is not None
+    expression = pattern.group(1)
+
+    azure = 'SBD_DEVICE="/dev/disk/azure/scsi1/lun0;/dev/disk/azure/scsi1/lun1"\n'
+    iscsi = "SBD_DEVICE=/dev/disk/by-id/scsi-360014051 /dev/disk/by-id/scsi-360014052\n"
+    ignored = "#SBD_DEVICE=\"/dev/commented/out\"\nSBD_DEVICE=''\n"
+
+    def parse(text: str) -> list[str]:
+        """Apply the collector's own expression to a sample sbd configuration.
+
+        :param text: Sample ``/etc/sysconfig/sbd`` content.
+        :returns: Devices the collector would report for that content.
+        """
+        found: list[str] = []
+        for value in re.findall(expression, text):
+            found += [part for part in re.split(r"[;,\s]+", value) if part]
+        return found
+
+    assert parse(azure) == ["/dev/disk/azure/scsi1/lun0", "/dev/disk/azure/scsi1/lun1"]
+    assert parse(iscsi) == [
+        "/dev/disk/by-id/scsi-360014051",
+        "/dev/disk/by-id/scsi-360014052",
+    ]
+    assert parse(ignored) == []

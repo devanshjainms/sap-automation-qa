@@ -44,6 +44,11 @@ for node in root.findall(".//primitive"):
     for pair in node.findall(".//nvpair"):
         if pair.attrib.get("name") in ("devices","sbd_device"):
             fence_devices+=[part[:255] for part in re.split(r"[;,\s]+",pair.attrib.get("value","")) if part]
+try:
+    handle=open("/etc/sysconfig/sbd");sbd_conf=handle.read();handle.close()
+except Exception:sbd_conf=""
+for value in re.findall(r'(?m)^\s*SBD_DEVICE=["\']?([^"\'\n]*)',sbd_conf):
+    fence_devices+=[part[:255] for part in re.split(r"[;,\s]+",value) if part]
 fencing=sorted(set(fencing));fence_devices=sorted(set(fence_devices))
 instances=[]
 for group in root.findall(".//group"):

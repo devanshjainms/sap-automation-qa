@@ -528,7 +528,7 @@ class WorkspaceConfigGenerator:
         :returns: ``AFA``, ``ASD``, or ``ISCSI``.
         :raises WorkspaceConfigError: When fencing evidence is missing or ambiguous.
         """
-        devices: set[str] = set()
+        devices: list[list[str]] = []
         observed: list[list[str]] = []
         for fact in facts:
             cluster = fact.get("cluster")
@@ -541,9 +541,9 @@ class WorkspaceConfigGenerator:
                     "no fencing configuration cannot be classified from its peers"
                 )
             observed.append(sorted(set(agents)))
-            found = cluster.get("fencing_devices") if isinstance(cluster, dict) else None
-            if isinstance(found, list):
-                devices.update(device for device in found if isinstance(device, str) and device)
+            found = cluster.get("fencing_devices")
+            found = found if isinstance(found, list) else []
+            devices.append(sorted({item for item in found if isinstance(item, str) and item}))
         if any(item != observed[0] for item in observed[1:]):
             raise WorkspaceConfigError(
                 f"{tier} cluster members disagree on the fencing agents in use: "
@@ -553,17 +553,21 @@ class WorkspaceConfigGenerator:
         if agent_set == {"fence_azure_arm"}:
             return "AFA"
         if agent_set and agent_set <= {"external/sbd", "fence_sbd"}:
-            if not devices:
+            if any(item != devices[0] for item in devices[1:]):
                 raise WorkspaceConfigError(
-                    f"{tier} SBD fencing exposes no backing devices to classify"
+                    f"{tier} SBD members disagree on their backing devices: "
+                    f"{[sorted(item) for item in devices]}"
                 )
-            azure_disks = {device for device in devices if device.startswith("/dev/disk/azure/")}
-            if len(azure_disks) == len(devices):
+            member_devices = devices[0]
+            if not member_devices:
+                raise WorkspaceConfigError(f"{tier} SBD exposes no backing devices")
+            azure_disks = {i for i in member_devices if i.startswith("/dev/disk/azure/")}
+            if len(azure_disks) == len(member_devices):
                 return "ASD"
             if not azure_disks:
                 return "ISCSI"
             raise WorkspaceConfigError(
-                f"{tier} SBD mixes Azure Shared Disk and iSCSI devices: {sorted(devices)}"
+                f"{tier} SBD mixes Azure Shared Disk and iSCSI devices: {sorted(member_devices)}"
             )
         raise WorkspaceConfigError(f"{tier} fencing is ambiguous: {sorted(agent_set)}")
 
