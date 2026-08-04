@@ -312,12 +312,20 @@ class TestSshCredentialProvider:
         )
         assert resolved == AuthType.VMPASSWORD
 
-    def test_unknown_declared_auth_type_falls_back_to_detection(self, tmp_path: Path) -> None:
+    def test_invalid_declared_auth_type_is_a_configuration_error(self, tmp_path: Path) -> None:
         ws = tmp_path / "SYSTEM" / "WS1"
         ws.mkdir(parents=True)
         (ws / "password").write_text("pw")
-        resolved = SshCredentialProvider._resolve_auth_type(ws, {"authentication_type": "bogus"})
-        assert resolved == AuthType.VMPASSWORD
+        with pytest.raises(ValueError, match="Unsupported authentication_type"):
+            SshCredentialProvider._resolve_auth_type(ws, {"authentication_type": "bogus"})
+
+    def test_invalid_declared_auth_type_never_falls_back_for_key_vault(
+        self, tmp_path: Path
+    ) -> None:
+        ws = tmp_path / "SYSTEM" / "WS1"
+        ws.mkdir(parents=True)
+        with pytest.raises(ValueError, match="Unsupported authentication_type"):
+            SshCredentialProvider._resolve_auth_type(ws, {"authentication_type": "vmpasword"})
 
     def test_absent_declared_auth_type_falls_back_to_detection(self, tmp_path: Path) -> None:
         ws = tmp_path / "SYSTEM" / "WS1"

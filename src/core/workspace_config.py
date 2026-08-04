@@ -22,6 +22,7 @@ import yaml
 
 from src.core.exceptions import WorkspaceConfigError
 from src.core.workspace_collector import COMPACT_COLLECTOR
+from src.core.workspace_fencing import classify_fencing
 from src.core.storage.workspace.validation import (
     MAX_CONFIG_FILE_SIZE,
     parse_hosts_yaml,
@@ -237,10 +238,7 @@ class WorkspaceConfigGenerator:
             "--output",
             "json",
         )
-        try:
-            inventory = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
-            raise WorkspaceConfigError("Azure VM inventory was not valid JSON") from exc
+        inventory = self._json_document(completed.stdout, "Azure VM inventory")
         if not isinstance(inventory, list):
             raise WorkspaceConfigError("Azure VM inventory was not a list")
         return [item for item in inventory if isinstance(item, dict)]
@@ -258,9 +256,11 @@ class WorkspaceConfigGenerator:
             expected_members = {name.lower() for name in member_names}
             facts = [seed]
             seed_resource_id = self._identity_resource_id(seed)
+            seed_is_member = False
             for member_name in member_names:
                 candidate = self._find_vm_candidate(inventory, member_name)
                 if candidate["id"].lower() == seed_resource_id.lower():
+                    seed_is_member = True
                     continue
                 member_facts = self._collect_vm(resource_group, candidate["name"])
                 if self._identity_resource_id(member_facts).lower() != candidate["id"].lower():
@@ -279,6 +279,11 @@ class WorkspaceConfigGenerator:
                         "cluster view before generating a workspace"
                     )
                 facts.append(member_facts)
+            if not seed_is_member:
+                raise WorkspaceConfigError(
+                    f"The nominated {tier} virtual machine is not a member of the "
+                    f"{tier} cluster it reports; nominate a cluster member"
+                )
             collected[tier] = facts
         return collected
 
@@ -353,10 +358,7 @@ class WorkspaceConfigGenerator:
             "--output",
             "json",
         )
-        try:
-            vm = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
-            raise WorkspaceConfigError(f"Azure VM metadata for {vm_name} was not JSON") from exc
+        vm = self._json_document(completed.stdout, f"Azure VM metadata for {vm_name}")
         if not isinstance(vm, dict):
             raise WorkspaceConfigError(f"Azure VM metadata for {vm_name} was not an object")
         return vm
@@ -516,60 +518,60 @@ class WorkspaceConfigGenerator:
         hosts = self._hosts(scs, db, request.credential is not None)
         return GeneratedWorkspace(workspace, parameters, hosts)
 
-    @staticmethod
-    def _cluster_type(facts: Sequence[Mapping[str, Any]], tier: str) -> str:
-        """Classify a cluster's fencing mechanism from unambiguous Pacemaker evidence.
-
-        ``fence_azure_arm`` is AFA. SBD is classified by its backing block devices:
-        Azure Shared Disk paths are ASD and any other device is an iSCSI target.
+    def _cluster_type(self, facts: Sequence[Mapping[str, Any]], tier: str) -> str:
+        """Classify a cluster's fencing mechanism from proven runtime evidence.
 
         :param facts: Normalized facts from every discovered member of one tier.
         :param tier: Tier name used for diagnostics.
         :returns: ``AFA``, ``ASD``, or ``ISCSI``.
         :raises WorkspaceConfigError: When fencing evidence is missing or ambiguous.
         """
-        devices: list[list[str]] = []
-        observed: list[list[str]] = []
-        for fact in facts:
-            cluster = fact.get("cluster")
-            agents = cluster.get("fencing_agents") if isinstance(cluster, dict) else None
-            if not isinstance(agents, list) or not all(isinstance(agent, str) for agent in agents):
-                raise WorkspaceConfigError(f"{tier} fencing evidence is missing")
-            if not agents:
-                raise WorkspaceConfigError(
-                    f"{tier} cluster member reported no fencing agents; a member that proves "
-                    "no fencing configuration cannot be classified from its peers"
-                )
-            observed.append(sorted(set(agents)))
-            found = cluster.get("fencing_devices")
-            found = found if isinstance(found, list) else []
-            devices.append(sorted({item for item in found if isinstance(item, str) and item}))
-        if any(item != observed[0] for item in observed[1:]):
+        return classify_fencing(facts, tier, self._shared_disk_shares)
+
+    @staticmethod
+    def _json_document(output: str, label: str) -> Any:
+        """Parse an Azure CLI JSON document with a uniform failure message.
+
+        :param output: Raw Azure CLI standard output.
+        :param label: Human-readable description of the queried resource.
+        :returns: The decoded document.
+        :raises WorkspaceConfigError: When the CLI output is not valid JSON.
+        """
+        try:
+            return json.loads(output)
+        except json.JSONDecodeError as exc:
+            raise WorkspaceConfigError(f"{label} query returned invalid JSON: {exc}") from exc
+
+    def _shared_disk_shares(self, resource_id: str, lun: str) -> int:
+        """Resolve the ``maxShares`` of the managed disk attached to a VM LUN.
+
+        :param resource_id: Azure resource ID of the virtual machine.
+        :param lun: Data disk LUN reported by the guest.
+        :returns: The resolved disk's ``maxShares`` value.
+        :raises WorkspaceConfigError: When the disk cannot be resolved exactly.
+        """
+        if not resource_id:
+            raise WorkspaceConfigError("Cannot resolve a shared disk without a VM resource ID")
+        completed = self._az(
+            "vm",
+            "show",
+            "--ids",
+            resource_id,
+            "--query",
+            f"storageProfile.dataDisks[?lun==`{lun}`].managedDisk.id",
+            "--output",
+            "json",
+        )
+        disks = self._json_document(completed.stdout, "Azure data disk")
+        if not isinstance(disks, list) or len(disks) != 1 or not isinstance(disks[0], str):
             raise WorkspaceConfigError(
-                f"{tier} cluster members disagree on the fencing agents in use: "
-                f"{sorted(set().union(*observed))}"
+                f"Expected exactly one managed disk at LUN {lun} on {resource_id}"
             )
-        agent_set = set(observed[0])
-        if agent_set == {"fence_azure_arm"}:
-            return "AFA"
-        if agent_set and agent_set <= {"external/sbd", "fence_sbd"}:
-            if any(item != devices[0] for item in devices[1:]):
-                raise WorkspaceConfigError(
-                    f"{tier} SBD members disagree on their backing devices: "
-                    f"{[sorted(item) for item in devices]}"
-                )
-            member_devices = devices[0]
-            if not member_devices:
-                raise WorkspaceConfigError(f"{tier} SBD exposes no backing devices")
-            azure_disks = {i for i in member_devices if i.startswith("/dev/disk/azure/")}
-            if len(azure_disks) == len(member_devices):
-                return "ASD"
-            if not azure_disks:
-                return "ISCSI"
-            raise WorkspaceConfigError(
-                f"{tier} SBD mixes Azure Shared Disk and iSCSI devices: {sorted(member_devices)}"
-            )
-        raise WorkspaceConfigError(f"{tier} fencing is ambiguous: {sorted(agent_set)}")
+        completed = self._az(
+            "disk", "show", "--ids", disks[0], "--query", "maxShares", "--output", "json"
+        )
+        shares = self._json_document(completed.stdout, "Azure managed disk")
+        return shares if isinstance(shares, int) else 0
 
     @staticmethod
     def _scs_details(facts: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -733,10 +735,7 @@ class WorkspaceConfigGenerator:
             completed = self._az(
                 "storage", "account", "show", "--name", account_name, "--output", "json"
             )
-        try:
-            account = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
-            raise WorkspaceConfigError("Azure Files metadata was not valid JSON") from exc
+        account = self._json_document(completed.stdout, "Azure Files metadata")
         if not isinstance(account, dict):
             raise WorkspaceConfigError("Azure Files metadata was not an object")
         return account

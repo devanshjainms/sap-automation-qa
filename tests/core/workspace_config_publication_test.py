@@ -345,7 +345,7 @@ def test_list_vms_rejects_inventory_that_is_not_json(tmp_path: Path) -> None:
         """
         return subprocess.CompletedProcess(command, 0, stdout="not-json", stderr="")
 
-    with pytest.raises(WorkspaceConfigError, match="not valid JSON"):
+    with pytest.raises(WorkspaceConfigError, match="returned invalid JSON"):
         WorkspaceConfigGenerator(tmp_path, run=run)._list_vms("rg")
 
 
@@ -392,6 +392,31 @@ def test_collect_cluster_facts_rejects_a_split_membership_view(
     monkeypatch.setattr(WorkspaceConfigGenerator, "_collect_vm", lambda self, group, name: peer)
 
     with pytest.raises(WorkspaceConfigError, match="different scs membership"):
+        generator._collect_cluster_facts("rg", inventory(["scs01", "scs02"]), {"scs": seed})
+
+
+def test_collect_cluster_facts_rejects_a_seed_outside_its_reported_cluster(
+    generator: WorkspaceConfigGenerator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reject a nominated VM whose identity is absent from the membership it reports.
+
+    A view naming only peers still satisfies the two-node check once the seed is
+    prepended, which would publish a configuration for a non-member VM.
+
+    :param generator: Isolated generator.
+    :param monkeypatch: Pytest attribute patcher.
+    """
+    seed = {
+        "identity": {"resource_id": RESOURCE_ID.format("scs01"), "hostname": "scs01"},
+        "cluster": {"members": ["scs02"]},
+    }
+    peer = {
+        "identity": {"resource_id": RESOURCE_ID.format("scs02"), "hostname": "scs02"},
+        "cluster": {"members": ["scs02"]},
+    }
+    monkeypatch.setattr(WorkspaceConfigGenerator, "_collect_vm", lambda self, group, name: peer)
+
+    with pytest.raises(WorkspaceConfigError, match="is not a member of the scs cluster"):
         generator._collect_cluster_facts("rg", inventory(["scs01", "scs02"]), {"scs": seed})
 
 

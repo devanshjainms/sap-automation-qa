@@ -91,21 +91,26 @@ class SshCredentialProvider:
 
         A Key Vault secret is opaque, so local artifact detection cannot tell an
         SSH key from a password. ``authentication_type`` in ``sap-parameters.yaml``
-        records what the workspace was generated for and takes precedence.
+        records what the workspace was generated for and takes precedence. A
+        present but invalid value is a configuration error rather than a reason
+        to fall back: artifact detection resolves to ``SSHKEY`` whenever no local
+        password file exists, which is exactly the Key Vault case, so falling
+        back would silently provision the wrong credential kind.
 
         :param ws_dir: Workspace directory.
         :param extra_vars: Variables from sap-parameters.yaml.
         :returns: The authentication type to provision.
+        :raises ValueError: If ``authentication_type`` is present but not recognized.
         """
         declared = str(extra_vars.get("authentication_type", "")).strip().upper()
         if declared:
             try:
                 return AuthType(declared)
-            except ValueError:
-                logger.warning(
-                    "Ignoring unknown authentication_type %s; falling back to detection",
-                    declared,
-                )
+            except ValueError as exc:
+                raise ValueError(
+                    f"Unsupported authentication_type '{declared}' in sap-parameters.yaml; "
+                    f"expected one of {sorted(item.value for item in AuthType)}"
+                ) from exc
         return cls._detect_auth_type(ws_dir)
 
     @staticmethod

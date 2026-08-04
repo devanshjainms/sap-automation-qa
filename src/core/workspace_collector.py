@@ -49,7 +49,17 @@ try:
 except Exception:sbd_conf=""
 for value in re.findall(r'(?m)^\s*SBD_DEVICE=["\']?([^"\'\n]*)',sbd_conf):
     fence_devices+=[part[:255] for part in re.split(r"[;,\s]+",value) if part]
-fencing=sorted(set(fencing));fence_devices=sorted(set(fence_devices))
+fencing=sorted(set(fencing))
+azure_luns={};iscsi_nodes=set()
+for link in glob.glob("/dev/disk/azure/*/lun*")+glob.glob("/dev/disk/azure/lun*"):
+    match=re.search(r"lun(\d+)$",link)
+    if match:azure_luns[os.path.realpath(link)]=match.group(1)
+for link in glob.glob("/dev/disk/by-path/*iscsi*"):iscsi_nodes.add(os.path.realpath(link))
+devices=[]
+for path in sorted(set(fence_devices)):
+    node=os.path.realpath(path)
+    devices.append({"path":path,"lun":azure_luns.get(node,""),"iscsi":node in iscsi_nodes})
+fence_devices=devices
 instances=[]
 for group in root.findall(".//group"):
     vip=""

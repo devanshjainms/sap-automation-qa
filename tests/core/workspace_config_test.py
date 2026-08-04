@@ -56,40 +56,54 @@ def test_render_accepts_complete_afa_topology(
     assert set(generated.hosts) == {"SH7_DB", "SH7_SCS", "SH7_ERS"}
 
 
+def _device(path: str, lun: str = "", iscsi: bool = False) -> dict[str, object]:
+    """Build one collector SBD device record.
+
+    :param path: Configured SBD device path.
+    :param lun: Azure data disk LUN the path resolves to, when it resolves to one.
+    :param iscsi: Whether udev proves the device uses an iSCSI transport.
+    :returns: A device record in the collector's published form.
+    """
+    return {"path": path, "lun": lun, "iscsi": iscsi}
+
+
 def _set_fencing(
     clusters: dict[str, list[dict[str, object]]],
     tier: str,
     agents: list[str],
-    devices: list[str],
+    devices: list[dict[str, object]],
 ) -> None:
     """Apply identical fencing evidence to every member of one cluster tier.
 
     :param clusters: Normalized cluster facts.
     :param tier: Cluster tier key to modify.
     :param agents: Normalized fencing resource-agent types.
-    :param devices: Backing block devices for SBD fencing agents.
+    :param devices: Backing device records for SBD fencing agents.
     """
     for fact in clusters[tier]:
         cluster = fact["cluster"]
         assert isinstance(cluster, dict)
         cluster["fencing_agents"] = agents
-        cluster["fencing_devices"] = devices
+        cluster["fencing_devices"] = [dict(device) for device in devices]
 
 
 def test_render_classifies_azure_shared_disk_sbd_as_asd(
     generator: WorkspaceConfigGenerator,
     generate_request: GenerateRequest,
     clusters: dict[str, list[dict[str, object]]],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Classify SBD backed by Azure shared disks as the ASD cluster type.
+    """Classify SBD backed by proven Azure shared disks as the ASD cluster type.
 
     :param generator: Isolated generator.
     :param generate_request: Valid generation request.
     :param clusters: Cluster facts modified to contain Azure shared-disk SBD.
+    :param monkeypatch: Stubs the resolved managed disk's maxShares value.
     """
-    devices = ["/dev/disk/azure/data/by-lun/5"]
+    devices = [_device("/dev/disk/azure/scsi1/lun5", lun="5")]
     _set_fencing(clusters, "scs", ["fence_sbd"], devices)
     _set_fencing(clusters, "db", ["fence_sbd"], devices)
+    monkeypatch.setattr(generator, "_shared_disk_shares", lambda _resource, _lun: 2)
 
     generated = generator._render(
         generate_request.workspace_root / generate_request.workspace_id,
@@ -112,7 +126,10 @@ def test_render_classifies_non_azure_disk_sbd_as_iscsi(
     :param generate_request: Valid generation request.
     :param clusters: Cluster facts modified to contain iSCSI-backed SBD.
     """
-    devices = ["/dev/disk/by-id/scsi-360014059", "/dev/disk/by-id/scsi-360014060"]
+    devices = [
+        _device("/dev/disk/by-id/scsi-360014059", iscsi=True),
+        _device("/dev/disk/by-id/scsi-360014060", iscsi=True),
+    ]
     _set_fencing(clusters, "scs", ["external/sbd"], devices)
     _set_fencing(clusters, "db", ["external/sbd"], devices)
 
@@ -162,7 +179,10 @@ def test_render_rejects_mixed_azure_and_non_azure_sbd_devices(
         clusters,
         "scs",
         ["fence_sbd"],
-        ["/dev/disk/azure/data/by-lun/5", "/dev/disk/by-id/scsi-360014059"],
+        [
+            _device("/dev/disk/azure/scsi1/lun5", lun="5"),
+            _device("/dev/disk/by-id/scsi-360014059", iscsi=True),
+        ],
     )
 
     with pytest.raises(WorkspaceConfigError, match="SBD"):
@@ -184,10 +204,10 @@ def test_render_rejects_sbd_members_that_disagree_on_devices(
     :param generate_request: Valid generation request.
     :param clusters: Cluster facts modified to contain disagreeing SBD devices.
     """
-    _set_fencing(clusters, "scs", ["external/sbd"], ["/dev/disk/azure/data/by-lun/5"])
+    _set_fencing(clusters, "scs", ["external/sbd"], [_device("/dev/disk/azure/scsi1/lun5", "5")])
     cluster = clusters["scs"][1]["cluster"]
     assert isinstance(cluster, dict)
-    cluster["fencing_devices"] = ["/dev/disk/by-id/scsi-360014059"]
+    cluster["fencing_devices"] = [_device("/dev/disk/by-id/scsi-360014059", iscsi=True)]
 
     with pytest.raises(WorkspaceConfigError, match="disagree on their backing devices"):
         generator._render(
@@ -208,7 +228,7 @@ def test_render_rejects_an_sbd_member_that_reports_no_devices(
     :param generate_request: Valid generation request.
     :param clusters: Cluster facts where one SBD member reports no devices.
     """
-    _set_fencing(clusters, "scs", ["external/sbd"], ["/dev/disk/azure/data/by-lun/5"])
+    _set_fencing(clusters, "scs", ["external/sbd"], [_device("/dev/disk/azure/scsi1/lun5", "5")])
     cluster = clusters["scs"][1]["cluster"]
     assert isinstance(cluster, dict)
     cluster["fencing_devices"] = []
@@ -605,3 +625,73 @@ def test_collector_reads_sbd_devices_from_the_guest_sbd_configuration() -> None:
         "/dev/disk/by-id/scsi-360014052",
     ]
     assert parse(ignored) == []
+
+
+def test_render_rejects_an_azure_disk_that_is_not_shared(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refuse an ordinary Azure data disk that merely looks like a shared disk.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain an unshared Azure disk.
+    :param monkeypatch: Stubs the resolved managed disk's maxShares value.
+    """
+    _set_fencing(clusters, "scs", ["fence_sbd"], [_device("/dev/disk/azure/scsi1/lun5", "5")])
+    monkeypatch.setattr(generator, "_shared_disk_shares", lambda _resource, _lun: 1)
+
+    with pytest.raises(WorkspaceConfigError, match="not a shared disk"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
+
+
+def test_render_rejects_a_device_that_proves_no_transport(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse a device path that proves neither an iSCSI transport nor an Azure disk.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain an unprovable device.
+    """
+    _set_fencing(clusters, "scs", ["external/sbd"], [_device("/dev/disk/by-id/scsi-360014059")])
+
+    with pytest.raises(WorkspaceConfigError, match="prove neither an iSCSI transport"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
+
+
+def test_render_rejects_legacy_string_device_evidence(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse device evidence produced by a collector predating transport proof.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain bare device strings.
+    """
+    for fact in clusters["scs"]:
+        cluster = fact["cluster"]
+        assert isinstance(cluster, dict)
+        cluster["fencing_agents"] = ["external/sbd"]
+        cluster["fencing_devices"] = ["/dev/disk/azure/scsi1/lun5"]
+
+    with pytest.raises(WorkspaceConfigError, match="not in the expected form"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
