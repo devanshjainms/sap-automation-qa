@@ -304,6 +304,26 @@ class TestSshCredentialProvider:
         ws = tmp_path / "SYSTEM" / "GONE"
         assert SshCredentialProvider._detect_auth_type(ws) == AuthType.SSHKEY
 
+    def test_declared_auth_type_overrides_local_detection(self, tmp_path: Path) -> None:
+        ws = tmp_path / "SYSTEM" / "WS1"
+        ws.mkdir(parents=True)
+        resolved = SshCredentialProvider._resolve_auth_type(
+            ws, {"authentication_type": "VMPASSWORD"}
+        )
+        assert resolved == AuthType.VMPASSWORD
+
+    def test_unknown_declared_auth_type_falls_back_to_detection(self, tmp_path: Path) -> None:
+        ws = tmp_path / "SYSTEM" / "WS1"
+        ws.mkdir(parents=True)
+        (ws / "password").write_text("pw")
+        resolved = SshCredentialProvider._resolve_auth_type(ws, {"authentication_type": "bogus"})
+        assert resolved == AuthType.VMPASSWORD
+
+    def test_absent_declared_auth_type_falls_back_to_detection(self, tmp_path: Path) -> None:
+        ws = tmp_path / "SYSTEM" / "WS1"
+        ws.mkdir(parents=True)
+        assert SshCredentialProvider._resolve_auth_type(ws, {}) == AuthType.SSHKEY
+
     def test_write_secure_temp(self) -> None:
         path = SshCredentialProvider._write_secure_temp("data", ".ppk")
         try:

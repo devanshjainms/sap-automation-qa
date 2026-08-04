@@ -55,7 +55,7 @@ class SshCredentialProvider:
         :raises CredentialProvisionError: On retrieval failure.
         """
         ws_dir = self._workspaces_base / workspace_id
-        auth = self._detect_auth_type(ws_dir)
+        auth = self._resolve_auth_type(ws_dir, extra_vars)
 
         logger.info(
             "Auto-detected auth type %s for workspace %s",
@@ -84,6 +84,29 @@ class SshCredentialProvider:
             ws_dir=ws_dir,
             auth_type=auth,
         )
+
+    @classmethod
+    def _resolve_auth_type(cls, ws_dir: Path, extra_vars: dict[str, Any]) -> AuthType:
+        """Resolve the authentication type, preferring the declared workspace value.
+
+        A Key Vault secret is opaque, so local artifact detection cannot tell an
+        SSH key from a password. ``authentication_type`` in ``sap-parameters.yaml``
+        records what the workspace was generated for and takes precedence.
+
+        :param ws_dir: Workspace directory.
+        :param extra_vars: Variables from sap-parameters.yaml.
+        :returns: The authentication type to provision.
+        """
+        declared = str(extra_vars.get("authentication_type", "")).strip().upper()
+        if declared:
+            try:
+                return AuthType(declared)
+            except ValueError:
+                logger.warning(
+                    "Ignoring unknown authentication_type %s; falling back to detection",
+                    declared,
+                )
+        return cls._detect_auth_type(ws_dir)
 
     @staticmethod
     def _detect_auth_type(ws_dir: Path) -> AuthType:

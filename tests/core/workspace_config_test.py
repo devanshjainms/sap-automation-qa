@@ -696,6 +696,77 @@ def test_generate_rejects_an_already_configured_workspace(
         azure_generator.generate(generate_request)
 
 
+def test_request_derives_the_authentication_type_from_the_credential(
+    generate_request: GenerateRequest,
+) -> None:
+    """Record the authentication type implied by the chosen local artifact.
+
+    :param generate_request: Valid generation request.
+    """
+    key_request = replace(
+        generate_request,
+        credential=CredentialMaterial(Path("id_rsa"), "ssh_key"),
+        authentication_type="",
+    )
+    password_request = replace(
+        generate_request,
+        credential=CredentialMaterial(Path("pw"), "password"),
+        authentication_type="",
+    )
+
+    assert key_request.authentication_type == "SSHKEY"
+    assert password_request.authentication_type == "VMPASSWORD"
+
+
+def test_request_rejects_an_authentication_type_conflicting_with_the_artifact(
+    generate_request: GenerateRequest,
+) -> None:
+    """Refuse a declared type that disagrees with the credential artifact.
+
+    :param generate_request: Valid generation request.
+    """
+    with pytest.raises(WorkspaceConfigError, match="conflicts with the"):
+        replace(
+            generate_request,
+            credential=CredentialMaterial(Path("id_rsa"), "ssh_key"),
+            authentication_type="VMPASSWORD",
+        )
+
+
+def test_request_requires_an_authentication_type_for_key_vault(
+    generate_request: GenerateRequest,
+) -> None:
+    """Refuse a Key Vault request whose credential kind cannot be inferred.
+
+    :param generate_request: Valid generation request.
+    """
+    with pytest.raises(WorkspaceConfigError, match="authentication_type is required"):
+        replace(
+            generate_request,
+            credential=None,
+            key_vault_id="kv",
+            secret_id="secret",
+            authentication_type="",
+        )
+
+
+def test_request_rejects_an_unknown_authentication_type(
+    generate_request: GenerateRequest,
+) -> None:
+    """Refuse an authentication type the runtime cannot serve.
+
+    :param generate_request: Valid generation request.
+    """
+    with pytest.raises(WorkspaceConfigError, match="authentication_type must be one of"):
+        replace(
+            generate_request,
+            credential=None,
+            key_vault_id="kv",
+            secret_id="secret",
+            authentication_type="KERBEROS",
+        )
+
+
 def test_request_rejects_a_workspace_identifier_that_escapes_the_root(
     generate_request: GenerateRequest,
 ) -> None:

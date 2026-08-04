@@ -108,16 +108,28 @@ def _run(
 def test_key_vault_arguments_produce_a_request_without_local_credentials() -> None:
     """Accept an explicit Key Vault pair as the noninteractive credential source."""
     status, generator = _run(
-        BASE_ARGUMENTS + ["--key-vault-id", "kv", "--secret-id", "secret", "--yes"]
+        BASE_ARGUMENTS
+        + ["--key-vault-id", "kv", "--secret-id", "secret", "--auth-type", "VMPASSWORD", "--yes"]
     )
 
     assert status == 0
     request = generator.requests[0]
     assert request.credential is None
     assert (request.key_vault_id, request.secret_id) == ("kv", "secret")
+    assert request.authentication_type == "VMPASSWORD"
     assert request.dry_run is True
     assert len(generator.requests) == 1
     assert generator.published[0][1].dry_run is False
+
+
+def test_key_vault_without_an_auth_type_is_rejected_noninteractively() -> None:
+    """Refuse a Key Vault workspace whose credential kind cannot be inferred."""
+    status, generator = _run(
+        BASE_ARGUMENTS + ["--key-vault-id", "kv", "--secret-id", "secret", "--yes"]
+    )
+
+    assert status == 1
+    assert generator.requests == []
 
 
 def test_dry_run_previews_without_requesting_confirmation() -> None:
@@ -151,7 +163,7 @@ def test_interactive_prompts_collect_every_missing_value() -> None:
     """Prompt for the resource group, both seed VMs, and the credential source."""
     status, generator = _run(
         ["--workspace-id", "DEV-EUS2-SAP01-SH7", "--dry-run"],
-        responses=["rg", "scs01", "db01", "v", "kv", "secret"],
+        responses=["rg", "scs01", "db01", "v", "kv", "secret", "p"],
     )
 
     assert status == 0
@@ -162,6 +174,7 @@ def test_interactive_prompts_collect_every_missing_value() -> None:
         "db01",
     )
     assert (request.key_vault_id, request.secret_id) == ("kv", "secret")
+    assert request.authentication_type == "VMPASSWORD"
 
 
 @pytest.mark.parametrize(

@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 import yaml
 
 from src.core.exceptions import WorkspaceConfigError
+from src.core.workspace_collector import COMPACT_COLLECTOR
 from src.core.storage.workspace.validation import (
     MAX_CONFIG_FILE_SIZE,
     parse_hosts_yaml,
@@ -32,6 +33,7 @@ COLLECTOR_SCHEMA_VERSION = 2
 MAX_RUN_COMMAND_OUTPUT = 4096
 TRANSACTION_MARKER = ".workspace-config-generation.json"
 ACTIVE_MARKER_SECONDS = 1800
+AUTHENTICATION_TYPES = {"ssh_key": "SSHKEY", "password": "VMPASSWORD"}
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,7 @@ class GenerateRequest:
     credential: CredentialMaterial | None = None
     key_vault_id: str = ""
     secret_id: str = ""
+    authentication_type: str = ""
     dry_run: bool = False
 
     def __post_init__(self) -> None:
@@ -74,6 +77,32 @@ class GenerateRequest:
             )
         if self.credential is None and not self.key_vault_id:
             raise WorkspaceConfigError("An explicit SSH credential source is required")
+        self._resolve_authentication_type()
+
+    def _resolve_authentication_type(self) -> None:
+        """Derive or validate the authentication type the workspace must serve.
+
+        :raises WorkspaceConfigError: If the declared type is unknown, conflicts
+            with the chosen credential artifact, or is missing for Key Vault.
+        """
+        if self.authentication_type and self.authentication_type not in set(
+            AUTHENTICATION_TYPES.values()
+        ):
+            raise WorkspaceConfigError(
+                f"authentication_type must be one of {sorted(set(AUTHENTICATION_TYPES.values()))}"
+            )
+        if self.credential is not None:
+            derived = AUTHENTICATION_TYPES[self.credential.destination_name]
+            if self.authentication_type and self.authentication_type != derived:
+                raise WorkspaceConfigError(
+                    f"authentication_type {self.authentication_type} conflicts with the "
+                    f"{self.credential.destination_name} credential artifact"
+                )
+            object.__setattr__(self, "authentication_type", derived)
+        elif not self.authentication_type:
+            raise WorkspaceConfigError(
+                "authentication_type is required when authenticating through Key Vault"
+            )
 
 
 @dataclass(frozen=True)
@@ -477,6 +506,7 @@ class WorkspaceConfigGenerator:
             "database_cluster_type": database_cluster_type,
             "database_scale_out": db["scale_out"],
             "NFS_provider": nfs_provider,
+            "authentication_type": request.authentication_type,
         }
         if request.key_vault_id:
             parameters["key_vault_id"] = request.key_vault_id
@@ -923,71 +953,3 @@ def _unique_instances(instances: Sequence[dict[str, Any]], role: str) -> list[di
     ):
         raise WorkspaceConfigError(f"Cluster members disagree on semantic {role} resource facts")
     return [matching[0]]
-
-
-COMPACT_COLLECTOR = r"""python3 - <<'PY'
-import glob,json,os,re,socket,subprocess,urllib.request,xml.etree.ElementTree as ET
-def run(*args):
-    try:return subprocess.check_output(args,stderr=subprocess.DEVNULL,universal_newlines=True,timeout=15)
-    except (OSError,subprocess.CalledProcessError,subprocess.TimeoutExpired):return ""
-def imds(path):
-    req=urllib.request.Request("http://169.254.169.254/metadata/instance/"+path+"?api-version=2021-02-01",headers={"Metadata":"true"})
-    return json.loads(urllib.request.urlopen(req,timeout=3).read().decode())
-def profile_value(sid,key):
-    for path in glob.glob("/usr/sap/"+sid+"/SYS/profile/*"):
-        try:
-            with open(path) as handle:
-                for line in handle:
-                    match=re.match(r"\s*"+re.escape(key)+r"\s*=\s*(\S+)",line)
-                    if match:return match.group(1)
-        except OSError:pass
-    return ""
-compute=imds("compute"); network=imds("network/interface")
-cib=run("cibadmin","--query") or run("pcs","status","xml")
-root=ET.fromstring(cib) if cib else ET.Element("cib")
-members=run("crm_node","-l").splitlines()
-member_names=[]
-for line in members:
-    parts=line.split()
-    if len(parts)>1 and parts[0].isdigit():member_names.append(parts[1][:255])
-member_names=sorted(set(member_names))[:16]
-fencing=[];fence_devices=[]
-for node in root.findall(".//primitive"):
-    if node.attrib.get("class")!="stonith":continue
-    kind=node.attrib.get("type","")[:64]
-    fencing.append(kind)
-    for pair in node.findall(".//nvpair"):
-        if pair.attrib.get("name") in ("devices","sbd_device"):
-            fence_devices+=[part[:255] for part in re.split(r"[;,\s]+",pair.attrib.get("value","")) if part]
-fencing=sorted(set(fencing))[:4];fence_devices=sorted(set(fence_devices))[:4]
-instances=[]
-for group in root.findall(".//group"):
-    vip=""
-    for primitive in group.findall(".//primitive[@type='IPaddr2']"):
-        value=primitive.find("./instance_attributes/nvpair[@name='ip']")
-        if value is not None:vip=value.attrib.get("value","")
-    for primitive in group.findall(".//primitive[@type='SAPInstance']"):
-        attrs={node.attrib.get("name"):node.attrib.get("value") for node in primitive.findall(".//nvpair")}
-        match=re.match(r"([A-Z0-9]{3})_(ASCS|ERS)(\d\d)_(\S+)",attrs.get("InstanceName",""))
-        if match:instances.append({"sid":match.group(1),"role":match.group(2),"instance_number":match.group(3),"virtual_host":match.group(4)[:255],"vip":vip[:255]})
-hana={}
-paths=glob.glob("/usr/sap/*/HDB[0-9][0-9]")
-if len(paths)==1:
-    parts=paths[0].split("/"); sid=parts[-2]; number=parts[-1][-2:]
-    state=run("su","-",sid.lower()+"adm","-c","hdbnsutil -sr_state")
-    if "online: true" in state.lower():
-        hana={"sid":sid,"instance_number":number,"virtual_host":profile_value(sid,"SAPGLOBALHOST"),"scale_out":len(member_names)>2}
-sources=[];sapmnt=""
-try:
-    mounts=json.loads(run("findmnt","--json","--types","nfs,nfs4")).get("filesystems",[])
-    for item in mounts:
-        source=item.get("source","")[:512];target=item.get("target","")
-        if not source:continue
-        if re.match(r"^/(sapmnt|hana/shared)(/|$)",target or ""):sapmnt=sapmnt or source
-    sources=sorted({item.get("source","")[:512] for item in mounts if item.get("source")})[:4]
-except (ValueError,TypeError):pass
-ips=[item["ipv4"]["ipAddress"][0]["privateIpAddress"] for item in network if item.get("ipv4",{}).get("ipAddress")]
-facts={"schema_version":2,"identity":{"resource_id":compute["resourceId"],"hostname":socket.gethostname()[:255],"private_ip":ips[0] if ips else ""},"cluster":{"members":member_names,"fencing_agents":fencing,"fencing_devices":fence_devices,"sap_instances":instances[:4]},"hana":hana,"storage":{"nfs_sources":sources,"sapmnt_source":sapmnt}}
-encoded=json.dumps(facts,separators=(",",":"))
-print(encoded if len(encoded.encode())<=4096 else json.dumps({"schema_version":2,"error":"collector output exceeds limit"}))
-PY"""

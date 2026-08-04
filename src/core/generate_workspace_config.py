@@ -135,6 +135,32 @@ def _prompt_any_auth(
     raise WorkspaceConfigError("Credential source must be key, password file, or key vault")
 
 
+def _prompt_authentication_type(input_func: Callable[[str], str], allow_prompt: bool) -> str:
+    """Ask which authentication type a Key Vault workspace must serve.
+
+    The secret alone does not reveal whether it holds an SSH key or a password,
+    so the runtime cannot infer this from the published workspace.
+
+    :param input_func: Input function used for interactive prompts.
+    :param allow_prompt: Whether this invocation may request missing values.
+    :returns: The selected authentication type.
+    :raises WorkspaceConfigError: If no usable selection is available.
+    """
+    if not allow_prompt:
+        raise WorkspaceConfigError("--auth-type is required with --key-vault-id and --secret-id")
+    try:
+        choice = input_func("Key Vault secret holds an SSH [k]ey or a [p]assword: ").strip().lower()
+    except EOFError as exc:
+        raise WorkspaceConfigError(
+            "--auth-type is required with --key-vault-id and --secret-id"
+        ) from exc
+    if choice == "k":
+        return "SSHKEY"
+    if choice == "p":
+        return "VMPASSWORD"
+    raise WorkspaceConfigError("Key Vault secret type must be key or password")
+
+
 def _credential(
     args: argparse.Namespace, input_func: Callable[[str], str], allow_prompt: bool
 ) -> tuple[CredentialMaterial | None, str, str]:
@@ -225,6 +251,9 @@ def _build_request(
     scs_vm = _prompt(args.scs_vm, "SCS seed VM name", input_func, allow_prompt)
     db_vm = _prompt(args.db_vm, "Database seed VM name", input_func, allow_prompt)
     credential, key_vault_id, secret_id = _credential(args, input_func, allow_prompt)
+    authentication_type = args.auth_type or ""
+    if credential is None and not authentication_type:
+        authentication_type = _prompt_authentication_type(input_func, allow_prompt)
     return GenerateRequest(
         workspace_root=args.workspace_root,
         workspace_id=args.workspace_id,
@@ -234,6 +263,7 @@ def _build_request(
         credential=credential,
         key_vault_id=key_vault_id,
         secret_id=secret_id,
+        authentication_type=authentication_type,
         dry_run=args.dry_run,
     )
 
