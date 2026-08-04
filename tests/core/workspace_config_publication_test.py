@@ -30,6 +30,8 @@ from tests.core.workspace_config_fixtures import (
     run_command_envelope,
 )
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
 
 @pytest.fixture
 def discovered_facts(clusters: dict[str, list[dict[str, object]]]) -> dict[str, dict[str, object]]:
@@ -94,7 +96,7 @@ def azure_generator(
             json.dumps({"primaryEndpoints": {"file": "https://sapfiles.file.core.windows.net/"}})
         )
 
-    return WorkspaceConfigGenerator(tmp_path, run=run)
+    return WorkspaceConfigGenerator(REPOSITORY_ROOT, run=run)
 
 
 def test_generate_publishes_a_discovered_workspace(
@@ -142,7 +144,7 @@ def test_publish_rejects_a_mismatched_workspace(
     previewed = azure_generator.generate(replace(generate_request, dry_run=True))
     other = replace(generate_request, workspace_id="DEV-EUS2-SAP01-XX9")
 
-    with pytest.raises(WorkspaceConfigError, match="does not match the requested workspace"):
+    with pytest.raises(WorkspaceConfigError, match="differs from the one that produced"):
         azure_generator.publish(previewed, other)
 
 
@@ -291,7 +293,7 @@ def test_generate_rejects_a_guest_identity_that_differs_from_azure(
         return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr="")
 
     with pytest.raises(WorkspaceConfigError, match="does not match Azure VM identity"):
-        WorkspaceConfigGenerator(tmp_path, run=run).generate(generate_request)
+        WorkspaceConfigGenerator(REPOSITORY_ROOT, run=run).generate(generate_request)
 
 
 def test_az_reports_a_failed_azure_cli_invocation(tmp_path: Path) -> None:
@@ -310,7 +312,7 @@ def test_az_reports_a_failed_azure_cli_invocation(tmp_path: Path) -> None:
         return subprocess.CompletedProcess(command, 1, stdout="", stderr="not logged in")
 
     with pytest.raises(WorkspaceConfigError, match="not logged in"):
-        WorkspaceConfigGenerator(tmp_path, run=run)._list_vms("rg")
+        WorkspaceConfigGenerator(REPOSITORY_ROOT, run=run)._list_vms("rg")
 
 
 def test_az_reports_an_unavailable_azure_cli(tmp_path: Path) -> None:
@@ -327,7 +329,7 @@ def test_az_reports_an_unavailable_azure_cli(tmp_path: Path) -> None:
         raise OSError("az not found")
 
     with pytest.raises(WorkspaceConfigError, match="Azure CLI invocation failed"):
-        WorkspaceConfigGenerator(tmp_path, run=run)._list_vms("rg")
+        WorkspaceConfigGenerator(REPOSITORY_ROOT, run=run)._list_vms("rg")
 
 
 def test_list_vms_rejects_inventory_that_is_not_json(tmp_path: Path) -> None:
@@ -346,7 +348,7 @@ def test_list_vms_rejects_inventory_that_is_not_json(tmp_path: Path) -> None:
         return subprocess.CompletedProcess(command, 0, stdout="not-json", stderr="")
 
     with pytest.raises(WorkspaceConfigError, match="returned invalid JSON"):
-        WorkspaceConfigGenerator(tmp_path, run=run)._list_vms("rg")
+        WorkspaceConfigGenerator(REPOSITORY_ROOT, run=run)._list_vms("rg")
 
 
 def test_find_vm_candidate_rejects_an_ambiguous_computer_name(
@@ -621,7 +623,7 @@ def test_validate_staged_reports_validator_output(
             )
         return subprocess.CompletedProcess(command, 1, stdout="missing required key", stderr="")
 
-    failing = WorkspaceConfigGenerator(tmp_path, run=run)
+    failing = WorkspaceConfigGenerator(REPOSITORY_ROOT, run=run)
     workspace = generate_request.workspace_root / generate_request.workspace_id
     generated = failing._render(workspace, clusters, generate_request)
     workspace.parent.mkdir(parents=True, exist_ok=True)
@@ -667,7 +669,7 @@ def test_nfs_provider_accepts_a_sovereign_cloud_files_endpoint(
             stderr="",
         )
 
-    generator = WorkspaceConfigGenerator(tmp_path, run=run)
+    generator = WorkspaceConfigGenerator(REPOSITORY_ROOT, run=run)
 
     assert generator._nfs_provider(clusters["scs"] + clusters["db"], "rg") == "AFS"
 
@@ -697,7 +699,7 @@ def test_nfs_provider_rejects_an_account_that_does_not_match_the_mount(
             stderr="",
         )
 
-    generator = WorkspaceConfigGenerator(tmp_path, run=run)
+    generator = WorkspaceConfigGenerator(REPOSITORY_ROOT, run=run)
 
     with pytest.raises(WorkspaceConfigError, match="expected Azure Files account"):
         generator._nfs_provider(clusters["scs"], "rg")
@@ -738,3 +740,61 @@ def test_render_uses_the_virtual_host_name_rather_than_the_cluster_address(
     ers = generated.hosts["SH7_ERS"]["hosts"]
     assert [host["virtual_host"] for host in scs.values()] == ["sh7ascs"]
     assert [host["virtual_host"] for host in ers.values()] == ["sh7ers"]
+
+
+def test_publish_rejects_a_request_that_differs_from_the_previewed_one(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+    tmp_path: Path,
+) -> None:
+    """Refuse to publish a preview under a different credential source.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Complete normalized cluster facts.
+    :param tmp_path: Temporary directory holding the substituted credential.
+    """
+    generated = generator._render(
+        generate_request.workspace_root / generate_request.workspace_id,
+        clusters,
+        generate_request,
+    )
+    substitute = tmp_path / "password"
+    substitute.write_text("secret", encoding="utf-8")
+    swapped = replace(
+        generate_request,
+        credential=CredentialMaterial(source=substitute, destination_name="password"),
+        key_vault_id="",
+        secret_id="",
+        authentication_type="",
+    )
+
+    with pytest.raises(WorkspaceConfigError, match="differs from the one that produced"):
+        generator.publish(generated, swapped)
+
+
+def test_validate_staged_requires_the_packaged_validator(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+    tmp_path: Path,
+) -> None:
+    """Refuse to publish when the workspace validator is absent from the image.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Complete normalized cluster facts.
+    :param tmp_path: Temporary directory standing in for a validator-free root.
+    """
+    generated = generator._render(
+        generate_request.workspace_root / generate_request.workspace_id,
+        clusters,
+        generate_request,
+    )
+    generator._repository_root = tmp_path
+    workspace = generate_request.workspace_root / generate_request.workspace_id
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(WorkspaceConfigError, match="workspace validator is missing"):
+        generator._validate_staged(workspace, generated, generate_request)

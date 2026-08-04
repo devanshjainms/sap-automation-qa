@@ -47,6 +47,7 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY --from=builder /opt/ansible /opt/ansible
 COPY src/ ./src/
+COPY .github/skills/workspace-validator/scripts/ ./.github/skills/workspace-validator/scripts/
 COPY VERSION ./VERSION
 
 ENV PATH="/opt/venv/bin:$PATH"

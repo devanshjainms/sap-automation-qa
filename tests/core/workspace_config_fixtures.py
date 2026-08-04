@@ -87,7 +87,7 @@ def generator(tmp_path: Path) -> WorkspaceConfigGenerator:
             stderr="",
         )
 
-    return WorkspaceConfigGenerator(tmp_path, run=run)
+    return WorkspaceConfigGenerator(Path(__file__).resolve().parents[2], run=run)
 
 
 @pytest.fixture

@@ -13,7 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import urlparse
@@ -23,111 +23,31 @@ import yaml
 from src.core.exceptions import WorkspaceConfigError
 from src.core.workspace_collector import COMPACT_COLLECTOR
 from src.core.workspace_fencing import classify_fencing
+from src.core.workspace_request import (
+    AUTHENTICATION_TYPES,
+    CredentialMaterial,
+    GeneratedWorkspace,
+    GenerateRequest,
+)
 from src.core.storage.workspace.validation import (
     MAX_CONFIG_FILE_SIZE,
     parse_hosts_yaml,
     parse_sap_parameters,
-    validate_workspace_id,
 )
+
+__all__ = [
+    "AUTHENTICATION_TYPES",
+    "CredentialMaterial",
+    "GenerateRequest",
+    "GeneratedWorkspace",
+    "WorkspaceConfigGenerator",
+]
 
 COLLECTOR_SCHEMA_VERSION = 2
 MAX_RUN_COMMAND_OUTPUT = 4096
 TRANSACTION_MARKER = ".workspace-config-generation.json"
 ACTIVE_MARKER_SECONDS = 1800
-AUTHENTICATION_TYPES = {"ssh_key": "SSHKEY", "password": "VMPASSWORD"}
 _CANONICAL_KEYS = frozenset({"sid", "role", "instance_number", "vip", "virtual_host"})
-
-
-@dataclass(frozen=True)
-class CredentialMaterial:
-    """Explicit local SSH credential material to publish with a new workspace."""
-
-    source: Path
-    destination_name: str
-
-    def __post_init__(self) -> None:
-        """Validate the supported credential artifact names."""
-        if self.destination_name not in {"ssh_key", "password"}:
-            raise WorkspaceConfigError("Credential destination must be ssh_key or password")
-
-
-@dataclass(frozen=True)
-class GenerateRequest:
-    """Immutable request for an initial workspace configuration generation."""
-
-    workspace_root: Path
-    workspace_id: str
-    resource_group: str
-    scs_seed_vm: str
-    db_seed_vm: str
-    credential: CredentialMaterial | None = None
-    key_vault_id: str = ""
-    secret_id: str = ""
-    authentication_type: str = ""
-    dry_run: bool = False
-
-    def __post_init__(self) -> None:
-        """Validate mutually exclusive and required request fields."""
-        validate_workspace_id(self.workspace_id)
-        if not all((self.resource_group, self.scs_seed_vm, self.db_seed_vm)):
-            raise WorkspaceConfigError("Resource group, SCS VM, and DB VM are required")
-        if bool(self.key_vault_id) != bool(self.secret_id):
-            raise WorkspaceConfigError("key_vault_id and secret_id must be supplied together")
-        if self.credential is not None and self.key_vault_id:
-            raise WorkspaceConfigError(
-                "Select either a local credential artifact or Key Vault authentication"
-            )
-        if self.credential is None and not self.key_vault_id:
-            raise WorkspaceConfigError("An explicit SSH credential source is required")
-        self._resolve_authentication_type()
-
-    def _resolve_authentication_type(self) -> None:
-        """Derive or validate the authentication type the workspace must serve.
-
-        :raises WorkspaceConfigError: If the declared type is unknown, conflicts
-            with the chosen credential artifact, or is missing for Key Vault.
-        """
-        if self.authentication_type and self.authentication_type not in set(
-            AUTHENTICATION_TYPES.values()
-        ):
-            raise WorkspaceConfigError(
-                f"authentication_type must be one of {sorted(set(AUTHENTICATION_TYPES.values()))}"
-            )
-        if self.credential is not None:
-            derived = AUTHENTICATION_TYPES[self.credential.destination_name]
-            if self.authentication_type and self.authentication_type != derived:
-                raise WorkspaceConfigError(
-                    f"authentication_type {self.authentication_type} conflicts with the "
-                    f"{self.credential.destination_name} credential artifact"
-                )
-            object.__setattr__(self, "authentication_type", derived)
-        elif not self.authentication_type:
-            raise WorkspaceConfigError(
-                "authentication_type is required when authenticating through Key Vault"
-            )
-
-
-@dataclass(frozen=True)
-class GeneratedWorkspace:
-    """Sanitized preview and rendered documents for a generated workspace."""
-
-    workspace_path: Path
-    sap_parameters: Mapping[str, Any]
-    hosts: Mapping[str, Any]
-
-    def preview(self) -> str:
-        """Return a secret-free summary of the generated topology.
-
-        :returns: Human-readable topology summary that excludes credential values.
-        """
-        return (
-            f"Workspace: {self.workspace_path.name}\n"
-            f"SAP SID: {self.sap_parameters['sap_sid']}\n"
-            f"DB SID: {self.sap_parameters['db_sid']}\n"
-            f"SCS fencing: {self.sap_parameters['scs_cluster_type']}\n"
-            f"DB fencing: {self.sap_parameters['database_cluster_type']}\n"
-            f"DB scale-out: {self.sap_parameters['database_scale_out']}"
-        )
 
 
 class WorkspaceConfigGenerator:
@@ -186,6 +106,11 @@ class WorkspaceConfigGenerator:
         :raises WorkspaceConfigError: If validation or publication is unsafe.
         """
         workspace = self._workspace_path(request)
+        if replace(request, dry_run=False) != replace(generated.request, dry_run=False):
+            raise WorkspaceConfigError(
+                "The request presented for publication differs from the one that produced "
+                "these documents; rerun discovery with the intended request"
+            )
         if workspace != generated.workspace_path:
             raise WorkspaceConfigError("Generated workspace does not match the requested workspace")
         self._recover_interrupted_publication(workspace)
@@ -516,7 +441,7 @@ class WorkspaceConfigGenerator:
             parameters["secret_id"] = request.secret_id
 
         hosts = self._hosts(scs, db, request.credential is not None)
-        return GeneratedWorkspace(workspace, parameters, hosts)
+        return GeneratedWorkspace(workspace, parameters, hosts, request)
 
     def _cluster_type(self, facts: Sequence[Mapping[str, Any]], tier: str) -> str:
         """Classify a cluster's fencing mechanism from proven runtime evidence.
@@ -835,6 +760,11 @@ class WorkspaceConfigGenerator:
                 / "scripts"
                 / "validate_workspace.py"
             )
+            if not validator.is_file():
+                raise WorkspaceConfigError(
+                    f"The workspace validator is missing at {validator}; a generated "
+                    "workspace is never published without validation"
+                )
             environment = os.environ.copy()
             environment["STAF_SKIP_SSH"] = "1"
             environment["PYTHONIOENCODING"] = "utf-8"

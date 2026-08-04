@@ -60,6 +60,7 @@ class _RecordingGenerator:
                 "database_scale_out": False,
             },
             hosts={},
+            request=request,
         )
         self.previewed.append(generated)
         return generated
