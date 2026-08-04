@@ -159,7 +159,7 @@ def clusters() -> dict[str, list[dict[str, object]]]:
                     "sid": "HDB",
                     "instance_number": "00",
                     "virtual_host": "vdb01",
-                    "scale_out": False,
+                    "hosts": ["db01"],
                 },
             ),
             _fact(
@@ -171,7 +171,7 @@ def clusters() -> dict[str, list[dict[str, object]]]:
                     "sid": "HDB",
                     "instance_number": "00",
                     "virtual_host": "vdb02",
-                    "scale_out": False,
+                    "hosts": ["db01"],
                 },
             ),
         ],
@@ -367,6 +367,58 @@ def test_render_rejects_an_unrecognized_fencing_agent(
         )
 
 
+def test_render_derives_scale_out_from_the_hana_host_list(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Report scale-out when HANA itself spans more than one host.
+
+    The Pacemaker member count cannot answer this: a scale-up pair with a
+    majority maker also has three members. Only the host list HANA reports for
+    its own system distinguishes the two.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to describe a multi-host system.
+    """
+    for member in clusters["db"]:
+        hana = member["hana"]
+        assert isinstance(hana, dict)
+        hana["hosts"] = ["db01", "db02"]
+
+    rendered = generator._render(
+        generate_request.workspace_root / generate_request.workspace_id,
+        clusters,
+        generate_request,
+    )
+
+    assert rendered.sap_parameters["database_scale_out"] is True
+
+
+def test_render_rejects_a_database_without_a_reported_host_list(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+) -> None:
+    """Refuse to guess the topology when HANA reported no hosts.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to omit the host list.
+    """
+    hana = clusters["db"][0]["hana"]
+    assert isinstance(hana, dict)
+    del hana["hosts"]
+
+    with pytest.raises(WorkspaceConfigError, match="host list"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
+
+
 def test_render_rejects_disagreeing_scale_out_topology(
     generator: WorkspaceConfigGenerator,
     generate_request: GenerateRequest,
@@ -374,20 +426,20 @@ def test_render_rejects_disagreeing_scale_out_topology(
 ) -> None:
     """Refuse a database tier whose members report a different HANA topology.
 
-    Scale-out is written straight into ``database_scale_out``, so accepting the
-    first member's value while another member disagrees would publish a topology
-    that half the cluster contradicts.
+    Scale-out is derived from the hosts HANA reports for its own system, so
+    accepting the first member's host list while another member reports a
+    different one would publish a topology half the cluster contradicts.
 
     :param generator: Isolated generator.
     :param generate_request: Valid generation request.
-    :param clusters: Cluster facts modified to contain conflicting scale-out.
+    :param clusters: Cluster facts modified to contain conflicting host lists.
     """
     first = clusters["db"][0]["hana"]
     second = clusters["db"][1]["hana"]
     assert isinstance(first, dict) and isinstance(second, dict)
-    second["scale_out"] = not first["scale_out"]
+    second["hosts"] = list(first["hosts"]) + ["db02"]
 
-    with pytest.raises(WorkspaceConfigError, match="scale-out topology"):
+    with pytest.raises(WorkspaceConfigError, match="host list"):
         generator._render(
             generate_request.workspace_root / generate_request.workspace_id,
             clusters,

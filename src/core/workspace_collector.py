@@ -61,7 +61,8 @@ if len(paths)==1:
     parts=paths[0].split("/"); sid=parts[-2]; number=parts[-1][-2:]
     state=run("su","-",sid.lower()+"adm","-c","hdbnsutil -sr_state")
     if "online: true" in state.lower():
-        hana={"sid":sid,"instance_number":number,"virtual_host":profile_value(sid,"SAPGLOBALHOST"),"scale_out":len(member_names)>2}
+        hosts=sorted({m.group(1) for m in re.finditer(r"(?m)^(\S+) -> \[",state)})
+        hana={"sid":sid,"instance_number":number,"virtual_host":profile_value(sid,"SAPGLOBALHOST"),"hosts":hosts[:8]}
 sources=[];sapmnt=""
 try:
     mounts=json.loads(run("findmnt","--json","--types","nfs,nfs4")).get("filesystems",[])

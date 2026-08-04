@@ -595,26 +595,45 @@ class WorkspaceConfigGenerator:
             raise WorkspaceConfigError("Database facts are missing HANA replication data")
         first = normalized_hana[0]
         sid, instance = first.get("sid"), first.get("instance_number")
-        scale_out = first.get("scale_out")
-        if (
-            not isinstance(sid, str)
-            or not isinstance(instance, str)
-            or not isinstance(scale_out, bool)
-        ):
+        if not isinstance(sid, str) or not isinstance(instance, str):
             raise WorkspaceConfigError("Database HANA facts are incomplete")
+        scale_out = WorkspaceConfigGenerator._hana_scale_out(normalized_hana)
         if any(
             item.get("sid") != sid or item.get("instance_number") != instance
             for item in normalized_hana[1:]
         ):
             raise WorkspaceConfigError("Database members disagree on HANA SID or instance number")
-        if any(item.get("scale_out") != scale_out for item in normalized_hana[1:]):
-            raise WorkspaceConfigError("Database members disagree on the HANA scale-out topology")
         if not all(
             isinstance(item.get("virtual_host"), str) and item["virtual_host"]
             for item in normalized_hana
         ):
             raise WorkspaceConfigError("Database HANA facts are missing a virtual host")
         return {"sid": sid, "instance_number": instance, "scale_out": scale_out, "facts": facts}
+
+    @staticmethod
+    def _hana_scale_out(entries: Sequence[Mapping[str, Any]]) -> bool:
+        """Derive the scale-out topology from the hosts HANA reports for its own system.
+
+        :param entries: HANA facts collected from each database cluster member.
+        :raises WorkspaceConfigError: When HANA reported no hosts, or when the
+            members disagree about which hosts belong to the system.
+        :return: True when the HANA system spans more than one host.
+        """
+        observed = []
+        for item in entries:
+            hosts = item.get("hosts")
+            if not isinstance(hosts, list) or not all(
+                isinstance(host, str) and host for host in hosts
+            ):
+                raise WorkspaceConfigError("Database HANA facts are missing the system host list")
+            if not hosts:
+                raise WorkspaceConfigError(
+                    "HANA reported no system hosts, so the scale-out topology cannot be proven"
+                )
+            observed.append(sorted(hosts))
+        if any(item != observed[0] for item in observed[1:]):
+            raise WorkspaceConfigError("Database members disagree on the HANA system host list")
+        return len(observed[0]) > 1
 
     def _nfs_provider(self, facts: Sequence[Mapping[str, Any]], resource_group: str) -> str:
         """Resolve the shared SAP mount to exact Azure resource metadata.
