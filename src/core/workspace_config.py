@@ -34,6 +34,7 @@ MAX_RUN_COMMAND_OUTPUT = 4096
 TRANSACTION_MARKER = ".workspace-config-generation.json"
 ACTIVE_MARKER_SECONDS = 1800
 AUTHENTICATION_TYPES = {"ssh_key": "SSHKEY", "password": "VMPASSWORD"}
+_CANONICAL_KEYS = frozenset({"sid", "role", "instance_number", "vip", "virtual_host"})
 
 
 @dataclass(frozen=True)
@@ -527,17 +528,28 @@ class WorkspaceConfigGenerator:
         :returns: ``AFA``, ``ASD``, or ``ISCSI``.
         :raises WorkspaceConfigError: When fencing evidence is missing or ambiguous.
         """
-        agent_set: set[str] = set()
         devices: set[str] = set()
+        observed: list[list[str]] = []
         for fact in facts:
             cluster = fact.get("cluster")
             agents = cluster.get("fencing_agents") if isinstance(cluster, dict) else None
             if not isinstance(agents, list) or not all(isinstance(agent, str) for agent in agents):
                 raise WorkspaceConfigError(f"{tier} fencing evidence is missing")
-            agent_set.update(agents)
+            if not agents:
+                raise WorkspaceConfigError(
+                    f"{tier} cluster member reported no fencing agents; a member that proves "
+                    "no fencing configuration cannot be classified from its peers"
+                )
+            observed.append(sorted(set(agents)))
             found = cluster.get("fencing_devices") if isinstance(cluster, dict) else None
             if isinstance(found, list):
                 devices.update(device for device in found if isinstance(device, str) and device)
+        if any(item != observed[0] for item in observed[1:]):
+            raise WorkspaceConfigError(
+                f"{tier} cluster members disagree on the fencing agents in use: "
+                f"{sorted(set().union(*observed))}"
+            )
+        agent_set = set(observed[0])
         if agent_set == {"fence_azure_arm"}:
             return "AFA"
         if agent_set and agent_set <= {"external/sbd", "fence_sbd"}:
@@ -588,11 +600,24 @@ class WorkspaceConfigGenerator:
 
     @staticmethod
     def _db_details(facts: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-        """Validate one complete HANA topology from each database member."""
-        hana = [fact.get("hana") for fact in facts]
-        normalized_hana = [item for item in hana if isinstance(item, dict)]
-        if len(normalized_hana) != len(facts):
+        """Validate one complete HANA topology from every database member that runs HANA."""
+        pairs = [(fact, fact.get("hana")) for fact in facts]
+        if not all(isinstance(item, dict) for _, item in pairs):
             raise WorkspaceConfigError("Database facts are missing HANA replication data")
+        live = [(fact, item) for fact, item in pairs if item.get("installed") is not False]
+        hana_facts = [fact for fact, _ in live]
+        normalized_hana = [item for _, item in live]
+        if any(item.get("installed") is not True for item in normalized_hana):
+            raise WorkspaceConfigError("Database facts are missing HANA replication data")
+        if any(item.get("sr_online") is not True for item in normalized_hana):
+            raise WorkspaceConfigError(
+                "HANA system replication is not online on every database node"
+            )
+        if len(normalized_hana) < 2:
+            raise WorkspaceConfigError(
+                "Database tier must contain at least two HANA nodes; found "
+                f"{len(normalized_hana)} running HANA and {len(pairs) - len(live)} without it"
+            )
         first = normalized_hana[0]
         sid, instance = first.get("sid"), first.get("instance_number")
         if not isinstance(sid, str) or not isinstance(instance, str):
@@ -608,7 +633,12 @@ class WorkspaceConfigGenerator:
             for item in normalized_hana
         ):
             raise WorkspaceConfigError("Database HANA facts are missing a virtual host")
-        return {"sid": sid, "instance_number": instance, "scale_out": scale_out, "facts": facts}
+        return {
+            "sid": sid,
+            "instance_number": instance,
+            "scale_out": scale_out,
+            "facts": hana_facts,
+        }
 
     @staticmethod
     def _hana_scale_out(entries: Sequence[Mapping[str, Any]]) -> bool:
@@ -956,19 +986,10 @@ def _unique_instances(instances: Sequence[dict[str, Any]], role: str) -> list[di
     matching = [item for item in instances if item.get("role") == role]
     if not matching:
         return []
-    canonical = {
-        key: value
-        for key, value in matching[0].items()
-        if key in {"sid", "role", "instance_number", "vip"}
-    }
-    if any(
-        {
-            key: value
-            for key, value in item.items()
-            if key in {"sid", "role", "instance_number", "vip"}
-        }
-        != canonical
-        for item in matching[1:]
-    ):
-        raise WorkspaceConfigError(f"Cluster members disagree on semantic {role} resource facts")
+    projection = {key: value for key, value in matching[0].items() if key in _CANONICAL_KEYS}
+    for item in matching[1:]:
+        if {key: value for key, value in item.items() if key in _CANONICAL_KEYS} != projection:
+            raise WorkspaceConfigError(
+                f"Cluster members disagree on semantic {role} resource facts"
+            )
     return [matching[0]]

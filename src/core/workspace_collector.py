@@ -44,7 +44,7 @@ for node in root.findall(".//primitive"):
     for pair in node.findall(".//nvpair"):
         if pair.attrib.get("name") in ("devices","sbd_device"):
             fence_devices+=[part[:255] for part in re.split(r"[;,\s]+",pair.attrib.get("value","")) if part]
-fencing=sorted(set(fencing))[:4];fence_devices=sorted(set(fence_devices))[:4]
+fencing=sorted(set(fencing));fence_devices=sorted(set(fence_devices))
 instances=[]
 for group in root.findall(".//group"):
     vip=""
@@ -55,14 +55,13 @@ for group in root.findall(".//group"):
         attrs={node.attrib.get("name"):node.attrib.get("value") for node in primitive.findall(".//nvpair")}
         match=re.match(r"([A-Z0-9]{3})_(ASCS|ERS)(\d\d)_(\S+)",attrs.get("InstanceName",""))
         if match:instances.append({"sid":match.group(1),"role":match.group(2),"instance_number":match.group(3),"virtual_host":match.group(4)[:255],"vip":vip[:255]})
-hana={}
+hana={"installed":False}
 paths=glob.glob("/usr/sap/*/HDB[0-9][0-9]")
 if len(paths)==1:
     parts=paths[0].split("/"); sid=parts[-2]; number=parts[-1][-2:]
     state=run("su","-",sid.lower()+"adm","-c","hdbnsutil -sr_state")
-    if "online: true" in state.lower():
-        hosts=sorted({m.group(1) for m in re.finditer(r"(?m)^(\S+) -> \[",state)})
-        hana={"sid":sid,"instance_number":number,"virtual_host":profile_value(sid,"SAPGLOBALHOST"),"hosts":hosts[:8]}
+    hosts=sorted({m.group(1) for m in re.finditer(r"(?m)^(\S+) -> \[",state)})
+    hana={"installed":True,"sr_online":"online: true" in state.lower(),"sid":sid,"instance_number":number,"virtual_host":profile_value(sid,"SAPGLOBALHOST"),"hosts":hosts}
 sources=[];sapmnt=""
 try:
     mounts=json.loads(run("findmnt","--json","--types","nfs,nfs4")).get("filesystems",[])
@@ -73,7 +72,7 @@ try:
     sources=sorted({item.get("source","")[:512] for item in mounts if item.get("source")})[:4]
 except (ValueError,TypeError):pass
 ips=[item["ipv4"]["ipAddress"][0]["privateIpAddress"] for item in network if item.get("ipv4",{}).get("ipAddress")]
-facts={"schema_version":2,"identity":{"resource_id":compute["resourceId"],"hostname":socket.gethostname()[:255],"private_ip":ips[0] if ips else ""},"cluster":{"members":member_names,"fencing_agents":fencing,"fencing_devices":fence_devices,"sap_instances":instances[:4]},"hana":hana,"storage":{"nfs_sources":sources,"sapmnt_source":sapmnt}}
+facts={"schema_version":2,"identity":{"resource_id":compute["resourceId"],"hostname":socket.gethostname()[:255],"private_ip":ips[0] if ips else ""},"cluster":{"members":member_names,"fencing_agents":fencing,"fencing_devices":fence_devices,"sap_instances":instances},"hana":hana,"storage":{"nfs_sources":sources,"sapmnt_source":sapmnt}}
 encoded=json.dumps(facts,separators=(",",":"))
 print(encoded if len(encoded.encode())<=4096 else json.dumps({"schema_version":2,"error":"collector output exceeds limit"}))
 PY"""
