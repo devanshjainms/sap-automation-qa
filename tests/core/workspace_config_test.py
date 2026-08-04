@@ -32,6 +32,8 @@ from tests.core.workspace_config_fixtures import (
     run_command_envelope,
 )
 
+DISK_ID = "/subscriptions/00000000-0000-0000-0000-000000000000/disks/sbd"
+
 
 def test_render_accepts_complete_afa_topology(
     generator: WorkspaceConfigGenerator,
@@ -103,7 +105,7 @@ def test_render_classifies_azure_shared_disk_sbd_as_asd(
     devices = [_device("/dev/disk/azure/scsi1/lun5", lun="5")]
     _set_fencing(clusters, "scs", ["fence_sbd"], devices)
     _set_fencing(clusters, "db", ["fence_sbd"], devices)
-    monkeypatch.setattr(generator, "_shared_disk_shares", lambda _resource, _lun: 2)
+    monkeypatch.setattr(generator, "_shared_disk", lambda _resource, _lun: (DISK_ID, 2))
 
     generated = generator._render(
         generate_request.workspace_root / generate_request.workspace_id,
@@ -641,7 +643,7 @@ def test_render_rejects_an_azure_disk_that_is_not_shared(
     :param monkeypatch: Stubs the resolved managed disk's maxShares value.
     """
     _set_fencing(clusters, "scs", ["fence_sbd"], [_device("/dev/disk/azure/scsi1/lun5", "5")])
-    monkeypatch.setattr(generator, "_shared_disk_shares", lambda _resource, _lun: 1)
+    monkeypatch.setattr(generator, "_shared_disk", lambda _resource, _lun: (DISK_ID, 1))
 
     with pytest.raises(WorkspaceConfigError, match="not a shared disk"):
         generator._render(
@@ -690,6 +692,43 @@ def test_render_rejects_legacy_string_device_evidence(
         cluster["fencing_devices"] = ["/dev/disk/azure/scsi1/lun5"]
 
     with pytest.raises(WorkspaceConfigError, match="not in the expected form"):
+        generator._render(
+            generate_request.workspace_root / generate_request.workspace_id,
+            clusters,
+            generate_request,
+        )
+
+
+def test_render_rejects_members_resolving_devices_to_different_disks(
+    generator: WorkspaceConfigGenerator,
+    generate_request: GenerateRequest,
+    clusters: dict[str, list[dict[str, object]]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refuse share-capable disks that are not the same disk on every member.
+
+    :param generator: Isolated generator.
+    :param generate_request: Valid generation request.
+    :param clusters: Cluster facts modified to contain a shared-disk SBD device.
+    :param monkeypatch: Resolves each member's LUN to a distinct managed disk.
+    """
+    _set_fencing(clusters, "scs", ["fence_sbd"], [_device("/dev/disk/azure/scsi1/lun5", "5")])
+    seen: list[str] = []
+
+    def resolve(resource_id: str, _lun: str) -> tuple[str, int]:
+        """Return a distinct share-capable disk for each calling member.
+
+        :param resource_id: Azure resource ID of the calling member.
+        :param _lun: Unused data disk LUN.
+        :returns: A per-member managed disk ID and a shared ``maxShares``.
+        """
+        if resource_id not in seen:
+            seen.append(resource_id)
+        return f"{DISK_ID}-{seen.index(resource_id)}", 2
+
+    monkeypatch.setattr(generator, "_shared_disk", resolve)
+
+    with pytest.raises(WorkspaceConfigError, match="different Azure managed"):
         generator._render(
             generate_request.workspace_root / generate_request.workspace_id,
             clusters,

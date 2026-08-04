@@ -526,7 +526,7 @@ class WorkspaceConfigGenerator:
         :returns: ``AFA``, ``ASD``, or ``ISCSI``.
         :raises WorkspaceConfigError: When fencing evidence is missing or ambiguous.
         """
-        return classify_fencing(facts, tier, self._shared_disk_shares)
+        return classify_fencing(facts, tier, self._shared_disk)
 
     @staticmethod
     def _json_document(output: str, label: str) -> Any:
@@ -542,12 +542,12 @@ class WorkspaceConfigGenerator:
         except json.JSONDecodeError as exc:
             raise WorkspaceConfigError(f"{label} query returned invalid JSON: {exc}") from exc
 
-    def _shared_disk_shares(self, resource_id: str, lun: str) -> int:
-        """Resolve the ``maxShares`` of the managed disk attached to a VM LUN.
+    def _shared_disk(self, resource_id: str, lun: str) -> tuple[str, int]:
+        """Resolve the managed disk attached to a VM LUN and its ``maxShares``.
 
         :param resource_id: Azure resource ID of the virtual machine.
         :param lun: Data disk LUN reported by the guest.
-        :returns: The resolved disk's ``maxShares`` value.
+        :returns: The resolved disk's resource ID and its ``maxShares`` value.
         :raises WorkspaceConfigError: When the disk cannot be resolved exactly.
         """
         if not resource_id:
@@ -571,7 +571,7 @@ class WorkspaceConfigGenerator:
             "disk", "show", "--ids", disks[0], "--query", "maxShares", "--output", "json"
         )
         shares = self._json_document(completed.stdout, "Azure managed disk")
-        return shares if isinstance(shares, int) else 0
+        return disks[0], shares if isinstance(shares, int) else 0
 
     @staticmethod
     def _scs_details(facts: Sequence[Mapping[str, Any]]) -> dict[str, Any]:

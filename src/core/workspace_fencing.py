@@ -18,7 +18,7 @@ from src.core.exceptions import WorkspaceConfigError
 
 SBD_AGENTS = frozenset({"external/sbd", "fence_sbd"})
 
-SharedDiskResolver = Callable[[str, str], int]
+SharedDiskResolver = Callable[[str, str], tuple[str, int]]
 
 
 def _member_agents(fact: Mapping[str, Any], tier: str) -> list[str]:
@@ -75,19 +75,19 @@ def _classify_devices(
     resource_id: str,
     tier: str,
     resolve_shared_disk: SharedDiskResolver,
-) -> str:
+) -> tuple[str, tuple[str, ...]]:
     """Classify one member's SBD devices from transport and shared-disk proof.
 
     :param records: The member's device records.
     :param resource_id: Azure resource ID of the member reporting the devices.
     :param tier: Tier name used for diagnostics.
-    :param resolve_shared_disk: Resolves a VM LUN to the disk's ``maxShares``.
-    :returns: ``ASD`` or ``ISCSI``.
+    :param resolve_shared_disk: Resolves a VM LUN to its disk ID and ``maxShares``.
+    :returns: ``ASD`` or ``ISCSI``, and the managed disks the devices resolve to.
     :raises WorkspaceConfigError: When the evidence does not prove either transport.
     """
     paths = [record["path"] for record in records]
     if all(record["iscsi"] for record in records):
-        return "ISCSI"
+        return "ISCSI", ()
     if any(record["iscsi"] for record in records):
         raise WorkspaceConfigError(f"{tier} SBD mixes iSCSI and non-iSCSI devices: {paths}")
     unresolved = [record["path"] for record in records if not record["lun"]]
@@ -96,14 +96,16 @@ def _classify_devices(
             f"{tier} SBD devices prove neither an iSCSI transport nor an Azure "
             f"data disk: {unresolved}"
         )
+    disks: list[str] = []
     for record in records:
-        shares = resolve_shared_disk(resource_id, record["lun"])
+        disk_id, shares = resolve_shared_disk(resource_id, record["lun"])
         if shares < 2:
             raise WorkspaceConfigError(
                 f"{tier} SBD device {record['path']} resolves to an Azure disk with "
                 f"maxShares {shares}; it is not a shared disk"
             )
-    return "ASD"
+        disks.append(disk_id.lower())
+    return "ASD", tuple(sorted(disks))
 
 
 def classify_fencing(
@@ -118,7 +120,7 @@ def classify_fencing(
 
     :param facts: Normalized facts from every discovered member of one tier.
     :param tier: Tier name used for diagnostics.
-    :param resolve_shared_disk: Resolves a VM LUN to the disk's ``maxShares``.
+    :param resolve_shared_disk: Resolves a VM LUN to its disk ID and ``maxShares``.
     :returns: ``AFA``, ``ASD``, or ``ISCSI``.
     :raises WorkspaceConfigError: When fencing evidence is missing or ambiguous.
     """
@@ -141,13 +143,19 @@ def classify_fencing(
     if not paths[0]:
         raise WorkspaceConfigError(f"{tier} SBD exposes no backing devices")
 
-    classified = set()
+    resolved = set()
     for fact, records in zip(facts, devices):
         identity = fact.get("identity")
         resource_id = identity.get("resource_id", "") if isinstance(identity, dict) else ""
-        classified.add(_classify_devices(records, str(resource_id), tier, resolve_shared_disk))
-    if len(classified) != 1:
+        resolved.add(_classify_devices(records, str(resource_id), tier, resolve_shared_disk))
+    transports = {item[0] for item in resolved}
+    if len(transports) != 1:
         raise WorkspaceConfigError(
-            f"{tier} SBD members prove different device transports: {sorted(classified)}"
+            f"{tier} SBD members prove different device transports: {sorted(transports)}"
         )
-    return classified.pop()
+    if len(resolved) != 1:
+        raise WorkspaceConfigError(
+            f"{tier} SBD members resolve their devices to different Azure managed "
+            f"disks: {sorted(item[1] for item in resolved)}"
+        )
+    return transports.pop()
