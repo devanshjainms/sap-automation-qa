@@ -149,9 +149,17 @@ assert mock_post.call_count == 1
 Require an assertion on **observable state or output**: the returned value, the persisted
 record, the constructed command, the payload that was sent.
 
+**The exception: when dispatch *is* the contract.** For an orchestrator, adapter, or retry
+wrapper whose specified behaviour is "call this collaborator once, with these arguments", an
+interaction assertion is the behavioural assertion. `assert_called_once_with(...)` — arguments
+**and** count together — is legitimate there. What is weak is a bare `.called` or a count with
+no argument check on a unit that has its own observable output. Judge by whether the unit
+under test has state or a return value to assert on; if it does, an interaction assertion alone
+is not enough.
+
 This matters because `pytest --cov=src/ --cov-fail-under=85` measures **line coverage only**.
-A test of the shape above executes the lines and asserts nothing about them, so the gate is
-fully satisfiable without demonstrating correctness. The gate is a floor, not evidence.
+A test of the weak shape above executes the lines and asserts nothing about them, so the gate
+is fully satisfiable without demonstrating correctness. The gate is a floor, not evidence.
 
 ## Negative paths
 
@@ -176,9 +184,16 @@ A custom module needs a test that exercises the **module entrypoint** (argument 
 
 ## ansible-lint is style, not behaviour
 
-There is no molecule or role-test harness. A passing ansible-lint says nothing about whether
-role logic works. A behavioural change to a role needs a test or an explicit reviewer
-walkthrough of the changed tasks.
+A passing ansible-lint says nothing about whether role logic works. A behavioural change to a
+role needs a test.
+
+**A role-test harness exists — point contributors at it, do not claim there is none.**
+`tests/roles/roles_testing_base.py` defines `RolesTestingBase`, which drives real playbook runs
+through `ansible_runner.run(...)`; it is subclassed by ~38 role tests under `tests/roles/`.
+There is no molecule setup, but that is not the same as having no harness. Require a new or
+extended `RolesTestingBase` subclass for a behavioural role change; a reviewer walkthrough is
+the fallback only when the change genuinely cannot be driven through the harness, and you
+should say why.
 
 Role tests that only assert against a mocked runner's canned result validate the mock, not the
 tasks — call that out.

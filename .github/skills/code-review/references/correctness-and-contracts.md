@@ -65,7 +65,7 @@ class Result(BaseModel):
 
 `frozen=True` prevents rebinding the attribute. It does not freeze the `dict`. Any holder can
 mutate `details` and every other holder sees it. Flag `frozen=True` over a mutable `dict`,
-`list`, or `set` field. The fix is a immutable mapping or a defensive copy on access — state
+`list`, or `set` field. The fix is an immutable mapping or a defensive copy on access — state
 which.
 
 ### Exception contract breaks

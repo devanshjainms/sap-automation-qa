@@ -8,15 +8,22 @@ Dimensions 2 and 3 detail.
 
 ## Loops that cannot end
 
-Every worker or poll loop needs an explicit exit condition or a deadline.
+Every worker or poll loop needs a reachable exit — a shutdown or cancellation path, a terminal
+event, or a deadline. `while True` on its own is **not** a finding; the repository's own
+`src/core/execution/worker.py` uses one correctly:
 
 ```python
-# the shape to flag — src/core/execution/worker.py
+# correct — bounded by both a deadline and a terminal event
 while True:
-    job = self._queue.get()
-    ...
+    try:
+        event = await asyncio.wait_for(queue.get(), timeout=timeout)
+        yield event
+        if event.event_type in (COMPLETED, FAILED, CANCELLED):
+            break
+    except asyncio.TimeoutError:
+        break
 
-# the correct form already in this repo — src/module_utils/backup_restore.py
+# the synchronous form, in src/module_utils/backup_restore.py
 while elapsed < self._poll_timeout:
     ...
     time.sleep(self._poll_interval)
@@ -25,9 +32,9 @@ else:
     raise TimeoutError(...)
 ```
 
-Cite the working example in the fix. A `while True` is acceptable only where a shutdown
-sentinel is read on every iteration and the read itself cannot block forever — say so
-explicitly if you accept one.
+Flag a loop only when you can trace that **no** reachable path exits it — a blocking `get()`
+with no timeout and no terminal-event break, a retry loop with no attempt cap. Quote the lines
+that would have to exit and explain why none can. Cite the working example in the fix.
 
 ## Calls that cannot time out
 
@@ -87,8 +94,12 @@ Flag:
 - `subprocess` with `shell=True` where any component is not a literal;
 - a command built by string concatenation or f-string from user, inventory, or discovered
   data;
-- an Ansible `shell:`/`command:` task interpolating a variable that originates outside the
-  repository;
+- an Ansible `shell:` task interpolating a variable that originates outside the repository;
+- an Ansible `command:` task **only** where you can show the boundary actually breaks.
+  `ansible.builtin.command` does **not** invoke a shell, and `argv` preserves argument
+  boundaries, so an interpolated variable there is not injection by itself. Trace what
+  validates the value and show how it changes argument boundaries — e.g. the value is
+  interpolated mid-string so a space splits it into extra arguments — before flagging it;
 - allow-list vs deny-list: a deny-list of dangerous characters is not a control. Require an
   allow-list of permitted values, or `subprocess` with an argument **list** and no shell.
 
@@ -160,7 +171,7 @@ such.
 |---|---|
 | Action pinning | This repo pins every `uses:` to a full commit SHA with a `# vX.Y.Z` comment (`actions/checkout@9c091bb…  # v7.0.0`). A new step pinned to a **tag or branch** is a finding — a tag is mutable. |
 | Trigger | `pull_request_target` or `workflow_run` **combined with a checkout of the PR head** gives fork-authored code a token. There are none today; a new one is Blocking. |
-| `permissions:` | 14 workflows set an explicit block. Widening one — or adding a job without one, inheriting the default — is a finding. Name the specific permission added. |
+| `permissions:` | All 9 workflow files set an explicit **top-level** block. Flag a **new workflow** with no top-level block, or a **job-level** block that *widens* what the workflow-level block grants. A job with no block inherits the workflow-level block — which is restrictive here, not GitHub's default — so an added job without one is usually correct. Evaluate the **effective** permission and name it. |
 | Untrusted interpolation | `${{ github.event.pull_request.title }}`, `…head_ref`, `…body`, or any `github.event.*` field interpolated into a `run:` block is script injection. Require an intermediate `env:` variable. |
 | Dependency pinning | A new `pip install` or `ansible-galaxy install` without a pinned version, or a new install from a URL, in a workflow. |
 | Secret exposure | A secret echoed, written to an artifact, or exposed via `set -x` in a workflow step. |
