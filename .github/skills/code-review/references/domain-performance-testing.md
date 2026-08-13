@@ -189,20 +189,23 @@ role needs a test.
 
 **A role-test harness exists — point contributors at it, do not claim there is none.**
 `tests/roles/roles_testing_base.py` defines `RolesTestingBase`, which drives real playbook runs
-through `ansible_runner.run(...)`; it is subclassed by ~38 role tests under `tests/roles/`.
-There is no molecule setup, but that is not the same as having no harness. Require a new or
-extended `RolesTestingBase` subclass for a behavioural role change; a reviewer walkthrough is
-the fallback only when the change genuinely cannot be driven through the harness, and you
-should say why.
+through `ansible_runner.run(...)`; it is specialised by `RolesTestingBaseDB` and
+`RolesTestingBaseSCS` and subclassed by the role suites under `tests/roles/ha_db_hana/` and
+`tests/roles/ha_scs/`. There is no molecule setup, but that is not the same as having no
+harness. Require a new or extended `RolesTestingBase` subclass for a behavioural role change; a
+reviewer walkthrough is the fallback only when the change genuinely cannot be driven through
+the harness, and you should say why.
 
 Role tests that only assert against a mocked runner's canned result validate the mock, not the
 tasks — call that out.
 
 ## Matrix parity in tests
 
-A platform-matrix feature (see dimension 4) needs parametrised tests covering each supported
-SUSE/RHEL and Scale-Up/Scale-Out combination. Without them the matrix rule is unenforceable,
-which is why the two dimensions are reviewed together.
+A platform-matrix feature (see dimension 4) needs parametrised tests covering **every axis that
+dimension declares** — SUSE `crm` / RHEL `pcs`, Scale-Up / Scale-Out HSR / **Scale-Out
+Standby**, and `SAPHanaSR` / `SAPHanaSR-angi`. Tests that cover only the SUSE/RHEL and
+Scale-Up/Scale-Out axes leave supported branches untested. Without full coverage the matrix
+rule is unenforceable, which is why the two dimensions are reviewed together.
 
 ## Tests changed alongside behaviour
 

@@ -41,13 +41,15 @@ that would have to exit and explain why none can. Cite the working example in th
 | Call type | Gated? | Review action |
 |---|---|---|
 | `requests.*` | Yes — pylint `missing-timeout` is enabled | Do not comment; CI reports it |
-| Azure SDK clients | **No** | Require explicit retry + timeout policy on a request path |
+| Azure SDK clients | **Partly** | azure-core applies default retry and transport timeouts, so "no policy" is wrong. Require explicit values only where the **effective** defaults exceed the request path's budget — and state that budget |
 | `subprocess.run` | No | Require `timeout=` where the child can hang |
 | Paramiko / SSH | No | Require connect and command timeouts |
 
-`src/core/execution/ssh_provider.py` constructs `SecretClient(...).get_secret(...)` with no
-policy. An Azure control-plane call with no timeout on a request path holds a worker until the
-SDK's own default expires — state that consequence in the finding.
+`src/core/execution/ssh_provider.py` constructs `SecretClient(...).get_secret(...)` without
+overriding the defaults. That is not "no timeout" — azure-core still bounds it — but the
+default retry-plus-backoff ceiling can hold a worker far longer than an interactive request
+path allows. The finding is only valid if you state the path's budget and show the effective
+default exceeds it.
 
 ## Retries
 
@@ -75,8 +77,10 @@ from its cause. Say that in the finding — it is what makes it blocking rather 
 
 ## Concurrency
 
-- `ThreadPoolExecutor` worker counts must be capped, not derived from an unbounded input
-  (`max_workers=min(configured, len(batch))` is the correct shape).
+- `ThreadPoolExecutor` worker counts must be capped, not derived from an unbounded input.
+  `max_workers=min(configured, len(batch))` is the right shape **only with an empty-batch
+  guard** — `max_workers=0` raises `ValueError`. Require `max(1, min(configured, len(batch)))`
+  or an early return on an empty batch, and say which.
 - Shared mutable state across workers needs a lock or an explicit "single writer" statement.
 - A shared workspace directory used by concurrent runs needs an ownership marker.
 

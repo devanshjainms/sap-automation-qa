@@ -150,10 +150,12 @@ synchronous form; cite it in the fix.
 
 ### Calls that cannot time out
 
-`requests` is covered by pylint's `missing-timeout`; **Azure SDK clients are not**.
-`src/core/execution/ssh_provider.py` builds `SecretClient(...).get_secret(...)` with no retry
-or timeout policy. Any Azure SDK client on a request path needs an explicit retry + timeout
-configuration.
+`requests` is covered by pylint's `missing-timeout`. Azure SDK clients are **not** covered by a
+linter, but azure-core does apply default retry and transport timeouts — so an Azure client
+built without explicit kwargs is bounded, not unbounded. `src/core/execution/ssh_provider.py`
+builds `SecretClient(...).get_secret(...)` on the defaults. Require explicit retry + timeout
+configuration only where you can state the request path's latency budget and show the effective
+defaults exceed it.
 
 ### Ownership and teardown
 
@@ -309,15 +311,19 @@ green and proves nothing.
 ### ansible-lint is style, not behaviour
 
 There is no molecule setup, but there **is** a role-test harness: `RolesTestingBase` in
-`tests/roles/roles_testing_base.py` drives real playbook runs via `ansible_runner.run(...)` and
-is subclassed by ~38 tests. Do not treat a passing ansible-lint as evidence that role logic
-works; require a new or extended `RolesTestingBase` subclass for a behavioural role change. A
-reviewer walkthrough is the fallback only when the change cannot be driven through the harness.
+`tests/roles/roles_testing_base.py` drives real playbook runs via `ansible_runner.run(...)`,
+and is subclassed through `RolesTestingBaseDB` / `RolesTestingBaseSCS` by the suites under
+`tests/roles/ha_db_hana/` and `tests/roles/ha_scs/`. Do not treat a passing ansible-lint as
+evidence that role logic works; require a new or extended `RolesTestingBase` subclass for a
+behavioural role change. A reviewer walkthrough is the fallback only when the change cannot be
+driven through the harness.
 
 ### Matrix parity in tests
 
-A platform-matrix feature needs parametrised tests covering each supported SUSE/RHEL and
-Scale-Up/Scale-Out combination — this is what makes the dimension-4 matrix rule enforceable.
+A platform-matrix feature needs parametrised tests covering **every axis dimension 4 declares**:
+SUSE `crm` / RHEL `pcs`; Scale-Up / Scale-Out HSR / **Scale-Out Standby**; `SAPHanaSR` /
+`SAPHanaSR-angi`. Covering only Scale-Up and Scale-Out leaves supported branches untested —
+this is what makes the dimension-4 matrix rule enforceable.
 
 Checklist: [domain-performance-testing.md](references/domain-performance-testing.md).
 
@@ -366,8 +372,8 @@ Close with one line: `No blocking findings.` or `N blocking, M should-fix.`
 
 | Situation | Action |
 |-----------|--------|
-| A sibling file is not in the diff | Phrase the finding as a question naming the file you could not open |
-| The deciding code is outside the diff | Mark **Probable**, never Verified |
+| A sibling file is not in the diff | **Open it.** Out-of-diff code you can read supports a Verified finding |
+| You could not open the deciding file | Mark **Probable** and name the file you could not read |
 | A finding was already rejected on this PR | Do not raise it again in any form |
 | The author rebuts with a reason | Withdraw plainly, or produce the concrete input that reaches the path |
 | A fix would break deployed state | Say so yourself and propose the migration path |
@@ -380,7 +386,7 @@ Close with one line: `No blocking findings.` or `N blocking, M should-fix.`
 - [ ] Every finding carries an evidence tier; nothing Unverified was posted
 - [ ] No comment restates the diff
 - [ ] No formatting, import-order, or line-length comment
-- [ ] At most one nit, batched
+- [ ] At most two nits, batched
 - [ ] Resolved threads checked — no rejected finding repeated
 - [ ] Sibling files checked before reporting a repeated shape
 

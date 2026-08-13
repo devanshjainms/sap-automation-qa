@@ -5,14 +5,15 @@ dimension. When this file and a dimension rule disagree, this file wins.
 
 ## Evidence tiers
 
-Every finding carries a tier. State it implicitly through wording — never post a Verified
-claim you cannot support.
+Every finding carries a tier, stated **explicitly** as the `Evidence:` line of the output block
+(`Evidence: Verified` or `Evidence: Probable`) — never post a Verified claim you cannot
+support. Word the finding body to match the tier as well.
 
-| Tier | You have | How to word it |
-|---|---|---|
-| **Verified** | Read the code path end to end, in this diff or in files you opened | Direct assertion. `worker.py` builds the command from `test_type` only, so `offline` never reaches the playbook. |
-| **Probable** | A strong pattern match, but one link is unread | Name the unread link. This looks like X; I could not open `foo.py` to confirm the caller — can you check? |
-| **Unverified** | A suspicion | **Do not post it.** |
+| Tier | You have | `Evidence:` line | How to word the body |
+|---|---|---|---|
+| **Verified** | Read the code path end to end, in this diff or in files you opened | `Evidence: Verified` | Direct assertion. `worker.py` builds the command from `test_type` only, so `offline` never reaches the playbook. |
+| **Probable** | A strong pattern match, but one link is unread | `Evidence: Probable` | Name the unread link. This looks like X; I could not open `foo.py` to confirm the caller — can you check? |
+| **Unverified** | A suspicion | — | **Do not post it.** |
 
 ## Hard prohibitions
 
