@@ -23,13 +23,13 @@ while True:
     except asyncio.TimeoutError:
         break
 
-# the synchronous form, in src/module_utils/backup_restore.py
+# the synchronous form, in src/module_utils/backup_restore.py:534
 while elapsed < self._poll_timeout:
     ...
     time.sleep(self._poll_interval)
     elapsed += self._poll_interval
-else:
-    raise TimeoutError(...)
+# the deadline is then classified, not raised — map_job_result_status()
+# reports a timeout when elapsed >= poll_timeout
 ```
 
 Flag a loop only when you can trace that **no** reachable path exits it — a blocking `get()`
@@ -40,7 +40,7 @@ that would have to exit and explain why none can. Cite the working example in th
 
 | Call type | Gated? | Review action |
 |---|---|---|
-| `requests.*` | Yes — pylint `missing-timeout` is enabled | Do not comment; CI reports it |
+| `requests.*` | **Reported, not gated** — pylint runs with `--fail-under=9`, so a `missing-timeout` warning does not by itself fail CI | Still in scope. Raise it when the call is on a request path; do not assume CI blocks it |
 | Azure SDK clients | **Partly** | azure-core applies default retry and transport timeouts, so "no policy" is wrong. Require explicit values only where the **effective** defaults exceed the request path's budget — and state that budget |
 | `subprocess.run` | No | Require `timeout=` where the child can hang |
 | Paramiko / SSH | No | Require connect and command timeouts |

@@ -150,7 +150,9 @@ synchronous form; cite it in the fix.
 
 ### Calls that cannot time out
 
-`requests` is covered by pylint's `missing-timeout`. Azure SDK clients are **not** covered by a
+pylint reports `missing-timeout` on `requests`, but CI runs it with `--fail-under=9` — a score
+gate, not a per-message gate — so that warning alone does not block a merge. A timeout-less
+request on a request path stays in scope for you. Azure SDK clients are **not** covered by a
 linter, but azure-core does apply default retry and transport timeouts — so an Azure client
 built without explicit kwargs is bounded, not unbounded. `src/core/execution/ssh_provider.py`
 builds `SecretClient(...).get_secret(...)` on the defaults. Require explicit retry + timeout
@@ -161,8 +163,9 @@ defaults exceed it.
 
 Set the closed flag *after* successful cleanup; close every owned resource independently and
 continue on individual failure; re-raise the original error; clear `app.state` as well as
-module globals. **Flag an early `return` in a `close()` that owns more than one thing** — it
-leaks the siblings.
+module globals. **Flag an early `return` in a `close()` only when it is reachable while a
+sibling resource is still open** — name that resource. An idempotent `if self._closed: return`
+is not a leak.
 
 ### Failures that do not fail
 
@@ -320,10 +323,12 @@ driven through the harness.
 
 ### Matrix parity in tests
 
-A platform-matrix feature needs parametrised tests covering **every axis dimension 4 declares**:
-SUSE `crm` / RHEL `pcs`; Scale-Up / Scale-Out HSR / **Scale-Out Standby**; `SAPHanaSR` /
-`SAPHanaSR-angi`. Covering only Scale-Up and Scale-Out leaves supported branches untested —
-this is what makes the dimension-4 matrix rule enforceable.
+A platform-matrix feature needs parametrised tests covering **each axis the changed behaviour
+actually branches on** — from dimension 4's axes: SUSE `crm` / RHEL `pcs`; Scale-Up /
+Scale-Out HSR / Scale-Out Standby; `SAPHanaSR` / `SAPHanaSR-angi`. Require parity per affected
+axis, not the full cross-product: a topology-agnostic command-dispatch change needs the
+SUSE/RHEL cases only. Missing an axis the code *does* branch on leaves a supported branch
+untested — that is what makes the dimension-4 rule enforceable.
 
 Checklist: [domain-performance-testing.md](references/domain-performance-testing.md).
 

@@ -201,11 +201,16 @@ tasks — call that out.
 
 ## Matrix parity in tests
 
-A platform-matrix feature (see dimension 4) needs parametrised tests covering **every axis that
-dimension declares** — SUSE `crm` / RHEL `pcs`, Scale-Up / Scale-Out HSR / **Scale-Out
-Standby**, and `SAPHanaSR` / `SAPHanaSR-angi`. Tests that cover only the SUSE/RHEL and
-Scale-Up/Scale-Out axes leave supported branches untested. Without full coverage the matrix
-rule is unenforceable, which is why the two dimensions are reviewed together.
+A platform-matrix feature (see dimension 4) needs parametrised tests covering **each axis the
+changed behaviour actually consumes or branches on**, drawn from that dimension's axes —
+SUSE `crm` / RHEL `pcs`, Scale-Up / Scale-Out HSR / Scale-Out Standby, and `SAPHanaSR` /
+`SAPHanaSR-angi`.
+
+Require parity **per affected axis, not the full cross-product**. The axes are independent: an
+OS command-dispatch change that behaves identically across topologies needs SUSE and RHEL
+cases, not every topology × provider combination. Demanding the cross-product adds test cost
+without exercising another branch. But an axis the code *does* branch on and the tests omit is
+a real gap — that is why the two dimensions are reviewed together.
 
 ## Tests changed alongside behaviour
 

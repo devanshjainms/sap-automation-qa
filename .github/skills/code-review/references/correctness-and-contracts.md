@@ -103,7 +103,10 @@ Rules to apply:
 - clear `app.state` as well as module-level globals, or the next startup reuses a dead
   handle.
 
-Flag any early `return` in a `close()`/`shutdown()`/`__aexit__` that owns more than one thing.
+Flag an early `return` in a `close()`/`shutdown()`/`__aexit__` **only when you can show it is
+reachable while a sibling resource is still open** — name the resource and the path. An
+idempotent guard (`if self._closed: return`) or a return taken before anything was acquired is
+correct; owning several resources does not by itself prove a leak.
 
 ## 5. Check-then-act and previews that mutate
 
