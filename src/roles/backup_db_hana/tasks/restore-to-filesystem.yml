@@ -359,7 +359,7 @@
                                     db_dir="{{ backup_target_filesystem_path }}/{{ (backup_systemdb_items[0].name | default('systemdb')) | lower }}"
                                     mkdir -p "${db_dir}/Log" "${db_dir}/catalog"
                                     rm -f "${db_dir}"/Data/*_metadata.json "${db_dir}"/Log/*_metadata.json
-                                    hdbbackupdiag --generate --dataDir "${db_dir}/Data" --logDirs "${db_dir}/Log" -d "${db_dir}/catalog"
+                                    hdbbackupdiag --generate --dataDir "${db_dir}/Data" --logDirs "${db_dir}/Log" -d "${db_dir}/catalog" --databaseName SYSTEMDB
       args:
         executable:                 /bin/bash
       register:                     systemdb_catalog_gen
@@ -393,7 +393,7 @@
                                     db_dir="{{ backup_target_filesystem_path }}/{{ db_item.name | lower }}"
                                     mkdir -p "${db_dir}/Log" "${db_dir}/catalog"
                                     rm -f "${db_dir}"/Data/*_metadata.json "${db_dir}"/Log/*_metadata.json
-                                    hdbbackupdiag --generate --dataDir "${db_dir}/Data" --logDirs "${db_dir}/Log" -d "${db_dir}/catalog"
+                                    hdbbackupdiag --generate --dataDir "${db_dir}/Data" --logDirs "${db_dir}/Log" -d "${db_dir}/catalog" --databaseName {{ db_item.name | upper }}
       args:
         executable:                 /bin/bash
       register:                     tenant_catalog_gen
