@@ -222,6 +222,40 @@ class TestMapVgToDiskNames:
         assert sorted(result["datavg"]) == ["disk1", "disk2"]
         assert any("Found 1 LVM reports" in log["message"] for log in mock_parent.logs)
 
+    def test_map_vg_to_disk_names_with_nvme_devices(self, collector, mock_parent):
+        """Test NVMe physical volumes map to Azure disks through their LUNs"""
+        lvm_fullreport = {
+            "report": [
+                {
+                    "pv": [
+                        {"pv_name": "/dev/nvme0n2"},
+                        {"pv_name": "/dev/nvme0n4"},
+                        {"pv_name": "/dev/nvme0n5"},
+                    ],
+                    "vg": [{"vg_name": "vg_hana_data"}],
+                }
+            ]
+        }
+        imds_metadata = [
+            {"lun": "0", "name": "data-disk-0"},
+            {"lun": "1", "name": "data-disk-1"},
+            {"lun": "2", "name": "data-disk-2"},
+        ]
+        device_lun_map = {
+            "nvme0n2": "0",
+            "nvme0n4": "1",
+            "nvme0n5": "2",
+        }
+
+        result = collector._map_vg_to_disk_names(
+            lvm_fullreport, imds_metadata, device_lun_map
+        )
+
+        assert result == {
+            "vg_hana_data": ["data-disk-0", "data-disk-1", "data-disk-2"]
+        }
+        assert not any("No LUN mapping found" in log["message"] for log in mock_parent.logs)
+
     def test_map_vg_to_disk_names_error_cases(self, collector, mock_parent):
         """Test VG mapping handles various error conditions: missing LUN, missing IMDS, no VG names, exceptions"""
         mock_parent.logs.clear()
