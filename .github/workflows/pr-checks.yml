@@ -137,7 +137,14 @@ jobs:
           python-version: '3.10'
 
       - name: Install skill validator dependencies
-        run: python -m pip install --disable-pip-version-check pyyaml==6.0.3
+        run: |
+          set -euo pipefail
+          cat > "${RUNNER_TEMP}/skill-validator-requirements.txt" <<'EOF'
+          pyyaml==6.0.3 \
+              --hash=sha256:9c7708761fccb9397fe64bbc0395abcae8c4bf7b0eac081e12b809bf47700d0b \
+              --hash=sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f
+          EOF
+          python -m pip install --disable-pip-version-check --require-hashes -r "${RUNNER_TEMP}/skill-validator-requirements.txt"
 
       - name: Derive expected skill sets from the skill directories
         run: |

@@ -424,4 +424,3 @@ with the `/` prefix (e.g., `/test-runner`).
 | `/workspace-creator` | Create new workspace, onboard SAP system |
 | `/test-runner` | Run tests, execute configuration checks, start HA tests |
 | `/test-result-analyzer` | Analyze test failures, interpret results, find root causes |
-| `/code-review` | Review a PR or diff for correctness, reliability, security, Azure/SAP domain rules, performance, test coverage, maintainability |
