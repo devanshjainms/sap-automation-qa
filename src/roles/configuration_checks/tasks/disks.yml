@@ -60,7 +60,7 @@
                                           [ -z "${seen_luns[$lun]:-}" ] || continue
 
                                           device=$(readlink -f "$lun_link")
-                                          [ -n "$device" ] || continue
+                                          [ -e "$device" ] || continue
                                           device=$(basename "$device")
 
                                           echo "${device}:${lun}"
