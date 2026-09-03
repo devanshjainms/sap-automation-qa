@@ -527,7 +527,10 @@ class BackupDiscovery:
             status = TestStatus.ERROR.value
 
         if excluded:
-            status = TestStatus.ERROR.value
+            if not protected:
+                status = TestStatus.ERROR.value
+            elif status == TestStatus.SUCCESS.value:
+                status = TestStatus.WARNING.value
 
         total = len(protected)
         passed = status_counts.get(TestStatus.SUCCESS.value, 0)

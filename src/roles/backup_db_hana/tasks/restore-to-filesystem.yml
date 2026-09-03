@@ -425,6 +425,7 @@
       register:                     hana_file_recover_result
       delegate_to:                  "{{ backup_primary_node }}"
       run_once:                     true
+      when:                         backup_systemdb_items | length > 0
 
     - name:                         "Test Execution: {{ item.name | default('') }} - Wait for SQL connectivity after SYSTEMDB recovery"
       ansible.builtin.include_tasks: "roles/backup_db_hana/tasks/includes/wait-for-sql.yml"
@@ -463,7 +464,8 @@
                                     source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
                                     hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
                                       "SELECT COUNT(*) FROM SYS.M_DATABASES \
-                                       WHERE DATABASE_NAME != 'SYSTEMDB' AND ACTIVE_STATUS = 'YES'"
+                                       WHERE ACTIVE_STATUS = 'YES' \
+                                       AND DATABASE_NAME IN ('{{ backup_tenant_items | map(attribute='name') | map('upper') | join("', '") }}')"
       args:
         executable:                 /bin/bash
       register:                     tenant_stop_verify
@@ -473,6 +475,7 @@
       retries:                      "{{ backup_tenant_stop_retries | default(30) }}"
       delay:                        "{{ backup_tenant_stop_delay | default(10) }}"
       until:                        tenant_stop_verify.stdout | default('1') | regex_search('[0-9]+') | default('1') | int == 0
+      when:                         backup_tenant_items | default([]) | length > 0
 
     - name:                         "Test Execution: {{ item.name | default('') }} - Recover tenant DB from backup files"
       become:                       true

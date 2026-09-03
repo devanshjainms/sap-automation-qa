@@ -106,6 +106,7 @@
                                             | map('regex_replace', '\"', '')
                                             | map('trim')
                                             | select('match', '^[A-Za-z0-9_]+$')
+                                            | reject('equalto', 'DATABASE_NAME')
                                             | list }}"
       run_once:                         true
 
@@ -115,9 +116,10 @@
       ansible.builtin.shell: |
                                         set -o pipefail
                                         source /usr/sap/{{ db_sid | upper }}/home/.sapenv.sh && \
-                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -d {{ tenant_name }} -j -a \
-                                          "SELECT TOP 1 BACKUP_ID FROM M_BACKUP_CATALOG \
-                                           WHERE ENTRY_TYPE_NAME = 'complete data backup' \
+                                        hdbsql -U {{ hana_userstore_key | default('SYSTEM') }} -j -a \
+                                          "SELECT TOP 1 BACKUP_ID FROM SYS_DATABASES.M_BACKUP_CATALOG \
+                                           WHERE DATABASE_NAME = '{{ tenant_name }}' \
+                                           AND ENTRY_TYPE_NAME = 'complete data backup' \
                                            AND STATE_NAME = 'successful' \
                                            ORDER BY UTC_START_TIME DESC"
       args:
